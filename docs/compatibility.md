@@ -1,0 +1,38 @@
+# Codex 协议兼容性
+
+验证日期：2026-10-13（Asia/Shanghai）。目标可执行文件实际报告 `codex-cli 0.162.1`。
+
+`src/codex/generated/` 是本机该版本执行 `codex app-server generate-ts --out ./src/codex/generated` 的原始产物，未手工修改。`src/codex/protocol-version.json` 记录来源。更新协议需显式执行 `pnpm codex:generate -- --config ./config.local.json`，使用配置中的 `codex.binary`；安装与启动不会更新 CLI 或重新生成协议。生成文件仅用于服务端适配和模拟器的静态类型约束，浏览器使用 `src/shared/types.ts`。
+
+官方接口背景见 [Codex App Server 文档](https://learn.chatgpt.com/docs/app-server)。应用以本仓库生成的目标版本类型为准，重点差异如下。
+
+| 项目       | 0.162.1 的实际映射                                                                                                                                                    |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 握手       | `initialize` 成功后发送 `initialized`，随后读认证和模型；`experimentalApi: true` 允许结构化用户请求                                                                   |
+| 历史来源   | `thread/list.sourceKinds` 显式为 `cli`、`appServer`、`vscode`；省略只匹配原始字符串的 `cwd`，由服务层按 realpath 和目录边界筛选归属，保留符号链接别名和项目子目录历史 |
+| 分页历史   | `Thread.historyMode` 可为 `paginated`；此时用 `thread/turns/list` 与必要的 `thread/items/list` 完整加载，不假定 `thread/read(includeTurns)` 覆盖所有历史              |
+| 新建、恢复 | `thread/start`、`thread/resume` 只映射已定义设置；恢复附带服务端已校验的 `cwd`                                                                                        |
+| 文本输入   | `input: [{ type: 'text', text, text_elements: [] }]`，追加要求使用 `turn/steer.expectedTurnId`                                                                        |
+| 推理强度   | turn 使用 `effort`；新建和恢复通过协议支持的 `config.model_reasoning_effort` 设置；选项来自 `model/list`                                                              |
+| 权限       | thread 使用 `sandbox` 枚举；turn 映射为 `sandboxPolicy` 对象，不直接透传浏览器字段                                                                                    |
+| 审批       | command/file 使用各自 decision 枚举；命令规则和网络规则只能采用上游请求提供的具体 amendment                                                                           |
+| 结构化问题 | `item/tool/requestUserInput`，回复为 `{ answers: { questionId: { answers: [...] } } }`；校验选项、自由输入和题目 ID，保留 `isBlocking` 语义                           |
+| 回答确认   | 写入回复后保持 responding；`serverRequest/resolved` 才确认 answered，turn 结束或进程退出使遗留请求失效                                                                |
+| 请求 ID    | 字符串与数字分别匹配，数字 `0` 有效；不依赖响应顺序                                                                                                                   |
+| 新活动类型 | 保留稳定 item ID，以通用活动详情展示；未知交互请求显示兼容错误并回复 JSON-RPC `-32601`，不会自动同意                                                                  |
+
+历史列表保留上游分页游标。归属筛选后某页可能较少或为空，仍可通过“加载更多”继续下一页；不能将空页误判为历史结束。
+
+默认 RPC 回执期限 30 秒，与 turn 执行时间分开。回执超时、写入失败、进程退出及协议错误均保留可能已执行的不确定性；不会自动重发 prompt。stdout 单行上限 8 MiB，stdin 待写上限 4 MiB，待确认 RPC 上限 256；stderr 只保存 64 KiB 内存尾部，不返回给浏览器。子进程只使用参数数组启动，继承用户环境；仅配置 `codex.home` 时覆盖子进程的 `CODEX_HOME`。关闭时只处理本服务持有的子进程，有限等待后强制结束。
+
+版本相同时显示 verified；其他版本显示 unverified，不伪装验证成功。上游明确拒绝某方法为不支持后，该方法被禁用并显示原因。缺少认证、模型查询或初始化能力时保留明确诊断，不进入无限重启。
+
+## 实际验证
+
+- 无账号模拟测试使用真实子进程，覆盖 UTF-8 跨字节、分片、多行、交错通知/请求/响应、字符串与数字 ID、回执延迟与超时、真实终态、命令/文件/网络审批、结构化问题、未知交互、异常退出、分页历史及不支持的方法。
+- 本机真实 `0.162.1` 已通过版本检查、`initialize → initialized`、`account/read` 和 `model/list`；认证可用，返回 7 个模型。未打印账户内容或令牌。
+- 当前开发沙箱直接启动 app-server 会返回 `Operation not permitted`；经执行环境允许的沙箱外运行完成上述真实诊断。这是开发环境限制，不会自动切换为模拟数据。
+- `pnpm test:live` 默认只执行上述诊断，不发起模型推理。`pnpm test:live -- --inference` 显式使用额度，在独立临时目录创建 `smoke.txt`、核对内容、继续对话、检查历史，并验证无事件订阅期间 app-server PID 不变。可用 `--output /tmp/report.json` 保存范围明确的报告。
+- 本机真实推理冒烟已完成：临时项目文件内容正确、收到实际文件变更、继续对话和历史查询通过；无需执行 shell，因此该轮没有命令输出，不能将此写成真实命令输出验证。网页断线恢复、实际人工审批及经 Cloudflare 的完整访问，须以 `docs/verification.md` 中对应实测记录为准；适配器的订阅测试不等同于浏览器或 Tunnel 验证。
+
+本应用不更改全局 Codex 配置、不自动登录或升级、不编辑 Codex 的内部数据库或 rollout 文件。CLI 历史交接由业务层要求用户明确确认原终端已停止工作，协议中的 `notLoaded` 只映射为状态未知。

@@ -1,0 +1,151 @@
+import type { ItemView, RunStatus, Settings, ThreadView, TurnView } from '../shared/types.js';
+import type { Thread } from './generated/v2/Thread.js';
+import type { ThreadItem } from './generated/v2/ThreadItem.js';
+import type { ThreadStatus } from './generated/v2/ThreadStatus.js';
+import type { Turn } from './generated/v2/Turn.js';
+import type { ThreadStartParams } from './generated/v2/ThreadStartParams.js';
+import type { TurnStartParams } from './generated/v2/TurnStartParams.js';
+import type { ReasoningEffort } from './generated/ReasoningEffort.js';
+import { CodexError, isRecord } from './transport.js';
+
+export function threadStatus(status: ThreadStatus): RunStatus {
+  if (!isRecord(status))
+    throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex thread status is malformed', true);
+  if (status.type === 'notLoaded') return 'unknown';
+  if (status.type === 'idle') return 'idle';
+  if (status.type === 'systemError') return 'failed';
+  if (status.type !== 'active' || !Array.isArray(status.activeFlags))
+    throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex thread status is not supported', true);
+  if (status.activeFlags.includes('waitingOnApproval')) return 'waitingApproval';
+  if (status.activeFlags.includes('waitingOnUserInput')) return 'waitingInput';
+  return 'running';
+}
+export function mapThread(thread: Thread): ThreadView {
+  assertObjectId(thread, 'thread');
+  if (typeof thread.cwd !== 'string' || !Array.isArray(thread.turns) || !isRecord(thread.status))
+    throw new CodexError(
+      'PROTOCOL_INCOMPATIBLE',
+      'Codex thread response is missing required fields',
+      true,
+    );
+  return {
+    id: thread.id,
+    projectId: '',
+    cwd: thread.cwd,
+    source: typeof thread.source === 'string' ? thread.source : JSON.stringify(thread.source),
+    title: thread.name || thread.preview || '新会话',
+    status: threadStatus(thread.status),
+    turns: thread.turns.map((turn) => mapTurn(thread.id, turn)),
+    managed: false,
+    updatedAt: thread.updatedAt * 1000,
+    actions: [],
+  };
+}
+export function mapTurn(threadId: string, turn: Turn): TurnView {
+  assertObjectId(turn, 'turn');
+  if (!['inProgress', 'completed', 'failed', 'interrupted'].includes(turn.status))
+    throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex turn status is not supported', true);
+  if (!Array.isArray(turn.items))
+    throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex turn response is missing items', true);
+  return {
+    id: turn.id,
+    threadId,
+    status: turn.status === 'inProgress' ? 'running' : turn.status,
+    items: turn.items.map(mapItem),
+    ...(turn.error ? { error: turn.error.message } : {}),
+  };
+}
+export function mapItem(item: ThreadItem): ItemView {
+  assertObjectId(item, 'item');
+  if (typeof item.type !== 'string')
+    throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex item has no type', true);
+  switch (item.type) {
+    case 'userMessage':
+      return {
+        id: item.id,
+        type: item.type,
+        text: item.content
+          .map((input) => (input.type === 'text' ? input.text : `[${input.type}]`))
+          .join('\n'),
+      };
+    case 'agentMessage':
+      return { id: item.id, type: item.type, text: item.text };
+    case 'reasoning':
+      return { id: item.id, type: item.type, text: [...item.summary, ...item.content].join('\n') };
+    case 'plan':
+      return { id: item.id, type: item.type, text: item.text };
+    case 'commandExecution':
+      return {
+        id: item.id,
+        type: item.type,
+        status: item.status,
+        command: item.command,
+        cwd: item.cwd,
+        output: item.aggregatedOutput ?? '',
+        ...(item.exitCode !== null && item.exitCode !== 0
+          ? { error: `退出代码 ${item.exitCode}` }
+          : {}),
+      };
+    case 'fileChange':
+      return {
+        id: item.id,
+        type: item.type,
+        status: item.status,
+        changes: item.changes.map((change) => ({
+          path: change.path,
+          kind: change.kind.type,
+          diff: change.diff,
+        })),
+      };
+    default:
+      return {
+        id: item.id,
+        type: item.type,
+        ...('status' in item ? { status: String(item.status) } : {}),
+        details: item,
+      };
+  }
+}
+export function threadSettings(
+  settings: Settings = {},
+): Pick<ThreadStartParams, 'model' | 'approvalPolicy' | 'sandbox' | 'config'> {
+  return {
+    ...(settings.model === undefined ? {} : { model: settings.model }),
+    ...(settings.approvalPolicy === undefined ? {} : { approvalPolicy: settings.approvalPolicy }),
+    ...(settings.sandbox === undefined ? {} : { sandbox: settings.sandbox }),
+    ...(settings.reasoningEffort === undefined
+      ? {}
+      : { config: { model_reasoning_effort: settings.reasoningEffort } }),
+  };
+}
+export function turnSettings(
+  cwd: string,
+  settings: Settings = {},
+): Pick<TurnStartParams, 'model' | 'approvalPolicy' | 'sandboxPolicy' | 'effort'> {
+  const sandboxPolicy: TurnStartParams['sandboxPolicy'] =
+    settings.sandbox === 'read-only'
+      ? { type: 'readOnly', networkAccess: false }
+      : settings.sandbox === 'workspace-write'
+        ? {
+            type: 'workspaceWrite',
+            writableRoots: [cwd],
+            networkAccess: false,
+            excludeTmpdirEnvVar: false,
+            excludeSlashTmp: false,
+          }
+        : settings.sandbox === 'danger-full-access'
+          ? { type: 'dangerFullAccess' }
+          : undefined;
+  return {
+    ...(settings.model === undefined ? {} : { model: settings.model }),
+    ...(settings.approvalPolicy === undefined ? {} : { approvalPolicy: settings.approvalPolicy }),
+    ...(sandboxPolicy === undefined ? {} : { sandboxPolicy }),
+    ...(settings.reasoningEffort === undefined
+      ? {}
+      : { effort: settings.reasoningEffort as ReasoningEffort }),
+  };
+}
+function assertObjectId(value: unknown, kind: string): void {
+  if (!isRecord(value) || typeof value.id !== 'string')
+    throw new CodexError('PROTOCOL_INCOMPATIBLE', `Codex ${kind} has no stable id`, true);
+}
