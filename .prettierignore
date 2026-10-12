@@ -1,0 +1,8 @@
+node_modules
+dist
+src/codex/generated
+drizzle
+pnpm-lock.yaml
+codex-web-ui-mvp.md
+playwright-report
+test-results
