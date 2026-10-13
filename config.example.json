@@ -1,0 +1,10 @@
+{
+  "host": "127.0.0.1",
+  "port": 8787,
+  "publicOrigin": "http://127.0.0.1:8787",
+  "developmentOrigins": ["http://127.0.0.1:5173"],
+  "dataDir": "./.local/codex-web",
+  "codex": { "binary": "codex" },
+  "auth": { "mode": "local" },
+  "projects": [{ "id": "my-project", "name": "我的项目", "path": "/Users/you/Projects/my-project" }]
+}
