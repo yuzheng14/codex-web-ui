@@ -1,0 +1,3 @@
+src/codex/generated/** linguist-generated=true
+drizzle/meta/** linguist-generated=true
+pnpm-lock.yaml linguist-generated=true

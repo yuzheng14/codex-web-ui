@@ -1,0 +1,62 @@
+{
+  "name": "codex-web-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=24.19.0 <25"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web 'node --import tsx --watch src/server/main.ts --config config.local.json --dev' 'vite'",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "pnpm build && playwright test",
+    "build": "vite build && node --import tsx scripts/build-server.ts",
+    "start": "node dist/server/main.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --import tsx scripts/migrate.ts",
+    "codex:generate": "node --import tsx scripts/generate-codex.ts",
+    "test:live": "node --import tsx scripts/live-smoke.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.4",
+    "@radix-ui/react-slot": "1.4.0",
+    "better-sqlite3": "13.0.3",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "drizzle-orm": "0.45.4",
+    "hono": "4.13.13",
+    "jose": "6.2.12",
+    "lucide-react": "1.55.0",
+    "proper-lockfile": "4.1.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-markdown": "10.1.0",
+    "tailwind-merge": "3.7.0",
+    "ws": "8.22.0",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.0",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "^24.19.2",
+    "@types/proper-lockfile": "4.1.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/ws": "8.18.2",
+    "@vitejs/plugin-react": "6.1.2",
+    "concurrently": "10.0.6",
+    "drizzle-kit": "0.31.11",
+    "esbuild": "0.28.2",
+    "eslint": "10.12.0",
+    "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "8.71.1",
+    "vite": "8.3.4",
+    "vitest": "5.0.3"
+  }
+}
