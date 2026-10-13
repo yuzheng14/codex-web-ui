@@ -100,7 +100,8 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
   try {
     const config = await loadConfig();
     const runtime = await startGateway(config);
-    console.log(`Codex Web UI listening at ${config.publicOrigin}`);
+    console.log(`Codex Web UI listening on ${config.host}:${config.port}`);
+    console.log(`Allowed origins: ${config.publicOrigin.join(', ')}`);
     const stop = () => {
       void runtime.close().then(
         () => {

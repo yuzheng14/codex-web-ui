@@ -1,4 +1,5 @@
 import { createServer } from 'node:net';
+import { request as httpRequest } from 'node:http';
 import { mkdtemp, mkdir, rm, writeFile, cp, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -14,7 +15,13 @@ const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
-async function setup(options: { confirmCompatibility?: boolean; unsupportedMethod?: string } = {}) {
+async function setup(
+  options: {
+    confirmCompatibility?: boolean;
+    unsupportedMethod?: string;
+    origins?: (origin: string) => string[];
+  } = {},
+) {
   const probe = createServer();
   probe.listen(0, '127.0.0.1');
   await once(probe, 'listening');
@@ -27,10 +34,11 @@ async function setup(options: { confirmCompatibility?: boolean; unsupportedMetho
   await mkdir(join(root, 'web'));
   await writeFile(join(root, 'web/index.html'), '<!doctype html><title>Codex test</title>');
   const origin = `http://127.0.0.1:${address.port}`;
+  const origins = options.origins?.(origin) ?? [origin];
   const config = parseConfig(
     {
       port: address.port,
-      publicOrigin: origin,
+      publicOrigin: origins,
       dataDir: join(root, 'data'),
       projects: [{ id: 'test', name: 'Test', path: join(root, 'project') }],
     },
@@ -58,8 +66,11 @@ async function setup(options: { confirmCompatibility?: boolean; unsupportedMetho
       headers: { origin, 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
-  const connect = async () => {
-    const ws = new WebSocket(origin.replace('http:', 'ws:') + '/ws', { origin });
+  const connect = async (browserOrigin = origin) => {
+    const ws = new WebSocket(origin.replace('http:', 'ws:') + '/ws', {
+      origin: browserOrigin,
+      headers: { host: new URL(browserOrigin).host },
+    });
     await once(ws, 'open');
     cleanup.push(async () => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -80,7 +91,59 @@ async function setup(options: { confirmCompatibility?: boolean; unsupportedMetho
     });
     expect(confirmation.status).toBe(200);
   }
-  return { origin, runtime, post, connect };
+  return { origin, origins, runtime, post, connect };
+}
+// Simulate the Host and Origin preserved by an HTTP reverse proxy such as Tailscale Serve.
+// These requests use a real loopback listener; they do not test a live Tailscale deployment.
+function proxyRequest(
+  origin: string,
+  path: string,
+  headers: { host: string; origin?: string },
+  body?: object,
+): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      new URL(path, origin),
+      {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: {
+          ...headers,
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        },
+      },
+      (response) => {
+        let text = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk: string) => {
+          text += chunk;
+        });
+        response.on('end', () => resolve({ status: response.statusCode!, text }));
+        response.on('error', reject);
+      },
+    );
+    request.setTimeout(3000, () => request.destroy(new Error('HTTP request timeout')));
+    request.on('error', reject);
+    request.end(body === undefined ? undefined : JSON.stringify(body));
+  });
+}
+
+function rejectedUpgrade(origin: string, headers: { host: string; origin: string }) {
+  return new Promise<number>((resolve, reject) => {
+    const ws = new WebSocket(origin.replace('http:', 'ws:') + '/ws', {
+      headers,
+      handshakeTimeout: 3000,
+    });
+    ws.once('unexpected-response', (_request, response) => {
+      response.resume();
+      resolve(response.statusCode!);
+      ws.terminate();
+    });
+    ws.once('open', () => {
+      ws.terminate();
+      reject(new Error('Unexpected successful WebSocket upgrade'));
+    });
+    ws.on('error', reject);
+  });
 }
 function message(
   ws: WebSocket,
@@ -102,6 +165,105 @@ function message(
     ws.on('message', listener);
   });
 }
+const multipleOrigins = (origin: string) => [
+  origin,
+  origin.replace('127.0.0.1', 'localhost'),
+  'https://codex.example.ts.net',
+];
+
+it('serves every configured origin through one HTTP gateway and shared WebSocket execution', async () => {
+  const { origin, origins, runtime, connect } = await setup({ origins: multipleOrigins });
+  const pid = runtime.codex.pid;
+  const create = vi.spyOn(runtime.codex, 'createThread');
+  const threadIds: string[] = [];
+  for (const browserOrigin of origins) {
+    const headers = { host: new URL(browserOrigin).host, origin: browserOrigin };
+    const page = await proxyRequest(origin, '/', { host: headers.host });
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('Codex test');
+    const system = await proxyRequest(origin, '/api/system', headers);
+    expect(system.status).toBe(200);
+    expect(JSON.parse(system.text)).toMatchObject({
+      codexEpoch: runtime.service.getSystem().codexEpoch,
+      compatibilityConfirmation: 'confirmed',
+    });
+    const projects = await proxyRequest(origin, '/api/projects', headers);
+    expect(projects.status).toBe(200);
+    expect(JSON.parse(projects.text)).toMatchObject({ data: [{ id: 'test' }] });
+    const created = await proxyRequest(origin, '/api/projects/test/threads', headers, {
+      clientOperationId: randomUUID(),
+    });
+    expect(created.status).toBe(200);
+    const operation = JSON.parse(created.text) as Operation;
+    expect(operation.status).toBe('acknowledged');
+    threadIds.push((operation.result as { threadId: string }).threadId);
+  }
+  expect(create).toHaveBeenCalledTimes(3);
+  expect(new Set(threadIds).size).toBe(3);
+  const threadId = threadIds[0]!;
+  const sockets = await Promise.all(origins.map((browserOrigin) => connect(browserOrigin)));
+  for (const ws of sockets) {
+    const snapshot = message(ws, (event) => event.type === 'snapshot');
+    ws.send(JSON.stringify({ type: 'subscribe', threadId }));
+    expect(await snapshot).toMatchObject({ type: 'snapshot', data: { id: threadId } });
+  }
+  const completions = sockets.map((ws) =>
+    message(ws, (event) => {
+      if (event.type !== 'event' || event.kind !== 'thread') return false;
+      const thread = event.payload as ThreadView;
+      return thread.id === threadId && thread.turns[0]?.status === 'completed';
+    }),
+  );
+  const browserOrigin = origins[2]!;
+  const started = await proxyRequest(
+    origin,
+    `/api/threads/${threadId}/turns`,
+    { host: new URL(browserOrigin).host, origin: browserOrigin },
+    { clientOperationId: randomUUID(), text: '跨入口查看同一个任务' },
+  );
+  expect(started.status).toBe(200);
+  await Promise.all(completions);
+  for (const browserOrigin of origins) {
+    const response = await proxyRequest(origin, `/api/threads/${threadId}`, {
+      host: new URL(browserOrigin).host,
+      origin: browserOrigin,
+    });
+    expect(response.status).toBe(200);
+    const thread = JSON.parse(response.text) as ThreadView;
+    expect(thread.turns).toHaveLength(1);
+    expect(thread.turns[0]?.status).toBe('completed');
+  }
+  expect(runtime.codex.pid).toBe(pid);
+});
+
+it('rejects unconfigured hosts, origins and ports for HTTP pages, APIs and WebSocket upgrades', async () => {
+  const { origin, runtime } = await setup({ origins: multipleOrigins });
+  const host = new URL(origin).host;
+  const cases = [
+    { host: 'unconfigured.example.ts.net', origin, code: 'INVALID_HOST' },
+    { host: `${new URL(origin).hostname}:1`, origin, code: 'INVALID_HOST' },
+    { host: 'codex.example.ts.net:444', origin, code: 'INVALID_HOST' },
+    { host, origin: 'https://unconfigured.example.ts.net', code: 'INVALID_ORIGIN' },
+    { host, origin: 'http://127.0.0.1:1', code: 'INVALID_ORIGIN' },
+    { host, origin: 'https://codex.example.ts.net:444', code: 'INVALID_ORIGIN' },
+  ];
+  const create = vi.spyOn(runtime.codex, 'createThread');
+  for (const { code, ...headers } of cases) {
+    for (const path of ['/', '/api/projects']) {
+      const response = await proxyRequest(origin, path, headers);
+      expect(response.status).toBe(403);
+      expect(JSON.parse(response.text)).toMatchObject({ error: { code } });
+    }
+    const response = await proxyRequest(origin, '/api/projects/test/threads', headers, {
+      clientOperationId: randomUUID(),
+    });
+    expect(response.status).toBe(403);
+    expect(JSON.parse(response.text)).toMatchObject({ error: { code } });
+    expect(await rejectedUpgrade(origin, headers)).toBe(403);
+  }
+  expect(create).not.toHaveBeenCalled();
+});
+
 it('runs through HTTP, survives all sockets closing, and reconnects from a snapshot with real IDs', async () => {
   const { origin, runtime, post, connect } = await setup();
   const createResponse = await post('/api/projects/test/threads', {
