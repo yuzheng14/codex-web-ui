@@ -45,6 +45,8 @@ node /absolute/path/codex-web-ui/dist/server/main.js --config /absolute/path/cod
 - 本地模式要求监听地址和 publicOrigin 都为回环地址。公开域名必须使用 `cloudflare-access` 模式，参见 [部署指南](docs/deployment.md)。
 - 模型、推理强度、审批与沙箱默认继承 Codex 配置；显式选择通过版本适配层校验和映射。
 
+本机升级 Codex 后，若运行版本尚未验证，页面会先提示可能无法正常使用，并要求明确“确认继续”。确认前不能新建、恢复或发送任务，但仍可查看诊断和中断已有任务。确认在同一服务与 Codex 实例内共享，刷新不会重复询问；重启或版本变化后需要重新确认。初始化失败或已知不支持的操作不能通过确认绕过，详见 [兼容性说明](docs/compatibility.md)。
+
 选择项目、新建会话后发送文本。历史包括 CLI、app-server 与 VS Code 来源。首次恢复不受当前服务持有的历史会话时，需要明确确认原 CLI 已停止操作该会话。本应用不会接管或结束其他终端进程。
 
 同一 checkout 同时只执行一个任务，Git worktree 分开计算。执行中输入框变为追加要求；中断需要等待真实终态。工具命令、输出、文件变更和 diff 按所属 turn 展示。审批及结构化问题在人工请求区域处理；断线不会自动作答。

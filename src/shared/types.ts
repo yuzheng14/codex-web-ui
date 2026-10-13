@@ -96,6 +96,12 @@ export type ActionResolution = { decision: string } | { answers: Record<string, 
 export interface OperationInput {
   clientOperationId: string;
 }
+export interface ConfirmCompatibilityInput extends OperationInput {
+  codexEpoch: string;
+  codexVersion: string;
+  verifiedVersion: string;
+  confirm: true;
+}
 export interface CreateThreadInput extends OperationInput {
   settings?: Settings;
 }
@@ -162,6 +168,7 @@ export interface SystemInfo {
   codexVersion: string | null;
   verifiedVersion: string;
   compatibility: 'verified' | 'unverified' | 'unavailable';
+  compatibilityConfirmation: 'not-required' | 'required' | 'confirmed';
   codexEpoch: string;
   authenticated: boolean | null;
   authMode: 'local' | 'cloudflare-access';

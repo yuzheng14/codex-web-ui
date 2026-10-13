@@ -68,6 +68,12 @@ export function createApp({
   const status = (op: Operation) =>
     op.status === 'dispatching' || op.status === 'accepted' ? (202 as const) : (200 as const);
   app.get('/api/system', (c) => c.json(service.getSystem()));
+  app.post('/api/system/compatibility/confirm', async (c) => {
+    const op = await service.confirmCompatibility(
+      await parse(c, schemas.confirmCompatibilitySchema),
+    );
+    return c.json(op, status(op));
+  });
   app.get('/api/projects', async (c) => c.json({ data: await service.listProjects() }));
   app.get('/api/threads', async (c) =>
     c.json(

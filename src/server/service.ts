@@ -1,6 +1,7 @@
-import type { CodexClient, CodexEvent } from '../codex/types.js';
+import type { CodexClient, CodexDiagnostics, CodexEvent } from '../codex/types.js';
 import { AppError } from '../shared/errors.js';
 import type {
+  ConfirmCompatibilityInput,
   CreateThreadInput,
   Cursor,
   InterruptInput,
@@ -40,6 +41,7 @@ export class GatewayService {
   private readonly removeListener: () => void;
   private accepting = true;
   private currentEpoch: string;
+  private confirmedCompatibility: string | undefined;
   private readonly reads = new Map<string, Promise<ThreadView>>();
 
   constructor(private readonly options: GatewayOptions) {
@@ -57,14 +59,56 @@ export class GatewayService {
     return this.projects.list();
   }
   getSystem(): SystemInfo {
+    const diagnostics = this.codex.diagnostics();
     return {
-      ...this.codex.diagnostics(),
+      ...diagnostics,
+      compatibilityConfirmation: this.compatibilityConfirmation(diagnostics),
       authMode: this.options.authMode ?? 'local',
       demo: this.options.demo ?? false,
     };
   }
   subscribeRuntime(listener: (message: ServerMessage) => void): () => void {
     return this.events.subscribeRuntime(listener);
+  }
+
+  async confirmCompatibility(input: ConfirmCompatibilityInput): Promise<Operation> {
+    return this.perform('system.compatibility.confirm', 'system', input, async () => {
+      const diagnostics = this.codex.diagnostics();
+      this.ensureCompatibilityAvailable(diagnostics);
+      if (
+        input.confirm !== true ||
+        input.codexEpoch !== diagnostics.codexEpoch ||
+        input.codexVersion !== diagnostics.codexVersion ||
+        input.verifiedVersion !== diagnostics.verifiedVersion
+      )
+        throw new AppError(
+          'COMPATIBILITY_CHANGED',
+          'Codex 运行版本或验证基线已变化，请刷新后重新确认',
+          409,
+        );
+      this.store.dispatch(input.clientOperationId);
+      const fingerprint = this.compatibilityFingerprint(diagnostics);
+      return {
+        result: {
+          codexEpoch: diagnostics.codexEpoch,
+          codexVersion: diagnostics.codexVersion,
+          verifiedVersion: diagnostics.verifiedVersion,
+          compatibilityConfirmation:
+            diagnostics.compatibility === 'unverified' ? 'confirmed' : 'not-required',
+        },
+        onAcknowledged: () => {
+          const current = this.codex.diagnostics();
+          if (
+            this.codex.ready &&
+            current.ready &&
+            current.compatibility === 'unverified' &&
+            this.compatibilityFingerprint(current) === fingerprint
+          )
+            this.confirmedCompatibility = fingerprint;
+          this.events.publish('runtime', this.getSystem());
+        },
+      };
+    });
   }
 
   async listThreads(projectId: string, cursor?: string): Promise<ThreadPage> {
@@ -133,6 +177,7 @@ export class GatewayService {
     return this.perform('thread.create', projectId, input, async () => {
       const project = this.projects.get(projectId);
       this.ensureReady();
+      this.ensureCompatibilityConfirmed();
       this.store.dispatch(input.clientOperationId);
       const thread = await this.codex.createThread(project.canonicalRoot, input.settings);
       const normalized = this.normalize(thread, projectId, true);
@@ -148,6 +193,7 @@ export class GatewayService {
       this.ensureReady();
       const link = this.store.getThreadLink(threadId);
       if (link?.managedEpoch === this.codex.epoch) {
+        this.ensureCompatibilityConfirmed();
         this.store.dispatch(input.clientOperationId);
         return { result: { threadId } };
       }
@@ -161,6 +207,7 @@ export class GatewayService {
         });
       const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
       const revision = this.projection.revision(threadId);
+      this.ensureCompatibilityConfirmed();
       this.store.dispatch(input.clientOperationId);
       const resumed = this.normalize(
         await this.codex.resumeThread(threadId, ownership.cwd, input.settings),
@@ -180,6 +227,7 @@ export class GatewayService {
       const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
       if (isActive(thread.status))
         throw new AppError('THREAD_BUSY', '会话已有活动任务，请追加要求或中断', 409, { threadId });
+      this.ensureCompatibilityConfirmed();
       this.store.dispatch(input.clientOperationId, {
         threadId,
         workspaceKey: ownership.workspaceKey,
@@ -202,6 +250,7 @@ export class GatewayService {
   async steer(threadId: string, input: SteerInput): Promise<Operation> {
     return this.perform('turn.steer', threadId, input, async () => {
       await this.requireActiveTurn(threadId, input.expectedTurnId);
+      this.ensureCompatibilityConfirmed();
       this.store.dispatch(input.clientOperationId);
       const result = await this.codex.steerTurn(threadId, input.expectedTurnId, input.text);
       return { result: { threadId, turnId: result.turnId } };
@@ -234,6 +283,7 @@ export class GatewayService {
       if (action.status !== 'pending')
         throw new AppError('ACTION_CONFLICT', '该人工请求已被处理', 409);
       this.validateResolution(action, input);
+      this.ensureCompatibilityConfirmed();
       this.store.dispatch(input.clientOperationId);
       this.projection.resolveAction(actionId, 'responding');
       if (action.threadId) this.publishThread(action.threadId);
@@ -334,7 +384,7 @@ export class GatewayService {
     kind: string,
     target: string,
     input: T,
-    work: () => Promise<{ result: unknown; turnId?: string }>,
+    work: () => Promise<{ result: unknown; turnId?: string; onAcknowledged?: () => void }>,
   ): Promise<Operation> {
     if (!this.accepting) throw new AppError('CODEX_UNAVAILABLE', '服务正在关闭', 503);
     let accepted;
@@ -345,10 +395,11 @@ export class GatewayService {
     }
     if (!accepted.inserted) return this.operation(accepted.operation);
     try {
-      const { result, turnId } = await work();
+      const { result, turnId, onAcknowledged } = await work();
       const operation = this.operation(
         this.store.acknowledge(input.clientOperationId, result, turnId),
       );
+      if (operation.status === 'acknowledged') onAcknowledged?.();
       this.events.publish('operation', operation);
       return operation;
     } catch (error) {
@@ -434,6 +485,52 @@ export class GatewayService {
   private ensureReady(): void {
     if (!this.codex.ready)
       throw new AppError('CODEX_UNAVAILABLE', 'Codex 尚未就绪，请查看运行状态', 503);
+  }
+
+  private compatibilityFingerprint(diagnostics: CodexDiagnostics): string {
+    return JSON.stringify([
+      diagnostics.codexEpoch,
+      diagnostics.codexVersion,
+      diagnostics.verifiedVersion,
+    ]);
+  }
+
+  private compatibilityConfirmation(
+    diagnostics: CodexDiagnostics,
+  ): SystemInfo['compatibilityConfirmation'] {
+    const fingerprint = this.compatibilityFingerprint(diagnostics);
+    if (
+      !this.codex.ready ||
+      !diagnostics.ready ||
+      diagnostics.compatibility !== 'unverified' ||
+      !diagnostics.codexVersion ||
+      this.confirmedCompatibility !== fingerprint
+    )
+      this.confirmedCompatibility = undefined;
+    if (diagnostics.compatibility !== 'unverified') return 'not-required';
+    return this.confirmedCompatibility === fingerprint ? 'confirmed' : 'required';
+  }
+
+  private ensureCompatibilityAvailable(diagnostics: CodexDiagnostics): void {
+    this.compatibilityConfirmation(diagnostics);
+    this.ensureReady();
+    if (
+      !diagnostics.ready ||
+      diagnostics.compatibility === 'unavailable' ||
+      !diagnostics.codexVersion
+    )
+      throw new AppError('CODEX_UNAVAILABLE', 'Codex 不可用或无法识别运行版本，请先检查诊断', 503);
+  }
+
+  private ensureCompatibilityConfirmed(): void {
+    const diagnostics = this.codex.diagnostics();
+    this.ensureCompatibilityAvailable(diagnostics);
+    if (this.compatibilityConfirmation(diagnostics) === 'required')
+      throw new AppError(
+        'COMPATIBILITY_CONFIRMATION_REQUIRED',
+        '当前 Codex 版本尚未验证，请先确认继续使用此版本',
+        409,
+      );
   }
 
   private ensureManaged(thread: ThreadView): void {
@@ -565,6 +662,7 @@ export class GatewayService {
 
   private consume(event: CodexEvent): void {
     if (event.type === 'runtime') {
+      this.compatibilityConfirmation(event.diagnostics);
       if (!event.diagnostics.ready || event.diagnostics.codexEpoch !== this.currentEpoch) {
         this.currentEpoch = event.diagnostics.codexEpoch;
         this.store.recover();

@@ -10,7 +10,7 @@ import type {
   TurnView,
 } from '../shared/types.js';
 
-export type CodexDiagnostics = Omit<SystemInfo, 'authMode' | 'demo'>;
+export type CodexDiagnostics = Omit<SystemInfo, 'authMode' | 'demo' | 'compatibilityConfirmation'>;
 export type CodexEvent =
   | { type: 'thread'; thread: ThreadView }
   | { type: 'threadStatus'; threadId: string; status: RunStatus }

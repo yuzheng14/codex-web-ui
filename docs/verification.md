@@ -4,18 +4,18 @@
 
 ## 已执行
 
-| 检查                                                              | 结果与范围                                                                                                        |
-| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `pnpm install --frozen-lockfile` / `pnpm peers check`             | 锁定稳定依赖，无未满足 peer 依赖；允许 esbuild/better-sqlite3 必要安装脚本                                        |
-| `pnpm typecheck`、`pnpm lint`                                     | 通过，全应用严格 TypeScript，生成协议不手工改动                                                                   |
-| `pnpm test`                                                       | 75 项通过；真实测试子进程和临时 SQLite，覆盖文本保真、传输、事务、恢复、竞争、鉴权、WS、浏览器状态逻辑            |
-| `pnpm start -- --config …` / `pnpm db:migrate -- --config …`      | 使用隔离临时配置实际执行，生产启动和连续两次迁移通过                                                              |
-| `pnpm build`                                                      | 通过；Vite 页面、Node ESM、SQL 迁移及元数据均在 dist                                                              |
-| `pnpm test:e2e`                                                   | Chromium、显式模拟 app-server，验证对话/工具/diff、刷新、审批断线、结构化问题、手机及 IME；4 项全部通过           |
-| `node --import tsx scripts/verify-production.ts`                  | 通过；复制生产产物到独立临时目录，从其他 cwd 启动。打包迁移、页面、API、WS 可用；Codex 缺失显示不可用，不回退模拟 |
-| `pnpm codex:generate -- --config …`                               | 通过；使用配置指定的实际 0.162.1 二进制生成 743 个协议类型文件                                                    |
-| `node --import tsx scripts/live-browser-smoke.ts --inference`     | 真实 Chromium + 实际 Codex 通过；见 [机器可读记录](real-browser-verification.json)                                |
-| `pnpm test:live -- --inference --output /tmp/codex-web-live.json` | 通过下述真实适配器检查；不是外网端到端测试                                                                        |
+| 检查                                                              | 结果与范围                                                                                                                 |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile` / `pnpm peers check`             | 锁定稳定依赖，无未满足 peer 依赖；允许 esbuild/better-sqlite3 必要安装脚本                                                 |
+| `pnpm typecheck`、`pnpm lint`                                     | 通过，全应用严格 TypeScript，生成协议不手工改动                                                                            |
+| `pnpm test`                                                       | 104 项通过；真实测试子进程和临时 SQLite，覆盖兼容性确认、文本保真、传输、事务、恢复、竞争、鉴权、WS、浏览器状态逻辑        |
+| `pnpm start -- --config …` / `pnpm db:migrate -- --config …`      | 使用隔离临时配置实际执行，生产启动和连续两次迁移通过                                                                       |
+| `pnpm build`                                                      | 通过；Vite 页面、Node ESM、SQL 迁移及元数据均在 dist                                                                       |
+| `pnpm test:e2e`                                                   | Chromium、显式模拟 app-server，验证兼容性确认与恢复、对话/工具/diff、刷新、审批断线、结构化问题、手机及 IME；10 项全部通过 |
+| `node --import tsx scripts/verify-production.ts`                  | 通过；复制生产产物到独立临时目录，从其他 cwd 启动。打包迁移、页面、API、WS 可用；Codex 缺失显示不可用，不回退模拟          |
+| `pnpm codex:generate -- --config …`                               | 通过；使用配置指定的实际 0.162.1 二进制生成 743 个协议类型文件                                                             |
+| `node --import tsx scripts/live-browser-smoke.ts --inference`     | 真实 Chromium + 实际 Codex 通过；见 [机器可读记录](real-browser-verification.json)                                         |
+| `pnpm test:live -- --inference --output /tmp/codex-web-live.json` | 通过下述真实适配器检查；不是外网端到端测试                                                                                 |
 
 真实 app-server 完成了 initialize/initialized、认证查询及 7 个模型查询。在专门 mkdtemp 项目中创建会话，真实写出 `smoke.txt` 并核对完整内容；观察到文件变更事件，重新读取已完成历史，继续第二轮对话，并在显式 CLI/appServer/vscode 列表中找到该会话。停止事件订阅期间子进程 PID 不变。该文件任务没有产生 shell 命令输出，不能据此声称已实测真实命令输出。
 
@@ -26,6 +26,10 @@
 初次交付时，前 13 个 PR 层均从 Git 独立归档后通过类型检查和该层可用测试，第 13 层独立构建通过；最终服务修复在对应层附带回归测试。
 
 任务文本保真修复增加 6 项契约回归测试：发送和追加均原样保留缩进、末尾空白及换行，拒绝纯空白，长度限制按原文计算。扩展现有浏览器流程，精确核对发送、执行中追加的 HTTP 请求正文，以及断线恢复后的消息文本；纯空白不能提交。修复后完整 75 项测试、4 项浏览器验收、类型检查、Lint 和构建通过。
+
+兼容性确认新增 29 项契约、服务和前端状态测试。覆盖确认前的服务端门禁、异步检查期间版本变化、回执持久化失败、旧回执不能重新授权、网关与 Codex 重启失效、版本与验证基线变化、认证与请求校验，以及延迟 HTTP 读取不能覆盖新的运行状态。
+
+新增 6 项浏览器流程：首次确认及取消、两标签页同步与刷新保留、版本与实际子进程重启后重新确认、不可用状态不能绕过、失去确认后仍可中断，以及确认 POST 未到服务端且查询为 404 后显式重新授权。恢复流程核对新的操作 ID、提交前刷新运行状态和零自动任务提交。完整 104 项测试、10 项 Chromium 验收、类型检查、Lint、构建与隔离生产产物检查通过；桌面及 390px 窄屏弹窗已目视检查。测试运行状态控制仅存在于显式测试入口，不加入生产 API。
 
 ## 故障和恢复覆盖
 

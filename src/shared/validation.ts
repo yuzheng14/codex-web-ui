@@ -10,6 +10,12 @@ export const settingsSchema = z
   })
   .strict();
 export const operationSchema = z.object({ clientOperationId: z.string().uuid() }).strict();
+export const confirmCompatibilitySchema = operationSchema.extend({
+  codexEpoch: idSchema,
+  codexVersion: z.string().min(1).max(200),
+  verifiedVersion: z.string().min(1).max(200),
+  confirm: z.literal(true),
+});
 export const createThreadSchema = operationSchema.extend({ settings: settingsSchema.optional() });
 export const resumeThreadSchema = createThreadSchema.extend({
   confirmExternalStopped: z.boolean().optional(),
