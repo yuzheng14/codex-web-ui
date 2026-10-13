@@ -4,6 +4,8 @@
 
 项目规范：[codex-web-ui-mvp.md](codex-web-ui-mvp.md)。实现分层、验收结果与边界见 [architecture](docs/architecture.md)、[verification](docs/verification.md)、[compatibility](docs/compatibility.md)。
 
+实现按 14 个小单元组织为 GitHub 原生 Stacked PR，见 [PR 评审顺序](docs/review-stack.md)。
+
 ## 安装与本机运行
 
 要求 Node.js **24.19.0**（LTS）、pnpm **12.11.2**、已安装并登录的 Codex CLI。协议生成目标为 **0.162.1**。依赖版本固定于 `package.json` 和 `pnpm-lock.yaml`。
