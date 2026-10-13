@@ -2,7 +2,7 @@
 
 版本：1.2  
 日期：2026-10-13  
-交付目标：实现可在私人电脑上运行的 Codex Web UI，供工作机或手机通过 Cloudflare Tunnel 访问。
+交付目标：实现可在私人电脑上运行的 Codex Web UI，供工作机或手机通过 Tailscale Serve 或 Cloudflare Tunnel 访问。
 
 ## 0. 给开发 Codex 的执行指令
 
@@ -27,7 +27,7 @@
 - 可以注册多个项目目录。不同工作区可以分别执行任务。
 - Codex CLI 已在目标机安装，并可使用现有登录方式工作。
 - 前端、API 和 WebSocket 使用同一个域名。
-- 本机开发不需要 Cloudflare；对外访问使用固定 Tunnel 和 Cloudflare Access。
+- 本机开发不需要 Cloudflare；远程访问可使用 Tailscale Serve，公开互联网入口使用固定 Tunnel 和 Cloudflare Access。
 - 私人电脑须处于可工作的运行状态；应用负责显示连接与运行状态，不实现远程开机或唤醒。
 
 核心验收链路：在工作机打开域名，进入私人电脑上的项目，发送任务，看到真实执行过程，关闭页面，再次打开后恢复状态，处理人工请求，查看结果并继续对话。
@@ -474,7 +474,7 @@ Markdown 默认不允许执行原始 HTML；链接协议与内容渲染进行适
 {
   "host": "127.0.0.1",
   "port": 8787,
-  "publicOrigin": "http://127.0.0.1:8787",
+  "publicOrigin": ["http://127.0.0.1:8787", "http://localhost:8787"],
   "dataDir": "./.local/codex-web",
   "codex": {
     "binary": "codex"
@@ -498,9 +498,9 @@ Markdown 默认不允许执行原始 HTML；链接协议与内容渲染进行适
 
 ### 15.2 本地模式
 
-local 模式仅用于本机，要求监听地址和 publicOrigin 为回环地址。检查允许的 Host 和 Origin，不使用通配 CORS。开发模式只额外允许显式配置的本机 Vite origin。
+local 模式要求监听地址为回环地址。publicOrigin 为非空数组，由用户显式列出允许的 HTTP(S) origin；可同时配置本机与 Tailscale Serve 的 HTTPS 入口。HTTP 和 WebSocket 检查数组允许的 Host 和 Origin，不使用通配 CORS。开发模式只额外允许显式配置的本机 Vite origin。
 
-公开域名下必须选择 cloudflare-access 模式。不能把“源服务监听 localhost”当作已经完成外网身份认证。
+local 模式不提供应用登录；Tailscale Serve 的访问身份由 tailnet 策略控制。公开互联网入口必须选择 cloudflare-access 模式。不能把“源服务监听 localhost”当作已经完成外网身份认证。
 
 ### 15.3 Access 模式
 
@@ -508,7 +508,7 @@ local 模式仅用于本机，要求监听地址和 publicOrigin 为回环地址
 
 ```json
 {
-  "publicOrigin": "https://codex.example.com",
+  "publicOrigin": ["https://codex.example.com"],
   "auth": {
     "mode": "cloudflare-access",
     "issuer": "https://your-team.cloudflareaccess.com",
@@ -517,7 +517,7 @@ local 模式仅用于本机，要求监听地址和 publicOrigin 为回环地址
 }
 ```
 
-从 Cf-Access-Jwt-Assertion 读取 token，用配置中固定 issuer 对应的 JWKS 验签并检查 issuer、audience、有效期和允许的算法。JWKS 地址由可信配置构造，不能采用未验证 token 中的任意 URL。Cloudflare 官方给出了该请求头与验证流程。[S8]
+publicOrigin 数组中的所有入口必须使用 HTTPS，并受同一 Access 应用保护。从 Cf-Access-Jwt-Assertion 读取 token，用配置中固定 issuer 对应的 JWKS 验签并检查 issuer、audience、有效期和允许的算法。JWKS 地址由可信配置构造，不能采用未验证 token 中的任意 URL。Cloudflare 官方给出了该请求头与验证流程。[S8]
 
 缺失或无效凭据时拒绝业务请求；不得只解码 JWT、信任邮箱请求头或凭请求来自 loopback 就放行。测试用本地测试密钥和可注入验证器，生产没有跳过验证的后门。
 

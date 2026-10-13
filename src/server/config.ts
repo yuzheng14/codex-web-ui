@@ -4,11 +4,14 @@ import { z } from 'zod';
 import { AppError } from '../shared/errors.js';
 const origin = z
   .string()
-  .url()
+  .regex(/^https?:\/\/[^/?#\\\s]+\/?$/i, 'Expected an exact HTTP(S) origin')
+  .pipe(z.string().url())
   .transform((value, context) => {
     const url = new URL(value);
     if (
       !['http:', 'https:'].includes(url.protocol) ||
+      url.hostname.includes('*') ||
+      value.includes('@') ||
       url.username ||
       url.password ||
       url.pathname !== '/' ||
@@ -17,7 +20,8 @@ const origin = z
     ) {
       context.addIssue({
         code: 'custom',
-        message: 'Expected an HTTP(S) origin without path or credentials',
+        message:
+          'Expected an exact HTTP(S) origin without wildcard, path, credentials, query or hash',
       });
       return z.NEVER;
     }
@@ -34,7 +38,11 @@ export const configSchema = z
   .object({
     host: z.string().default('127.0.0.1'),
     port: z.number().int().min(1).max(65535).default(8787),
-    publicOrigin: origin.default('http://127.0.0.1:8787'),
+    publicOrigin: z
+      .array(origin)
+      .min(1)
+      .default(['http://127.0.0.1:8787'])
+      .transform((values) => [...new Set(values)]),
     developmentOrigins: z.array(origin).default([]),
     dataDir: z.string().min(1).default('./.local/codex-web'),
     codex: z
@@ -97,11 +105,8 @@ export function parseConfig(value: unknown, filename: string, development = fals
   const config = parsed.data;
   if (new Set(config.projects.map((p) => p.id)).size !== config.projects.length)
     throw new AppError('INVALID_CONFIG', 'Project IDs must be unique');
-  if (
-    config.auth.mode === 'local' &&
-    (!isLoopback(config.host) || !isLoopback(new URL(config.publicOrigin).hostname))
-  )
-    throw new AppError('INVALID_CONFIG', 'Local mode requires loopback host and publicOrigin');
+  if (config.auth.mode === 'local' && !isLoopback(config.host))
+    throw new AppError('INVALID_CONFIG', 'Local mode requires a loopback host');
   if (config.developmentOrigins.some((o) => !isLoopback(new URL(o).hostname)))
     throw new AppError('INVALID_CONFIG', 'Development origins must be loopback');
   if (config.auth.mode === 'cloudflare-access') {
@@ -119,8 +124,8 @@ export function parseConfig(value: unknown, filename: string, development = fals
         'INVALID_CONFIG',
         'Access issuer must be https://<team>.cloudflareaccess.com',
       );
-    if (new URL(config.publicOrigin).protocol !== 'https:')
-      throw new AppError('INVALID_CONFIG', 'Access publicOrigin must use HTTPS');
+    if (config.publicOrigin.some((value) => new URL(value).protocol !== 'https:'))
+      throw new AppError('INVALID_CONFIG', 'All Access public origins must use HTTPS');
     config.auth.issuer = issuer.origin;
   }
   return {

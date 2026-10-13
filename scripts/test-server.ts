@@ -82,7 +82,7 @@ await mkdir(project);
 const config = parseConfig(
   {
     port: 8788,
-    publicOrigin: 'http://127.0.0.1:8788',
+    publicOrigin: ['http://127.0.0.1:8788'],
     dataDir: join(root, 'data'),
     projects: [{ id: 'fixture', name: '测试项目', path: project }],
   },

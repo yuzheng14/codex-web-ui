@@ -24,7 +24,7 @@ await mkdir(project);
 const config = parseConfig(
   {
     port: 8790,
-    publicOrigin: 'http://127.0.0.1:8790',
+    publicOrigin: ['http://127.0.0.1:8790'],
     dataDir: join(root, 'data'),
     projects: [{ id: 'smoke-browser', name: '真实浏览器验证', path: project }],
   },
@@ -67,7 +67,7 @@ try {
   assert.ok(initialPid, 'The gateway must own a real app-server process.');
   browser = await chromium.launch();
   let page = await browser.newPage();
-  await page.goto(config.publicOrigin);
+  await page.goto(config.publicOrigin[0]!);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await expect(page.locator('.demo-banner')).toHaveCount(0);
   const createdResponse = page.waitForResponse(
@@ -125,7 +125,7 @@ try {
   page.on('request', (request) => {
     if (request.url().includes('/api/threads?')) historyRequests++;
   });
-  await page.goto(config.publicOrigin);
+  await page.goto(config.publicOrigin[0]!);
   await expect
     .poll(
       async () => {

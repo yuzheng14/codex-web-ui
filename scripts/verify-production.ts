@@ -22,7 +22,7 @@ await writeFile(
   join(root, 'config.json'),
   JSON.stringify({
     port: address.port,
-    publicOrigin: origin,
+    publicOrigin: [origin],
     dataDir: './data',
     codex: { binary: join(root, 'intentionally-not-installed') },
     projects: [{ id: 'isolated', name: 'Isolated', path: join(root, 'project') }],

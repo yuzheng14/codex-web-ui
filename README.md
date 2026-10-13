@@ -1,6 +1,6 @@
 # Codex Web UI
 
-私人电脑上的 Codex 网页客户端。默认中文，单用户、单网关、单受管 `codex app-server`；工作机或手机通过同一个 Cloudflare Access 域名访问页面、API 和 WebSocket。
+私人电脑上的 Codex 网页客户端。默认中文，单用户、单网关、单受管 `codex app-server`；支持本机、Tailscale Serve 或 Cloudflare Access 访问，页面、API 和 WebSocket 共用配置的访问入口。
 
 项目规范：[codex-web-ui-mvp.md](codex-web-ui-mvp.md)。实现分层、验收结果与边界见 [architecture](docs/architecture.md)、[verification](docs/verification.md)、[compatibility](docs/compatibility.md)。
 
@@ -29,7 +29,7 @@ pnpm build
 pnpm start -- --config ./config.local.json
 ```
 
-生产页面为配置的 `publicOrigin`（示例 <http://127.0.0.1:8787>）。可从任意目录以绝对路径启动：
+生产页面可通过 `publicOrigin` 数组中的任一地址访问（示例配置同时允许 <http://127.0.0.1:8787> 和 <http://localhost:8787>）。可从任意目录以绝对路径启动：
 
 ```sh
 node /absolute/path/codex-web-ui/dist/server/main.js --config /absolute/path/codex-web-ui/config.local.json
@@ -42,7 +42,8 @@ node /absolute/path/codex-web-ui/dist/server/main.js --config /absolute/path/cod
 - `projects` 注册允许访问的目录。浏览器只能提交项目 ID，不能覆盖 cwd。不可用目录会在项目列表标出；符号链接按 realpath 归一化。
 - `codex.binary` 支持绝对路径。后台服务的 PATH 与终端不同，建议填绝对路径。可选 `codex.home` 只设置子进程的 CODEX_HOME；默认继承现有环境。应用不读取或返回登录令牌，不改全局 Codex 配置。
 - `dataDir` 相对于配置文件所在目录解析。数据库在 `dataDir/app.sqlite`，目录权限 0700、数据库权限 0600。实例锁覆盖运行服务和显式迁移命令，异常退出后的锁约十秒可恢复。
-- 本地模式要求监听地址和 publicOrigin 都为回环地址。公开域名必须使用 `cloudflare-access` 模式，参见 [部署指南](docs/deployment.md)。
+- `publicOrigin` 是允许访问地址的非空数组，每项填写完整的 `协议://主机[:端口]`，不带路径、通配符、凭据、查询或片段。HTTP 与 WebSocket 都按此列表检查 Host / Origin；`localhost` 和 `127.0.0.1` 需要分别配置。旧配置的字符串需改为数组，例如 `"publicOrigin": ["http://127.0.0.1:8787"]`，修改后重启服务。
+- `host` / `port` 控制实际监听地址；`local` 模式要求 `host` 为回环地址，可显式允许 Tailscale Serve 的 HTTPS 入口，由 Tailscale 控制访问身份。公开互联网入口使用 `cloudflare-access` 模式，所有 `publicOrigin` 项必须为 HTTPS，并通过同一 Access 应用的 JWT 校验。具体配置参见 [部署指南](docs/deployment.md)。
 - 模型、推理强度、审批与沙箱默认继承 Codex 配置；显式选择通过版本适配层校验和映射。
 
 本机升级 Codex 后，若运行版本尚未验证，页面会先提示可能无法正常使用，并要求明确“确认继续”。确认前不能新建、恢复或发送任务，但仍可查看诊断和中断已有任务。确认在同一服务与 Codex 实例内共享，刷新不会重复询问；重启或版本变化后需要重新确认。初始化失败或已知不支持的操作不能通过确认绕过，详见 [兼容性说明](docs/compatibility.md)。
