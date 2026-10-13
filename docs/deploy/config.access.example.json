@@ -1,0 +1,13 @@
+{
+  "host": "127.0.0.1",
+  "port": 8787,
+  "publicOrigin": "https://codex.example.com",
+  "dataDir": "/Users/you/Library/Application Support/codex-web-ui",
+  "codex": { "binary": "/absolute/path/to/codex" },
+  "auth": {
+    "mode": "cloudflare-access",
+    "issuer": "https://YOUR-TEAM.cloudflareaccess.com",
+    "audience": "YOUR-ACCESS-APPLICATION-AUD"
+  },
+  "projects": [{ "id": "project", "name": "我的项目", "path": "/Users/you/Projects/project" }]
+}
