@@ -55,19 +55,40 @@ test('complete turn, tool output, file diff and refresh recover through the real
   await page.screenshot({ path: '/tmp/codex-web-desktop.png', fullPage: true });
 });
 
-test('approval survives disconnect and multi-question answers respect options', async ({
+test('task and steer preserve whitespace through approval, reconnect and multi-question flow', async ({
   page,
   context,
 }) => {
   await newThread(page);
-  await page.getByRole('textbox', { name: '任务内容' }).fill('[approval] 请运行需要确认的命令');
+  const task = '    [approval] 请保留下面代码块的首行缩进：\n        print("你好")\n';
+  const taskRequest = page.waitForRequest(
+    (request) => request.method() === 'POST' && /\/api\/threads\/[^/]+\/turns$/.test(request.url()),
+  );
+  await page.getByRole('textbox', { name: '任务内容' }).fill(task);
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
+  expect((await taskRequest).postDataJSON().text).toBe(task);
   await expect(page.locator('.action-card')).toBeVisible();
+  await expect(page.locator('.user-text').first()).toHaveJSProperty('textContent', task);
+
+  // The pending approval keeps the same turn active while we send an additional requirement.
+  const steerInput = page.getByRole('textbox', { name: '追加要求', exact: true });
+  await steerInput.fill('  \n\t\n');
+  await expect(page.getByRole('button', { name: '追加要求', exact: true })).toBeDisabled();
+  const steer = '    追加：不要移除以下内容的缩进或末尾换行。\n        return "完成"\n';
+  const steerRequest = page.waitForRequest(
+    (request) => request.method() === 'POST' && /\/api\/threads\/[^/]+\/steer$/.test(request.url()),
+  );
+  await steerInput.fill(steer);
+  await page.getByRole('button', { name: '追加要求', exact: true }).click();
+  expect((await steerRequest).postDataJSON().text).toBe(steer);
+  await expect(page.locator('.user-text').nth(1)).toHaveJSProperty('textContent', steer);
   await context.setOffline(true);
   await expect(page.locator('.connection-badge')).toHaveText('连接已断开');
   await context.setOffline(false);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await expect(page.locator('.action-card')).toBeVisible();
+  await expect(page.locator('.user-text').first()).toHaveJSProperty('textContent', task);
+  await expect(page.locator('.user-text').nth(1)).toHaveJSProperty('textContent', steer);
   await page.locator('.action-options button').first().click();
   await expect(page.getByText('模拟任务已完成。', { exact: true })).toBeVisible();
   await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
