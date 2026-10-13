@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-13T00:02:26.385Z",
+  "mode": "real Chromium browser + actual Codex; no simulator",
+  "inference": true,
+  "checks": [
+    "production-built UI served by real gateway",
+    "real thread and turn submitted through browser HTTP controls",
+    "all browser pages and contexts closed while the turn was active",
+    "app-server PID unchanged with no browser connected",
+    "fresh browser without local storage discovered the same history and restored its snapshot",
+    "real assistant output and completed status visible after reopening",
+    "exact requested temporary file content verified",
+    "real file change/diff metadata restored",
+    "same app-server PID throughout browser closure and recovery"
+  ],
+  "tunnelVerified": false,
+  "codexVersion": "0.162.1",
+  "authenticated": true,
+  "compatibility": "verified",
+  "activeWhenBrowserClosed": true,
+  "historyRequestsBeforeDiscovery": 2,
+  "fileChangeObserved": true,
+  "pidUnchanged": true,
+  "manualRequestsAutoApproved": false,
+  "outcome": "passed"
+}

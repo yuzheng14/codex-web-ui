@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.example.codex-web-ui</string>
+  <key>ProgramArguments</key><array>
+    <string>/absolute/path/to/node</string>
+    <string>/Users/you/Projects/codex-web-ui/dist/server/main.js</string>
+    <string>--config</string><string>/Users/you/Projects/codex-web-ui/config.local.json</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/you/Projects/codex-web-ui</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
+  <key>StandardOutPath</key><string>/Users/you/Library/Logs/codex-web-ui.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/Library/Logs/codex-web-ui.error.log</string>
+</dict></plist>

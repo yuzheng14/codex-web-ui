@@ -1,0 +1,7 @@
+# Create Access protection for this hostname BEFORE publishing this tunnel route.
+tunnel: YOUR-TUNNEL-UUID
+credentials-file: /Users/you/.cloudflared/YOUR-TUNNEL-UUID.json
+ingress:
+  - hostname: codex.example.com
+    service: http://127.0.0.1:8787
+  - service: http_status:404
