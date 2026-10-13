@@ -432,6 +432,77 @@ svg {
   font-size: 12px;
   flex-shrink: 0;
 }
+.compatibility-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.compatibility-notice > span {
+  flex: 1;
+  min-width: 180px;
+  line-height: 1.65;
+}
+.compatibility-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  border: 1px solid #ddd8c8;
+  border-radius: 14px;
+  padding: 24px;
+  color: #42463d;
+  background: #fffefb;
+  box-shadow: 0 20px 80px #172a2233;
+}
+.compatibility-dialog::backdrop {
+  background: #172a2255;
+}
+.compatibility-dialog-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #8b7037;
+}
+.compatibility-dialog h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.compatibility-dialog > p {
+  margin: 17px 0;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.compatibility-dialog dl {
+  background: #f7f5ed;
+  padding: 14px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+.compatibility-dialog dt {
+  color: #817d6b;
+}
+.compatibility-dialog dd {
+  color: #514f43;
+}
+.compatibility-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+.compatibility-uncertain {
+  padding: 12px;
+  border: 1px solid #e6ddc6;
+  border-radius: 7px;
+  background: #fcf8ed;
+  font-size: 12px;
+}
+.compatibility-uncertain p {
+  margin-bottom: 10px;
+}
 .connection-banner {
   display: flex;
   align-items: center;

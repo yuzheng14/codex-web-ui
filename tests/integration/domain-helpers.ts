@@ -40,9 +40,15 @@ export class DomainCodex implements CodexClient {
   epoch = 'epoch-one';
   pid = 123;
   ready = true;
+  codexVersion: string | null = 'test';
+  verifiedVersion = 'test';
+  compatibility: CodexDiagnostics['compatibility'] = 'verified';
   readonly listeners = new Set<(event: CodexEvent) => void>();
   readonly threads = new Map<string, ThreadView>();
   starts = 0;
+  creates = 0;
+  steers = 0;
+  interrupts = 0;
   resumes = 0;
   replies = 0;
   stops = 0;
@@ -53,9 +59,9 @@ export class DomainCodex implements CodexClient {
     return {
       ready: this.ready,
       connection: this.ready ? 'ready' : 'unavailable',
-      codexVersion: 'test',
-      verifiedVersion: 'test',
-      compatibility: 'verified',
+      codexVersion: this.codexVersion,
+      verifiedVersion: this.verifiedVersion,
+      compatibility: this.compatibility,
       codexEpoch: this.epoch,
       authenticated: true,
       models: [],
@@ -87,6 +93,7 @@ export class DomainCodex implements CodexClient {
     return structuredClone(thread);
   }
   async createThread(cwd: string, _settings?: Settings) {
+    this.creates++;
     const thread = threadView(`thread-${this.threads.size + 1}`, cwd);
     this.threads.set(thread.id, thread);
     this.emit({ type: 'thread', thread });
@@ -112,9 +119,12 @@ export class DomainCodex implements CodexClient {
     return this.startGate ? this.startGate.promise : structuredClone(turn);
   }
   async steerTurn(_id: string, turnId: string, _text: string) {
+    this.steers++;
     return { turnId };
   }
-  async interruptTurn(_id: string, _turnId: string) {}
+  async interruptTurn(_id: string, _turnId: string) {
+    this.interrupts++;
+  }
   async respond(_actionId: string, _resolution: ActionResolution) {
     this.replies++;
     await this.replyGate?.promise;

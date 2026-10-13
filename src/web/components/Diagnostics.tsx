@@ -72,33 +72,40 @@ function OperationCard({
         )}
       </dl>
       {entry.error && <p className="inline-error">{entry.error}</p>}
-      {needsReconciliation(entry) && !entry.operation?.reconciliation && (
-        <div className="reconcile">
-          <p>不会自动重发任务。先检查会话历史和原执行环境，再核对这笔提交。</p>
-          {currentlyActive ? (
-            <p>当前任务仍在执行，请使用输入区的中断按钮。</p>
-          ) : (
-            <>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={confirmed}
-                  onChange={(event) => setConfirmed(event.target.checked)}
-                />
-                我已核实对应旧运行已经结束
-              </label>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!confirmed || busy}
-                onClick={() => onReconcile(entry.clientOperationId)}
-              >
-                核对并解除旧占用
-              </Button>
-            </>
-          )}
-        </div>
+      {entry.kind === 'confirmCompatibility' && entry.status === 'unknown' && (
+        <p className="subtle">
+          兼容性确认结果待核对，请刷新状态。此记录不代表任务执行，也不会自动重新提交。
+        </p>
       )}
+      {entry.kind !== 'confirmCompatibility' &&
+        needsReconciliation(entry) &&
+        !entry.operation?.reconciliation && (
+          <div className="reconcile">
+            <p>不会自动重发任务。先检查会话历史和原执行环境，再核对这笔提交。</p>
+            {currentlyActive ? (
+              <p>当前任务仍在执行，请使用输入区的中断按钮。</p>
+            ) : (
+              <>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={confirmed}
+                    onChange={(event) => setConfirmed(event.target.checked)}
+                  />
+                  我已核实对应旧运行已经结束
+                </label>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!confirmed || busy}
+                  onClick={() => onReconcile(entry.clientOperationId)}
+                >
+                  核对并解除旧占用
+                </Button>
+              </>
+            )}
+          </div>
+        )}
       {entry.operation?.reconciliation && (
         <p className="subtle">
           已于 {formatTime(entry.operation.reconciliation.at)}{' '}
@@ -164,7 +171,9 @@ export function Diagnostics({
             {system?.compatibility === 'verified'
               ? '版本已验证'
               : system?.compatibility === 'unverified'
-                ? '当前版本未经验证'
+                ? system.compatibilityConfirmation === 'confirmed'
+                  ? '当前版本未经验证 · 已确认继续'
+                  : '当前版本未经验证 · 待确认'
                 : '不可用'}
           </dd>
           <dt>入口认证</dt>

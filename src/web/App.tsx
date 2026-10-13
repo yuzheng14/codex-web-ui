@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useWorkspace } from './hooks/useWorkspace';
 import { Sidebar } from './components/Sidebar';
 import { Conversation } from './components/Conversation';
@@ -9,21 +9,33 @@ import { isActive, Status } from './components/Status';
 import { Icon } from './components/Icon';
 import { Button } from './components/ui/button';
 import { blocksTarget } from './lib/operations';
+import { CompatibilityNotice } from './components/CompatibilityNotice';
+import {
+  canConfirmCompatibility,
+  compatibilityConfirmationRequired,
+  compatibilityConfirmationInput,
+  compatibilityFingerprint,
+} from './lib/compatibility';
 
 const encode = encodeURIComponent;
 
 export function App() {
   const workspace = useWorkspace();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [checkingCompatibility, setCheckingCompatibility] = useState(false);
+  const compatibilityAttempt = useRef(false);
   const project = workspace.projects.find((entry) => entry.id === workspace.projectId);
   const { thread, system } = workspace;
-  const canOperate = Boolean(
+  const canControl = Boolean(
     system?.ready &&
     system.authenticated !== false &&
-    project?.available &&
     workspace.connection === 'connected' &&
     !workspace.authRequired,
   );
+  const canOperate =
+    canControl && Boolean(project?.available) && !compatibilityConfirmationRequired(system);
+  const canConfirm = canConfirmCompatibility(system, workspace.connection, workspace.authRequired);
+  const compatibilityTarget = compatibilityFingerprint(system) ?? '';
   const busyFor = (kind: string, target = thread?.id ?? '') =>
     workspace.busy.includes(`${kind}:${target}`);
   const unsettledFor = (target: string) =>
@@ -35,6 +47,44 @@ export function App() {
     ) ?? [];
   const waitingForConfirmation = thread && (unsettledFor(thread.id) || thread.status === 'unknown');
   const offline = workspace.connection !== 'connected';
+  const compatibilityOperations = workspace.operations.filter(
+    (entry) => entry.kind === 'confirmCompatibility' && entry.target === compatibilityTarget,
+  );
+  const compatibilitySubmitting =
+    checkingCompatibility ||
+    busyFor('confirmCompatibility', compatibilityTarget) ||
+    compatibilityOperations.some(
+      (entry) => entry.status === 'accepted' || entry.status === 'dispatching',
+    );
+  const compatibilityUncertain = compatibilityOperations.some(
+    (entry) => entry.status === 'unknown' && !entry.operation?.reconciliation,
+  );
+
+  async function confirmCurrentCompatibility() {
+    if (!canConfirm || compatibilityAttempt.current) return;
+    compatibilityAttempt.current = true;
+    setCheckingCompatibility(true);
+    try {
+      const freshSystem = await workspace.refreshSystem();
+      const input = compatibilityConfirmationInput(
+        compatibilityTarget,
+        freshSystem,
+        workspace.connection,
+        workspace.authRequired,
+      );
+      if (!input) return;
+      // Each explicit confirmation is a new authorization. Old uncertain receipts remain auditable.
+      await workspace.run(
+        'confirmCompatibility',
+        compatibilityTarget,
+        '/api/system/compatibility/confirm',
+        input,
+      );
+    } finally {
+      compatibilityAttempt.current = false;
+      setCheckingCompatibility(false);
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -143,11 +193,23 @@ export function App() {
             Codex 尚不可用：{system.error ?? '请在私人电脑上检查 Codex 安装、认证与服务状态。'}
           </div>
         )}
-        {system?.compatibility === 'unverified' && (
-          <div className="compatibility-banner">
-            当前 Codex 版本 {system.codexVersion} 尚未验证兼容性。详情见状态诊断。
-          </div>
-        )}
+        <CompatibilityNotice
+          system={system}
+          canConfirm={canConfirm}
+          submitting={compatibilitySubmitting}
+          uncertain={compatibilityUncertain}
+          error={workspace.error}
+          onRefresh={() => {
+            void workspace.refreshSystem();
+            void workspace.refreshOperations();
+          }}
+          onConfirm={() => {
+            void confirmCurrentCompatibility();
+          }}
+          onReconfirm={() => {
+            void confirmCurrentCompatibility();
+          }}
+        />
         {workspace.error && (
           <div className="error-banner dismissible" role="alert">
             <div>
@@ -216,6 +278,7 @@ export function App() {
             models={system?.models ?? []}
             onSettings={workspace.setSettings}
             disabled={!canOperate || Boolean(waitingForConfirmation)}
+            canInterrupt={canControl && Boolean(activeTurn)}
             submitting={busyFor('send') || busyFor('steer')}
             interrupting={busyFor('interrupt')}
             resuming={busyFor('resume')}

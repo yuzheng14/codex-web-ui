@@ -1,6 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import type { ThreadPage } from '../../src/shared/types';
+import { confirmCompatibility, controlRuntime } from './helpers';
+
+test.beforeEach(async ({ request }) => {
+  await controlRuntime(request, { reset: true });
+});
 
 test.afterEach(async ({ request }) => {
   const response = await request.get('/api/threads?projectId=fixture');
@@ -20,6 +25,7 @@ test.afterEach(async ({ request }) => {
 
 async function newThread(page: Page) {
   await page.goto('/');
+  await confirmCompatibility(page);
   await expect(page.getByText('模拟测试模式', { exact: false })).toBeVisible();
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await page.getByRole('button', { name: '新建会话', exact: true }).click();
@@ -106,6 +112,7 @@ test('mobile navigation and input shortcuts preserve a draft during IME composit
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
+  await confirmCompatibility(page);
   await page.getByRole('button', { name: '打开项目与会话' }).click();
   await page.getByRole('button', { name: '新建会话', exact: true }).click();
   await page.getByRole('button', { name: '关闭导航', exact: true }).click();

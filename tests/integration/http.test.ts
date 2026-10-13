@@ -9,12 +9,12 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { CodexAdapter } from '../../src/codex/adapter.js';
 import { parseConfig } from '../../src/server/config.js';
 import { startGateway } from '../../src/server/main.js';
-import type { Operation, ServerMessage, ThreadView } from '../../src/shared/types.js';
+import type { Operation, ServerMessage, SystemInfo, ThreadView } from '../../src/shared/types.js';
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
-async function setup() {
+async function setup(options: { confirmCompatibility?: boolean; unsupportedMethod?: string } = {}) {
   const probe = createServer();
   probe.listen(0, '127.0.0.1');
   await once(probe, 'listening');
@@ -43,7 +43,11 @@ async function setup() {
       'tsx',
       resolve('tests/fixtures/app-server.ts'),
       '--options',
-      JSON.stringify({ turnDelayMs: 150, fragmentBytes: 11 }),
+      JSON.stringify({
+        turnDelayMs: 150,
+        fragmentBytes: 11,
+        unsupportedMethod: options.unsupportedMethod,
+      }),
     ],
   });
   const runtime = await startGateway(config, { codex, staticDir: join(root, 'web') });
@@ -65,6 +69,17 @@ async function setup() {
     });
     return ws;
   };
+  if (options.confirmCompatibility !== false) {
+    const system = (await (await fetch(`${origin}/api/system`)).json()) as SystemInfo;
+    const confirmation = await post('/api/system/compatibility/confirm', {
+      clientOperationId: randomUUID(),
+      codexEpoch: system.codexEpoch,
+      codexVersion: system.codexVersion,
+      verifiedVersion: system.verifiedVersion,
+      confirm: true,
+    });
+    expect(confirmation.status).toBe(200);
+  }
   return { origin, runtime, post, connect };
 }
 function message(
@@ -230,4 +245,127 @@ it('fails migrations before launching Codex and releases the instance lock', asy
   const { acquireInstanceLock } = await import('../../src/server/instance-lock.js');
   const release = await acquireInstanceLock(config.dataDir);
   await release();
+});
+
+it('requires explicit compatibility confirmation, audits retries and broadcasts consent to both tabs', async () => {
+  const { origin, runtime, post, connect } = await setup({ confirmCompatibility: false });
+  const info = (await (await fetch(`${origin}/api/system`)).json()) as SystemInfo;
+  expect(info).toMatchObject({
+    ready: true,
+    compatibility: 'unverified',
+    compatibilityConfirmation: 'required',
+  });
+  const create = vi.spyOn(runtime.codex, 'createThread');
+  const blockedId = randomUUID();
+  const blocked = await post('/api/projects/test/threads', { clientOperationId: blockedId });
+  expect(blocked.status).toBe(409);
+  expect((await blocked.json()).error).toMatchObject({
+    code: 'COMPATIBILITY_CONFIRMATION_REQUIRED',
+    clientOperationId: blockedId,
+  });
+  expect(create).not.toHaveBeenCalled();
+  expect(await (await fetch(`${origin}/api/operations/${blockedId}`)).json()).toMatchObject({
+    status: 'failed',
+  });
+  expect((await fetch(`${origin}/api/projects`)).status).toBe(200);
+  const firstTab = await connect();
+  const secondTab = await connect();
+  const firstUpdate = message(
+    firstTab,
+    (event) => event.type === 'event' && event.kind === 'runtime',
+  );
+  const secondUpdate = message(
+    secondTab,
+    (event) => event.type === 'event' && event.kind === 'runtime',
+  );
+  const input = {
+    clientOperationId: randomUUID(),
+    codexEpoch: info.codexEpoch,
+    codexVersion: info.codexVersion,
+    verifiedVersion: info.verifiedVersion,
+    confirm: true,
+  };
+  const response = await post('/api/system/compatibility/confirm', input);
+  expect(response.status).toBe(200);
+  const operation = (await response.json()) as Operation;
+  expect(operation).toMatchObject({
+    status: 'acknowledged',
+    result: { compatibilityConfirmation: 'confirmed' },
+  });
+  expect(await firstUpdate).toMatchObject({
+    payload: { compatibility: 'unverified', compatibilityConfirmation: 'confirmed' },
+  });
+  expect(await secondUpdate).toMatchObject({ payload: { compatibilityConfirmation: 'confirmed' } });
+  expect(await (await post('/api/system/compatibility/confirm', input)).json()).toEqual(operation);
+  expect(await (await fetch(`${origin}/api/operations/${input.clientOperationId}`)).json()).toEqual(
+    operation,
+  );
+  expect(
+    (await post('/api/projects/test/threads', { clientOperationId: randomUUID() })).status,
+  ).toBe(200);
+  expect(create).toHaveBeenCalledTimes(1);
+});
+
+it('rejects stale fingerprints, invalid confirmation bodies, foreign origins and unavailable runtime', async () => {
+  const { origin, runtime, post } = await setup({ confirmCompatibility: false });
+  const info = runtime.service.getSystem();
+  const input = {
+    clientOperationId: randomUUID(),
+    codexEpoch: info.codexEpoch,
+    codexVersion: info.codexVersion,
+    verifiedVersion: info.verifiedVersion,
+    confirm: true,
+  };
+  const stale = await post('/api/system/compatibility/confirm', {
+    ...input,
+    verifiedVersion: 'stale',
+  });
+  expect(stale.status).toBe(409);
+  expect((await stale.json()).error.code).toBe('COMPATIBILITY_CHANGED');
+  for (const invalid of [
+    { ...input, confirm: false },
+    { ...input, confirm: undefined },
+    { ...input, extra: true },
+  ]) {
+    const response = await post('/api/system/compatibility/confirm', invalid);
+    expect(response.status).toBe(400);
+    expect((await response.json()).error.code).toBe('VALIDATION_FAILED');
+  }
+  const foreign = await fetch(`${origin}/api/system/compatibility/confirm`, {
+    method: 'POST',
+    headers: { origin: 'https://attacker.invalid', 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  expect(foreign.status).toBe(403);
+  const current = runtime.codex.diagnostics();
+  const spy = vi
+    .spyOn(runtime.codex, 'diagnostics')
+    .mockReturnValue({ ...current, compatibility: 'unavailable' });
+  const unavailable = await post('/api/system/compatibility/confirm', {
+    ...input,
+    clientOperationId: randomUUID(),
+  });
+  expect(unavailable.status).toBe(503);
+  expect((await unavailable.json()).error.code).toBe('CODEX_UNAVAILABLE');
+  spy.mockRestore();
+  expect(runtime.service.getSystem().compatibilityConfirmation).toBe('required');
+});
+
+it('does not override an explicitly unsupported upstream method after compatibility is confirmed', async () => {
+  const { runtime, post } = await setup({ unsupportedMethod: 'thread/start' });
+  const first = await post('/api/projects/test/threads', { clientOperationId: randomUUID() });
+  expect((await first.json()).error.code).toBe('PROTOCOL_INCOMPATIBLE');
+  const current = runtime.service.getSystem();
+  expect(current.capabilities).not.toContain('thread/start');
+  const confirmedAgain = await post('/api/system/compatibility/confirm', {
+    clientOperationId: randomUUID(),
+    codexEpoch: current.codexEpoch,
+    codexVersion: current.codexVersion,
+    verifiedVersion: current.verifiedVersion,
+    confirm: true,
+  });
+  expect(confirmedAgain.status).toBe(200);
+  const rejected = await post('/api/projects/test/threads', { clientOperationId: randomUUID() });
+  expect((await rejected.json()).error.code).toBe('PROTOCOL_INCOMPATIBLE');
+  expect(runtime.service.getSystem().capabilities).not.toContain('thread/start');
 });

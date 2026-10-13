@@ -4,6 +4,8 @@ import { api, HttpError } from '../lib/api';
 import { isSettled, readOperations, saveOperations, type SavedOperation } from '../lib/operations';
 import { ThreadStream, type ConnectionState } from '../lib/realtime';
 import { readableError } from '../lib/utils';
+import { operationNeedsCompatibilityConfirmation } from '../lib/compatibility';
+import { SystemSnapshotGuard } from '../lib/system';
 
 function preferredProject() {
   try {
@@ -22,6 +24,7 @@ export function useWorkspace() {
   const [selectedId, setSelectedId] = useState<string>();
   const selectedRef = useRef<string | undefined>(undefined);
   const [system, setSystem] = useState<SystemInfo>();
+  const systemSnapshotGuard = useRef(new SystemSnapshotGuard());
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [error, setError] = useState<string>();
   const [errorDetails, setErrorDetails] = useState<unknown>();
@@ -40,6 +43,18 @@ export function useWorkspace() {
     setErrorDetails(problem instanceof HttpError ? problem.problem.details : undefined);
     if (problem instanceof HttpError && problem.authenticationRequired) setAuthRequired(true);
   }, []);
+  const refreshSystem = useCallback(async () => {
+    const read = systemSnapshotGuard.current.beginRead();
+    try {
+      const next = await api.system();
+      if (systemSnapshotGuard.current.canApplyRead(read)) {
+        setSystem(next);
+        return next;
+      }
+    } catch (problem) {
+      if (systemSnapshotGuard.current.canApplyRead(read)) report(problem);
+    }
+  }, [report]);
   const track = useCallback((update: (previous: SavedOperation[]) => SavedOperation[]) => {
     const next = update(operationsRef.current);
     operationsRef.current = next;
@@ -119,6 +134,7 @@ export function useWorkspace() {
         setErrorDetails(operation.error?.details);
       }
       if (operation.status === 'acknowledged') {
+        if (known.kind === 'confirmCompatibility') void refreshSystem();
         const result = operation.result as
           { threadId?: string; id?: string; thread?: { id?: string } } | undefined;
         const id =
@@ -133,7 +149,7 @@ export function useWorkspace() {
           previous.filter((entry) => entry.clientOperationId !== operation.clientOperationId),
         );
     },
-    [selectThread, track],
+    [refreshSystem, selectThread, track],
   );
 
   const refreshOperations = useCallback(async () => {
@@ -157,13 +173,6 @@ export function useWorkspace() {
       }),
     );
   }, [applyOperation, report, track]);
-  const refreshSystem = useCallback(async () => {
-    try {
-      setSystem(await api.system());
-    } catch (problem) {
-      report(problem);
-    }
-  }, [report]);
   const refreshThread = useCallback(async () => {
     const id = selectedRef.current;
     if (!id) return;
@@ -220,9 +229,15 @@ export function useWorkspace() {
   }, [refreshSystem, report]);
   useEffect(() => {
     const stream = new ThreadStream({
-      connection: setConnection,
+      connection: (state) => {
+        setConnection(state);
+        if (state === 'connected') void refreshSystem();
+      },
       thread: updateThread,
-      system: setSystem,
+      system: (next) => {
+        systemSnapshotGuard.current.runtimeEvent();
+        setSystem(next);
+      },
       operation: applyOperation,
       error: (message) => {
         setError(message);
@@ -236,7 +251,7 @@ export function useWorkspace() {
       stream.stop();
       streamRef.current = undefined;
     };
-  }, [applyOperation, updateThread]);
+  }, [applyOperation, refreshSystem, updateThread]);
   useEffect(() => {
     projectRef.current = projectId;
     selectedRef.current = undefined;
@@ -281,6 +296,11 @@ export function useWorkspace() {
 
   const run = useCallback(
     async (kind: string, target: string, path: string, body: object = {}) => {
+      if (operationNeedsCompatibilityConfirmation(kind, system)) {
+        setError('请先确认当前 Codex 版本的兼容性提示，再发起操作。');
+        setErrorDetails(undefined);
+        return undefined;
+      }
       const key = `${kind}:${target}`;
       if (busyRef.current.has(key)) return;
       busyRef.current.add(key);
@@ -333,7 +353,7 @@ export function useWorkspace() {
         setBusy([...busyRef.current]);
       }
     },
-    [applyOperation, report, track],
+    [applyOperation, report, track, system],
   );
 
   return {

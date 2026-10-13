@@ -15,6 +15,7 @@ interface Props {
   onInterrupt: () => void;
   onResume: (confirmed: boolean) => void;
   disabled: boolean;
+  canInterrupt: boolean;
   submitting: boolean;
   interrupting: boolean;
   resuming: boolean;
@@ -110,7 +111,7 @@ export function Composer(props: Props) {
                 variant="secondary"
                 size="sm"
                 onClick={props.onInterrupt}
-                disabled={props.disabled || props.interrupting}
+                disabled={!props.canInterrupt || props.interrupting}
               >
                 <Icon name="stop" size={13} />
                 {props.interrupting ? '请求中…' : '中断'}
