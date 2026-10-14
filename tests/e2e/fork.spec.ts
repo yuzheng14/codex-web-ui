@@ -99,8 +99,9 @@ test('an external handoff can fork without confirming it has stopped, including 
     return message;
   });
   const source = await newThread(page);
-  external.id = source;
   await finishTurn(page, '外部会话已保存的历史');
+  // A delayed creation snapshot must not make the fixture external before setup can send.
+  external.id = source;
   await page.route(`**/api/threads/${source}`, async (route) => {
     const response = await route.fetch();
     await route.fulfill({

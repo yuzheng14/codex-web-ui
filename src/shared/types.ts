@@ -23,6 +23,13 @@ export interface Project {
   available: boolean;
   error?: string;
 }
+export interface CreateProjectInput {
+  path: string;
+  name?: string;
+}
+export interface RenameProjectInput {
+  name: string;
+}
 export interface FileChange {
   path: string;
   kind: string;
@@ -259,7 +266,7 @@ export type ServerMessage =
       type: 'event';
       cursor: Cursor;
       threadId?: string;
-      kind: 'thread' | 'threadSummary' | 'runtime' | 'operation';
-      payload: ThreadView | ThreadSummary | SystemInfo | Operation;
+      kind: 'thread' | 'threadSummary' | 'runtime' | 'operation' | 'projects';
+      payload: ThreadView | ThreadSummary | SystemInfo | Operation | Project[];
     }
   | { type: 'error'; error: ApiError };

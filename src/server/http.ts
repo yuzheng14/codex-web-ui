@@ -75,6 +75,21 @@ export function createApp({
     return c.json(op, status(op));
   });
   app.get('/api/projects', async (c) => c.json({ data: await service.listProjects() }));
+  app.post('/api/projects', async (c) =>
+    c.json(service.addProject(await parse(c, schemas.createProjectSchema))),
+  );
+  app.post('/api/projects/:projectId/rename', async (c) =>
+    c.json(
+      service.renameProject(
+        id(c.req.param('projectId')),
+        await parse(c, schemas.renameProjectSchema),
+      ),
+    ),
+  );
+  app.post('/api/projects/:projectId/remove', async (c) => {
+    await parse(c, schemas.removeProjectSchema);
+    return c.json(service.removeProject(id(c.req.param('projectId'))));
+  });
   app.get('/api/projects/:projectId/threads', async (c) =>
     c.json(
       await service.listThreadSummaries(

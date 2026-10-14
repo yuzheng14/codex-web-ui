@@ -1,6 +1,12 @@
 import { z } from 'zod';
 export const cursorSchema = z.string().min(1).max(4096);
 export const idSchema = z.string().min(1).max(256);
+const projectNameSchema = z.string().trim().min(1).max(100);
+export const createProjectSchema = z
+  .object({ path: z.string().trim().min(1).max(4096), name: projectNameSchema.optional() })
+  .strict();
+export const renameProjectSchema = z.object({ name: projectNameSchema }).strict();
+export const removeProjectSchema = z.object({}).strict();
 export const settingsSchema = z
   .object({
     model: z.string().min(1).max(200).optional(),

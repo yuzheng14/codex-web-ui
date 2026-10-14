@@ -86,6 +86,39 @@ export class OperationStore {
       .get();
   }
 
+  associateProject(id: string, projectId: string): void {
+    this.database
+      .update(operations)
+      .set({ projectId })
+      .where(and(eq(operations.clientOperationId, id), eq(operations.state, 'accepted')))
+      .run();
+  }
+
+  /** Includes older rows whose project can be recovered from their stable target/link. */
+  pendingProjectOperations(projectId: string): OperationRow[] {
+    return this.database
+      .select()
+      .from(operations)
+      .where(
+        or(
+          eq(operations.state, 'accepted'),
+          eq(operations.state, 'dispatching'),
+          and(eq(operations.state, 'unknown'), isNull(operations.reconciledAt)),
+        ),
+      )
+      .all()
+      .filter((operation) => {
+        if (!['thread.create', 'thread.resume', 'thread.fork'].includes(operation.kind))
+          return false;
+        const owner =
+          operation.projectId ??
+          (operation.kind === 'thread.create'
+            ? operation.target
+            : this.getThreadLink(operation.target)?.projectId);
+        return owner === projectId;
+      });
+  }
+
   dispatch(
     id: string,
     marker?: { threadId: string; workspaceKey: string; codexEpoch: string },

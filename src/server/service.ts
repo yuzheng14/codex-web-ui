@@ -1,4 +1,5 @@
 import type { CodexClient, CodexDiagnostics, CodexEvent } from '../codex/types.js';
+import { realpathSync } from 'node:fs';
 import { AppError } from '../shared/errors.js';
 import {
   validateElicitationResolution,
@@ -7,6 +8,7 @@ import {
 import { toThreadSummary } from '../shared/thread-summary.js';
 import type {
   ConfirmCompatibilityInput,
+  CreateProjectInput,
   CreateThreadInput,
   Cursor,
   ForkThreadInput,
@@ -14,6 +16,7 @@ import type {
   Operation,
   PendingAction,
   ReconcileInput,
+  RenameProjectInput,
   ResolveActionInput,
   ResumeThreadInput,
   ServerMessage,
@@ -60,6 +63,8 @@ export class GatewayService {
   // Request ordering only: title values always come from app-server.
   private titleReadSequence = 0;
   private readonly titleReads = new Map<string, number>();
+  private readonly inFlightOperations = new Set<string>();
+  private readonly pendingThreadCreations = new Map<string, string>();
 
   constructor(private readonly options: GatewayOptions) {
     this.store = options.store;
@@ -74,6 +79,52 @@ export class GatewayService {
 
   listProjects() {
     return this.projects.list();
+  }
+  addProject(input: CreateProjectInput) {
+    const project = this.projects.add(input);
+    this.events.publishProjects(this.projects.list());
+    return project;
+  }
+  renameProject(projectId: string, input: RenameProjectInput) {
+    const project = this.projects.rename(projectId, input);
+    this.events.publishProjects(this.projects.list());
+    return project;
+  }
+  removeProject(projectId: string): { removed: true } {
+    // A missing directory must still be removable. Do not call get(), which requires it.
+    const project = this.projects.describe(projectId);
+    const pending = this.store.pendingProjectOperations(projectId)[0];
+    const marker = this.store.activeMarkers().find((entry) => {
+      const link = this.store.getThreadLink(entry.threadId);
+      // Different projects can share a checkout; only an unlinked legacy marker
+      // needs the conservative workspace fallback to avoid losing its controls.
+      return link ? link.projectId === projectId : entry.workspaceKey === project.workspaceKey;
+    });
+    const active = this.projection
+      .values()
+      .find(
+        (thread) =>
+          thread.projectId === projectId &&
+          (isActive(thread.status) ||
+            thread.actions.some((action) => ['pending', 'responding'].includes(action.status))),
+      );
+    if (pending || marker || active)
+      throw new AppError(
+        'PROJECT_BUSY',
+        '项目仍有活动任务或结果待核对的操作；请先结束任务并核对旧操作',
+        409,
+        {
+          projectId,
+          ...(pending || marker
+            ? { operationId: pending?.clientOperationId ?? marker?.operationId }
+            : {}),
+          ...(marker || active ? { threadId: marker?.threadId ?? active?.id } : {}),
+        },
+      );
+    // Synchronous check + tombstone prevents a task from dispatching between them.
+    this.projects.remove(projectId);
+    this.events.publishProjects(this.projects.list());
+    return { removed: true };
   }
   getSystem(): SystemInfo {
     const diagnostics = this.codex.diagnostics();
@@ -140,6 +191,7 @@ export class GatewayService {
         .map((thread) => [thread.id, this.beginTitleRead(thread.id)]),
     );
     const page = await this.codex.listThreads(project.canonicalRoot, cursor);
+    this.projects.get(projectId);
     const data: ThreadView[] = [];
     for (const thread of page.data) {
       try {
@@ -152,7 +204,7 @@ export class GatewayService {
       } catch (error) {
         if (
           !(error instanceof AppError) ||
-          !['PROJECT_OWNERSHIP', 'PROJECT_UNAVAILABLE'].includes(error.code)
+          !['PROJECT_OWNERSHIP', 'PROJECT_UNAVAILABLE', 'PROJECT_NOT_FOUND'].includes(error.code)
         )
           throw error;
       }
@@ -184,7 +236,10 @@ export class GatewayService {
     const cached = this.projection.get(threadId);
     await this.loadThread(threadId);
     if (cached && this.codex.ready) await this.refreshThreadTitle(threadId);
-    return this.threadView(this.projection.get(threadId)!);
+    const thread = this.projection.get(threadId)!;
+    // A completed project can be removed while its metadata request is in flight.
+    this.projects.assertOwnership(thread.projectId, thread.cwd);
+    return this.threadView(thread);
   }
 
   private async loadThread(threadId: string): Promise<ThreadView> {
@@ -229,7 +284,9 @@ export class GatewayService {
       const project = this.projects.get(projectId);
       this.ensureReady();
       this.ensureCompatibilityConfirmed();
+      this.store.associateProject(input.clientOperationId, projectId);
       this.store.dispatch(input.clientOperationId);
+      this.pendingThreadCreations.set(input.clientOperationId, project.canonicalRoot);
       const thread = await this.codex.createThread(project.canonicalRoot, input.settings);
       const normalized = this.normalize(thread, projectId, true);
       this.projection.thread(normalized, this.projection.get(thread.id) !== undefined);
@@ -242,6 +299,8 @@ export class GatewayService {
     return this.perform('thread.resume', threadId, input, async () => {
       const thread = await this.loadThread(threadId);
       this.ensureReady();
+      this.projects.assertOwnership(thread.projectId, thread.cwd);
+      this.store.associateProject(input.clientOperationId, thread.projectId);
       const link = this.store.getThreadLink(threadId);
       if (link?.managedEpoch === this.codex.epoch) {
         this.ensureCompatibilityConfirmed();
@@ -283,7 +342,9 @@ export class GatewayService {
         : this.projects.findOwner(source.cwd);
       this.ensureCompatibilityConfirmed();
       const epoch = this.codex.epoch;
+      this.store.associateProject(input.clientOperationId, ownership.project.id);
       this.store.dispatch(input.clientOperationId);
+      this.pendingThreadCreations.set(input.clientOperationId, ownership.cwd);
       const forked = await this.codex.forkThread(threadId, ownership.cwd, input.settings);
       if (forked.id === threadId || this.codex.epoch !== epoch || !this.codex.ready)
         throw new Error('分叉请求已发送，但返回的新会话无法确认，请核对历史');
@@ -388,6 +449,8 @@ export class GatewayService {
         throw new AppError('CONFIRMATION_REQUIRED', '必须确认对应旧运行已经结束', 400);
       const target = this.store.get(targetOperationId);
       if (!target) throw new AppError('OPERATION_NOT_FOUND', '待核对操作不存在', 404);
+      if (this.inFlightOperations.has(targetOperationId))
+        throw new AppError('OPERATION_BUSY', '操作仍在处理中，请等待返回后再核对', 409);
       const marker = this.store.marker(targetOperationId);
       if (!marker || marker.endedAt !== null) {
         // Repeating a decision for an already released execution cannot touch a newer lock.
@@ -478,6 +541,7 @@ export class GatewayService {
       throw this.asAppError(error);
     }
     if (!accepted.inserted) return this.operation(accepted.operation);
+    this.inFlightOperations.add(input.clientOperationId);
     try {
       const { result, turnId, onAcknowledged } = await work();
       const operation = this.operation(
@@ -521,16 +585,21 @@ export class GatewayService {
           { clientOperationId: input.clientOperationId },
         );
       throw appError;
+    } finally {
+      this.inFlightOperations.delete(input.clientOperationId);
+      this.pendingThreadCreations.delete(input.clientOperationId);
     }
   }
 
   private normalize(thread: ThreadView, projectId?: string, managed = false): ThreadView {
     const link = this.store.getThreadLink(thread.id);
-    const ownership = projectId
-      ? this.projects.assertOwnership(projectId, thread.cwd)
-      : link
-        ? this.projects.assertOwnership(link.projectId, thread.cwd)
+    const ownership = link
+      ? this.projects.assertOwnership(link.projectId, thread.cwd)
+      : managed && projectId
+        ? this.projects.assertOwnership(projectId, thread.cwd)
         : this.projects.findOwner(thread.cwd);
+    if (projectId && ownership.project.id !== projectId)
+      throw new AppError('PROJECT_OWNERSHIP', '会话属于其他项目，不能改变项目归属', 403);
     const managedEpoch = managed ? this.codex.epoch : (link?.managedEpoch ?? null);
     const result: ThreadView = {
       ...thread,
@@ -872,6 +941,13 @@ export class GatewayService {
     }
     if (event.type === 'thread') {
       try {
+        // Upstream can announce a new thread before its creation response. Wait for
+        // that response to bind the selected ID, including grandfathered JSON aliases.
+        if (
+          !this.store.getThreadLink(event.thread.id) &&
+          [...this.pendingThreadCreations.values()].includes(realpathSync(event.thread.cwd))
+        )
+          return;
         this.projection.thread(this.normalize(event.thread), true);
         this.publishThread(event.thread.id);
       } catch {

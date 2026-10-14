@@ -68,6 +68,51 @@ describe('browser projection recovery', () => {
     expect(reconnectDelay(100, () => 1)).toBe(30_000);
     expect(reconnectDelay(100, () => 0)).toBeLessThan(30_000);
   });
+  it('tracks project membership events independently and rejects duplicate or older lists', () => {
+    const cache = new ProjectionCache();
+    const projects = (seq: number, epoch = 'epoch'): ServerMessage => ({
+      type: 'event',
+      kind: 'projects',
+      cursor: { serverEpoch: epoch, seq },
+      payload: [],
+    });
+    const receipt: ServerMessage = {
+      type: 'event',
+      kind: 'operation',
+      cursor: { serverEpoch: 'epoch', seq: 50 },
+      payload: {
+        clientOperationId: 'operation',
+        kind: 'turn.start',
+        target: 'a',
+        status: 'acknowledged',
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    };
+    expect(cache.apply(receipt)).toBe(true);
+    expect(cache.apply(projects(10))).toBe(true);
+    expect(cache.apply(projects(10))).toBe(false);
+    expect(cache.apply(projects(9))).toBe(false);
+    expect(cache.apply(projects(100))).toBe(true);
+    expect(cache.apply({ ...receipt, cursor: { serverEpoch: 'epoch', seq: 51 } })).toBe(true);
+    expect(cache.apply(projects(1, 'restarted'))).toBe(true);
+  });
+  it('evicts removed-project details without dropping another project or accepting a stale delta', () => {
+    const cache = new ProjectionCache();
+    cache.apply(snapshot('a', 10));
+    cache.apply({
+      type: 'snapshot',
+      threadId: 'b',
+      cursor: { serverEpoch: 'epoch', seq: 11 },
+      data: { ...thread('b'), projectId: 'other-project' },
+    });
+    cache.removeProject('project');
+    expect(cache.get('a')).toBeUndefined();
+    expect(cache.get('b')?.data.id).toBe('b');
+    expect(cache.apply(update('a', 12, 'late removed project update'))).toBe(false);
+    expect(cache.apply(snapshot('a', 13))).toBe(true);
+    expect(cache.get('a')?.cursor.seq).toBe(13);
+  });
   it('keeps overview events independent from detail snapshots and runtime cursors', () => {
     const cache = new ProjectionCache();
     const overview = (id: string, seq: number): ServerMessage => ({

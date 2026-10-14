@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { resolveActionSchema, startTurnSchema, steerSchema } from '../../src/shared/validation.js';
+import {
+  createProjectSchema,
+  removeProjectSchema,
+  renameProjectSchema,
+  resolveActionSchema,
+  startTurnSchema,
+  steerSchema,
+} from '../../src/shared/validation.js';
 
 const clientOperationId = 'be1ce8c0-c87e-4a42-92cd-ef9f77e019df';
 
@@ -67,5 +74,32 @@ describe.each([
     const text = ` ${'x'.repeat(99_998)}\n`;
     expect(schema.safeParse({ ...input, text }).success).toBe(true);
     expect(schema.safeParse({ ...input, text: `${text}\n` }).success).toBe(false);
+  });
+});
+
+describe('project management input contract', () => {
+  it('trims display names and rejects blank or overlong names', () => {
+    expect(createProjectSchema.parse({ path: '/tmp/project', name: '  项目名  ' })).toEqual({
+      path: '/tmp/project',
+      name: '项目名',
+    });
+    expect(renameProjectSchema.parse({ name: '  Renamed  ' })).toEqual({ name: 'Renamed' });
+    for (const name of ['', ' \t\r\n', 'x'.repeat(101)]) {
+      expect(createProjectSchema.safeParse({ path: '/tmp/project', name }).success).toBe(false);
+      expect(renameProjectSchema.safeParse({ name }).success).toBe(false);
+    }
+    expect(createProjectSchema.safeParse({ path: '/tmp/project' }).success).toBe(true);
+    expect(renameProjectSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('rejects path reassignment and undeclared deletion or execution options', () => {
+    expect(createProjectSchema.safeParse({ path: '/tmp/project', cwd: '/tmp/other' }).success).toBe(
+      false,
+    );
+    expect(renameProjectSchema.safeParse({ name: 'New name', path: '/tmp/other' }).success).toBe(
+      false,
+    );
+    expect(removeProjectSchema.safeParse({ deleteFiles: true }).success).toBe(false);
+    expect(removeProjectSchema.parse({})).toEqual({});
   });
 });

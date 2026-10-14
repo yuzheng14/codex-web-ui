@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   Cursor,
   Operation,
+  Project,
   ServerMessage,
   SystemInfo,
   ThreadSummary,
@@ -79,6 +80,17 @@ export class EventHub {
     return () => {
       this.overviewListeners.delete(send);
     };
+  }
+
+  /** Project snapshots have their own update boundary even without a thread event. */
+  publishProjects(projects: Project[]): void {
+    const event: BusinessEvent = {
+      type: 'event',
+      kind: 'projects',
+      cursor: { serverEpoch: this.serverEpoch, seq: ++this.seq },
+      payload: structuredClone(projects),
+    };
+    for (const listener of this.overviewListeners) this.deliver(listener, event);
   }
 
   subscribe(

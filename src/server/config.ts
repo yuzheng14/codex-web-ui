@@ -65,7 +65,7 @@ export const configSchema = z
           .strict(),
       ])
       .default({ mode: 'local' }),
-    projects: z.array(project).min(1),
+    projects: z.array(project).default([]),
     limits: z
       .object({
         eventBytes: z

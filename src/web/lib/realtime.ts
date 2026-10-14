@@ -1,6 +1,7 @@
 import type {
   Cursor,
   Operation,
+  Project,
   ServerMessage,
   SystemInfo,
   ThreadSummary,
@@ -19,8 +20,16 @@ export class ProjectionCache {
   private readonly threads = new Map<string, Projection>();
   private readonly summaryCursors = new Map<string, Cursor>();
   private runtimeCursor: Cursor | undefined;
+  private projectsCursor: Cursor | undefined;
   get(threadId: string) {
     return this.threads.get(threadId);
+  }
+  removeProject(projectId: string) {
+    for (const [id, entry] of this.threads) {
+      if (entry.data.projectId !== projectId) continue;
+      this.threads.delete(id);
+      this.summaryCursors.delete(id);
+    }
   }
   apply(message: ServerMessage): boolean {
     if (message.type === 'error') return true;
@@ -32,6 +41,15 @@ export class ProjectionCache {
       )
         return false;
       this.threads.set(message.threadId, { data: message.data, cursor: message.cursor });
+      return true;
+    }
+    if (message.kind === 'projects') {
+      if (
+        this.projectsCursor?.serverEpoch === message.cursor.serverEpoch &&
+        this.projectsCursor.seq >= message.cursor.seq
+      )
+        return false;
+      this.projectsCursor = message.cursor;
       return true;
     }
     if (message.kind === 'threadSummary' && message.threadId) {
@@ -78,6 +96,7 @@ interface Handlers {
   thread: (thread: ThreadView) => void;
   summary: (thread: ThreadSummary, cursor: Cursor) => void;
   system: (system: SystemInfo) => void;
+  projects?: (projects: Project[]) => void;
   operation: (operation: Operation) => void;
   error: (message: string) => void;
 }
@@ -98,6 +117,23 @@ function isMessage(value: unknown): value is ServerMessage {
   const payload = (m.type === 'snapshot' ? m.data : m.payload) as
     Record<string, unknown> | undefined;
   if (!payload || typeof payload !== 'object') return false;
+  if (m.type === 'event' && m.kind === 'projects')
+    return (
+      Array.isArray(payload) &&
+      payload.every(
+        (project: unknown) =>
+          project !== null &&
+          typeof project === 'object' &&
+          'id' in project &&
+          typeof project.id === 'string' &&
+          'name' in project &&
+          typeof project.name === 'string' &&
+          'rootPath' in project &&
+          typeof project.rootPath === 'string' &&
+          'available' in project &&
+          typeof project.available === 'boolean',
+      )
+    );
   if (m.type === 'snapshot' || m.kind === 'thread')
     return (
       typeof m.threadId === 'string' &&
@@ -222,6 +258,7 @@ export class ThreadStream {
           if (value.kind === 'thread' && value.threadId === this.selected)
             this.handlers.thread(value.payload as ThreadView);
           if (value.kind === 'runtime') this.handlers.system(value.payload as SystemInfo);
+          if (value.kind === 'projects') this.handlers.projects?.(value.payload as Project[]);
           if (value.kind === 'operation') this.handlers.operation(value.payload as Operation);
         }
       } catch {
