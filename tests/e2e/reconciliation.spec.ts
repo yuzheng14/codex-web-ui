@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { Operation } from '../../src/shared/types';
+import type { Operation, ThreadView } from '../../src/shared/types';
 import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
 
 const panel = (page: Page) => page.getByRole('region', { name: '状态诊断详情' });
@@ -12,12 +12,12 @@ test.beforeEach(async ({ request }) => {
   await controlRuntime(request, { reset: true });
 });
 
-async function completedThread(page: Page) {
+async function completedThread(page: Page, text = '核对状态回归测试') {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
   await expect(page.getByText('这个会话准备好了')).toBeVisible();
-  await input(page).fill('核对状态回归测试');
+  await input(page).fill(text);
   const response = page.waitForResponse(
     (entry) => entry.request().method() === 'POST' && entry.url().endsWith('/turns'),
   );
@@ -73,6 +73,57 @@ test('checking refreshes unknown history even with no saved browser operations',
 });
 
 for (const mobile of [false, true]) {
+  test(`checking unloaded managed history recovers through Codex and the real gateway (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+  }, testInfo) => {
+    const operation = await completedThread(page, '[unload] 已完成后卸载的会话');
+    // Let the normal receipt poll remove the finished operation. No HTTP or WebSocket
+    // response is mocked: the fixture emits a real notLoaded protocol notification.
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem('codex-web.operations.v1')))
+      .toBe('[]');
+    await expect(page.locator('.topbar .status')).toHaveText('状态待核对');
+    await expect(checkButton(page)).toBeVisible();
+    await page.setViewportSize(
+      mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+    );
+    await input(page).fill('恢复后继续的草稿');
+    await expect(send(page)).toBeDisabled();
+    const posts: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST') posts.push(request.url());
+    });
+    const response = page.waitForResponse(
+      (entry) =>
+        entry.request().method() === 'GET' &&
+        entry.url().endsWith(`/api/threads/${operation.target}`),
+    );
+    await checkButton(page).click();
+    const received = await response;
+    expect(received.ok()).toBe(true);
+    const recovered = (await received.json()) as ThreadView;
+    expect(recovered).toMatchObject({ id: operation.target, status: 'completed', managed: true });
+    expect(recovered.execution).toBeUndefined();
+    await expect(panel(page).getByText('没有待核对的提交。')).toBeVisible();
+    await expect(page.locator('.pending-notice')).toHaveCount(0);
+    await expect(page.locator('.topbar .status')).toHaveText('已完成');
+    await expect(send(page)).toBeEnabled();
+    await expect(input(page)).toHaveValue('恢复后继续的草稿');
+    expect(posts).toHaveLength(0);
+    await page.screenshot({
+      path: testInfo.outputPath(`recovered-${mobile ? 'mobile' : 'desktop'}.png`),
+      fullPage: true,
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.locator('.diagnostics > summary').click();
+    await send(page).click();
+    await expect(page.locator('.turn')).toHaveCount(2);
+    await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
+    expect(posts).toEqual([expect.stringContaining(`/api/threads/${operation.target}/turns`)]);
+  });
+
   test(`unknown receipt opens manual reconciliation and refreshes its result (${mobile ? 'mobile' : 'desktop'})`, async ({
     page,
   }, testInfo) => {

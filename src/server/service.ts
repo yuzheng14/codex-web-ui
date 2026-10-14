@@ -162,8 +162,9 @@ export class GatewayService {
     const cached = this.projection.get(threadId);
     if (cached) {
       this.projects.assertOwnership(cached.projectId, cached.cwd);
-      if (cached.status !== 'unknown' || cached.managed || !this.codex.ready)
-        return this.threadView(cached);
+      // Ownership does not make an unknown projection authoritative (e.g. notLoaded).
+      // Keep live projections cached, but re-read unknown history for managed sessions too.
+      if (cached.status !== 'unknown' || !this.codex.ready) return this.threadView(cached);
     }
     const existing = this.reads.get(threadId);
     if (existing) return this.threadView(await existing);
@@ -176,6 +177,9 @@ export class GatewayService {
         current && (cached === undefined || this.projection.revision(threadId) !== revision);
       const result = preserveCurrent ? current : this.projection.thread(thread);
       this.applyRecoveredMarker(result);
+      if (!preserveCurrent)
+        for (const turn of result.turns)
+          if (isTerminal(turn.status)) this.projection.expireTurn(threadId, turn.id);
       if (cached !== undefined && !preserveCurrent) this.publishThread(threadId);
       return result;
     })();
@@ -517,12 +521,15 @@ export class GatewayService {
 
   private applyRecoveredMarker(thread: ThreadView): void {
     const marker = this.store.activeForThread(thread.id);
-    if (marker?.state === 'unknown') {
-      const confirmed = thread.turns.find((entry) => entry.id === marker.turnId);
-      if (confirmed && isTerminal(confirmed.status)) {
-        this.store.finishTurn(thread.id, confirmed.id, marker.codexEpoch);
-        return;
-      }
+    if (!marker) return;
+    const confirmed = thread.turns.find((entry) => entry.id === marker.turnId);
+    // Saved terminal evidence also recovers a missed live completion notification.
+    // Only the matching turn and epoch may release this execution's checkout lock.
+    if (confirmed && isTerminal(confirmed.status)) {
+      this.store.finishTurn(thread.id, confirmed.id, marker.codexEpoch);
+      return;
+    }
+    if (marker.state === 'unknown') {
       thread.status = 'unknown';
       const turn = thread.turns.find((entry) => entry.id === marker.turnId);
       if (turn && !isTerminal(turn.status)) turn.status = 'unknown';
