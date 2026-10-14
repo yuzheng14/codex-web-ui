@@ -29,6 +29,11 @@ export function compactThreadForTransport(thread: ThreadView, maxBytes: number):
       if (item.details !== undefined) item.details = truncated;
       if (item.changes)
         item.changes = item.changes.map((change) => ({ ...change, diff: preview(change.diff) }));
+      if (item.autoReview)
+        for (const field of ['actionLabel', 'actionSummary', 'cwd', 'rationale'] as const) {
+          const value = item.autoReview[field];
+          if (value !== undefined) item.autoReview[field] = preview(value);
+        }
     });
   // Remove old output first, preserving turn/item IDs and all current controls.
   for (const turn of result.turns) {

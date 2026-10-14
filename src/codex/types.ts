@@ -1,5 +1,6 @@
 import type {
   ActionResolution,
+  AutoReviewView,
   ItemView,
   PendingAction,
   RunStatus,
@@ -17,6 +18,7 @@ export type CodexEvent =
   | { type: 'threadStatus'; threadId: string; status: RunStatus }
   | { type: 'turn'; threadId: string; turn: TurnView }
   | { type: 'item'; threadId: string; turnId: string; item: ItemView }
+  | { type: 'autoReview'; threadId: string; turnId: string; review: AutoReviewView }
   | {
       type: 'delta';
       threadId: string;

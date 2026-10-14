@@ -1,4 +1,11 @@
-import type { ItemView, PendingAction, RunStatus, ThreadView, TurnView } from '../shared/types.js';
+import type {
+  AutoReviewView,
+  ItemView,
+  PendingAction,
+  RunStatus,
+  ThreadView,
+  TurnView,
+} from '../shared/types.js';
 
 export const isActive = (status: RunStatus): boolean =>
   status === 'running' || status === 'waitingApproval' || status === 'waitingInput';
@@ -9,6 +16,12 @@ export class Projection {
   private readonly threads = new Map<string, ThreadView>();
   readonly actions = new Map<string, PendingAction>();
   private readonly revisions = new Map<string, number>();
+  // Notifications may precede thread/turn history. Keep only a bounded, per-thread inbox.
+  private readonly earlyAutoReviews = new Map<
+    string,
+    { threadId: string; turnId: string; item: ItemView; bytes: number }
+  >();
+  private earlyAutoReviewBytes = 0;
   constructor(private readonly maxItemBytes = 2 * 1024 * 1024) {}
 
   get(threadId: string): ThreadView | undefined {
@@ -31,6 +44,10 @@ export class Projection {
       for (const turn of thread.turns) turn.items = turn.items.map((item) => this.limit(item));
       thread.actions = [...this.actions.values()].filter((action) => action.threadId === thread.id);
       this.threads.set(thread.id, thread);
+      for (const turn of thread.turns) {
+        this.flushAutoReviews(thread.id, turn.id);
+        if (isTerminal(turn.status)) this.finishAutoReviews(turn);
+      }
     } else {
       const oldTurns = current.turns;
       const oldStatus = current.status;
@@ -61,7 +78,85 @@ export class Projection {
       for (const item of incoming.items) this.item(threadId, incoming.id, item, preserveCurrent);
     }
     if (!preserveCurrent) thread.status = incoming.status;
+    this.flushAutoReviews(threadId, incoming.id);
+    const updated = thread.turns.find((turn) => turn.id === incoming.id)!;
+    if (isTerminal(updated.status)) this.finishAutoReviews(updated);
     this.touch(threadId);
+  }
+
+  autoReview(threadId: string, turnId: string, review: AutoReviewView): boolean {
+    const item = this.limit({
+      id: `auto-review:${review.reviewId}`,
+      type: 'autoApprovalReview',
+      status: review.status,
+      autoReview: review,
+    });
+    const turn = this.threads.get(threadId)?.turns.find((entry) => entry.id === turnId);
+    if (turn) return this.applyAutoReview(threadId, turn, item);
+    const key = JSON.stringify([threadId, turnId, review.reviewId]);
+    const current = this.earlyAutoReviews.get(key);
+    if (current && !this.reviewCanReplace(current.item, item)) return false;
+    const bytes = Buffer.byteLength(JSON.stringify({ threadId, turnId, item }));
+    if (current) this.earlyAutoReviewBytes -= current.bytes;
+    this.earlyAutoReviews.set(key, { threadId, turnId, item, bytes });
+    this.earlyAutoReviewBytes += bytes;
+    while (this.earlyAutoReviews.size > 128 || this.earlyAutoReviewBytes > 4 * 1024 * 1024) {
+      const oldest = this.earlyAutoReviews.keys().next().value!;
+      this.earlyAutoReviewBytes -= this.earlyAutoReviews.get(oldest)!.bytes;
+      this.earlyAutoReviews.delete(oldest);
+    }
+    return false;
+  }
+
+  private reviewCanReplace(current: ItemView, incoming: ItemView): boolean {
+    const previous = current.autoReview!;
+    const next = incoming.autoReview!;
+    if (previous.status !== 'inProgress' && next.status === 'inProgress') return false;
+    if (
+      previous.completedAtMs !== undefined &&
+      (next.completedAtMs === undefined || previous.completedAtMs > next.completedAtMs)
+    )
+      return false;
+    return JSON.stringify(current) !== JSON.stringify(incoming);
+  }
+
+  private applyAutoReview(threadId: string, turn: TurnView, item: ItemView): boolean {
+    const index = turn.items.findIndex(
+      (entry) =>
+        entry.type === 'autoApprovalReview' &&
+        entry.autoReview?.reviewId === item.autoReview!.reviewId,
+    );
+    // Check the original event before converting an unfinished late review to unknown.
+    if (index >= 0 && !this.reviewCanReplace(turn.items[index]!, item)) return false;
+    if (isTerminal(turn.status) && item.autoReview!.status === 'inProgress') {
+      item.autoReview!.status = 'unknown';
+      item.status = 'unknown';
+    }
+    if (index < 0) turn.items.push(item);
+    else {
+      turn.items[index] = item;
+    }
+    this.touch(threadId);
+    return true;
+  }
+
+  private flushAutoReviews(threadId: string, turnId: string): void {
+    const turn = this.threads.get(threadId)?.turns.find((entry) => entry.id === turnId);
+    if (!turn) return;
+    for (const [key, entry] of this.earlyAutoReviews) {
+      if (entry.threadId !== threadId || entry.turnId !== turnId) continue;
+      this.earlyAutoReviews.delete(key);
+      this.earlyAutoReviewBytes -= entry.bytes;
+      this.applyAutoReview(threadId, turn, entry.item);
+    }
+  }
+
+  private finishAutoReviews(turn: TurnView): void {
+    for (const item of turn.items) {
+      if (item.autoReview?.status !== 'inProgress') continue;
+      item.autoReview.status = 'unknown';
+      item.status = 'unknown';
+    }
   }
 
   item(threadId: string, turnId: string, item: ItemView, preserveCurrent = false): void {
@@ -142,8 +237,22 @@ export class Projection {
     for (const thread of this.threads.values()) {
       thread.managed = false;
       if (isActive(thread.status)) thread.status = 'unknown';
-      for (const turn of thread.turns) if (isActive(turn.status)) turn.status = 'unknown';
+      for (const turn of thread.turns) {
+        if (isActive(turn.status)) turn.status = 'unknown';
+        this.finishAutoReviews(turn);
+      }
       this.touch(thread.id);
+    }
+    for (const entry of this.earlyAutoReviews.values()) {
+      if (entry.item.autoReview?.status === 'inProgress') {
+        this.earlyAutoReviewBytes -= entry.bytes;
+        entry.item.autoReview.status = 'unknown';
+        entry.item.status = 'unknown';
+        entry.bytes = Buffer.byteLength(
+          JSON.stringify({ threadId: entry.threadId, turnId: entry.turnId, item: entry.item }),
+        );
+        this.earlyAutoReviewBytes += entry.bytes;
+      }
     }
   }
 
@@ -187,6 +296,15 @@ export class Projection {
       if (clipped.truncated) {
         result.details = clipped.value;
         result.truncated = true;
+      }
+    }
+    if (result.autoReview) {
+      for (const field of ['actionLabel', 'actionSummary', 'cwd', 'rationale'] as const) {
+        const value = result.autoReview[field];
+        if (value === undefined) continue;
+        const clipped = this.clip(value);
+        result.autoReview[field] = clipped.value;
+        if (clipped.truncated) result.truncated = true;
       }
     }
     return result;

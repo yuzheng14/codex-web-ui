@@ -21,10 +21,13 @@
 | MCP 交互   | `mcpServer/elicitation/request` 支持 `form`、`openai/form`、`openaiForm` 的平面表单及 `url` 模式；回复 `action/content/_meta`，拒绝与取消保持独立语义。URL 仅允许 HTTP/HTTPS，必须由用户主动打开 |
 | 结构化问题 | `item/tool/requestUserInput`，回复为 `{ answers: { questionId: { answers: [...] } } }`；校验选项、自由输入和题目 ID，保留 `isBlocking` 语义                           |
 | 回答确认   | 写入回复后保持 responding；`serverRequest/resolved` 才确认 answered，turn 结束或进程退出使遗留请求失效                                                                |
+| 自动审核展示 | `item/autoApprovalReview/started`、`item/autoApprovalReview/completed` 按独立 `reviewId` 合并，只读展示操作、状态、风险和原因；不发送审批回复，也不据此判定任务完成 |
 | 请求 ID    | 字符串与数字分别匹配，数字 `0` 有效；不依赖响应顺序                                                                                                                   |
 | 新活动类型 | 保留稳定 item ID，以通用活动详情展示；未知交互请求显示兼容错误并回复 JSON-RPC `-32601`，不会自动同意                                                                  |
 
 MCP 表单支持字符串、数字、整数、布尔值、单选和多选，以及必填、长度、数值范围、选项和数组长度约束。服务端在领取请求前校验回答，保留 `false`、`0` 和字符串空白；适配层发送前再次校验。不支持的结构或约束会显示说明并禁止接受，但仍允许明确拒绝或取消；不会默默忽略约束后授权。权限目标和表单控制信息不会随长会话输出一起被截断。
+
+自动审核状态区分 `inProgress`、`approved`、`denied`、`timedOut` 和 `aborted`。本轮结束或运行进程退出时仍未收到结果的审核显示“结果未确认”，不推断为允许或拒绝；迟到的开始通知不会覆盖已收到的终态。记录保留在网关内存投影中，浏览器刷新和重连可恢复；当前协议的会话历史不含审核通知，因此不承诺网关重启后恢复。严格审核要求、Guardian 警告和 `thread/approveGuardianDeniedAction` 的人工再次授权入口尚未接入。
 
 2026-10-14 的 Fork 检查使用真实 `0.162.1`、独立临时 `CODEX_HOME` 和人工构造的持久历史，无登录、无模型请求。已验证新 ID、父会话 ID、目录与消息复制、completed 状态保留，以及源历史文件逐字节不变；未结束的静态历史副本为 interrupted。真实运行中推理及真实分页 Fork 未在此检查中验证，相关行为由协议 fixture 覆盖。刚新建但未落盘的空会话会被 CLI 拒绝（`no rollout found`）。
 

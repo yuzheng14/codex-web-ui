@@ -891,6 +891,11 @@ export class GatewayService {
       if (action?.threadId) this.publishThread(action.threadId);
       return;
     }
+    if (event.type === 'autoReview') {
+      if (this.projection.autoReview(event.threadId, event.turnId, event.review))
+        this.publishThread(event.threadId);
+      return;
+    }
     const thread = this.projection.get(event.threadId);
     if (!thread) return;
     if (event.type === 'threadName') {
