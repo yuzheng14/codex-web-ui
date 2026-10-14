@@ -75,6 +75,16 @@ export function createApp({
     return c.json(op, status(op));
   });
   app.get('/api/projects', async (c) => c.json({ data: await service.listProjects() }));
+  app.get('/api/projects/:projectId/threads', async (c) =>
+    c.json(
+      await service.listThreadSummaries(
+        id(c.req.param('projectId')),
+        c.req.query('cursor') === undefined
+          ? undefined
+          : schemas.cursorSchema.parse(c.req.query('cursor')),
+      ),
+    ),
+  );
   app.get('/api/threads', async (c) =>
     c.json(
       await service.listThreads(
@@ -149,7 +159,9 @@ export function createApp({
   });
   app.get(
     '/ws',
-    upgradeWebSocket((c) => socketHandlers(service, config, c.get('identity'))),
+    upgradeWebSocket((c) =>
+      socketHandlers(service, config, c.get('identity'), c.req.query('overview') === '1'),
+    ),
   );
   app.all('/api/*', () => {
     throw new AppError('NOT_FOUND', 'API route not found', 404);

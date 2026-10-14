@@ -10,7 +10,13 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { CodexAdapter } from '../../src/codex/adapter.js';
 import { parseConfig } from '../../src/server/config.js';
 import { startGateway } from '../../src/server/main.js';
-import type { Operation, ServerMessage, SystemInfo, ThreadView } from '../../src/shared/types.js';
+import type {
+  Operation,
+  ServerMessage,
+  SystemInfo,
+  ThreadSummary,
+  ThreadView,
+} from '../../src/shared/types.js';
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
@@ -20,6 +26,7 @@ async function setup(
     confirmCompatibility?: boolean;
     unsupportedMethod?: string;
     origins?: (origin: string) => string[];
+    multipleProjects?: boolean;
   } = {},
 ) {
   const probe = createServer();
@@ -31,6 +38,7 @@ async function setup(
   const root = await mkdtemp(join(tmpdir(), 'codex-http-'));
   cleanup.push(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, 'project'));
+  if (options.multipleProjects) await mkdir(join(root, 'second'));
   await mkdir(join(root, 'web'));
   await writeFile(join(root, 'web/index.html'), '<!doctype html><title>Codex test</title>');
   const origin = `http://127.0.0.1:${address.port}`;
@@ -40,7 +48,12 @@ async function setup(
       port: address.port,
       publicOrigin: origins,
       dataDir: join(root, 'data'),
-      projects: [{ id: 'test', name: 'Test', path: join(root, 'project') }],
+      projects: [
+        { id: 'test', name: 'Test', path: join(root, 'project') },
+        ...(options.multipleProjects
+          ? [{ id: 'second', name: 'Second', path: join(root, 'second') }]
+          : []),
+      ],
     },
     join(root, 'config.json'),
   );
@@ -66,11 +79,14 @@ async function setup(
       headers: { origin, 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
-  const connect = async (browserOrigin = origin) => {
-    const ws = new WebSocket(origin.replace('http:', 'ws:') + '/ws', {
-      origin: browserOrigin,
-      headers: { host: new URL(browserOrigin).host },
-    });
+  const connect = async (browserOrigin = origin, overview = false) => {
+    const ws = new WebSocket(
+      origin.replace('http:', 'ws:') + `/ws${overview ? '?overview=1' : ''}`,
+      {
+        origin: browserOrigin,
+        headers: { host: new URL(browserOrigin).host },
+      },
+    );
     await once(ws, 'open');
     cleanup.push(async () => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -170,6 +186,138 @@ const multipleOrigins = (origin: string) => [
   origin.replace('127.0.0.1', 'localhost'),
   'https://codex.example.ts.net',
 ];
+
+it('broadcasts other project summaries before selection and alongside one detailed subscription', async () => {
+  const { origin, post, connect } = await setup({ multipleProjects: true });
+  const initial = (await (
+    await post('/api/projects/test/threads', { clientOperationId: randomUUID() })
+  ).json()) as Operation;
+  const initialId = (initial.result as { threadId: string }).threadId;
+  const selected = await connect(origin, true);
+  const idle = await connect(origin, true);
+  const legacy = await connect();
+  const snapshot = message(selected, (event) => event.type === 'snapshot');
+  selected.send(JSON.stringify({ type: 'subscribe', threadId: initialId }));
+  await snapshot;
+  const legacySnapshot = message(legacy, (event) => event.type === 'snapshot');
+  legacy.send(JSON.stringify({ type: 'subscribe', threadId: initialId }));
+  await legacySnapshot;
+  const legacyMessages: ServerMessage[] = [];
+  legacy.on('message', (data: Buffer) =>
+    legacyMessages.push(JSON.parse(data.toString()) as ServerMessage),
+  );
+  const received: ServerMessage[][] = [[], []];
+  [selected, idle].forEach((ws, index) =>
+    ws.on('message', (data: Buffer) =>
+      received[index]!.push(JSON.parse(data.toString()) as ServerMessage),
+    ),
+  );
+  const summary = (status: ThreadSummary['status']) => (event: ServerMessage) =>
+    event.type === 'event' &&
+    event.kind === 'threadSummary' &&
+    (event.payload as ThreadSummary).projectId === 'second' &&
+    (event.payload as ThreadSummary).status === status;
+  const creation = message(
+    idle,
+    (event) =>
+      summary('idle')(event) && event.type === 'event' && (event.payload as ThreadSummary).managed,
+  );
+  const created = (await (
+    await post('/api/projects/second/threads', { clientOperationId: randomUUID() })
+  ).json()) as Operation;
+  const secondId = (created.result as { threadId: string }).threadId;
+  expect(await creation).toMatchObject({ threadId: secondId });
+  const waitingApproval = (event: ServerMessage) =>
+    summary('waitingApproval')(event) &&
+    event.type === 'event' &&
+    (event.payload as ThreadSummary).pendingActionCount === 1;
+  const approvals = [selected, idle].map((ws) => message(ws, waitingApproval));
+  await post(`/api/threads/${secondId}/turns`, {
+    clientOperationId: randomUUID(),
+    text: '[approval] private request body',
+  });
+  for (const result of await Promise.all(approvals))
+    expect(result).toMatchObject({ payload: { pendingActionCount: 1 } });
+  const detail = (await (await fetch(`${origin}/api/threads/${secondId}`)).json()) as ThreadView;
+  const action = detail.actions[0]!;
+  const completions = [selected, idle].map((ws) => message(ws, summary('completed')));
+  await post(`/api/actions/${action.actionId}/resolve`, {
+    clientOperationId: randomUUID(),
+    resolution: { decision: action.options[0]!.id },
+  });
+  await Promise.all(completions);
+  expect(
+    legacyMessages.some((event) => event.type === 'event' && event.kind === 'threadSummary'),
+  ).toBe(false);
+  expect(legacyMessages.some((event) => event.type === 'event' && event.kind === 'operation')).toBe(
+    true,
+  );
+  for (const events of received) {
+    expect(events.filter(waitingApproval)).toHaveLength(1);
+    expect(events.filter(summary('completed'))).toHaveLength(1);
+    expect(events.some((event) => event.type === 'event' && event.kind === 'thread')).toBe(false);
+    const summaries = events.filter(
+      (event) => event.type === 'event' && event.kind === 'threadSummary',
+    );
+    for (const event of summaries) {
+      if (event.type !== 'event') throw new Error('Expected summary event');
+      expect(event.payload).not.toHaveProperty('turns');
+      expect(event.payload).not.toHaveProperty('actions');
+      expect(event.payload).not.toHaveProperty('cwd');
+    }
+    expect(JSON.stringify(summaries)).not.toContain('private request body');
+  }
+  const overview = await fetch(`${origin}/api/projects/second/threads`);
+  expect(overview.status).toBe(200);
+  expect(await overview.json()).toMatchObject({
+    data: [{ id: secondId, lastTurnStatus: 'completed', pendingActionCount: 0 }],
+  });
+});
+
+it('validates unsubscribe and releases detail delivery while keeping overview and runtime active', async () => {
+  const { origin, runtime, post, connect } = await setup();
+  const created = (await (
+    await post('/api/projects/test/threads', { clientOperationId: randomUUID() })
+  ).json()) as Operation;
+  const threadId = (created.result as { threadId: string }).threadId;
+  const ws = await connect(origin, true);
+  const invalid = message(ws, (event) => event.type === 'error');
+  ws.send(JSON.stringify({ type: 'unsubscribe', threadId }));
+  expect(await invalid).toMatchObject({ error: { code: 'VALIDATION_FAILED' } });
+  const snapshot = message(ws, (event) => event.type === 'snapshot');
+  ws.send(JSON.stringify({ type: 'subscribe', threadId }));
+  await snapshot;
+  const received: ServerMessage[] = [];
+  ws.on('message', (data: Buffer) => received.push(JSON.parse(data.toString()) as ServerMessage));
+  ws.send(JSON.stringify({ type: 'unsubscribe' }));
+  // A pong after this frame is a transport barrier: the server has processed unsubscribe.
+  const pong = once(ws, 'pong');
+  ws.ping();
+  await pong;
+  const completed = message(
+    ws,
+    (event) =>
+      event.type === 'event' &&
+      event.kind === 'threadSummary' &&
+      (event.payload as ThreadSummary).lastTurnStatus === 'completed',
+  );
+  await post(`/api/threads/${threadId}/turns`, {
+    clientOperationId: randomUUID(),
+    text: 'continue after leaving detail',
+  });
+  await completed;
+  const runtimeEvent = message(ws, (event) => event.type === 'event' && event.kind === 'runtime');
+  runtime.service.events.publish('runtime', runtime.service.getSystem());
+  await runtimeEvent;
+  expect(received.some((event) => event.type === 'error')).toBe(false);
+  expect(received.some((event) => event.type === 'event' && event.kind === 'thread')).toBe(false);
+  expect(received.some((event) => event.type === 'event' && event.kind === 'threadSummary')).toBe(
+    true,
+  );
+  const refreshed = message(ws, (event) => event.type === 'snapshot');
+  ws.send(JSON.stringify({ type: 'subscribe', threadId }));
+  expect(await refreshed).toMatchObject({ data: { turns: [{ status: 'completed' }] } });
+});
 
 it('serves every configured origin through one HTTP gateway and shared WebSocket execution', async () => {
   const { origin, origins, runtime, connect } = await setup({ origins: multipleOrigins });

@@ -64,6 +64,13 @@ export interface ThreadView {
   historyTruncated?: boolean;
   execution?: ExecutionMarker;
 }
+export type ThreadSummary = Pick<
+  ThreadView,
+  'id' | 'forkedFromId' | 'projectId' | 'source' | 'title' | 'status' | 'managed' | 'updatedAt'
+> & {
+  pendingActionCount: number;
+  lastTurnStatus?: RunStatus;
+};
 export interface Question {
   id: string;
   header: string;
@@ -157,6 +164,11 @@ export interface ThreadPage {
   data: ThreadView[];
   nextCursor: string | null;
 }
+export interface ThreadSummaryPage {
+  data: ThreadSummary[];
+  nextCursor: string | null;
+  cursor: Cursor;
+}
 export interface ModelInfo {
   id: string;
   name: string;
@@ -194,7 +206,7 @@ export type ServerMessage =
       type: 'event';
       cursor: Cursor;
       threadId?: string;
-      kind: 'thread' | 'runtime' | 'operation';
-      payload: ThreadView | SystemInfo | Operation;
+      kind: 'thread' | 'threadSummary' | 'runtime' | 'operation';
+      payload: ThreadView | ThreadSummary | SystemInfo | Operation;
     }
   | { type: 'error'; error: ApiError };

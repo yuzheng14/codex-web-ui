@@ -51,3 +51,7 @@ export const subscribeSchema = z
       .optional(),
   })
   .strict();
+export const socketMessageSchema = z.discriminatedUnion('type', [
+  subscribeSchema,
+  z.object({ type: z.literal('unsubscribe') }).strict(),
+]);
