@@ -98,4 +98,24 @@ describe('durable operation identity', () => {
     expect(blocksTarget(entry, 'thread')).toBe(false);
     expect(entry.operation.status).toBe('unknown');
   });
+  it('persists cancelled create navigation so a late receipt cannot reopen a previous project', () => {
+    let data = '';
+    const storage = {
+      setItem: (_key: string, value: string) => {
+        data = value;
+      },
+      getItem: () => data,
+    };
+    const operation: SavedOperation = {
+      clientOperationId: 'create',
+      kind: 'create',
+      target: 'a',
+      projectId: 'a',
+      createdAt: 1,
+      status: 'unknown',
+      navigateToResult: false,
+    };
+    saveOperations([operation], storage);
+    expect(readOperations(storage)).toEqual([operation]);
+  });
 });
