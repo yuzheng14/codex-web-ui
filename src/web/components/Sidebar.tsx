@@ -1,28 +1,91 @@
-import type { Project, ThreadView } from '../../shared/types';
+import { useState } from 'react';
+import type { Project, ThreadSummary } from '../../shared/types';
 import { formatTime, cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
-import { isActive } from './Status';
+import { isActive, Status } from './Status';
 
+interface ProjectThreads {
+  data: ThreadSummary[];
+  nextCursor: string | null;
+  loading: boolean;
+  error?: string;
+}
 interface Props {
   projects: Project[];
   projectId: string;
   onProject: (id: string) => void;
-  threads: ThreadView[];
+  projectThreads: Record<string, ProjectThreads>;
   selectedId?: string;
-  onThread: (id: string) => void;
-  nextCursor: string | null;
-  loading: boolean;
-  onMore: () => void;
+  onThread: (id: string, projectId: string) => void;
+  onMore: (projectId: string, cursor: string) => void;
+  onRetry: (projectId: string) => void;
   onRefresh: () => void;
-  onCreate: () => void;
-  creating: boolean;
-  canCreate: boolean;
+  onCreate: (projectId: string) => void;
+  creating: (projectId: string) => boolean;
+  canCreate: (projectId: string) => boolean;
+  offline: boolean;
   open: boolean;
   onClose: () => void;
 }
+
+function ThreadLink({
+  thread,
+  selected,
+  offline,
+  onSelect,
+}: {
+  thread: ThreadSummary;
+  selected: boolean;
+  offline: boolean;
+  onSelect: () => void;
+}) {
+  const lastResult = thread.lastTurnStatus;
+  const status =
+    thread.status === 'idle' &&
+    lastResult &&
+    ['completed', 'failed', 'interrupted'].includes(lastResult)
+      ? lastResult
+      : thread.status;
+  return (
+    <button
+      className={cn('thread-link', selected && 'thread-selected')}
+      data-thread-id={thread.id}
+      onClick={onSelect}
+      aria-current={selected ? 'page' : undefined}
+    >
+      <Icon name={thread.forkedFromId ? 'fork' : 'chat'} size={16} />
+      <span className="thread-link-content">
+        <span className="thread-title">{thread.title || '未命名会话'}</span>
+        <span className="thread-meta">
+          {thread.source === 'cli' ? 'CLI' : thread.source === 'appServer' ? 'Web' : thread.source}
+          {thread.forkedFromId ? ' · Fork' : ''}
+          {thread.updatedAt ? ` · ${formatTime(thread.updatedAt)}` : ''}
+        </span>
+        <span className="thread-progress">
+          <Status status={status} offline={offline} />
+          {thread.pendingActionCount > 0 && (
+            <span className="thread-pending-count">{thread.pendingActionCount} 项待处理</span>
+          )}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 export function Sidebar(props: Props) {
-  const project = props.projects.find((entry) => entry.id === props.projectId);
+  const [search, setSearch] = useState('');
+  const query = search.trim().toLocaleLowerCase();
+  const groups = props.projects.flatMap((project) => {
+    const state = props.projectThreads[project.id];
+    const matchesProject = `${project.name} ${project.rootPath}`
+      .toLocaleLowerCase()
+      .includes(query);
+    const threads = (state?.data ?? []).filter(
+      (thread) => matchesProject || thread.title.toLocaleLowerCase().includes(query),
+    );
+    return matchesProject || threads.length > 0 ? [{ project, state, threads }] : [];
+  });
   return (
     <>
       {props.open && (
@@ -46,102 +109,135 @@ export function Sidebar(props: Props) {
             <Icon name="close" />
           </Button>
         </div>
-        <div className="project-picker">
-          <label className="eyebrow" htmlFor="project">
-            当前项目
+        <div className="project-search">
+          <label className="eyebrow" htmlFor="project-search">
+            项目与会话
           </label>
-          <div className="select-wrapper">
-            <Icon name="folder" />
-            <select
-              id="project"
-              value={props.projectId}
-              onChange={(event) => props.onProject(event.target.value)}
-            >
-              <option value="" disabled>
-                选择项目
-              </option>
-              {props.projects.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.name}
-                  {entry.available ? '' : ' · 不可用'}
-                </option>
-              ))}
-            </select>
-          </div>
-          {project && (
-            <p className="project-path" title={project.rootPath}>
-              {project.rootPath}
-            </p>
-          )}
-          {project && !project.available && (
-            <p className="inline-error">{project.error ?? '项目目录不可用'}</p>
-          )}
+          <input
+            id="project-search"
+            type="search"
+            aria-label="搜索项目与已加载会话"
+            placeholder="搜索项目与已加载会话"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
         </div>
-        <Button
-          className="new-thread"
-          variant="secondary"
-          onClick={props.onCreate}
-          disabled={!props.canCreate || props.creating}
-        >
-          <Icon name="plus" />
-          {props.creating ? '正在创建…' : '新建会话'}
-        </Button>
         <div className="section-label">
-          <span>最近会话</span>
+          <span>{query ? '搜索结果' : `全部项目 · ${props.projects.length}`}</span>
           <Button
             variant="ghost"
             size="icon"
             aria-label="刷新会话列表"
             onClick={props.onRefresh}
-            disabled={props.loading}
+            disabled={props.projects.length === 0}
           >
             <Icon name="refresh" size={14} />
           </Button>
         </div>
-        <nav className="thread-list" aria-label="会话历史">
-          {props.threads.map((entry) => (
-            <button
-              key={entry.id}
-              className={cn('thread-link', entry.id === props.selectedId && 'thread-selected')}
-              onClick={() => {
-                props.onThread(entry.id);
-                props.onClose();
-              }}
-              aria-current={entry.id === props.selectedId ? 'page' : undefined}
-            >
-              <Icon name={entry.forkedFromId ? 'fork' : 'chat'} size={16} />
-              <span className="thread-link-content">
-                <span className="thread-title">{entry.title || '未命名会话'}</span>
-                <span className="thread-meta">
-                  {entry.source === 'cli'
-                    ? 'CLI'
-                    : entry.source === 'appServer'
-                      ? 'Web'
-                      : entry.source}
-                  {entry.forkedFromId ? ' · Fork' : ''}{' '}
-                  {entry.updatedAt ? `· ${formatTime(entry.updatedAt)}` : ''}
-                </span>
-              </span>
-              {isActive(entry.status) && <span className="activity-dot" aria-label="正在执行" />}
-            </button>
-          ))}
-          {!props.loading && props.threads.length === 0 && (
-            <p className="sidebar-empty">暂无会话。创建一个，开始工作。</p>
-          )}
-          {props.loading && (
-            <p className="sidebar-empty" role="status">
-              正在读取会话…
+        <nav className="project-list" aria-label="会话历史">
+          {groups.map(({ project, state, threads }) => {
+            const activeCount = (state?.data ?? []).filter((entry) =>
+              isActive(entry.status),
+            ).length;
+            return (
+              <section
+                key={project.id}
+                className={cn('project-group', props.projectId === project.id && 'project-active')}
+                aria-label={project.name}
+                data-project-id={project.id}
+              >
+                <h2 className="project-heading">
+                  <button
+                    className="project-link"
+                    onClick={() => props.onProject(project.id)}
+                    aria-current={props.projectId === project.id ? 'true' : undefined}
+                    title={project.name}
+                  >
+                    <Icon name="folder" size={16} />
+                    <span>{project.name}</span>
+                    {activeCount > 0 && (
+                      <span className="project-activity" aria-label={`${activeCount} 个进行中会话`}>
+                        {activeCount}
+                      </span>
+                    )}
+                  </button>
+                </h2>
+                <p className="project-path" title={project.rootPath}>
+                  {project.rootPath}
+                </p>
+                {!project.available && (
+                  <p className="inline-error project-error" role="status">
+                    {project.error ?? '项目目录不可用'}
+                  </p>
+                )}
+                <Button
+                  className="new-thread"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => props.onCreate(project.id)}
+                  disabled={!props.canCreate(project.id) || props.creating(project.id)}
+                >
+                  <Icon name="plus" size={14} />
+                  {props.creating(project.id) ? '正在创建…' : '新建会话'}
+                </Button>
+                <div className="thread-list">
+                  {threads.map((entry) => (
+                    <ThreadLink
+                      key={entry.id}
+                      thread={entry}
+                      selected={entry.id === props.selectedId}
+                      offline={props.offline}
+                      onSelect={() => {
+                        props.onThread(entry.id, project.id);
+                        props.onClose();
+                      }}
+                    />
+                  ))}
+                  {state?.error && (
+                    <div className="project-list-error" role="status">
+                      <p>{state.error}</p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={state.loading}
+                        onClick={() => props.onRetry(project.id)}
+                      >
+                        重试加载会话
+                      </Button>
+                    </div>
+                  )}
+                  {project.available &&
+                    !state?.loading &&
+                    !state?.error &&
+                    threads.length === 0 && (
+                      <p className="sidebar-empty">
+                        {query ? '已加载会话中没有匹配结果。' : '暂无会话。创建一个，开始工作。'}
+                      </p>
+                    )}
+                  {state?.loading && (
+                    <p className="sidebar-empty" role="status">
+                      正在读取会话…
+                    </p>
+                  )}
+                  {state?.nextCursor && (
+                    <Button
+                      variant="ghost"
+                      className="load-more"
+                      size="sm"
+                      disabled={state.loading}
+                      onClick={() => props.onMore(project.id, state.nextCursor!)}
+                    >
+                      加载更多会话
+                    </Button>
+                  )}
+                </div>
+              </section>
+            );
+          })}
+          {groups.length === 0 && (
+            <p className="sidebar-empty">
+              {query ? '没有匹配的项目或已加载会话。' : '尚未配置项目。'}
             </p>
-          )}
-          {props.nextCursor && (
-            <Button
-              variant="ghost"
-              className="load-more"
-              disabled={props.loading}
-              onClick={props.onMore}
-            >
-              加载更多会话
-            </Button>
           )}
         </nav>
         <div className="sidebar-footer">

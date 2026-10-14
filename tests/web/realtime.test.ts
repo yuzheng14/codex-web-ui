@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ServerMessage, ThreadView } from '../../src/shared/types';
 import { ProjectionCache, reconnectDelay } from '../../src/web/lib/realtime';
+import { toThreadSummary } from '../../src/shared/thread-summary';
 
 const thread = (id: string, text = ''): ThreadView => ({
   id,
@@ -66,5 +67,40 @@ describe('browser projection recovery', () => {
     expect(reconnectDelay(0, () => 0)).toBe(525);
     expect(reconnectDelay(100, () => 1)).toBe(30_000);
     expect(reconnectDelay(100, () => 0)).toBeLessThan(30_000);
+  });
+  it('keeps overview events independent from detail snapshots and runtime cursors', () => {
+    const cache = new ProjectionCache();
+    const overview = (id: string, seq: number): ServerMessage => ({
+      type: 'event',
+      kind: 'threadSummary',
+      threadId: id,
+      cursor: { serverEpoch: 'epoch', seq },
+      payload: toThreadSummary(thread(id)),
+    });
+    expect(cache.apply(overview('a', 8))).toBe(true);
+    expect(cache.get('a')).toBeUndefined();
+    expect(cache.apply(overview('a', 8))).toBe(false);
+    expect(cache.apply(overview('b', 6))).toBe(true);
+    // A newer overview does not prevent an independent selected-thread replay.
+    expect(cache.apply(snapshot('a', 1))).toBe(true);
+    expect(cache.apply(update('a', 8, 'full conversation'))).toBe(true);
+    expect(cache.get('a')?.data.turns[0]?.items[0]?.text).toBe('full conversation');
+    const receipt: ServerMessage = {
+      type: 'event',
+      kind: 'operation',
+      cursor: { serverEpoch: 'epoch', seq: 7 },
+      payload: {
+        clientOperationId: 'operation',
+        kind: 'turn.start',
+        target: 'a',
+        status: 'acknowledged',
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    };
+    expect(cache.apply(receipt)).toBe(true);
+    expect(cache.apply(receipt)).toBe(false);
+    expect(cache.apply(overview('b', 9))).toBe(true);
+    expect(cache.get('b')).toBeUndefined();
   });
 });

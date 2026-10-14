@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import type { Operation, ServerMessage, ThreadPage, ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime } from './helpers';
+import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
 
 const headers = { Origin: 'http://127.0.0.1:8788' };
 const forkButton = (page: Page) => page.getByRole('button', { name: 'Fork 会话', exact: true });
@@ -10,7 +10,7 @@ const selectedId = (page: Page) =>
 async function newThread(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
-  await page.getByRole('button', { name: '新建会话', exact: true }).click();
+  await createThreadButton(page).click();
   await expect(page.getByText('这个会话准备好了')).toBeVisible();
   return (await selectedId(page))!;
 }
@@ -27,7 +27,7 @@ async function readThread(request: APIRequestContext, id: string) {
   return (await response.json()) as ThreadView;
 }
 async function filterSocket(page: Page, filter: (message: ServerMessage) => ServerMessage | null) {
-  await page.routeWebSocket('**/ws', (socket) => {
+  await page.routeWebSocket('**/ws?overview=1', (socket) => {
     const server = socket.connectToServer();
     server.onMessage((raw) => {
       const message = filter(JSON.parse(raw.toString()) as ServerMessage);

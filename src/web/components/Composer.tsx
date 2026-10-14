@@ -7,6 +7,7 @@ import { SettingsPanel } from './SettingsPanel';
 
 interface Props {
   thread?: ThreadView;
+  draftKey: string;
   projectName?: string;
   settings: Settings;
   models: ModelInfo[];
@@ -27,7 +28,7 @@ export function Composer(props: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [confirmExternal, setConfirmExternal] = useState(false);
   const composingRef = useRef(false);
-  const key = props.thread?.id ?? '__new__';
+  const key = props.thread?.id ?? props.draftKey;
   useEffect(() => {
     setConfirmExternal(false);
   }, [key]);

@@ -34,7 +34,7 @@ export function readOperations(storage?: Pick<Storage, 'getItem'>): SavedOperati
         target,
         createdAt,
         status: 'unknown',
-        ...(kind === 'fork' && typeof projectId === 'string'
+        ...((kind === 'fork' || kind === 'create') && typeof projectId === 'string'
           ? { projectId, navigateToResult: navigateToResult === true }
           : {}),
       }));
@@ -54,7 +54,7 @@ export function saveOperations(operations: SavedOperation[], storage?: Pick<Stor
             kind,
             target,
             createdAt,
-            ...(kind === 'fork' ? { projectId, navigateToResult } : {}),
+            ...(kind === 'fork' || kind === 'create' ? { projectId, navigateToResult } : {}),
           }),
         ),
       ),

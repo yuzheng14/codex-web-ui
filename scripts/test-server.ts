@@ -79,13 +79,19 @@ class ControlledFixture implements CodexClient {
 
 const root = await mkdtemp(join(tmpdir(), 'codex-web-e2e-'));
 const project = join(root, 'project');
+const otherProject = join(root, 'other-project');
 await mkdir(project);
+await mkdir(otherProject);
 const config = parseConfig(
   {
     port: 8788,
     publicOrigin: ['http://127.0.0.1:8788'],
     dataDir: join(root, 'data'),
-    projects: [{ id: 'fixture', name: '测试项目', path: project }],
+    projects: [
+      { id: 'fixture', name: '测试项目', path: project },
+      { id: 'fixture-other', name: '另一个项目', path: otherProject },
+      { id: 'fixture-unavailable', name: '不可用项目', path: join(root, 'missing-project') },
+    ],
   },
   join(root, 'config.json'),
 );

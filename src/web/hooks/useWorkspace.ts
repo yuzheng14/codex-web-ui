@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Operation, Project, Settings, SystemInfo, ThreadView } from '../../shared/types';
+import type {
+  Cursor,
+  Operation,
+  Project,
+  Settings,
+  SystemInfo,
+  ThreadSummary,
+  ThreadView,
+} from '../../shared/types';
 import { api, HttpError } from '../lib/api';
 import {
   blocksTarget,
@@ -12,6 +20,7 @@ import { ThreadStream, type ConnectionState } from '../lib/realtime';
 import { readableError } from '../lib/utils';
 import { operationNeedsCompatibilityConfirmation } from '../lib/compatibility';
 import { SystemSnapshotGuard } from '../lib/system';
+import { ProjectThreadsStore } from '../lib/project-threads';
 
 function preferredProject() {
   try {
@@ -23,12 +32,14 @@ function preferredProject() {
 
 export function useWorkspace() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState(preferredProject);
-  const [threads, setThreads] = useState<ThreadView[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [projectId, setActiveProjectId] = useState(preferredProject);
+  const projectsRef = useRef<Project[]>([]);
+  const projectStore = useRef(new ProjectThreadsStore());
+  const [projectThreads, setProjectThreads] = useState(projectStore.current.snapshot);
   const [thread, setThread] = useState<ThreadView>();
   const [selectedId, setSelectedId] = useState<string>();
   const selectedRef = useRef<string | undefined>(undefined);
+  const selectionsRef = useRef<Record<string, string>>({});
   const [system, setSystem] = useState<SystemInfo>();
   const systemSnapshotGuard = useRef(new SystemSnapshotGuard());
   const [connection, setConnection] = useState<ConnectionState>('connecting');
@@ -36,13 +47,20 @@ export function useWorkspace() {
   const [errorDetails, setErrorDetails] = useState<unknown>();
   const [authRequired, setAuthRequired] = useState(false);
   const [busy, setBusy] = useState<string[]>([]);
-  const [loadingThreads, setLoadingThreads] = useState(false);
   const [operations, setOperations] = useState<SavedOperation[]>(readOperations);
   const operationsRef = useRef(operations);
   const busyRef = useRef(new Set<string>());
   const streamRef = useRef<ThreadStream | undefined>(undefined);
   const projectRef = useRef(projectId);
-  const [settings, setSettings] = useState<Settings>({});
+  const settingsRef = useRef<Record<string, Settings>>({});
+  const [settingsByProject, setSettingsByProject] = useState(settingsRef.current);
+  const navigationRevision = useRef(0);
+  const detailReadSequence = useRef(0);
+  const getProjectSettings = useCallback((id: string) => settingsRef.current[id] ?? {}, []);
+  const setSettings = useCallback((next: Settings) => {
+    settingsRef.current = { ...settingsRef.current, [projectRef.current]: next };
+    setSettingsByProject(settingsRef.current);
+  }, []);
 
   const report = useCallback((problem: unknown) => {
     setError(readableError(problem));
@@ -68,16 +86,39 @@ export function useWorkspace() {
     if (!saveOperations(next))
       setError('浏览器未允许保存操作记录。请保持此页面打开，以便核对未确认的提交。');
   }, []);
+  const loadProjectThreads = useCallback(
+    async (id: string, cursor?: string) => {
+      if (!id) return;
+      const read = projectStore.current.beginRead(id, Boolean(cursor));
+      setProjectThreads(projectStore.current.snapshot);
+      try {
+        const page = await api.threads(id, cursor);
+        if (projectStore.current.finishRead(read, page))
+          setProjectThreads(projectStore.current.snapshot);
+      } catch (problem) {
+        if (projectStore.current.failRead(read, readableError(problem)))
+          setProjectThreads(projectStore.current.snapshot);
+        if (problem instanceof HttpError && problem.authenticationRequired) report(problem);
+      }
+    },
+    [report],
+  );
+  const refreshProjectsThreads = useCallback(
+    () =>
+      Promise.all(
+        projectsRef.current
+          .filter((entry) => entry.available)
+          .map((entry) => loadProjectThreads(entry.id)),
+      ),
+    [loadProjectThreads],
+  );
+  const updateSummary = useCallback((summary: ThreadSummary, cursor: Cursor) => {
+    if (projectStore.current.applySummary(summary, cursor))
+      setProjectThreads(projectStore.current.snapshot);
+  }, []);
   const updateThread = useCallback(
     (next: ThreadView) => {
-      if (next.id === selectedRef.current) setThread(next);
-      setThreads((previous) =>
-        next.projectId === projectRef.current
-          ? [next, ...previous.filter((entry) => entry.id !== next.id)].sort(
-              (a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
-            )
-          : previous,
-      );
+      if (next.id === selectedRef.current && next.projectId === projectRef.current) setThread(next);
       if (
         next.execution &&
         !next.execution.ended &&
@@ -101,26 +142,92 @@ export function useWorkspace() {
     },
     [track],
   );
+  const activateProject = useCallback((id: string) => {
+    // Change ownership synchronously, before any callbacks can issue project-scoped requests.
+    projectRef.current = id;
+    setActiveProjectId(id);
+    try {
+      localStorage.setItem('codex-web.project', id);
+    } catch {
+      /* Preferences are optional. */
+    }
+  }, []);
   const selectThread = useCallback(
-    async (id: string) => {
+    async (id: string, owningProjectId?: string) => {
+      const revision = navigationRevision.current;
+      const read = ++detailReadSequence.current;
+      let project =
+        owningProjectId ??
+        projectStore.current.findProject(id) ??
+        streamRef.current?.cache.get(id)?.data.projectId;
+      let loaded: ThreadView | undefined;
+      if (!project) {
+        // Parent links may point outside the loaded list. Resolve ownership before navigation.
+        try {
+          loaded = await api.thread(id);
+          if (navigationRevision.current !== revision || detailReadSequence.current !== read)
+            return;
+          project = loaded.projectId;
+        } catch (problem) {
+          if (navigationRevision.current === revision && detailReadSequence.current === read)
+            report(problem);
+          return;
+        }
+      }
+      activateProject(project);
       selectedRef.current = id;
+      selectionsRef.current[project] = id;
       setSelectedId(id);
-      setThread(streamRef.current?.cache.get(id)?.data);
+      const cached = streamRef.current?.cache.get(id)?.data;
+      setThread(cached?.projectId === project ? cached : loaded);
       streamRef.current?.select(id);
       try {
-        localStorage.setItem(`codex-web.selected:${projectRef.current}`, id);
+        localStorage.setItem(`codex-web.selected:${project}`, id);
       } catch {
         /* Preferences are optional. */
       }
       try {
-        const loaded = await api.thread(id);
-        if (selectedRef.current === id)
-          updateThread(streamRef.current?.cache.get(id)?.data ?? loaded);
+        loaded ??= await api.thread(id);
+        if (
+          selectedRef.current !== id ||
+          projectRef.current !== project ||
+          navigationRevision.current !== revision ||
+          detailReadSequence.current !== read
+        )
+          return;
+        const latest = streamRef.current?.cache.get(id)?.data;
+        updateThread(latest && latest !== cached ? latest : loaded);
       } catch (problem) {
-        if (selectedRef.current === id) report(problem);
+        if (
+          selectedRef.current === id &&
+          projectRef.current === project &&
+          navigationRevision.current === revision &&
+          detailReadSequence.current === read
+        )
+          report(problem);
       }
     },
-    [report, updateThread],
+    [activateProject, report, updateThread],
+  );
+  const selectProject = useCallback(
+    (id: string) => {
+      activateProject(id);
+      let remembered = selectionsRef.current[id];
+      try {
+        remembered ??= localStorage.getItem(`codex-web.selected:${id}`) ?? undefined;
+      } catch {
+        /* In-memory selections still work when storage is unavailable. */
+      }
+      if (id && remembered) {
+        void selectThread(remembered, id);
+        return;
+      }
+      selectedRef.current = undefined;
+      setSelectedId(undefined);
+      setThread(undefined);
+      streamRef.current?.select(undefined);
+    },
+    [activateProject, selectThread],
   );
   const applyOperation = useCallback(
     (operation: Operation) => {
@@ -147,18 +254,15 @@ export function useWorkspace() {
           result?.threadId ??
           result?.thread?.id ??
           (known.kind === 'create' ? result?.id : undefined);
-        if (known.kind === 'create' && known.target === projectRef.current && id)
-          void selectThread(id);
-        if (known.kind === 'fork' && id) {
+        if ((known.kind === 'create' || known.kind === 'fork') && id) {
+          const project = known.projectId ?? (known.kind === 'create' ? known.target : undefined);
+          if (project) void loadProjectThreads(project);
           if (
             known.navigateToResult &&
-            known.projectId === projectRef.current &&
-            known.target === selectedRef.current
+            project === projectRef.current &&
+            (known.kind === 'create' || known.target === selectedRef.current)
           ) {
-            void selectThread(id);
-          } else {
-            // A late receipt still adds the new thread to the list without changing navigation.
-            void api.thread(id).then(updateThread).catch(report);
+            void selectThread(id, project);
           }
         }
       }
@@ -167,7 +271,7 @@ export function useWorkspace() {
           previous.filter((entry) => entry.clientOperationId !== operation.clientOperationId),
         );
     },
-    [refreshSystem, selectThread, track, updateThread, report],
+    [refreshSystem, selectThread, track, loadProjectThreads],
   );
 
   const refreshOperations = useCallback(async () => {
@@ -194,38 +298,22 @@ export function useWorkspace() {
   const refreshThread = useCallback(async () => {
     const id = selectedRef.current;
     if (!id) return;
+    const revision = navigationRevision.current;
+    const read = ++detailReadSequence.current;
     try {
-      updateThread(await api.thread(id));
+      const cached = streamRef.current?.cache.get(id)?.data;
+      const loaded = await api.thread(id);
+      if (revision !== navigationRevision.current || detailReadSequence.current !== read) return;
+      const latest = streamRef.current?.cache.get(id)?.data;
+      updateThread(latest && latest !== cached ? latest : loaded);
     } catch (problem) {
-      report(problem);
+      if (revision === navigationRevision.current && detailReadSequence.current === read)
+        report(problem);
     }
   }, [report, updateThread]);
   const loadThreads = useCallback(
-    async (cursor?: string) => {
-      const id = projectRef.current;
-      if (!id) return;
-      setLoadingThreads(true);
-      try {
-        const page = await api.threads(id, cursor);
-        if (projectRef.current !== id) return;
-        setThreads((previous) =>
-          cursor
-            ? [
-                ...previous,
-                ...page.data.filter(
-                  (entry) => !previous.some((existing) => existing.id === entry.id),
-                ),
-              ]
-            : page.data,
-        );
-        setNextCursor(page.nextCursor);
-      } catch (problem) {
-        if (projectRef.current === id) report(problem);
-      } finally {
-        if (projectRef.current === id) setLoadingThreads(false);
-      }
-    },
-    [report],
+    (cursor?: string) => loadProjectThreads(projectRef.current, cursor),
+    [loadProjectThreads],
   );
 
   useEffect(() => {
@@ -234,24 +322,33 @@ export function useWorkspace() {
       .projects()
       .then(({ data }) => {
         if (!active) return;
+        projectsRef.current = data;
         setProjects(data);
-        setProjectId((previous) =>
-          data.some((project) => project.id === previous) ? previous : (data[0]?.id ?? ''),
+        const preferred = projectRef.current;
+        selectProject(
+          data.some((project) => project.id === preferred)
+            ? preferred
+            : (data.find((project) => project.available)?.id ?? data[0]?.id ?? ''),
         );
+        void refreshProjectsThreads();
       })
       .catch(report);
     void refreshSystem();
     return () => {
       active = false;
     };
-  }, [refreshSystem, report]);
+  }, [refreshSystem, report, selectProject, refreshProjectsThreads]);
   useEffect(() => {
     const stream = new ThreadStream({
       connection: (state) => {
         setConnection(state);
-        if (state === 'connected') void refreshSystem();
+        if (state === 'connected') {
+          void refreshSystem();
+          void refreshProjectsThreads();
+        }
       },
       thread: updateThread,
+      summary: updateSummary,
       system: (next) => {
         systemSnapshotGuard.current.runtimeEvent();
         setSystem(next);
@@ -269,28 +366,7 @@ export function useWorkspace() {
       stream.stop();
       streamRef.current = undefined;
     };
-  }, [applyOperation, refreshSystem, updateThread]);
-  useEffect(() => {
-    projectRef.current = projectId;
-    selectedRef.current = undefined;
-    setSelectedId(undefined);
-    setThread(undefined);
-    setThreads([]);
-    setNextCursor(null);
-    streamRef.current?.select(undefined);
-    try {
-      localStorage.setItem('codex-web.project', projectId);
-    } catch {
-      /* Preferences are optional. */
-    }
-    void loadThreads();
-    try {
-      const remembered = localStorage.getItem(`codex-web.selected:${projectId}`);
-      if (projectId && remembered) void selectThread(remembered);
-    } catch {
-      /* A fresh snapshot is still used when no preference is available. */
-    }
-  }, [projectId, loadThreads, selectThread]);
+  }, [applyOperation, refreshSystem, updateThread, updateSummary, refreshProjectsThreads]);
   useEffect(() => {
     if (authRequired) {
       streamRef.current?.stop();
@@ -339,7 +415,9 @@ export function useWorkspace() {
           target,
           createdAt: Date.now(),
           status: 'accepted',
-          ...(kind === 'fork' ? { projectId: projectRef.current, navigateToResult: true } : {}),
+          ...(kind === 'fork' || kind === 'create'
+            ? { projectId: kind === 'create' ? target : projectRef.current, navigateToResult: true }
+            : {}),
         },
       ]);
       try {
@@ -387,11 +465,12 @@ export function useWorkspace() {
     [applyOperation, report, track, system],
   );
 
-  const cancelForkNavigation = () => {
-    if (operationsRef.current.some((entry) => entry.kind === 'fork' && entry.navigateToResult))
+  const cancelResultNavigation = () => {
+    navigationRevision.current++;
+    if (operationsRef.current.some((entry) => entry.navigateToResult))
       track((previous) =>
         previous.map((entry) =>
-          entry.kind === 'fork' ? { ...entry, navigateToResult: false } : entry,
+          entry.navigateToResult ? { ...entry, navigateToResult: false } : entry,
         ),
       );
   };
@@ -400,16 +479,17 @@ export function useWorkspace() {
     projects,
     projectId,
     setProjectId: (id: string) => {
-      cancelForkNavigation();
-      setProjectId(id);
+      cancelResultNavigation();
+      selectProject(id);
     },
-    threads,
-    nextCursor,
+    projectThreads,
+    threads: projectThreads[projectId]?.data ?? [],
+    nextCursor: projectThreads[projectId]?.nextCursor ?? null,
     thread,
     selectedId,
-    selectThread: (id: string) => {
-      cancelForkNavigation();
-      return selectThread(id);
+    selectThread: (id: string, owningProjectId?: string) => {
+      cancelResultNavigation();
+      return selectThread(id, owningProjectId);
     },
     system,
     connection,
@@ -421,12 +501,15 @@ export function useWorkspace() {
     },
     authRequired: authRequired || connection === 'authenticationRequired',
     busy,
-    loadingThreads,
+    loadingThreads: projectThreads[projectId]?.loading ?? false,
     operations,
-    settings,
+    settings: settingsByProject[projectId] ?? {},
     setSettings,
+    getProjectSettings,
     run,
     loadThreads,
+    loadProjectThreads,
+    refreshProjectsThreads,
     refreshThread,
     refreshSystem,
     refreshOperations,

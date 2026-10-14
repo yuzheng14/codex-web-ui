@@ -1,0 +1,110 @@
+import { describe, expect, it } from 'vitest';
+import type { RunStatus, ThreadSummary, ThreadSummaryPage } from '../../src/shared/types';
+import { ProjectThreadsStore } from '../../src/web/lib/project-threads';
+
+const cursor = (seq: number, serverEpoch = 'epoch') => ({ seq, serverEpoch });
+const summary = (id: string, projectId = 'a', status: RunStatus = 'idle'): ThreadSummary => ({
+  id,
+  projectId,
+  title: id,
+  source: 'appServer',
+  status,
+  managed: true,
+  pendingActionCount: status === 'waitingApproval' ? 1 : 0,
+});
+const page = (
+  data: ThreadSummary[],
+  seq: number,
+  nextCursor: string | null = null,
+): ThreadSummaryPage => ({
+  data,
+  nextCursor,
+  cursor: cursor(seq),
+});
+
+describe('multi-project conversation overviews', () => {
+  it('loads, paginates, and fails projects independently without dropping another project', () => {
+    const store = new ProjectThreadsStore();
+    const readA = store.beginRead('a');
+    const readB = store.beginRead('b');
+    store.finishRead(readB, page([summary('b1', 'b')], 1, 'more-b'));
+    expect(store.snapshot.a?.loading).toBe(true);
+    store.finishRead(readA, page([summary('a1')], 1, 'more-a'));
+    const moreA = store.beginRead('a', true);
+    store.finishRead(moreA, page([summary('a1'), summary('a2')], 2));
+    const failedB = store.beginRead('b', true);
+    store.failRead(failedB, 'Project history is unavailable');
+    expect(store.snapshot.a?.data.map((entry) => entry.id)).toEqual(['a1', 'a2']);
+    expect(store.snapshot.a?.nextCursor).toBeNull();
+    expect(store.snapshot.b).toMatchObject({
+      data: [summary('b1', 'b')],
+      nextCursor: 'more-b',
+      loading: false,
+      error: 'Project history is unavailable',
+    });
+    expect(store.findProject('b1')).toBe('b');
+  });
+
+  it('keeps a newer live status and a new conversation when an earlier HTTP snapshot arrives late', async () => {
+    const store = new ProjectThreadsStore();
+    let resolve!: (value: ThreadSummaryPage) => void;
+    const delayed = new Promise<ThreadSummaryPage>((done) => {
+      resolve = done;
+    });
+    const read = store.beginRead('a');
+    const response = delayed.then((value) => store.finishRead(read, value));
+    store.applySummary(summary('existing', 'a', 'waitingApproval'), cursor(12));
+    store.applySummary(summary('new-fork', 'a', 'running'), cursor(13));
+    resolve(page([summary('existing', 'a', 'idle')], 10, 'older'));
+    await response;
+    expect(store.snapshot.a?.data).toContainEqual(summary('existing', 'a', 'waitingApproval'));
+    expect(store.snapshot.a?.data).toContainEqual(summary('new-fork', 'a', 'running'));
+    expect(store.snapshot.a?.loading).toBe(false);
+    expect(store.snapshot.a?.nextCursor).toBe('older');
+  });
+
+  it('keeps the latest requested page and ignores late successes and failures', () => {
+    const store = new ProjectThreadsStore();
+    const old = store.beginRead('a');
+    const fresh = store.beginRead('a');
+    store.finishRead(fresh, page([summary('new')], 2));
+    expect(store.finishRead(old, page([summary('old')], 1))).toBe(false);
+    expect(store.failRead(old, 'outdated failure')).toBe(false);
+    expect(store.snapshot.a?.data).toEqual([summary('new')]);
+    expect(store.snapshot.a?.error).toBeUndefined();
+  });
+
+  it('does not roll a summary back on duplicate events or events predating its HTTP cursor', () => {
+    const store = new ProjectThreadsStore();
+    store.finishRead(store.beginRead('a'), page([summary('one', 'a', 'completed')], 20));
+    expect(store.applySummary(summary('one', 'a', 'running'), cursor(19))).toBe(false);
+    expect(store.applySummary(summary('one', 'a', 'completed'), cursor(20))).toBe(false);
+    expect(store.applySummary(summary('one', 'a', 'running'), cursor(21))).toBe(true);
+    expect(store.applySummary(summary('one', 'a', 'idle'), cursor(21))).toBe(false);
+    expect(store.snapshot.a?.data[0]?.status).toBe('running');
+  });
+
+  it('preserves new-epoch live state against an in-flight old-epoch response, then accepts a new snapshot', () => {
+    const store = new ProjectThreadsStore();
+    store.applySummary(summary('one', 'a', 'running'), cursor(100));
+    const old = store.beginRead('a');
+    store.applySummary(summary('one', 'a', 'unknown'), cursor(1, 'restarted'));
+    store.finishRead(old, page([summary('one', 'a', 'running')], 101));
+    expect(store.snapshot.a?.data[0]?.status).toBe('unknown');
+    const fresh = store.beginRead('a');
+    store.finishRead(fresh, {
+      ...page([summary('one', 'a', 'completed')], 3),
+      cursor: cursor(3, 'restarted'),
+    });
+    expect(store.snapshot.a?.data[0]?.status).toBe('completed');
+  });
+
+  it('retains background project summaries without treating them as conversation history', () => {
+    const store = new ProjectThreadsStore();
+    store.applySummary(summary('background', 'b', 'waitingApproval'), cursor(1));
+    store.finishRead(store.beginRead('a'), page([summary('foreground')], 2));
+    expect(store.snapshot.b?.data[0]?.pendingActionCount).toBe(1);
+    expect(store.snapshot.b?.data[0]).not.toHaveProperty('turns');
+    expect(store.snapshot.b?.data[0]).not.toHaveProperty('actions');
+  });
+});

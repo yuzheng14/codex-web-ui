@@ -3,7 +3,7 @@ import type {
   Operation,
   Project,
   SystemInfo,
-  ThreadPage,
+  ThreadSummaryPage,
   ThreadView,
 } from '../../shared/types';
 
@@ -55,8 +55,8 @@ export const api = {
   system: () => request<SystemInfo>('/api/system'),
   projects: () => request<{ data: Project[] }>('/api/projects'),
   threads: (projectId: string, cursor?: string) =>
-    request<ThreadPage>(
-      `/api/threads?projectId=${encodeURIComponent(projectId)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+    request<ThreadSummaryPage>(
+      `/api/projects/${encodeURIComponent(projectId)}/threads${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
     ),
   thread: (threadId: string) => request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}`),
   operation: (id: string) => request<Operation>(`/api/operations/${encodeURIComponent(id)}`),

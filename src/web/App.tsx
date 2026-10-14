@@ -105,29 +105,34 @@ export function App() {
         projects={workspace.projects}
         projectId={workspace.projectId}
         onProject={workspace.setProjectId}
-        threads={workspace.threads}
+        projectThreads={workspace.projectThreads}
         selectedId={workspace.selectedId}
-        onThread={(id) => {
-          void workspace.selectThread(id);
+        onThread={(id, projectId) => {
+          void workspace.selectThread(id, projectId);
         }}
-        nextCursor={workspace.nextCursor}
-        loading={workspace.loadingThreads}
-        onMore={() => {
-          if (workspace.nextCursor) void workspace.loadThreads(workspace.nextCursor);
+        onMore={(projectId, cursor) => {
+          void workspace.loadProjectThreads(projectId, cursor);
+        }}
+        onRetry={(projectId) => {
+          void workspace.loadProjectThreads(projectId);
         }}
         onRefresh={() => {
-          void workspace.loadThreads();
+          void workspace.refreshProjectsThreads();
         }}
-        onCreate={() => {
-          void workspace.run(
-            'create',
-            workspace.projectId,
-            `/api/projects/${encode(workspace.projectId)}/threads`,
-            { settings: workspace.settings },
-          );
+        onCreate={(projectId) => {
+          workspace.setProjectId(projectId);
+          setSidebarOpen(false);
+          void workspace.run('create', projectId, `/api/projects/${encode(projectId)}/threads`, {
+            settings: workspace.getProjectSettings(projectId),
+          });
         }}
-        creating={busyFor('create', workspace.projectId) || unsettledFor(workspace.projectId)}
-        canCreate={canOperate}
+        creating={(projectId) => busyFor('create', projectId) || unsettledFor(projectId)}
+        canCreate={(projectId) =>
+          canControl &&
+          !compatibilityConfirmationRequired(system) &&
+          Boolean(workspace.projects.find((entry) => entry.id === projectId)?.available)
+        }
+        offline={offline}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -323,6 +328,7 @@ export function App() {
           )}
           <Composer
             thread={thread}
+            draftKey={workspace.selectedId ?? `project:${workspace.projectId}`}
             projectName={project?.name}
             settings={workspace.settings}
             models={system?.models ?? []}

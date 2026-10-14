@@ -1,7 +1,12 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import type { SystemInfo } from '../../src/shared/types';
-import { compatibilityDialog, confirmCompatibility, controlRuntime } from './helpers';
+import {
+  compatibilityDialog,
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+} from './helpers';
 
 const headers = { Origin: 'http://127.0.0.1:8788' };
 async function system(request: APIRequestContext): Promise<SystemInfo> {
@@ -38,9 +43,7 @@ test('an unverified version requires explicit confirmation while cancel preserve
   );
   await page.screenshot({ path: '/tmp/codex-web-compatibility-mobile.png', fullPage: true });
   await page.setViewportSize({ width: 1280, height: 720 });
-  await expect(
-    page.getByRole('button', { name: '新建会话', exact: true, includeHidden: true }),
-  ).toBeDisabled();
+  await expect(createThreadButton(page)).toBeDisabled();
   expect((await system(request)).compatibilityConfirmation).toBe('required');
   const blocked = await request.post('/api/projects/fixture/threads', {
     headers,
@@ -62,7 +65,7 @@ test('an unverified version requires explicit confirmation while cancel preserve
   await page.getByRole('button', { name: '查看兼容性提示', exact: true }).click();
   await confirmCompatibility(page);
   expect((await system(request)).compatibilityConfirmation).toBe('confirmed');
-  await page.getByRole('button', { name: '新建会话', exact: true }).click();
+  await createThreadButton(page).click();
   await expect(page.getByText('这个会话准备好了')).toBeVisible();
   await page.getByRole('textbox', { name: '任务内容' }).fill('已明确确认兼容性后执行');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
@@ -84,11 +87,11 @@ test('confirmation is shared by tabs and survives reload within the same gateway
   await confirmCompatibility(page);
   // The already-open second tab receives the confirmed state through its real WebSocket.
   await expect(compatibilityDialog(second)).not.toBeVisible();
-  await expect(second.getByRole('button', { name: '新建会话', exact: true })).toBeEnabled();
+  await expect(createThreadButton(second)).toBeEnabled();
   await page.reload();
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await expect(compatibilityDialog(page)).not.toBeVisible();
-  await expect(page.getByRole('button', { name: '新建会话', exact: true })).toBeEnabled();
+  await expect(createThreadButton(page)).toBeEnabled();
   const after = await system(request);
   expect(after.codexEpoch).toBe(before.codexEpoch);
   expect(after.compatibilityConfirmation).toBe('confirmed');
@@ -149,7 +152,7 @@ test('an unavailable runtime cannot be bypassed by a compatibility confirmation'
   expect(rejected.status()).toBe(503);
   expect(await rejected.json()).toMatchObject({ error: { code: 'CODEX_UNAVAILABLE' } });
   await compatibilityDialog(page).getByRole('button', { name: '暂不使用', exact: true }).click();
-  await expect(page.getByRole('button', { name: '新建会话', exact: true })).toBeDisabled();
+  await expect(createThreadButton(page)).toBeDisabled();
   expect((await system(request)).compatibilityConfirmation).not.toBe('confirmed');
 });
 
@@ -159,7 +162,7 @@ test('an existing turn can still be interrupted when a version change requires n
 }) => {
   await page.goto('/');
   await confirmCompatibility(page);
-  await page.getByRole('button', { name: '新建会话', exact: true }).click();
+  await createThreadButton(page).click();
   await expect(page.getByText('这个会话准备好了')).toBeVisible();
   await page.getByRole('textbox', { name: '任务内容' }).fill('[approval] 等待决定时模拟兼容性变更');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
