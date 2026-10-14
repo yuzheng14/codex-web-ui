@@ -28,9 +28,13 @@ export function Composer(props: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [confirmExternal, setConfirmExternal] = useState(false);
   const composingRef = useRef(false);
+  const compositionEndedAtRef = useRef(-Infinity);
+  const sendingRef = useRef(new Set<string>());
   const key = props.thread?.id ?? props.draftKey;
   useEffect(() => {
     setConfirmExternal(false);
+    composingRef.current = false;
+    compositionEndedAtRef.current = -Infinity;
   }, [key]);
   const text = drafts[key] ?? '';
   const active = isActive(props.thread?.status);
@@ -39,10 +43,15 @@ export function Composer(props: Props) {
     props.thread && !external && text.trim() && !props.disabled && !props.submitting,
   );
   async function send() {
-    if (!canSend) return;
+    if (!canSend || sendingRef.current.has(key)) return;
+    sendingRef.current.add(key);
     const sent = text;
-    if (await props.onSend(sent, active))
-      setDrafts((previous) => (previous[key] === sent ? { ...previous, [key]: '' } : previous));
+    try {
+      if (await props.onSend(sent, active))
+        setDrafts((previous) => (previous[key] === sent ? { ...previous, [key]: '' } : previous));
+    } finally {
+      sendingRef.current.delete(key);
+    }
   }
   return (
     <div className="composer-region">
@@ -93,18 +102,29 @@ export function Composer(props: Props) {
           }}
           onCompositionEnd={() => {
             composingRef.current = false;
+            compositionEndedAtRef.current = performance.now();
+          }}
+          onBlur={() => {
+            composingRef.current = false;
+            compositionEndedAtRef.current = -Infinity;
           }}
           onKeyDown={(event) => {
+            // A command menu may consume Enter before the composer handles it.
+            if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey) return;
             if (
-              event.key === 'Enter' &&
-              (event.metaKey || event.ctrlKey) &&
-              !event.nativeEvent.isComposing &&
-              event.nativeEvent.keyCode !== 229 &&
-              !composingRef.current
-            ) {
-              event.preventDefault();
-              void send();
-            }
+              event.nativeEvent.isComposing ||
+              event.nativeEvent.keyCode === 229 ||
+              composingRef.current
+            )
+              return;
+            event.preventDefault();
+            // Some IMEs end composition before the confirming Enter keydown.
+            // Keyup releases this guard; the time limit also allows mouse commits.
+            if (event.repeat || performance.now() - compositionEndedAtRef.current < 100) return;
+            void send();
+          }}
+          onKeyUp={(event) => {
+            if (event.key === 'Enter') compositionEndedAtRef.current = -Infinity;
           }}
           rows={3}
         />
@@ -112,7 +132,6 @@ export function Composer(props: Props) {
           <span className="composer-target">
             <Icon name="folder" size={14} />
             {props.projectName ?? '未选择项目'}
-            <span className="keyboard-hint">⌘ / Ctrl + Enter</span>
           </span>
           <div>
             {active && (
@@ -138,6 +157,7 @@ export function Composer(props: Props) {
             </Button>
           </div>
         </div>
+        <p className="keyboard-hint">Enter 发送 / Shift + Enter 换行</p>
       </div>
       <p className="composer-note">
         {active

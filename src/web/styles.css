@@ -1017,9 +1017,11 @@ svg {
   min-width: 0;
 }
 .keyboard-hint {
-  margin-left: 8px;
-  color: #bbc1bd;
-  font-size: 9px;
+  margin: 0;
+  padding: 0 12px 10px;
+  text-align: right;
+  color: #66776c;
+  font-size: 10px;
 }
 .composer-note {
   text-align: center;
@@ -1397,9 +1399,6 @@ dd {
   }
   .connection-badge {
     font-size: 10px;
-  }
-  .keyboard-hint {
-    display: none;
   }
 }
 @media (max-width: 760px) {
