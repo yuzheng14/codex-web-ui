@@ -529,7 +529,7 @@ it('restores pending approval and accepts exactly one competing decision', async
     .toBe('completed');
 });
 
-it('forks a busy conversation over HTTP, restores its history over WebSocket, and retains the workspace lock', async () => {
+it('forks a busy conversation over HTTP, restores its history over WebSocket, and executes both conversations independently', async () => {
   const { origin, post, connect, runtime } = await setup();
   const created = (await (
     await post('/api/projects/test/threads', { clientOperationId: randomUUID() })
@@ -575,25 +575,27 @@ it('forks a busy conversation over HTTP, restores its history over WebSocket, an
       turns: [{ threadId: forkId, status: 'interrupted' }],
     },
   });
-  const busy = await post(`/api/threads/${forkId}/turns`, {
+  const continued = await post(`/api/threads/${forkId}/turns`, {
     clientOperationId: randomUUID(),
-    text: 'new branch',
+    text: '[approval] new branch',
   });
-  expect(busy.status).toBe(409);
-  expect(await busy.json()).toMatchObject({
-    error: { code: 'WORKSPACE_BUSY', details: { threadId: sourceId } },
-  });
+  expect(continued.status).toBe(200);
+  await expect.poll(async () => (await read(forkId)).status).toBe('waitingApproval');
+  expect((await read(sourceId)).status).toBe('waitingApproval');
   const action = source.actions[0]!;
   await post(`/api/actions/${action.actionId}/resolve`, {
     clientOperationId: randomUUID(),
     resolution: { decision: action.options[0]!.id },
   });
   await expect.poll(async () => (await read(sourceId)).turns[0]?.status).toBe('completed');
-  const continued = await post(`/api/threads/${forkId}/turns`, {
+  const branch = await read(forkId);
+  expect(branch.status).toBe('waitingApproval');
+  const branchAction = branch.actions.find((entry) => entry.status === 'pending')!;
+  expect(branchAction.actionId).not.toBe(action.actionId);
+  await post(`/api/actions/${branchAction.actionId}/resolve`, {
     clientOperationId: randomUUID(),
-    text: 'new branch after workspace released',
+    resolution: { decision: branchAction.options[0]!.id },
   });
-  expect(continued.status).toBe(200);
   await expect.poll(async () => (await read(forkId)).turns[1]?.status).toBe('completed');
   expect((await read(sourceId)).turns).toHaveLength(1);
   expect((await read(forkId)).turns).toHaveLength(2);

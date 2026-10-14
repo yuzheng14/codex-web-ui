@@ -133,7 +133,7 @@ test('an external handoff can fork without confirming it has stopped, including 
   await page.screenshot({ path: '/tmp/codex-web-fork-mobile.png', fullPage: true });
 });
 
-test('fork leaves the source task running and preserves the shared checkout restriction', async ({
+test('fork runs in the shared checkout while the source waits for approval', async ({
   page,
   request,
 }) => {
@@ -148,17 +148,11 @@ test('fork leaves the source task running and preserves the shared checkout rest
   const original = await readThread(request, source);
   expect(original.status).toBe('waitingApproval');
   expect(original.actions.some((action) => action.status === 'pending')).toBe(true);
-  await page.getByRole('textbox', { name: '任务内容' }).fill('等原任务结束后执行');
-  await page.getByRole('button', { name: '发送任务', exact: true }).click();
-  await expect(page.locator('.error-banner.dismissible')).toContainText('占用');
-  await expect(page.getByRole('textbox', { name: '任务内容' })).toHaveValue('等原任务结束后执行');
-  const interrupt = await request.post(`/api/threads/${source}/interrupt`, {
-    headers,
-    data: { clientOperationId: randomUUID(), expectedTurnId: original.turns.at(-1)!.id },
-  });
-  expect(interrupt.ok()).toBe(true);
+  await page.getByRole('textbox', { name: '任务内容' }).fill('与原任务同时执行');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
+  await expect(page.locator('.error-banner.dismissible')).not.toBeVisible();
+  expect((await readThread(request, source)).status).toBe('waitingApproval');
 });
 
 test('an unknown source submission can fork without resending the source operation', async ({

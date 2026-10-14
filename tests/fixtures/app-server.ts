@@ -141,7 +141,9 @@ function complete(
   turn.status = status;
   turn.completedAt = Date.now() / 1000;
   thread.status = { type: 'idle' };
-  notify({ method: 'turn/completed', params: { threadId: thread.id, turn } });
+  // Explicit test prompt: retain real terminal history while dropping its notification.
+  if (!thread.preview.includes('[miss-completion]'))
+    notify({ method: 'turn/completed', params: { threadId: thread.id, turn } });
   notify({
     method: 'thread/status/changed',
     params: { threadId: thread.id, status: thread.status },
