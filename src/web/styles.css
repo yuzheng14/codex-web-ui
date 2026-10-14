@@ -1155,6 +1155,8 @@ svg {
   margin-bottom: 12px;
 }
 .action-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
   border: 1px solid #eadfc6;
   background: #fdfbf5;
   border-radius: 10px;
@@ -1172,6 +1174,7 @@ svg {
   margin-bottom: 11px;
 }
 .action-icon {
+  flex-shrink: 0;
   color: #ad955c;
 }
 .action-heading h3 {
@@ -1181,6 +1184,8 @@ svg {
   font-weight: 600;
 }
 .action-state {
+  flex-shrink: 0;
+  white-space: nowrap;
   margin-left: auto;
   color: #b5a179;
   font-size: 10px;
@@ -1188,6 +1193,9 @@ svg {
 .action-card p {
   color: #8d826a;
   font-size: 11px;
+}
+.action-cwd > span {
+  white-space: nowrap;
 }
 .action-options {
   display: flex;
@@ -1249,6 +1257,181 @@ input[type='radio'] {
   color: #6d6755;
   font-size: 12px;
   background: #fff;
+}
+.action-card-unsupported {
+  border-color: #e4c2bc;
+  background: #fff8f7;
+}
+.action-card-unsupported .action-state,
+.action-card-unsupported .action-icon {
+  color: #a84339;
+}
+.permission-details {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid #e7decb;
+  border-radius: 7px;
+  background: #fffefa;
+  color: #665a40;
+}
+.permission-network {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.permission-details h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.permission-paths {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.permission-paths li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.permission-paths code {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  line-height: 1.6;
+  font-size: 11px;
+}
+.permission-access {
+  flex-shrink: 0;
+  min-width: 38px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #edf1e9;
+  color: #4c6b52;
+  font-size: 10px;
+  text-align: center;
+}
+.permission-access-write {
+  color: #866123;
+  background: #f5ead2;
+}
+.permission-access-deny {
+  color: #a84339;
+  background: #fae7e4;
+}
+.elicitation-source strong {
+  color: #665a40;
+  font-weight: 600;
+}
+.elicitation-fields {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+.elicitation-field {
+  min-width: 0;
+}
+.elicitation-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.elicitation-field-heading label {
+  font-weight: 600;
+  color: #665a40;
+}
+.field-necessity {
+  margin-left: 8px;
+  color: #928367;
+  font-weight: 400;
+  font-size: 10px;
+}
+.field-unset {
+  flex-shrink: 0;
+  border: 0;
+  padding: 2px 0;
+  background: none;
+  color: #6d765f;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font: inherit;
+  cursor: pointer;
+}
+.field-unset:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.elicitation-field .text-input {
+  min-width: 0;
+  min-height: 39px;
+}
+.elicitation-field [aria-invalid='true'] {
+  border-color: #bd6056;
+}
+.action-card .field-description,
+.action-card .field-hint {
+  margin: 5px 0 8px;
+  line-height: 1.5;
+  color: #817456;
+}
+.action-card .field-hint {
+  font-size: 10px;
+  margin-bottom: 0;
+}
+.action-card .elicitation-error {
+  color: #a23c33;
+  line-height: 1.5;
+  margin: 7px 0 0;
+}
+.elicitation-multi-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+.elicitation-multi-options .question-option {
+  margin: 0;
+}
+.elicitation-url {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e7decb;
+  border-radius: 7px;
+  background: #fffefa;
+  color: #665a40;
+}
+.elicitation-url code {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.elicitation-url a {
+  color: #446b55;
+  text-underline-offset: 3px;
+}
+.elicitation-url p {
+  margin: 0;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 .external-handoff {
   border: 1px solid #eadfc6;
