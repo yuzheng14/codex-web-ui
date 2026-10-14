@@ -100,7 +100,7 @@ describe('forking a conversation without taking over its execution', () => {
   });
 
   it.each(['active', 'unknown'] as const)(
-    'forks a %s source while preserving its execution and workspace lock',
+    'runs a fork alongside a %s source without changing its execution',
     async (state) => {
       const ctx = setup();
       const sourceId = await create(ctx);
@@ -121,21 +121,17 @@ describe('forking a conversation without taking over its execution', () => {
       await expect(
         ctx.service.startTurn('fork-1', {
           clientOperationId: operationId(),
-          text: 'cannot run in the same workspace yet',
+          text: 'run independently in the same workspace',
         }),
-      ).rejects.toMatchObject({
-        code: 'WORKSPACE_BUSY',
-        details: { threadId: sourceId },
-      });
-      expect(ctx.codex.starts).toBe(1);
+      ).resolves.toMatchObject({ status: 'acknowledged' });
+      expect(ctx.codex.starts).toBe(2);
       expect(ctx.store.activeForThread(sourceId)).toEqual(markerBefore);
+      const forkMarker = ctx.store.activeForThread('fork-1');
+      expect(forkMarker).toBeDefined();
       if (state === 'active') {
         ctx.codex.complete(sourceId, 'turn-1');
-        await ctx.service.startTurn('fork-1', {
-          clientOperationId: operationId(),
-          text: 'workspace is available now',
-        });
-        expect(ctx.codex.starts).toBe(2);
+        expect(ctx.store.activeForThread(sourceId)).toBeUndefined();
+        expect(ctx.store.activeForThread('fork-1')).toEqual(forkMarker);
       }
     },
   );

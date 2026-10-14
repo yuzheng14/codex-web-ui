@@ -118,4 +118,33 @@ describe('durable operation identity', () => {
     saveOperations([operation], storage);
     expect(readOperations(storage)).toEqual([operation]);
   });
+  it('allows follow-up after terminal evidence while retaining an uncertain submission receipt', () => {
+    const entry: SavedOperation = {
+      clientOperationId: 'old',
+      kind: 'send',
+      target: 'thread',
+      createdAt: 1,
+      status: 'unknown',
+      operation: {
+        clientOperationId: 'old',
+        kind: 'turn.start',
+        target: 'thread',
+        status: 'unknown',
+        createdAt: 1,
+        updatedAt: 2,
+        execution: {
+          operationId: 'old',
+          threadId: 'thread',
+          turnId: 'turn',
+          workspaceKey: '/project',
+          codexEpoch: 'old',
+          ended: false,
+        },
+      },
+    };
+    expect(blocksTarget(entry, 'thread')).toBe(true);
+    entry.operation!.execution!.ended = true;
+    expect(blocksTarget(entry, 'thread')).toBe(false);
+    expect(entry.operation!.status).toBe('unknown');
+  });
 });

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { and, eq, isNull, or } from 'drizzle-orm';
 import type { AppDatabase } from './index.js';
 import { executionMarkers, operations, threadLinks } from './schema.js';
+import type { ApiError } from '../../shared/types.js';
 
 export type OperationRow = typeof operations.$inferSelect;
 export type ExecutionMarker = typeof executionMarkers.$inferSelect;
@@ -9,7 +10,7 @@ export type ThreadLink = typeof threadLinks.$inferSelect;
 
 export class StoreConflict extends Error {
   constructor(
-    public readonly code: 'OPERATION_CONFLICT' | 'WORKSPACE_BUSY',
+    public readonly code: 'OPERATION_CONFLICT' | 'THREAD_BUSY',
     message: string,
     public readonly threadId?: string,
   ) {
@@ -95,19 +96,13 @@ export class OperationStore {
           .select()
           .from(executionMarkers)
           .where(
-            and(
-              isNull(executionMarkers.endedAt),
-              or(
-                eq(executionMarkers.threadId, marker.threadId),
-                eq(executionMarkers.workspaceKey, marker.workspaceKey),
-              ),
-            ),
+            and(isNull(executionMarkers.endedAt), eq(executionMarkers.threadId, marker.threadId)),
           )
           .get();
         if (occupied)
           throw new StoreConflict(
-            'WORKSPACE_BUSY',
-            '该会话或工作区仍被一个执行占用',
+            'THREAD_BUSY',
+            '该会话的上一轮执行尚未结束，请追加要求或等待结束',
             occupied.threadId,
           );
       }
@@ -140,7 +135,7 @@ export class OperationStore {
     return this.get(id)!;
   }
 
-  fail(id: string, error: { code: string; message: string }, uncertain = false): OperationRow {
+  fail(id: string, error: ApiError, uncertain = false): OperationRow {
     this.database.transaction((tx) => {
       const changed = tx
         .update(operations)

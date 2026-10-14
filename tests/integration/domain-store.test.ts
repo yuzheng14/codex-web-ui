@@ -42,8 +42,8 @@ describe('durable operation identity and dispatch transactions', () => {
     store.dispatch(first, { threadId: 'one', workspaceKey: 'checkout', codexEpoch: 'epoch' });
     store.accept(second, 'turn.start', 'two', {});
     expect(() =>
-      store.dispatch(second, { threadId: 'two', workspaceKey: 'checkout', codexEpoch: 'epoch' }),
-    ).toThrow('工作区');
+      store.dispatch(second, { threadId: 'one', workspaceKey: 'checkout', codexEpoch: 'epoch' }),
+    ).toThrow('该会话');
     expect(store.get(second)?.state).toBe('accepted');
     expect(store.marker(second)).toBeUndefined();
     expect(store.activeMarkers()).toHaveLength(1);
@@ -66,8 +66,8 @@ describe('durable operation identity and dispatch transactions', () => {
     const accepted = operationId();
     for (const id of [uncertain, acknowledged, accepted])
       ctx.store.accept(id, 'turn.start', id, {});
-    ctx.store.dispatch(uncertain, { threadId: 'a', workspaceKey: 'a', codexEpoch: 'old' });
-    ctx.store.dispatch(acknowledged, { threadId: 'b', workspaceKey: 'b', codexEpoch: 'old' });
+    ctx.store.dispatch(uncertain, { threadId: 'a', workspaceKey: 'shared', codexEpoch: 'old' });
+    ctx.store.dispatch(acknowledged, { threadId: 'b', workspaceKey: 'shared', codexEpoch: 'old' });
     ctx.store.acknowledge(acknowledged, { turnId: 'turn' }, 'turn');
     const reopened = openDatabase(ctx.filename);
     try {
@@ -132,11 +132,32 @@ describe('durable operation identity and dispatch transactions', () => {
       upgrade.database.run(
         `INSERT INTO execution_markers (operation_id, thread_id, turn_id, workspace_key, codex_epoch, state, created_at) VALUES ('old', 't', 'turn', 'workspace', 'epoch', 'active', 1)`,
       );
+      upgrade.database.run(
+        `INSERT INTO operations (client_operation_id, kind, target, request_digest, state, created_at, updated_at) VALUES ('parallel', 'turn.start', 'other', 'digest', 'accepted', 1, 1)`,
+      );
+      const insertParallel = () =>
+        upgrade.database.run(
+          `INSERT INTO execution_markers (operation_id, thread_id, workspace_key, codex_epoch, state, created_at) VALUES ('parallel', 'other', 'workspace', 'epoch', 'active', 1)`,
+        );
+      expect(insertParallel).toThrow();
       migrateDatabase(upgrade.database);
       migrateDatabase(upgrade.database);
       const upgraded = new OperationStore(upgrade.database);
       expect(upgraded.get('old')?.state).toBe('acknowledged');
       expect(upgraded.activeMarkers()).toHaveLength(1);
+      expect(insertParallel).not.toThrow();
+      expect(upgraded.activeMarkers()).toHaveLength(2);
+      expect(() =>
+        upgrade.database.run(
+          `UPDATE execution_markers SET thread_id = 't' WHERE operation_id = 'parallel'`,
+        ),
+      ).toThrow();
+      expect(upgraded.marker('old')).toMatchObject({
+        threadId: 't',
+        turnId: 'turn',
+        state: 'active',
+        endedAt: null,
+      });
       expect(() =>
         upgrade.database
           .update(operations)

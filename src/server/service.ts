@@ -20,7 +20,12 @@ import type {
   ThreadSummaryPage,
   ThreadView,
 } from '../shared/types.js';
-import { OperationStore, StoreConflict, type OperationRow } from './db/operations.js';
+import {
+  OperationStore,
+  StoreConflict,
+  type ExecutionMarker,
+  type OperationRow,
+} from './db/operations.js';
 import { EventHub } from './events.js';
 import { Projection, isActive, isTerminal } from './projection.js';
 import { ProjectRegistry } from './projects.js';
@@ -46,6 +51,7 @@ export class GatewayService {
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly reads = new Map<string, Promise<ThreadView>>();
+  private readonly executionReads = new Map<string, Promise<void>>();
   private readonly summaries = new Map<string, string>();
 
   constructor(private readonly options: GatewayOptions) {
@@ -162,8 +168,12 @@ export class GatewayService {
     const cached = this.projection.get(threadId);
     if (cached) {
       this.projects.assertOwnership(cached.projectId, cached.cwd);
-      // Ownership does not make an unknown projection authoritative (e.g. notLoaded).
-      // Keep live projections cached, but re-read unknown history for managed sessions too.
+      const marker = this.store.activeForThread(threadId);
+      if (marker?.turnId && this.codex.ready) {
+        await this.refreshExecution(marker);
+        return this.threadView(cached);
+      }
+      // Managed ownership does not make an unknown projection authoritative.
       if (cached.status !== 'unknown' || !this.codex.ready) return this.threadView(cached);
     }
     const existing = this.reads.get(threadId);
@@ -466,7 +476,7 @@ export class GatewayService {
       const operation = this.operation(
         this.store.fail(
           input.clientOperationId,
-          { code: uncertain ? 'RESULT_UNKNOWN' : appError.code, message: appError.message },
+          { ...appError.toJSON(), code: uncertain ? 'RESULT_UNKNOWN' : appError.code },
           uncertain,
         ),
       );
@@ -521,18 +531,84 @@ export class GatewayService {
 
   private applyRecoveredMarker(thread: ThreadView): void {
     const marker = this.store.activeForThread(thread.id);
-    if (!marker) return;
-    const confirmed = thread.turns.find((entry) => entry.id === marker.turnId);
-    // Saved terminal evidence also recovers a missed live completion notification.
-    // Only the matching turn and epoch may release this execution's checkout lock.
-    if (confirmed && isTerminal(confirmed.status)) {
-      this.store.finishTurn(thread.id, confirmed.id, marker.codexEpoch);
-      return;
-    }
-    if (marker.state === 'unknown') {
+    if (marker?.state === 'unknown') {
+      const confirmed = thread.turns.find((entry) => entry.id === marker.turnId);
+      if (
+        confirmed &&
+        isTerminal(confirmed.status) &&
+        !isActive(thread.status) &&
+        !thread.turns.some((entry) => isActive(entry.status))
+      ) {
+        this.store.finishTurn(thread.id, confirmed.id, marker.codexEpoch);
+        return;
+      }
       thread.status = 'unknown';
       const turn = thread.turns.find((entry) => entry.id === marker.turnId);
       if (turn && !isTerminal(turn.status)) turn.status = 'unknown';
+    }
+  }
+
+  /** Refresh only this thread; missing completion events must not block its next turn. */
+  private async refreshExecution(marker: ExecutionMarker): Promise<void> {
+    if (!marker.turnId || !this.codex.ready) return;
+    const existing = this.executionReads.get(marker.operationId);
+    if (existing) return existing;
+    const epoch = this.codex.epoch;
+    const revision = this.projection.revision(marker.threadId);
+    const reading = (async () => {
+      try {
+        const actual = await this.codex.readThread(marker.threadId);
+        const latest = this.store.activeForThread(marker.threadId);
+        // A delayed read cannot release a replacement execution or overwrite newer live events.
+        if (
+          !this.codex.ready ||
+          this.codex.epoch !== epoch ||
+          actual.id !== marker.threadId ||
+          latest?.operationId !== marker.operationId ||
+          latest.turnId !== marker.turnId ||
+          latest.codexEpoch !== marker.codexEpoch ||
+          this.projection.revision(marker.threadId) !== revision
+        )
+          return;
+        const link = this.store.getThreadLink(marker.threadId);
+        const ownership = link
+          ? this.projects.assertOwnership(link.projectId, actual.cwd)
+          : this.projects.findOwner(actual.cwd);
+        if (ownership.workspaceKey !== marker.workspaceKey) return;
+        const turn = actual.turns.find((entry) => entry.id === marker.turnId);
+        if (
+          turn &&
+          isActive(turn.status) &&
+          latest.state === 'active' &&
+          this.projection.get(marker.threadId)?.status === 'unknown'
+        ) {
+          // A notLoaded status can hide an active managed turn. Restore its live controls
+          // only after the same identity, runtime and revision checks used for completion.
+          this.projection.thread(this.normalize(actual));
+          this.publishThread(marker.threadId);
+          return;
+        }
+        if (
+          !turn ||
+          !isTerminal(turn.status) ||
+          isActive(actual.status) ||
+          actual.turns.some((entry) => isActive(entry.status))
+        )
+          return;
+        this.store.finishTurn(marker.threadId, turn.id, marker.codexEpoch);
+        this.projection.thread(this.normalize(actual));
+        this.projection.expireTurn(marker.threadId, turn.id);
+        this.publishThread(marker.threadId);
+        this.events.publish('operation', this.getOperation(marker.operationId), marker.threadId);
+      } catch {
+        // Missing/unavailable history is not terminal evidence. Keep the durable reservation.
+      }
+    })();
+    this.executionReads.set(marker.operationId, reading);
+    try {
+      return await reading;
+    } finally {
+      this.executionReads.delete(marker.operationId);
     }
   }
 

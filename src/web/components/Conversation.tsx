@@ -43,11 +43,13 @@ const activityStatusLabels: Record<string, string> = {
 
 function Activity({ item }: { item: ItemView }) {
   return (
-    <details className="activity" open={item.status === 'failed' || undefined}>
+    <details className={`activity${item.status === 'failed' ? ' activity-failed' : ''}`}>
       <summary>
         <Icon name={item.type === 'fileChange' ? 'code' : 'terminal'} size={16} />
-        <span>{activityLabels[item.type] ?? item.type}</span>
-        {item.command && <code className="command-summary">{item.command}</code>}
+        <span className="activity-description">
+          <span className="activity-label">{activityLabels[item.type] ?? item.type}</span>
+          {item.command && <code className="command-summary">{item.command}</code>}
+        </span>
         <span className="activity-status">
           {item.status ? (activityStatusLabels[item.status] ?? item.status) : ''}
         </span>
@@ -122,10 +124,17 @@ function Item({ item }: { item: ItemView }) {
   if (item.type === 'userMessage' || item.type === 'agentMessage') {
     const user = item.type === 'userMessage';
     return (
-      <article className={user ? 'message user-message' : 'message assistant-message'}>
-        <div className="message-avatar">{user ? '你' : <Icon name="code" size={17} />}</div>
+      <article
+        className={user ? 'message user-message' : 'message assistant-message'}
+        aria-label={user ? '你的消息' : 'Codex 的回复'}
+      >
+        {!user && (
+          <div className="message-avatar" aria-hidden="true">
+            <Icon name="code" size={17} />
+          </div>
+        )}
         <div className="message-content">
-          <div className="message-author">{user ? '你' : 'Codex'}</div>
+          {!user && <div className="message-author">Codex</div>}
           {user ? <p className="user-text">{item.text}</p> : <TextContent text={item.text ?? ''} />}
           {item.error && <p className="inline-error">{item.error}</p>}
         </div>

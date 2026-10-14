@@ -290,7 +290,7 @@ export function App() {
                   ? '当前 Codex 版本不支持 Fork 会话。'
                   : thread.turns.length === 0
                     ? '发送首条消息后可 Fork 已保存的历史。'
-                    : 'Fork 复制已保存的历史，不会停止原会话。同一目录的任务仍需依次执行。'}
+                    : 'Fork 复制已保存的历史，新会话可与原会话同时执行。'}
               </span>
             </div>
             <Button variant="secondary" size="sm" disabled={!canFork} onClick={forkThread}>

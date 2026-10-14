@@ -130,8 +130,20 @@ for (const mobile of [false, true]) {
     const operation = await completedThread(page);
     await page.route(`**/api/operations/${operation.clientOperationId}`, async (route) => {
       const response = await route.fetch();
+      const receipt = (await response.json()) as Operation;
       // An uncertain receipt stays unknown even after human reconciliation.
-      await route.fulfill({ response, json: { ...(await response.json()), status: 'unknown' } });
+      // Withhold terminal evidence until then: confirmed-ended executions no longer block.
+      await route.fulfill({
+        response,
+        json: {
+          ...receipt,
+          status: 'unknown',
+          execution: receipt.execution && {
+            ...receipt.execution,
+            ended: Boolean(receipt.reconciliation),
+          },
+        },
+      });
     });
     await page.evaluate((receipt) => {
       localStorage.setItem(

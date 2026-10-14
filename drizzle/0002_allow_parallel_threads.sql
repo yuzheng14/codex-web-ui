@@ -1,0 +1,1 @@
+DROP INDEX `execution_markers_active_workspace`;
