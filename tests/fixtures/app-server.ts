@@ -166,6 +166,14 @@ function complete(
     method: 'thread/status/changed',
     params: { threadId: thread.id, status: thread.status },
   });
+  if (thread.preview.includes('[unload]')) {
+    // Exercise the real notification → gateway cache → history-read recovery path.
+    thread.status = { type: 'notLoaded' };
+    notify({
+      method: 'thread/status/changed',
+      params: { threadId: thread.id, status: thread.status },
+    });
+  }
 }
 function execute(thread: Thread, turn: Turn): void {
   const cmd = command(randomUUID(), thread.cwd);

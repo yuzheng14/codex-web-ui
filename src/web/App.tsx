@@ -22,6 +22,9 @@ const encode = encodeURIComponent;
 export function App() {
   const workspace = useWorkspace();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const statusCheck = useRef(false);
   const [checkingCompatibility, setCheckingCompatibility] = useState(false);
   const compatibilityAttempt = useRef(false);
   const project = workspace.projects.find((entry) => entry.id === workspace.projectId);
@@ -75,6 +78,20 @@ export function App() {
   const compatibilityUncertain = compatibilityOperations.some(
     (entry) => entry.status === 'unknown' && !entry.operation?.reconciliation,
   );
+
+  async function refreshStatus() {
+    if (statusCheck.current) return;
+    statusCheck.current = true;
+    setCheckingStatus(true);
+    try {
+      await Promise.all([workspace.refreshSystem(), workspace.refreshThread()]);
+      // Reading history may recover a terminal execution. Read its receipt afterwards.
+      await workspace.refreshOperations();
+    } finally {
+      statusCheck.current = false;
+      setCheckingStatus(false);
+    }
+  }
 
   async function confirmCurrentCompatibility() {
     if (!canConfirm || compatibilityAttempt.current) return;
@@ -169,16 +186,21 @@ export function App() {
               operations={workspace.operations}
               thread={thread}
               busy={workspace.busy}
+              open={diagnosticsOpen}
+              onOpenChange={setDiagnosticsOpen}
+              refreshing={checkingStatus}
               onRefresh={() => {
-                void workspace.refreshSystem();
-                void workspace.refreshThread();
-                void workspace.refreshOperations();
-                workspace.retryConnection();
+                void refreshStatus();
+                if (offline) workspace.retryConnection();
               }}
               onReconcile={(id) => {
-                void workspace.run('reconcile', id, `/api/operations/${encode(id)}/reconcile`, {
-                  confirmEnded: true,
-                });
+                void workspace
+                  .run('reconcile', id, `/api/operations/${encode(id)}/reconcile`, {
+                    confirmEnded: true,
+                  })
+                  .then((operation) => {
+                    if (operation?.status === 'acknowledged') return refreshStatus();
+                  });
               }}
             />
           </div>
@@ -316,11 +338,15 @@ export function App() {
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={checkingStatus}
+                aria-expanded={diagnosticsOpen}
+                aria-controls="diagnostics-panel"
                 onClick={() => {
-                  void workspace.refreshOperations();
+                  setDiagnosticsOpen(true);
+                  void refreshStatus();
                 }}
               >
-                核对提交
+                {checkingStatus ? '正在核对…' : '核对提交'}
               </Button>
               {!pendingFork && (
                 <Button variant="secondary" size="sm" disabled={!canFork} onClick={forkThread}>

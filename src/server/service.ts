@@ -177,8 +177,8 @@ export class GatewayService {
         await this.refreshExecution(marker);
         return this.threadView(cached);
       }
-      if (cached.status !== 'unknown' || cached.managed || !this.codex.ready)
-        return this.threadView(cached);
+      // Managed ownership does not make an unknown projection authoritative.
+      if (cached.status !== 'unknown' || !this.codex.ready) return this.threadView(cached);
     }
     const existing = this.reads.get(threadId);
     if (existing) return this.threadView(await existing);
@@ -191,6 +191,9 @@ export class GatewayService {
         current && (cached === undefined || this.projection.revision(threadId) !== revision);
       const result = preserveCurrent ? current : this.projection.thread(thread);
       this.applyRecoveredMarker(result);
+      if (!preserveCurrent)
+        for (const turn of result.turns)
+          if (isTerminal(turn.status)) this.projection.expireTurn(threadId, turn.id);
       if (cached !== undefined && !preserveCurrent) this.publishThread(threadId);
       return result;
     })();
@@ -577,6 +580,18 @@ export class GatewayService {
           : this.projects.findOwner(actual.cwd);
         if (ownership.workspaceKey !== marker.workspaceKey) return;
         const turn = actual.turns.find((entry) => entry.id === marker.turnId);
+        if (
+          turn &&
+          isActive(turn.status) &&
+          latest.state === 'active' &&
+          this.projection.get(marker.threadId)?.status === 'unknown'
+        ) {
+          // A notLoaded status can hide an active managed turn. Restore its live controls
+          // only after the same identity, runtime and revision checks used for completion.
+          this.projection.thread(this.normalize(actual));
+          this.publishThread(marker.threadId);
+          return;
+        }
         if (
           !turn ||
           !isTerminal(turn.status) ||
