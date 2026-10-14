@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useWorkspace } from './hooks/useWorkspace';
 import { Sidebar } from './components/Sidebar';
 import { Conversation } from './components/Conversation';
@@ -10,6 +10,7 @@ import { Icon } from './components/Icon';
 import { Button } from './components/ui/button';
 import { blocksTarget } from './lib/operations';
 import { CompatibilityNotice } from './components/CompatibilityNotice';
+import { ProjectDialog } from './components/ProjectDialog';
 import {
   canConfirmCompatibility,
   compatibilityConfirmationRequired,
@@ -25,9 +26,23 @@ export function App() {
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const statusCheck = useRef(false);
+  const [projectDialog, setProjectDialog] = useState<
+    { kind: 'add' } | { kind: 'manage'; id: string }
+  >();
   const [checkingCompatibility, setCheckingCompatibility] = useState(false);
   const compatibilityAttempt = useRef(false);
   const project = workspace.projects.find((entry) => entry.id === workspace.projectId);
+  const managedProject =
+    projectDialog?.kind === 'manage'
+      ? workspace.projects.find((entry) => entry.id === projectDialog.id)
+      : undefined;
+  useEffect(() => {
+    if (projectDialog?.kind === 'manage' && !managedProject) setProjectDialog(undefined);
+  }, [projectDialog, managedProject]);
+  const openAddProject = () => {
+    setSidebarOpen(false);
+    setProjectDialog({ kind: 'add' });
+  };
   const { thread, system } = workspace;
   const canControl = Boolean(
     system?.ready &&
@@ -123,6 +138,7 @@ export function App() {
     <div className="app-shell">
       <Sidebar
         projects={workspace.projects}
+        projectsLoaded={workspace.projectsLoaded}
         projectId={workspace.projectId}
         onProject={workspace.setProjectId}
         projectThreads={workspace.projectThreads}
@@ -137,8 +153,14 @@ export function App() {
           void workspace.loadProjectThreads(projectId);
         }}
         onRefresh={() => {
-          void workspace.refreshProjectsThreads();
+          void workspace.refreshProjects().then(workspace.refreshProjectsThreads);
         }}
+        onAddProject={openAddProject}
+        onManageProject={(project) => {
+          setSidebarOpen(false);
+          setProjectDialog({ kind: 'manage', id: project.id });
+        }}
+        canManageProjects={!workspace.authRequired}
         onCreate={(projectId) => {
           workspace.setProjectId(projectId);
           setSidebarOpen(false);
@@ -302,7 +324,14 @@ export function App() {
             </Button>
           </div>
         )}
-        <Conversation thread={thread} offline={offline} projectName={project?.name} />
+        <Conversation
+          thread={thread}
+          offline={offline}
+          projectName={project?.name}
+          needsProject={workspace.projectsLoaded && workspace.projects.length === 0}
+          canAddProject={!workspace.authRequired}
+          onAddProject={openAddProject}
+        />
         <div className="bottom-region">
           {actions.length > 0 && (
             <div className="pending-actions" aria-label="待处理请求">
@@ -403,6 +432,19 @@ export function App() {
           />
         </div>
       </main>
+      {projectDialog && (projectDialog.kind === 'add' || managedProject) && (
+        <ProjectDialog
+          key={projectDialog.kind === 'add' ? 'add' : projectDialog.id}
+          project={managedProject}
+          disabled={workspace.authRequired}
+          onAdd={workspace.addProject}
+          onRename={workspace.renameProject}
+          onRemove={workspace.removeProject}
+          onClose={() =>
+            setProjectDialog((current) => (current === projectDialog ? undefined : current))
+          }
+        />
+      )}
     </div>
   );
 }

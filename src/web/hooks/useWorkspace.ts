@@ -32,6 +32,10 @@ function preferredProject() {
 
 export function useWorkspace() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const projectsLoadedRef = useRef(false);
+  const projectRevision = useRef(0);
+  const projectReadSequence = useRef(0);
   const [projectId, setActiveProjectId] = useState(preferredProject);
   const projectsRef = useRef<Project[]>([]);
   const projectStore = useRef(new ProjectThreadsStore());
@@ -88,7 +92,7 @@ export function useWorkspace() {
   }, []);
   const loadProjectThreads = useCallback(
     async (id: string, cursor?: string) => {
-      if (!id) return;
+      if (!id || !projectsRef.current.some((project) => project.id === id)) return;
       const read = projectStore.current.beginRead(id, Boolean(cursor));
       setProjectThreads(projectStore.current.snapshot);
       try {
@@ -113,11 +117,13 @@ export function useWorkspace() {
     [loadProjectThreads],
   );
   const updateSummary = useCallback((summary: ThreadSummary, cursor: Cursor) => {
+    if (!projectsRef.current.some((project) => project.id === summary.projectId)) return;
     if (projectStore.current.applySummary(summary, cursor))
       setProjectThreads(projectStore.current.snapshot);
   }, []);
   const updateThread = useCallback(
     (next: ThreadView) => {
+      if (!projectsRef.current.some((project) => project.id === next.projectId)) return;
       if (next.id === selectedRef.current && next.projectId === projectRef.current) setThread(next);
       if (
         next.execution &&
@@ -174,6 +180,7 @@ export function useWorkspace() {
           return;
         }
       }
+      if (!projectsRef.current.some((entry) => entry.id === project)) return;
       activateProject(project);
       selectedRef.current = id;
       selectionsRef.current[project] = id;
@@ -229,6 +236,53 @@ export function useWorkspace() {
     },
     [activateProject, selectThread],
   );
+  const applyProjects = useCallback(
+    (data: Project[]) => {
+      const ids = new Set(data.map((entry) => entry.id));
+      const removed = projectsRef.current.filter((entry) => !ids.has(entry.id));
+      if (removed.length > 0) {
+        if (!ids.has(projectRef.current)) {
+          navigationRevision.current++;
+          detailReadSequence.current++;
+        }
+        for (const project of removed) {
+          projectStore.current.removeProject(project.id);
+          streamRef.current?.cache.removeProject(project.id);
+        }
+        setProjectThreads(projectStore.current.snapshot);
+      }
+      const added = data.filter(
+        (entry) =>
+          entry.available && !projectsRef.current.some((project) => project.id === entry.id),
+      );
+      projectsRef.current = data;
+      setProjects(data);
+      const preferred = projectRef.current;
+      if (!projectsLoadedRef.current || !ids.has(preferred)) {
+        selectProject(
+          ids.has(preferred)
+            ? preferred
+            : (data.find((entry) => entry.available)?.id ?? data[0]?.id ?? ''),
+        );
+      }
+      projectsLoadedRef.current = true;
+      setProjectsLoaded(true);
+      for (const project of added) void loadProjectThreads(project.id);
+    },
+    [loadProjectThreads, selectProject],
+  );
+  const refreshProjects = useCallback(async () => {
+    const sequence = ++projectReadSequence.current;
+    const revision = projectRevision.current;
+    try {
+      const { data } = await api.projects();
+      if (sequence === projectReadSequence.current && revision === projectRevision.current)
+        applyProjects(data);
+    } catch (problem) {
+      if (sequence === projectReadSequence.current && revision === projectRevision.current)
+        report(problem);
+    }
+  }, [applyProjects, report]);
   const applyOperation = useCallback(
     (operation: Operation) => {
       const known = operationsRef.current.find(
@@ -247,6 +301,14 @@ export function useWorkspace() {
         setErrorDetails(operation.error?.details);
       }
       if (operation.status === 'acknowledged') {
+        // Recovery can finish before the initial project list restores the selected thread.
+        // Keep the durable navigation intent until that selection can be checked safely.
+        if (
+          !projectsLoadedRef.current &&
+          known.navigateToResult &&
+          (known.kind === 'create' || known.kind === 'fork')
+        )
+          return;
         if (known.kind === 'confirmCompatibility') void refreshSystem();
         const result = operation.result as
           { threadId?: string; id?: string; thread?: { id?: string } } | undefined;
@@ -273,6 +335,13 @@ export function useWorkspace() {
     },
     [refreshSystem, selectThread, track, loadProjectThreads],
   );
+
+  useEffect(() => {
+    if (!projectsLoaded) return;
+    for (const entry of operationsRef.current) {
+      if (entry.operation?.status === 'acknowledged') applyOperation(entry.operation);
+    }
+  }, [projectsLoaded, applyOperation]);
 
   const refreshOperations = useCallback(async () => {
     await Promise.all(
@@ -317,34 +386,19 @@ export function useWorkspace() {
   );
 
   useEffect(() => {
-    let active = true;
-    void api
-      .projects()
-      .then(({ data }) => {
-        if (!active) return;
-        projectsRef.current = data;
-        setProjects(data);
-        const preferred = projectRef.current;
-        selectProject(
-          data.some((project) => project.id === preferred)
-            ? preferred
-            : (data.find((project) => project.available)?.id ?? data[0]?.id ?? ''),
-        );
-        void refreshProjectsThreads();
-      })
-      .catch(report);
+    void refreshProjects();
     void refreshSystem();
     return () => {
-      active = false;
+      projectReadSequence.current++;
     };
-  }, [refreshSystem, report, selectProject, refreshProjectsThreads]);
+  }, [refreshSystem, refreshProjects]);
   useEffect(() => {
     const stream = new ThreadStream({
       connection: (state) => {
         setConnection(state);
         if (state === 'connected') {
           void refreshSystem();
-          void refreshProjectsThreads();
+          void refreshProjects().then(refreshProjectsThreads);
         }
       },
       thread: updateThread,
@@ -352,6 +406,10 @@ export function useWorkspace() {
       system: (next) => {
         systemSnapshotGuard.current.runtimeEvent();
         setSystem(next);
+      },
+      projects: (next) => {
+        projectRevision.current++;
+        applyProjects(next);
       },
       operation: applyOperation,
       error: (message) => {
@@ -366,7 +424,15 @@ export function useWorkspace() {
       stream.stop();
       streamRef.current = undefined;
     };
-  }, [applyOperation, refreshSystem, updateThread, updateSummary, refreshProjectsThreads]);
+  }, [
+    applyOperation,
+    refreshSystem,
+    updateThread,
+    updateSummary,
+    refreshProjectsThreads,
+    refreshProjects,
+    applyProjects,
+  ]);
   useEffect(() => {
     if (authRequired) {
       streamRef.current?.stop();
@@ -477,6 +543,41 @@ export function useWorkspace() {
 
   return {
     projects,
+    projectsLoaded,
+    addProject: async (input: { path: string; name?: string }) => {
+      projectRevision.current++;
+      try {
+        const added = await api.addProject(input);
+        await refreshProjects();
+        if (projectsRef.current.some((entry) => entry.id === added.id)) {
+          cancelResultNavigation();
+          selectProject(added.id);
+        }
+      } catch (problem) {
+        if (problem instanceof HttpError && problem.authenticationRequired) report(problem);
+        throw problem;
+      }
+    },
+    renameProject: async (id: string, name: string) => {
+      projectRevision.current++;
+      try {
+        await api.renameProject(id, name);
+        await refreshProjects();
+      } catch (problem) {
+        if (problem instanceof HttpError && problem.authenticationRequired) report(problem);
+        throw problem;
+      }
+    },
+    removeProject: async (id: string) => {
+      projectRevision.current++;
+      try {
+        await api.removeProject(id);
+        await refreshProjects();
+      } catch (problem) {
+        if (problem instanceof HttpError && problem.authenticationRequired) report(problem);
+        throw problem;
+      }
+    },
     projectId,
     setProjectId: (id: string) => {
       cancelResultNavigation();
@@ -510,6 +611,7 @@ export function useWorkspace() {
     loadThreads,
     loadProjectThreads,
     refreshProjectsThreads,
+    refreshProjects,
     refreshThread,
     refreshSystem,
     refreshOperations,

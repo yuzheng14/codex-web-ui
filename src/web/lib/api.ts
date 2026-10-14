@@ -54,6 +54,11 @@ export async function request<T>(path: string, body?: object, signal?: AbortSign
 export const api = {
   system: () => request<SystemInfo>('/api/system'),
   projects: () => request<{ data: Project[] }>('/api/projects'),
+  addProject: (input: { path: string; name?: string }) => request<Project>('/api/projects', input),
+  renameProject: (id: string, name: string) =>
+    request<Project>(`/api/projects/${encodeURIComponent(id)}/rename`, { name }),
+  removeProject: (id: string) =>
+    request<{ removed: true }>(`/api/projects/${encodeURIComponent(id)}/remove`, {}),
   threads: (projectId: string, cursor?: string) =>
     request<ThreadSummaryPage>(
       `/api/projects/${encodeURIComponent(projectId)}/threads${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,

@@ -227,6 +227,10 @@ svg {
   margin: 4px -6px;
   padding: 0 6px;
 }
+.add-project {
+  justify-content: flex-start;
+  margin: 7px 6px 4px;
+}
 .project-group {
   padding: 12px 0 16px;
   border-top: 1px solid var(--border);
@@ -235,10 +239,18 @@ svg {
   border-top: 0;
 }
 .project-heading {
+  display: flex;
+  align-items: center;
+  gap: 3px;
   margin: 0;
   font-size: 13px;
 }
+.project-heading > .button {
+  flex-shrink: 0;
+  color: #7b8881;
+}
 .project-link {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -251,6 +263,111 @@ svg {
   color: #55635b;
   font-weight: 600;
   text-align: left;
+}
+.project-dialog {
+  width: min(500px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px;
+  color: #303b35;
+  background: #fff;
+  box-shadow: 0 20px 80px #172a2233;
+}
+.project-dialog::backdrop {
+  background: #172a2255;
+}
+.project-dialog-heading,
+.project-dialog-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.project-dialog-heading {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.project-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.project-dialog form > p {
+  color: #748078;
+  font-size: 13px;
+}
+.project-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 19px;
+  font-size: 13px;
+  font-weight: 550;
+}
+.project-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid #d5ddd8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #303b35;
+  background: #fff;
+  font-size: 14px;
+}
+.project-field input::placeholder {
+  color: #99a19c;
+}
+.project-field small {
+  color: #7b867f;
+  font-size: 12px;
+  line-height: 1.7;
+  font-weight: 400;
+}
+.project-directory {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f4f7f5;
+  font-size: 12px;
+}
+.project-directory span {
+  color: #748078;
+}
+.project-directory code {
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.project-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 25px;
+}
+.project-dialog-actions .project-remove-button {
+  margin-right: auto;
+  color: var(--destructive);
+}
+.project-dialog form > .project-dialog-error {
+  margin: 16px 0 0;
+  color: var(--destructive);
+  overflow-wrap: anywhere;
+}
+.project-removal-note {
+  padding: 14px;
+  border: 1px solid #e6e8df;
+  border-radius: 8px;
+  background: #f8f9f5;
+  color: #687568;
+  font-size: 13px;
+}
+.project-removal-note p:last-child {
+  margin-bottom: 0;
 }
 .project-link > span:first-of-type {
   min-width: 0;

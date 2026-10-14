@@ -13,6 +13,7 @@ interface ProjectThreads {
 }
 interface Props {
   projects: Project[];
+  projectsLoaded: boolean;
   projectId: string;
   onProject: (id: string) => void;
   projectThreads: Record<string, ProjectThreads>;
@@ -22,6 +23,9 @@ interface Props {
   onRetry: (projectId: string) => void;
   onRefresh: () => void;
   onCreate: (projectId: string) => void;
+  onAddProject: () => void;
+  onManageProject: (project: Project) => void;
+  canManageProjects: boolean;
   creating: (projectId: string) => boolean;
   canCreate: (projectId: string) => boolean;
   offline: boolean;
@@ -134,6 +138,16 @@ export function Sidebar(props: Props) {
             <Icon name="refresh" size={14} />
           </Button>
         </div>
+        <Button
+          className="add-project"
+          variant="secondary"
+          size="sm"
+          onClick={props.onAddProject}
+          disabled={!props.canManageProjects}
+        >
+          <Icon name="plus" size={15} />
+          添加项目
+        </Button>
         <nav className="project-list" aria-label="会话历史">
           {groups.map(({ project, state, threads }) => {
             const activeCount = (state?.data ?? []).filter((entry) =>
@@ -161,6 +175,16 @@ export function Sidebar(props: Props) {
                       </span>
                     )}
                   </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`管理项目 ${project.name}`}
+                    title="管理项目"
+                    onClick={() => props.onManageProject(project)}
+                    disabled={!props.canManageProjects}
+                  >
+                    <Icon name="settings" size={15} />
+                  </Button>
                 </h2>
                 <p className="project-path" title={project.rootPath}>
                   {project.rootPath}
@@ -236,13 +260,17 @@ export function Sidebar(props: Props) {
           })}
           {groups.length === 0 && (
             <p className="sidebar-empty">
-              {query ? '没有匹配的项目或已加载会话。' : '尚未配置项目。'}
+              {query
+                ? '没有匹配的项目或已加载会话。'
+                : props.projectsLoaded
+                  ? '还没有项目。添加一个服务器目录，开始工作。'
+                  : '正在读取项目…'}
             </p>
           )}
         </nav>
         <div className="sidebar-footer">
-          <span className="privacy-mark">本机执行</span>
-          <p>代码与凭据保留在你的电脑上</p>
+          <span className="privacy-mark">服务器执行</span>
+          <p>代码与凭据保留在运行服务的电脑上</p>
         </div>
       </aside>
     </>

@@ -6,5 +6,5 @@
   "dataDir": "./.local/codex-web",
   "codex": { "binary": "codex" },
   "auth": { "mode": "local" },
-  "projects": [{ "id": "my-project", "name": "我的项目", "path": "/Users/you/Projects/my-project" }]
+  "projects": []
 }

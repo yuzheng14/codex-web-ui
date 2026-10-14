@@ -74,6 +74,25 @@ describe('multi-project conversation overviews', () => {
     expect(store.snapshot.a?.error).toBeUndefined();
   });
 
+  it('invalidates pending reads when a project is removed and loads its restored history afresh', () => {
+    const store = new ProjectThreadsStore();
+    store.applySummary(summary('a1', 'a', 'running'), cursor(20));
+    store.applySummary(summary('b1', 'b'), cursor(21));
+    const pending = store.beginRead('a');
+    store.removeProject('a');
+    expect(store.snapshot.a).toBeUndefined();
+    expect(store.findProject('a1')).toBeUndefined();
+    expect(store.finishRead(pending, page([summary('a1')], 22))).toBe(false);
+    expect(store.failRead(pending, 'late error')).toBe(false);
+    expect(store.snapshot.a).toBeUndefined();
+    expect(store.snapshot.b?.data).toEqual([summary('b1', 'b')]);
+
+    const restored = store.beginRead('a');
+    expect(store.finishRead(pending, page([summary('stale')], 23))).toBe(false);
+    expect(store.finishRead(restored, page([summary('a1', 'a', 'completed')], 10))).toBe(true);
+    expect(store.snapshot.a?.data).toEqual([summary('a1', 'a', 'completed')]);
+  });
+
   it('does not roll a summary back on duplicate events or events predating its HTTP cursor', () => {
     const store = new ProjectThreadsStore();
     store.finishRead(store.beginRead('a'), page([summary('one', 'a', 'completed')], 20));

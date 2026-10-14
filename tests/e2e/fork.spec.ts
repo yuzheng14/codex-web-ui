@@ -224,6 +224,12 @@ test('lost fork receipts recover after reload without dispatching a duplicate', 
   await expect(page.getByRole('button', { name: '正在确认 Fork…', exact: true })).toBeDisabled();
   expect(await selectedId(page)).toBe(source);
   withhold = false;
+  // Recover the operation before the first project snapshot arrives, as can happen on CI
+  // and slow connections. Navigation must wait for the owning project to be restored.
+  await page.route('**/api/projects', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    await route.continue();
+  });
   await page.reload();
   await expect(page.getByRole('button', { name: '返回原会话', exact: true })).toBeVisible();
   expect(await selectedId(page)).not.toBe(source);
