@@ -851,10 +851,21 @@ svg {
 .activity > summary::-webkit-details-marker {
   display: none;
 }
-.activity > summary > span:first-of-type {
+.activity-description {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.activity-label {
   flex-shrink: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .command-summary {
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -862,9 +873,22 @@ svg {
   font-size: 10px;
 }
 .activity-status {
+  flex-shrink: 0;
   margin-left: auto;
   font-size: 10px;
   color: #9ba79d;
+  white-space: nowrap;
+}
+.activity-failed {
+  border-color: #efd6d3;
+  background: #fff5f3;
+}
+.activity-failed > summary,
+.activity-failed .activity-status {
+  color: var(--destructive);
+}
+.activity-failed .activity-status {
+  font-weight: 600;
 }
 .activity[open] > summary > svg:last-child {
   transform: rotate(90deg);

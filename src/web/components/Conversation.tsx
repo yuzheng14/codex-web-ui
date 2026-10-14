@@ -43,11 +43,13 @@ const activityStatusLabels: Record<string, string> = {
 
 function Activity({ item }: { item: ItemView }) {
   return (
-    <details className="activity" open={item.status === 'failed' || undefined}>
+    <details className={`activity${item.status === 'failed' ? ' activity-failed' : ''}`}>
       <summary>
         <Icon name={item.type === 'fileChange' ? 'code' : 'terminal'} size={16} />
-        <span>{activityLabels[item.type] ?? item.type}</span>
-        {item.command && <code className="command-summary">{item.command}</code>}
+        <span className="activity-description">
+          <span className="activity-label">{activityLabels[item.type] ?? item.type}</span>
+          {item.command && <code className="command-summary">{item.command}</code>}
+        </span>
         <span className="activity-status">
           {item.status ? (activityStatusLabels[item.status] ?? item.status) : ''}
         </span>
