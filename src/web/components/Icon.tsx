@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 
 const paths = {
   plus: 'M12 5v14M5 12h14',
+  fork: 'M6 3v12a4 4 0 0 0 4 4h8M6 7h8a4 4 0 0 0 4-4M15 16l3 3-3 3M15 4l3-3 3 3',
   send: 'm5 12 14-7-7 14-1-7-6-0Z M11 13l8-8',
   stop: 'M6 6h12v12H6z',
   chevron: 'm9 5 7 7-7 7',

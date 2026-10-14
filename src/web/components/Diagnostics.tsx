@@ -44,6 +44,7 @@ function OperationCard({
 }) {
   const [confirmed, setConfirmed] = useState(false);
   const execution = entry.operation?.execution;
+  const fork = entry.kind === 'fork';
   const currentlyActive = Boolean(
     thread && isActive(thread.status) && execution?.threadId === thread.id,
   );
@@ -81,7 +82,11 @@ function OperationCard({
         needsReconciliation(entry) &&
         !entry.operation?.reconciliation && (
           <div className="reconcile">
-            <p>不会自动重发任务。先检查会话历史和原执行环境，再核对这笔提交。</p>
+            <p>
+              {fork
+                ? '请先刷新会话列表，检查是否已生成包含原历史的新会话。核对此次 Fork 不会停止原任务或解除原任务的目录占用。'
+                : '不会自动重发任务。先检查会话历史和原执行环境，再核对这笔提交。'}
+            </p>
             {currentlyActive ? (
               <p>当前任务仍在执行，请使用输入区的中断按钮。</p>
             ) : (
@@ -92,7 +97,9 @@ function OperationCard({
                     checked={confirmed}
                     onChange={(event) => setConfirmed(event.target.checked)}
                   />
-                  我已核实对应旧运行已经结束
+                  {fork
+                    ? '我已检查会话列表和历史，核实此次 Fork 的结果'
+                    : '我已核实对应旧运行已经结束'}
                 </label>
                 <Button
                   variant="secondary"
@@ -100,7 +107,7 @@ function OperationCard({
                   disabled={!confirmed || busy}
                   onClick={() => onReconcile(entry.clientOperationId)}
                 >
-                  核对并解除旧占用
+                  {fork ? '核对此次 Fork' : '核对并解除旧占用'}
                 </Button>
               </>
             )}
@@ -109,7 +116,7 @@ function OperationCard({
       {entry.operation?.reconciliation && (
         <p className="subtle">
           已于 {formatTime(entry.operation.reconciliation.at)}{' '}
-          人工核对旧运行结束。保留原始提交状态。
+          {fork ? '人工核对 Fork 结果。原任务状态不变。' : '人工核对旧运行结束。'}保留原始提交状态。
         </p>
       )}
     </div>

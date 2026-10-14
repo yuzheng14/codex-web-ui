@@ -46,6 +46,19 @@ export function App() {
       (action) => action.status === 'pending' || action.status === 'responding',
     ) ?? [];
   const waitingForConfirmation = thread && (unsettledFor(thread.id) || thread.status === 'unknown');
+  const pendingFork = Boolean(
+    thread &&
+    workspace.operations.some((entry) => entry.kind === 'fork' && blocksTarget(entry, thread.id)),
+  );
+  const supportsFork = system?.capabilities.includes('thread/fork') ?? false;
+  const forking = busyFor('fork') || pendingFork;
+  const canFork = Boolean(thread?.turns.length && canOperate && supportsFork && !forking);
+  const forkThread = () => {
+    if (!thread || !canFork) return;
+    void workspace.run('fork', thread.id, `/api/threads/${encode(thread.id)}/fork`, {
+      settings: workspace.settings,
+    });
+  };
   const offline = workspace.connection !== 'connected';
   const compatibilityOperations = workspace.operations.filter(
     (entry) => entry.kind === 'confirmCompatibility' && entry.target === compatibilityTarget,
@@ -231,6 +244,34 @@ export function App() {
             </Button>
           </div>
         )}
+        {thread && (
+          <div className="thread-actions">
+            <div className="thread-actions-description">
+              {thread.forkedFromId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    void workspace.selectThread(thread.forkedFromId!);
+                  }}
+                >
+                  返回原会话
+                </Button>
+              )}
+              <span>
+                {!supportsFork
+                  ? '当前 Codex 版本不支持 Fork 会话。'
+                  : thread.turns.length === 0
+                    ? '发送首条消息后可 Fork 已保存的历史。'
+                    : 'Fork 复制已保存的历史，不会停止原会话。同一目录的任务仍需依次执行。'}
+              </span>
+            </div>
+            <Button variant="secondary" size="sm" disabled={!canFork} onClick={forkThread}>
+              <Icon name="fork" size={14} />
+              {forking ? '正在确认 Fork…' : 'Fork 会话'}
+            </Button>
+          </div>
+        )}
         <Conversation thread={thread} offline={offline} projectName={project?.name} />
         <div className="bottom-region">
           {actions.length > 0 && (
@@ -259,7 +300,11 @@ export function App() {
           {waitingForConfirmation && (
             <div className="pending-notice" role="status">
               <Icon name="alert" size={15} />
-              提交结果尚未确认。请通过状态诊断核对，避免重复发送。
+              <span>
+                {pendingFork
+                  ? 'Fork 结果尚未确认。请核对提交，暂时不能再次 Fork。'
+                  : '提交结果尚未确认。请核对提交，也可以 Fork 已保存的历史为新会话。'}
+              </span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -269,6 +314,11 @@ export function App() {
               >
                 核对提交
               </Button>
+              {!pendingFork && (
+                <Button variant="secondary" size="sm" disabled={!canFork} onClick={forkThread}>
+                  Fork 为新会话
+                </Button>
+              )}
             </div>
           )}
           <Composer
@@ -282,6 +332,9 @@ export function App() {
             submitting={busyFor('send') || busyFor('steer')}
             interrupting={busyFor('interrupt')}
             resuming={busyFor('resume')}
+            canFork={canFork}
+            forking={forking}
+            onFork={forkThread}
             onResume={(confirmed) => {
               if (thread)
                 void workspace

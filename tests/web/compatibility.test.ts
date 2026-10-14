@@ -55,7 +55,7 @@ describe('compatibility confirmation policy', () => {
   });
 
   it('blocks dispatch and human answers while retaining interruption and diagnostic recovery', () => {
-    for (const kind of ['create', 'resume', 'send', 'steer', 'resolve']) {
+    for (const kind of ['create', 'fork', 'resume', 'send', 'steer', 'resolve']) {
       expect(operationNeedsCompatibilityConfirmation(kind, system)).toBe(true);
       expect(operationNeedsCompatibilityConfirmation(kind, { ...system, demo: true })).toBe(true);
       expect(

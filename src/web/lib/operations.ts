@@ -9,9 +9,11 @@ export interface SavedOperation {
   status: Operation['status'];
   operation?: Operation;
   error?: string;
+  projectId?: string;
+  navigateToResult?: boolean;
 }
 
-/** Only operation identities and targets are durable. Prompts, answers and RPC credentials are not stored. */
+/** Persist operation identity and navigation intent, never prompts, answers or RPC credentials. */
 export function readOperations(storage?: Pick<Storage, 'getItem'>): SavedOperation[] {
   try {
     const parsed: unknown = JSON.parse((storage ?? localStorage).getItem(STORAGE_KEY) ?? '[]');
@@ -26,12 +28,15 @@ export function readOperations(storage?: Pick<Storage, 'getItem'>): SavedOperati
           typeof entry.kind === 'string' &&
           typeof entry.createdAt === 'number',
       )
-      .map(({ clientOperationId, kind, target, createdAt }) => ({
+      .map(({ clientOperationId, kind, target, createdAt, projectId, navigateToResult }) => ({
         clientOperationId,
         kind,
         target,
         createdAt,
         status: 'unknown',
+        ...(kind === 'fork' && typeof projectId === 'string'
+          ? { projectId, navigateToResult: navigateToResult === true }
+          : {}),
       }));
   } catch {
     return [];
@@ -43,12 +48,15 @@ export function saveOperations(operations: SavedOperation[], storage?: Pick<Stor
     (storage ?? localStorage).setItem(
       STORAGE_KEY,
       JSON.stringify(
-        operations.map(({ clientOperationId, kind, target, createdAt }) => ({
-          clientOperationId,
-          kind,
-          target,
-          createdAt,
-        })),
+        operations.map(
+          ({ clientOperationId, kind, target, createdAt, projectId, navigateToResult }) => ({
+            clientOperationId,
+            kind,
+            target,
+            createdAt,
+            ...(kind === 'fork' ? { projectId, navigateToResult } : {}),
+          }),
+        ),
       ),
     );
     return true;

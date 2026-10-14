@@ -381,6 +381,27 @@ svg {
   gap: 17px;
   font-size: 11px;
 }
+.thread-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.thread-actions-description {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: #899199;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.thread-actions > .button {
+  flex-shrink: 0;
+}
 .status {
   display: inline-flex;
   align-items: center;
@@ -1124,7 +1145,10 @@ input[type='radio'] {
   margin-bottom: 12px;
 }
 .pending-notice .button {
-  margin-left: auto;
+  flex-shrink: 0;
+}
+.pending-notice > span {
+  margin-right: auto;
 }
 .subtle {
   color: #96a097;
@@ -1344,6 +1368,9 @@ dd {
     flex-direction: column;
     align-items: flex-end;
     gap: 7px;
+  }
+  .thread-actions {
+    padding: 9px 15px;
   }
   .breadcrumb {
     font-size: 9px;

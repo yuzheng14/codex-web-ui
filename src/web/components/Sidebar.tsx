@@ -109,7 +109,7 @@ export function Sidebar(props: Props) {
               }}
               aria-current={entry.id === props.selectedId ? 'page' : undefined}
             >
-              <Icon name="chat" size={16} />
+              <Icon name={entry.forkedFromId ? 'fork' : 'chat'} size={16} />
               <span className="thread-link-content">
                 <span className="thread-title">{entry.title || '未命名会话'}</span>
                 <span className="thread-meta">
@@ -117,7 +117,8 @@ export function Sidebar(props: Props) {
                     ? 'CLI'
                     : entry.source === 'appServer'
                       ? 'Web'
-                      : entry.source}{' '}
+                      : entry.source}
+                  {entry.forkedFromId ? ' · Fork' : ''}{' '}
                   {entry.updatedAt ? `· ${formatTime(entry.updatedAt)}` : ''}
                 </span>
               </span>
