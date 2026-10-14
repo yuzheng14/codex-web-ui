@@ -140,6 +140,14 @@ export interface ApiError {
   clientOperationId?: string;
   details?: unknown;
 }
+export interface WorkspaceBusyDetails {
+  threadId: string;
+  operationId: string;
+  turnId?: string;
+  threadTitle?: string;
+  projectId?: string;
+  status: RunStatus;
+}
 export interface ExecutionMarker {
   operationId: string;
   threadId: string;

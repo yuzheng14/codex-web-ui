@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { and, eq, isNull, or } from 'drizzle-orm';
 import type { AppDatabase } from './index.js';
 import { executionMarkers, operations, threadLinks } from './schema.js';
+import type { ApiError } from '../../shared/types.js';
 
 export type OperationRow = typeof operations.$inferSelect;
 export type ExecutionMarker = typeof executionMarkers.$inferSelect;
@@ -140,7 +141,7 @@ export class OperationStore {
     return this.get(id)!;
   }
 
-  fail(id: string, error: { code: string; message: string }, uncertain = false): OperationRow {
+  fail(id: string, error: ApiError, uncertain = false): OperationRow {
     this.database.transaction((tx) => {
       const changed = tx
         .update(operations)
@@ -209,6 +210,14 @@ export class OperationStore {
       .select()
       .from(executionMarkers)
       .where(and(eq(executionMarkers.threadId, threadId), isNull(executionMarkers.endedAt)))
+      .get();
+  }
+
+  activeForWorkspace(workspaceKey: string): ExecutionMarker | undefined {
+    return this.database
+      .select()
+      .from(executionMarkers)
+      .where(and(eq(executionMarkers.workspaceKey, workspaceKey), isNull(executionMarkers.endedAt)))
       .get();
   }
 

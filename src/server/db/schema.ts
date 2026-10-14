@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import type { ApiError } from '../../shared/types.js';
 
 export const operations = sqliteTable(
   'operations',
@@ -12,7 +13,7 @@ export const operations = sqliteTable(
       enum: ['accepted', 'dispatching', 'acknowledged', 'failed', 'unknown'],
     }).notNull(),
     result: text('result', { mode: 'json' }).$type<unknown>(),
-    error: text('error', { mode: 'json' }).$type<{ code: string; message: string }>(),
+    error: text('error', { mode: 'json' }).$type<ApiError>(),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
     reconciledAt: integer('reconciled_at'),

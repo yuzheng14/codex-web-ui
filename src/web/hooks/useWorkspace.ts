@@ -44,6 +44,7 @@ export function useWorkspace() {
   const systemSnapshotGuard = useRef(new SystemSnapshotGuard());
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [error, setError] = useState<string>();
+  const [errorCode, setErrorCode] = useState<string>();
   const [errorDetails, setErrorDetails] = useState<unknown>();
   const [authRequired, setAuthRequired] = useState(false);
   const [busy, setBusy] = useState<string[]>([]);
@@ -64,6 +65,7 @@ export function useWorkspace() {
 
   const report = useCallback((problem: unknown) => {
     setError(readableError(problem));
+    setErrorCode(problem instanceof HttpError ? problem.problem.code : undefined);
     setErrorDetails(problem instanceof HttpError ? problem.problem.details : undefined);
     if (problem instanceof HttpError && problem.authenticationRequired) setAuthRequired(true);
   }, []);
@@ -244,6 +246,7 @@ export function useWorkspace() {
       );
       if (operation.status === 'failed') {
         setError(operation.error?.message ?? '操作失败，请查看详情。');
+        setErrorCode(operation.error?.code);
         setErrorDetails(operation.error?.details);
       }
       if (operation.status === 'acknowledged') {
@@ -405,6 +408,7 @@ export function useWorkspace() {
       busyRef.current.add(key);
       setBusy([...busyRef.current]);
       setError(undefined);
+      setErrorCode(undefined);
       setErrorDetails(undefined);
       const clientOperationId = crypto.randomUUID();
       track((previous) => [
@@ -494,9 +498,11 @@ export function useWorkspace() {
     system,
     connection,
     error,
+    errorCode,
     errorDetails,
     clearError: () => {
       setError(undefined);
+      setErrorCode(undefined);
       setErrorDetails(undefined);
     },
     authRequired: authRequired || connection === 'authenticationRequired',

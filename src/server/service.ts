@@ -19,8 +19,14 @@ import type {
   ThreadPage,
   ThreadSummaryPage,
   ThreadView,
+  WorkspaceBusyDetails,
 } from '../shared/types.js';
-import { OperationStore, StoreConflict, type OperationRow } from './db/operations.js';
+import {
+  OperationStore,
+  StoreConflict,
+  type ExecutionMarker,
+  type OperationRow,
+} from './db/operations.js';
 import { EventHub } from './events.js';
 import { Projection, isActive, isTerminal } from './projection.js';
 import { ProjectRegistry } from './projects.js';
@@ -46,6 +52,7 @@ export class GatewayService {
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly reads = new Map<string, Promise<ThreadView>>();
+  private readonly executionReads = new Map<string, Promise<ThreadView | undefined>>();
   private readonly summaries = new Map<string, string>();
 
   constructor(private readonly options: GatewayOptions) {
@@ -162,6 +169,11 @@ export class GatewayService {
     const cached = this.projection.get(threadId);
     if (cached) {
       this.projects.assertOwnership(cached.projectId, cached.cwd);
+      const marker = this.store.activeForThread(threadId);
+      if (marker?.turnId && this.codex.ready) {
+        await this.refreshExecution(marker);
+        return this.threadView(cached);
+      }
       if (cached.status !== 'unknown' || cached.managed || !this.codex.ready)
         return this.threadView(cached);
     }
@@ -269,17 +281,34 @@ export class GatewayService {
 
   async startTurn(threadId: string, input: StartTurnInput): Promise<Operation> {
     return this.perform('turn.start', threadId, input, async () => {
-      const thread = await this.getThread(threadId);
+      let thread = await this.getThread(threadId);
       this.ensureManaged(thread);
       const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
+      const occupied = this.store.activeForWorkspace(ownership.workspaceKey);
+      let occupyingThread: ThreadView | undefined;
+      if (occupied && occupied.threadId !== threadId) {
+        occupyingThread = await this.refreshExecution(occupied);
+        thread = this.threadView(this.projection.get(threadId) ?? thread);
+        this.ensureManaged(thread);
+      }
       if (isActive(thread.status))
         throw new AppError('THREAD_BUSY', '会话已有活动任务，请追加要求或中断', 409, { threadId });
       this.ensureCompatibilityConfirmed();
-      this.store.dispatch(input.clientOperationId, {
-        threadId,
-        workspaceKey: ownership.workspaceKey,
-        codexEpoch: this.codex.epoch,
-      });
+      try {
+        this.store.dispatch(input.clientOperationId, {
+          threadId,
+          workspaceKey: ownership.workspaceKey,
+          codexEpoch: this.codex.epoch,
+        });
+      } catch (error) {
+        throw this.asAppError(
+          error,
+          occupied &&
+            this.store.activeForThread(occupied.threadId)?.operationId === occupied.operationId
+            ? occupyingThread
+            : undefined,
+        );
+      }
       const revision = this.projection.revision(threadId);
       const turn = await this.codex.startTurn(threadId, ownership.cwd, input.text, input.settings);
       this.store.attachTurn(input.clientOperationId, turn.id);
@@ -462,7 +491,7 @@ export class GatewayService {
       const operation = this.operation(
         this.store.fail(
           input.clientOperationId,
-          { code: uncertain ? 'RESULT_UNKNOWN' : appError.code, message: appError.message },
+          { ...appError.toJSON(), code: uncertain ? 'RESULT_UNKNOWN' : appError.code },
           uncertain,
         ),
       );
@@ -519,13 +548,72 @@ export class GatewayService {
     const marker = this.store.activeForThread(thread.id);
     if (marker?.state === 'unknown') {
       const confirmed = thread.turns.find((entry) => entry.id === marker.turnId);
-      if (confirmed && isTerminal(confirmed.status)) {
+      if (
+        confirmed &&
+        isTerminal(confirmed.status) &&
+        !isActive(thread.status) &&
+        !thread.turns.some((entry) => isActive(entry.status))
+      ) {
         this.store.finishTurn(thread.id, confirmed.id, marker.codexEpoch);
         return;
       }
       thread.status = 'unknown';
       const turn = thread.turns.find((entry) => entry.id === marker.turnId);
       if (turn && !isTerminal(turn.status)) turn.status = 'unknown';
+    }
+  }
+
+  /** A conflict is a reason to check history, never proof that the old execution ended. */
+  private async refreshExecution(marker: ExecutionMarker): Promise<ThreadView | undefined> {
+    if (!marker.turnId || !this.codex.ready) return;
+    const existing = this.executionReads.get(marker.operationId);
+    if (existing) return existing;
+    const epoch = this.codex.epoch;
+    const revision = this.projection.revision(marker.threadId);
+    const reading = (async () => {
+      try {
+        const actual = await this.codex.readThread(marker.threadId);
+        const latest = this.store.activeForThread(marker.threadId);
+        // A delayed read cannot release a replacement execution or overwrite newer live events.
+        if (
+          !this.codex.ready ||
+          this.codex.epoch !== epoch ||
+          actual.id !== marker.threadId ||
+          latest?.operationId !== marker.operationId ||
+          latest.turnId !== marker.turnId ||
+          latest.codexEpoch !== marker.codexEpoch ||
+          this.projection.revision(marker.threadId) !== revision
+        )
+          return;
+        const link = this.store.getThreadLink(marker.threadId);
+        const ownership = link
+          ? this.projects.assertOwnership(link.projectId, actual.cwd)
+          : this.projects.findOwner(actual.cwd);
+        if (ownership.workspaceKey !== marker.workspaceKey) return;
+        const observed = { ...actual, projectId: ownership.project.id, cwd: ownership.cwd };
+        const turn = actual.turns.find((entry) => entry.id === marker.turnId);
+        if (
+          !turn ||
+          !isTerminal(turn.status) ||
+          isActive(actual.status) ||
+          actual.turns.some((entry) => isActive(entry.status))
+        )
+          return observed;
+        this.store.finishTurn(marker.threadId, turn.id, marker.codexEpoch);
+        this.projection.thread(this.normalize(actual));
+        this.projection.expireTurn(marker.threadId, turn.id);
+        this.publishThread(marker.threadId);
+        this.events.publish('operation', this.getOperation(marker.operationId), marker.threadId);
+        return observed;
+      } catch {
+        // Missing/unavailable history is not terminal evidence. Keep the durable reservation.
+      }
+    })();
+    this.executionReads.set(marker.operationId, reading);
+    try {
+      return await reading;
+    } finally {
+      this.executionReads.delete(marker.operationId);
     }
   }
 
@@ -674,8 +762,39 @@ export class GatewayService {
     };
   }
 
-  private asAppError(error: unknown): AppError {
+  private asAppError(error: unknown, observed?: ThreadView): AppError {
     if (error instanceof AppError) return error;
+    if (error instanceof StoreConflict && error.code === 'WORKSPACE_BUSY' && error.threadId) {
+      const marker = this.store.activeForThread(error.threadId);
+      const thread =
+        observed?.id === error.threadId ? observed : this.projection.get(error.threadId);
+      if (marker) {
+        const details: WorkspaceBusyDetails = {
+          threadId: marker.threadId,
+          operationId: marker.operationId,
+          ...(marker.turnId ? { turnId: marker.turnId } : {}),
+          status:
+            marker.state === 'active' && thread && isActive(thread.status)
+              ? thread.status
+              : 'unknown',
+        };
+        if (thread) {
+          try {
+            this.projects.assertOwnership(thread.projectId, thread.cwd);
+            details.threadTitle = thread.title;
+            details.projectId = thread.projectId;
+          } catch {
+            /* Do not expose metadata outside registered projects. */
+          }
+        }
+        return new AppError(
+          'WORKSPACE_BUSY',
+          '工作区仍有未结束的任务，请查看占用会话',
+          409,
+          details,
+        );
+      }
+    }
     if (error instanceof StoreConflict)
       return new AppError(
         error.code,

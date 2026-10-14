@@ -10,6 +10,7 @@ import { Icon } from './components/Icon';
 import { Button } from './components/ui/button';
 import { blocksTarget } from './lib/operations';
 import { CompatibilityNotice } from './components/CompatibilityNotice';
+import { WorkspaceBusyNotice } from './components/WorkspaceBusyNotice';
 import {
   canConfirmCompatibility,
   compatibilityConfirmationRequired,
@@ -232,6 +233,15 @@ export function App() {
           <div className="error-banner dismissible" role="alert">
             <div>
               <span>{workspace.error}</span>
+              {workspace.errorCode === 'WORKSPACE_BUSY' && (
+                <WorkspaceBusyNotice
+                  details={workspace.errorDetails}
+                  onOpen={(id) => {
+                    workspace.clearError();
+                    void workspace.selectThread(id);
+                  }}
+                />
+              )}
               {workspace.errorDetails !== undefined && (
                 <details className="raw-details">
                   <summary>错误详情</summary>

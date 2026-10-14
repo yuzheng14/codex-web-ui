@@ -83,6 +83,7 @@ export function blocksTarget(entry: SavedOperation, target: string) {
   return (
     entry.target === target &&
     !entry.operation?.reconciliation &&
+    !entry.operation?.execution?.ended &&
     ['accepted', 'dispatching', 'unknown'].includes(entry.status)
   );
 }
