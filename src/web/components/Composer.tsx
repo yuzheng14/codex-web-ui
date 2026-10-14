@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { ModelInfo, Settings, ThreadView } from '../../shared/types';
 import { isActive } from './Status';
 import { Button } from './ui/button';
@@ -27,11 +27,25 @@ interface Props {
 export function Composer(props: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [confirmExternal, setConfirmExternal] = useState(false);
+  const [shortcutDismissed, setShortcutDismissed] = useState(false);
+  const shortcutId = useId();
   const composingRef = useRef(false);
+  const compositionEndedAtRef = useRef(-Infinity);
+  const sendingRef = useRef(new Set<string>());
   const key = props.thread?.id ?? props.draftKey;
   useEffect(() => {
     setConfirmExternal(false);
+    composingRef.current = false;
+    compositionEndedAtRef.current = -Infinity;
   }, [key]);
+  useEffect(() => {
+    // A hover hint must also dismiss when keyboard focus is still in the textarea.
+    const dismissShortcut = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShortcutDismissed(true);
+    };
+    document.addEventListener('keydown', dismissShortcut);
+    return () => document.removeEventListener('keydown', dismissShortcut);
+  }, []);
   const text = drafts[key] ?? '';
   const active = isActive(props.thread?.status);
   const external = props.thread && !props.thread.managed;
@@ -39,10 +53,15 @@ export function Composer(props: Props) {
     props.thread && !external && text.trim() && !props.disabled && !props.submitting,
   );
   async function send() {
-    if (!canSend) return;
+    if (!canSend || sendingRef.current.has(key)) return;
+    sendingRef.current.add(key);
     const sent = text;
-    if (await props.onSend(sent, active))
-      setDrafts((previous) => (previous[key] === sent ? { ...previous, [key]: '' } : previous));
+    try {
+      if (await props.onSend(sent, active))
+        setDrafts((previous) => (previous[key] === sent ? { ...previous, [key]: '' } : previous));
+    } finally {
+      sendingRef.current.delete(key);
+    }
   }
   return (
     <div className="composer-region">
@@ -93,18 +112,29 @@ export function Composer(props: Props) {
           }}
           onCompositionEnd={() => {
             composingRef.current = false;
+            compositionEndedAtRef.current = performance.now();
+          }}
+          onBlur={() => {
+            composingRef.current = false;
+            compositionEndedAtRef.current = -Infinity;
           }}
           onKeyDown={(event) => {
+            // A command menu may consume Enter before the composer handles it.
+            if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey) return;
             if (
-              event.key === 'Enter' &&
-              (event.metaKey || event.ctrlKey) &&
-              !event.nativeEvent.isComposing &&
-              event.nativeEvent.keyCode !== 229 &&
-              !composingRef.current
-            ) {
-              event.preventDefault();
-              void send();
-            }
+              event.nativeEvent.isComposing ||
+              event.nativeEvent.keyCode === 229 ||
+              composingRef.current
+            )
+              return;
+            event.preventDefault();
+            // Some IMEs end composition before the confirming Enter keydown.
+            // Keyup releases this guard; the time limit also allows mouse commits.
+            if (event.repeat || performance.now() - compositionEndedAtRef.current < 100) return;
+            void send();
+          }}
+          onKeyUp={(event) => {
+            if (event.key === 'Enter') compositionEndedAtRef.current = -Infinity;
           }}
           rows={3}
         />
@@ -112,7 +142,6 @@ export function Composer(props: Props) {
           <span className="composer-target">
             <Icon name="folder" size={14} />
             {props.projectName ?? '未选择项目'}
-            <span className="keyboard-hint">⌘ / Ctrl + Enter</span>
           </span>
           <div>
             {active && (
@@ -126,16 +155,27 @@ export function Composer(props: Props) {
                 {props.interrupting ? '请求中…' : '中断'}
               </Button>
             )}
-            <Button
-              size="sm"
-              onClick={() => {
-                void send();
-              }}
-              disabled={!canSend}
+            <span
+              className="composer-submit"
+              data-tooltip-dismissed={shortcutDismissed || undefined}
+              onMouseEnter={() => setShortcutDismissed(false)}
+              onFocus={() => setShortcutDismissed(false)}
             >
-              <Icon name="send" size={14} />
-              {props.submitting ? '正在提交…' : active ? '追加要求' : '发送任务'}
-            </Button>
+              <Button
+                size="sm"
+                aria-describedby={shortcutId}
+                onClick={() => {
+                  void send();
+                }}
+                disabled={!canSend}
+              >
+                <Icon name="send" size={14} />
+                {props.submitting ? '正在提交…' : active ? '追加要求' : '发送任务'}
+              </Button>
+              <span id={shortcutId} role="tooltip" className="keyboard-hint">
+                Enter 发送 / Shift + Enter 换行
+              </span>
+            </span>
           </div>
         </div>
       </div>

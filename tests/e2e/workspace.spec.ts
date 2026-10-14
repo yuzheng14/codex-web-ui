@@ -120,11 +120,13 @@ test('mobile navigation and input shortcuts preserve a draft during IME composit
   const input = page.getByRole('textbox', { name: '任务内容' });
   await input.fill('输入法组合期间保留草稿');
   await input.dispatchEvent('compositionstart');
-  await input.press('Control+Enter');
+  // Synthetic composition events do not activate the browser's native IME.
+  await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true });
   await expect(input).toHaveValue('输入法组合期间保留草稿');
   await expect(page.locator('.turn')).toHaveCount(0);
   await input.dispatchEvent('compositionend');
-  await input.press('Control+Enter');
+  await input.dispatchEvent('keyup', { key: 'Enter' });
+  await input.press('Enter');
   await expect(page.getByText('模拟任务已完成。', { exact: true })).toBeVisible();
   await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
