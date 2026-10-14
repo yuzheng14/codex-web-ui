@@ -19,4 +19,8 @@
 
 Git checkout 根目录决定工作区互斥，不使用 git common-dir，因此不同 worktree 可以并行。此锁只约束本网关，不阻止用户在终端改文件。
 
+`POST /api/threads/:threadId/fork` 接受 `{ clientOperationId, settings? }`，返回标准操作回执，成功结果为 `{ threadId, forkedFromId }`。服务端只读源会话并校验注册项目归属，再将其 canonical cwd 交给适配层调用 `thread/fork`；客户端不能指定目录。新 ID 注册为当前进程持有的会话，历史由 Codex 保存，无需新增数据库表。
+
+Fork 可以用于外部、运行中或结果未知的会话，不要求先完成原会话交接，也不会 resume、interrupt 或解除原执行标记。新会话使用原目录，后续发送任务仍经过同一 checkout 的互斥检查。省略 `lastTurnId` 复制当前已保存历史；不提供指定历史位置或创建 worktree 的功能。相同操作 ID 去重；上游 Fork 成功但历史加载失败时保留 `unknown`，错误详情包含已知的新 ID，不自动重发。
+
 评审顺序按照提交链由基础合同、真实生成协议、传输适配、持久化、协调服务、网络安全到浏览器与交付。生成文件单独成层，GitHub 将其标记为 generated；人工代码按职责分层评审。使用 GitHub 原生 Stacked PR 关联依赖，按栈底向上合并。

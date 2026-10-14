@@ -55,6 +55,7 @@ class ControlledFixture implements CodexClient {
   listThreads: CodexClient['listThreads'] = (...args) => this.inner.listThreads(...args);
   readThread: CodexClient['readThread'] = (...args) => this.inner.readThread(...args);
   createThread: CodexClient['createThread'] = (...args) => this.inner.createThread(...args);
+  forkThread: CodexClient['forkThread'] = (...args) => this.inner.forkThread(...args);
   resumeThread: CodexClient['resumeThread'] = (...args) => this.inner.resumeThread(...args);
   startTurn: CodexClient['startTurn'] = (...args) => this.inner.startTurn(...args);
   steerTurn: CodexClient['steerTurn'] = (...args) => this.inner.steerTurn(...args);

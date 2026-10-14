@@ -381,6 +381,105 @@ it('restores pending approval and accepts exactly one competing decision', async
     .toBe('completed');
 });
 
+it('forks a busy conversation over HTTP, restores its history over WebSocket, and retains the workspace lock', async () => {
+  const { origin, post, connect, runtime } = await setup();
+  const created = (await (
+    await post('/api/projects/test/threads', { clientOperationId: randomUUID() })
+  ).json()) as Operation;
+  const sourceId = (created.result as { threadId: string }).threadId;
+  await post(`/api/threads/${sourceId}/turns`, {
+    clientOperationId: randomUUID(),
+    text: '[approval]',
+  });
+  const read = async (id: string) =>
+    (await (await fetch(`${origin}/api/threads/${id}`)).json()) as ThreadView;
+  await expect.poll(async () => (await read(sourceId)).actions.length).toBe(1);
+  const source = await read(sourceId);
+  const fork = vi.spyOn(runtime.codex, 'forkThread');
+  const input = { clientOperationId: randomUUID() };
+  const response = await post(`/api/threads/${sourceId}/fork`, input);
+  expect(response.status).toBe(200);
+  const operation = (await response.json()) as Operation;
+  expect(operation).toMatchObject({
+    kind: 'thread.fork',
+    target: sourceId,
+    status: 'acknowledged',
+    result: { forkedFromId: sourceId },
+  });
+  const forkId = (operation.result as { threadId: string }).threadId;
+  expect(forkId).not.toBe(sourceId);
+  expect(await (await post(`/api/threads/${sourceId}/fork`, input)).json()).toEqual(operation);
+  expect(await (await fetch(`${origin}/api/operations/${input.clientOperationId}`)).json()).toEqual(
+    operation,
+  );
+  expect(fork).toHaveBeenCalledTimes(1);
+  expect(await read(sourceId)).toEqual(source);
+  const ws = await connect();
+  const snapshot = message(ws, (event) => event.type === 'snapshot');
+  ws.send(JSON.stringify({ type: 'subscribe', threadId: forkId }));
+  expect(await snapshot).toMatchObject({
+    type: 'snapshot',
+    data: {
+      id: forkId,
+      forkedFromId: sourceId,
+      managed: true,
+      actions: [],
+      turns: [{ threadId: forkId, status: 'interrupted' }],
+    },
+  });
+  const busy = await post(`/api/threads/${forkId}/turns`, {
+    clientOperationId: randomUUID(),
+    text: 'new branch',
+  });
+  expect(busy.status).toBe(409);
+  expect(await busy.json()).toMatchObject({
+    error: { code: 'WORKSPACE_BUSY', details: { threadId: sourceId } },
+  });
+  const action = source.actions[0]!;
+  await post(`/api/actions/${action.actionId}/resolve`, {
+    clientOperationId: randomUUID(),
+    resolution: { decision: action.options[0]!.id },
+  });
+  await expect.poll(async () => (await read(sourceId)).turns[0]?.status).toBe('completed');
+  const continued = await post(`/api/threads/${forkId}/turns`, {
+    clientOperationId: randomUUID(),
+    text: 'new branch after workspace released',
+  });
+  expect(continued.status).toBe(200);
+  await expect.poll(async () => (await read(forkId)).turns[1]?.status).toBe('completed');
+  expect((await read(sourceId)).turns).toHaveLength(1);
+  expect((await read(forkId)).turns).toHaveLength(2);
+});
+
+it('validates fork bodies and rejects foreign origins before calling the upstream fork', async () => {
+  const { origin, post, runtime } = await setup();
+  const created = (await (
+    await post('/api/projects/test/threads', { clientOperationId: randomUUID() })
+  ).json()) as Operation;
+  const sourceId = (created.result as { threadId: string }).threadId;
+  const path = `/api/threads/${sourceId}/fork`;
+  const fork = vi.spyOn(runtime.codex, 'forkThread');
+  for (const body of [
+    {},
+    { clientOperationId: 'invalid' },
+    { clientOperationId: randomUUID(), cwd: '/tmp' },
+    { clientOperationId: randomUUID(), settings: { cwd: '/tmp' } },
+    { clientOperationId: randomUUID(), confirmExternalStopped: true },
+  ]) {
+    const response = await post(path, body);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { code: 'VALIDATION_FAILED' } });
+  }
+  const rejected = await fetch(origin + path, {
+    method: 'POST',
+    headers: { origin: 'https://foreign.test', 'content-type': 'application/json' },
+    body: JSON.stringify({ clientOperationId: randomUUID() }),
+  });
+  expect(rejected.status).toBe(403);
+  expect(await rejected.json()).toMatchObject({ error: { code: 'INVALID_ORIGIN' } });
+  expect(fork).not.toHaveBeenCalled();
+});
+
 it('fails migrations before launching Codex and releases the instance lock', async () => {
   const root = await mkdtemp(join(tmpdir(), 'codex-migration-fail-'));
   cleanup.push(() => rm(root, { recursive: true, force: true }));

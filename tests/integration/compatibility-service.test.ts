@@ -64,6 +64,7 @@ describe('explicit compatibility consent belongs to one running gateway and Code
     const cases = [
       () => ctx.service.createThread('project', { clientOperationId: operationId() }),
       () => ctx.service.resumeThread(idle, { clientOperationId: operationId() }),
+      () => ctx.service.forkThread(idle, { clientOperationId: operationId() }),
       () => ctx.service.startTurn(idle, { clientOperationId: operationId(), text: 'blocked' }),
       () =>
         ctx.service.steer(running, {
@@ -83,7 +84,14 @@ describe('explicit compatibility consent belongs to one running gateway and Code
         status: 409,
       });
     expect(dispatch).not.toHaveBeenCalled();
-    expect(ctx.codex).toMatchObject({ creates: 2, starts: 1, resumes: 0, steers: 0, replies: 0 });
+    expect(ctx.codex).toMatchObject({
+      creates: 2,
+      starts: 1,
+      resumes: 0,
+      forks: 0,
+      steers: 0,
+      replies: 0,
+    });
     expect(ctx.service.getSystem().compatibilityConfirmation).toBe('required');
     expect((await ctx.service.getThread(running)).actions[0]?.status).toBe('pending');
     expect((await ctx.service.listThreads('project')).data).toHaveLength(2);
@@ -245,6 +253,24 @@ describe('explicit compatibility consent belongs to one running gateway and Code
     gate.resolve(external);
     await expect(pending).rejects.toMatchObject({ code: 'COMPATIBILITY_CONFIRMATION_REQUIRED' });
     expect(ctx.codex.resumes).toBe(0);
+  });
+
+  it('rechecks compatibility after an external history read before forking', async () => {
+    const ctx = setup();
+    unverified(ctx);
+    await ctx.service.confirmCompatibility(confirmation(ctx));
+    const external = threadView('external', ctx.project);
+    external.source = 'cli';
+    const gate = deferred<ThreadView>();
+    vi.spyOn(ctx.codex, 'readThread').mockReturnValueOnce(gate.promise);
+    const dispatch = vi.spyOn(ctx.store, 'dispatch');
+    const pending = ctx.service.forkThread(external.id, { clientOperationId: operationId() });
+    ctx.codex.verifiedVersion = 'new-baseline';
+    gate.resolve(external);
+    await expect(pending).rejects.toMatchObject({ code: 'COMPATIBILITY_CONFIRMATION_REQUIRED' });
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(ctx.codex.forks).toBe(0);
+    expect(ctx.service.projection.get(external.id)).toBeUndefined();
   });
 
   it.each(['start', 'steer', 'resolve'] as const)(

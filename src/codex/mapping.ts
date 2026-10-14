@@ -30,6 +30,7 @@ export function mapThread(thread: Thread): ThreadView {
     );
   return {
     id: thread.id,
+    ...(typeof thread.forkedFromId === 'string' ? { forkedFromId: thread.forkedFromId } : {}),
     projectId: '',
     cwd: thread.cwd,
     source: typeof thread.source === 'string' ? thread.source : JSON.stringify(thread.source),

@@ -22,6 +22,10 @@ export interface SimulatorOptions {
   unsupportedMethod?: string;
   logPath?: string;
   paginated?: boolean;
+  historyPageSize?: number;
+  historyItemSummaries?: boolean;
+  forkHistoryReadError?: boolean;
+  malformedForkReceipt?: boolean;
   approval?: 'command' | 'file' | 'network' | 'questions' | 'unsupported';
   malformed?: boolean;
   hugeLineBytes?: number;
@@ -368,8 +372,41 @@ function receive(request: ClientRequest): void {
         error(request.id, 'Thread not found');
         break;
       }
+      if (options.forkHistoryReadError && thread.forkedFromId) {
+        error(request.id, 'Fork history temporarily unavailable', -32000);
+        break;
+      }
       reply(request.id, {
         thread: { ...thread, turns: request.params.includeTurns ? thread.turns : [] },
+      });
+      break;
+    }
+    case 'thread/fork': {
+      const source = threads.get(request.params.threadId);
+      if (!source) {
+        error(request.id, 'Thread not found');
+        break;
+      }
+      const thread = {
+        ...makeThread(request.params.cwd ?? source.cwd),
+        forkedFromId: source.id,
+        preview: source.preview,
+        name: source.name,
+        turns: structuredClone(source.turns),
+      };
+      for (const turn of thread.turns) {
+        if (turn.status === 'inProgress') {
+          turn.status = 'interrupted';
+          turn.completedAt = Date.now() / 1000;
+        }
+      }
+      threads.set(thread.id, thread);
+      notify({ method: 'thread/started', params: { thread: { ...thread, turns: [] } } });
+      reply(request.id, {
+        ...startResponse(thread),
+        thread: options.malformedForkReceipt
+          ? { id: thread.id, status: { type: 'futureStatus' }, cwd: thread.cwd, turns: [] }
+          : { ...thread, turns: request.params.excludeTurns ? [] : thread.turns },
       });
       break;
     }
@@ -387,30 +424,40 @@ function receive(request: ClientRequest): void {
       });
       break;
     }
-    case 'thread/turns/list':
+    case 'thread/turns/list': {
+      const turns = threads.get(request.params.threadId)?.turns ?? [];
+      const offset = Number(request.params.cursor ?? 0);
+      const limit = options.historyPageSize ?? turns.length;
       reply(request.id, {
-        data: threads.get(request.params.threadId)?.turns ?? [],
-        nextCursor: null,
+        data: turns
+          .slice(offset, offset + limit)
+          .map((turn) =>
+            options.historyItemSummaries ? { ...turn, items: [], itemsView: 'summary' } : turn,
+          ),
+        nextCursor: offset + limit < turns.length ? String(offset + limit) : null,
         backwardsCursor: null,
       });
       break;
-    case 'thread/items/list':
+    }
+    case 'thread/items/list': {
+      const turn = threads
+        .get(request.params.threadId)
+        ?.turns.find((entry) => entry.id === request.params.turnId);
+      const items = turn?.items ?? [];
+      const offset = Number(request.params.cursor ?? 0);
+      const limit = options.historyPageSize ?? items.length;
       reply(request.id, {
-        data:
-          threads
-            .get(request.params.threadId)
-            ?.turns.flatMap((turn) =>
-              turn.items.map((item) => ({
-                turnId: turn.id,
-                item,
-                startedAtMs: null,
-                completedAtMs: null,
-              })),
-            ) ?? [],
-        nextCursor: null,
+        data: items.slice(offset, offset + limit).map((item) => ({
+          turnId: request.params.turnId,
+          item,
+          startedAtMs: null,
+          completedAtMs: null,
+        })),
+        nextCursor: offset + limit < items.length ? String(offset + limit) : null,
         backwardsCursor: null,
       });
       break;
+    }
     case 'turn/start': {
       const thread = threads.get(request.params.threadId);
       if (!thread) {

@@ -106,6 +106,176 @@ describe('verified protocol adapter with a real subprocess', () => {
     );
     expect((await requests()).filter((entry) => entry.method === 'turn/start')).toHaveLength(1);
   });
+  it.each([false, true])(
+    'forks complete persisted history (paginated: %s) into an independent thread',
+    async (paginated) => {
+      const { adapter, events, requests } = await fixture({
+        paginated,
+        historyPageSize: 1,
+        historyItemSummaries: true,
+        turnDelayMs: 10,
+      });
+      const source = await adapter.createThread('/tmp/project');
+      expect(source).not.toHaveProperty('forkedFromId');
+      for (const text of ['first question', 'second question']) {
+        const turn = await adapter.startTurn(source.id, source.cwd, text);
+        await waitFor(() =>
+          events.find(
+            (event) =>
+              event.type === 'turn' &&
+              event.turn.id === turn.id &&
+              event.turn.status === 'completed',
+          ),
+        );
+      }
+      const before = await adapter.readThread(source.id);
+      const fork = await adapter.forkThread(source.id, source.cwd, {
+        model: 'simulated-model',
+        reasoningEffort: 'high',
+        approvalPolicy: 'untrusted',
+        sandbox: 'read-only',
+      });
+      expect(fork.id).not.toBe(source.id);
+      expect(fork).toMatchObject({
+        forkedFromId: source.id,
+        cwd: source.cwd,
+        source: 'appServer',
+        status: 'idle',
+        actions: [],
+      });
+      expect(fork.turns).toEqual(before.turns.map((turn) => ({ ...turn, threadId: fork.id })));
+      expect(fork.turns).toHaveLength(2);
+      expect(fork.turns[0]?.items).toHaveLength(4);
+      expect(await adapter.readThread(source.id)).toEqual(before);
+      const dispatched = await requests();
+      expect(dispatched.filter((request) => request.method === 'thread/fork')).toEqual([
+        {
+          method: 'thread/fork',
+          params: {
+            threadId: source.id,
+            cwd: source.cwd,
+            model: 'simulated-model',
+            approvalPolicy: 'untrusted',
+            sandbox: 'read-only',
+            config: { model_reasoning_effort: 'high' },
+            excludeTurns: true,
+          },
+          id: expect.any(Number),
+        },
+      ]);
+      expect(
+        dispatched.some((request) => ['thread/resume', 'turn/interrupt'].includes(request.method)),
+      ).toBe(false);
+      const forkReads = dispatched.filter((request) => request.params?.threadId === fork.id);
+      if (paginated) {
+        expect(forkReads.filter((request) => request.method === 'thread/turns/list')).toHaveLength(
+          2,
+        );
+        expect(forkReads.filter((request) => request.method === 'thread/items/list')).toHaveLength(
+          8,
+        );
+      } else {
+        expect(forkReads).toContainEqual({
+          method: 'thread/read',
+          params: { threadId: fork.id, includeTurns: true },
+          id: expect.any(Number),
+        });
+      }
+    },
+  );
+  it('forks an active thread without interrupting it or sharing mutable history', async () => {
+    const { adapter, requests } = await fixture({ turnDelayMs: 5000 });
+    const source = await adapter.createThread('/tmp');
+    const active = await adapter.startTurn(source.id, source.cwd, 'still running');
+    const fork = await adapter.forkThread(source.id, source.cwd);
+    expect(fork).toMatchObject({
+      status: 'idle',
+      turns: [{ id: active.id, status: 'interrupted' }],
+    });
+    const continued = await adapter.startTurn(fork.id, fork.cwd, 'continue separately');
+    expect(continued.status).toBe('running');
+    const original = await adapter.readThread(source.id);
+    expect(original).toMatchObject({
+      status: 'running',
+      turns: [{ id: active.id, status: 'running' }],
+    });
+    expect(original.turns).toHaveLength(1);
+    expect((await adapter.readThread(fork.id)).turns).toHaveLength(2);
+    expect(
+      (await requests()).some((request) =>
+        ['thread/resume', 'turn/interrupt'].includes(request.method),
+      ),
+    ).toBe(false);
+  });
+  it('keeps source approvals valid and creates no copied pending action when forking', async () => {
+    const { adapter, events } = await fixture({ approval: 'command' });
+    const source = await adapter.createThread('/tmp');
+    await adapter.startTurn(source.id, source.cwd, 'wait for approval');
+    const incoming = await waitFor(() => events.find((event) => event.type === 'action'));
+    if (incoming.type !== 'action') throw new Error('Wrong event');
+    const fork = await adapter.forkThread(source.id, source.cwd);
+    expect(fork.actions).toEqual([]);
+    expect(events.filter((event) => event.type === 'action')).toHaveLength(1);
+    expect((await adapter.readThread(source.id)).status).toBe('waitingApproval');
+    await adapter.respond(incoming.action.actionId, { decision: 'accept' });
+    await waitFor(() =>
+      events.find(
+        (event) => event.type === 'actionResolved' && event.actionId === incoming.action.actionId,
+      ),
+    );
+  });
+  it('validates fork settings before dispatch and disables an explicitly unsupported fork method', async () => {
+    const { adapter, requests } = await fixture({ unsupportedMethod: 'thread/fork' });
+    const source = await adapter.createThread('/tmp');
+    await expect(
+      adapter.forkThread(source.id, source.cwd, { model: 'missing' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(
+      adapter.forkThread(source.id, source.cwd, { reasoningEffort: 'missing' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect((await requests()).filter((request) => request.method === 'thread/fork')).toHaveLength(
+      0,
+    );
+    expect(adapter.diagnostics().capabilities).toContain('thread/fork');
+    await expect(adapter.forkThread(source.id, source.cwd)).rejects.toMatchObject({
+      code: 'PROTOCOL_INCOMPATIBLE',
+      uncertain: false,
+    });
+    await expect(adapter.forkThread(source.id, source.cwd)).rejects.toMatchObject({
+      code: 'PROTOCOL_INCOMPATIBLE',
+      uncertain: false,
+    });
+    expect(adapter.diagnostics().capabilities).not.toContain('thread/fork');
+    expect(adapter.ready).toBe(true);
+    expect((await requests()).filter((request) => request.method === 'thread/fork')).toHaveLength(
+      1,
+    );
+  });
+  it.each([
+    { forkHistoryReadError: true },
+    { unsupportedMethod: 'thread/read' },
+    { malformedForkReceipt: true },
+  ])(
+    'keeps a completed fork uncertain when its receipt or history cannot be read: %j',
+    async (options) => {
+      const { adapter, requests } = await fixture(options);
+      const source = await adapter.createThread('/tmp');
+      const failure = await adapter
+        .forkThread(source.id, source.cwd)
+        .catch((error: unknown) => error);
+      const fork = (await adapter.listThreads(source.cwd)).data.find(
+        (thread) => thread.forkedFromId === source.id,
+      );
+      expect(fork).toBeDefined();
+      expect(failure).toMatchObject({
+        uncertain: true,
+        message: expect.stringContaining(fork!.id),
+      });
+      expect((await requests()).filter((request) => request.method === 'thread/fork')).toHaveLength(
+        1,
+      );
+    },
+  );
   it.each(['command', 'file', 'network'] as const)(
     'keeps %s approval pending across listeners and resolves only with upstream evidence',
     async (approval) => {
