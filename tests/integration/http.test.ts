@@ -253,7 +253,17 @@ it('broadcasts other project summaries before selection and alongside one detail
     true,
   );
   for (const events of received) {
-    expect(events.filter(waitingApproval)).toHaveLength(1);
+    const approvalSummaries = events.filter(waitingApproval);
+    expect(approvalSummaries.length).toBeGreaterThanOrEqual(1);
+    // A title refresh can change the summary while approval remains pending.
+    expect(
+      new Set(
+        approvalSummaries.map((event) => event.type === 'event' && JSON.stringify(event.payload)),
+      ).size,
+    ).toBe(approvalSummaries.length);
+    expect(approvalSummaries.at(-1)).toMatchObject({
+      payload: { title: '[approval] private request body' },
+    });
     expect(events.filter(summary('completed'))).toHaveLength(1);
     expect(events.some((event) => event.type === 'event' && event.kind === 'thread')).toBe(false);
     const summaries = events.filter(
@@ -264,8 +274,11 @@ it('broadcasts other project summaries before selection and alongside one detail
       expect(event.payload).not.toHaveProperty('turns');
       expect(event.payload).not.toHaveProperty('actions');
       expect(event.payload).not.toHaveProperty('cwd');
+      // Upstream preview is intentionally visible as the title; conversation content
+      // must not be included in any of the remaining overview fields.
+      const { title: _title, ...metadata } = event.payload as ThreadSummary;
+      expect(JSON.stringify(metadata)).not.toContain('private request body');
     }
-    expect(JSON.stringify(summaries)).not.toContain('private request body');
   }
   const overview = await fetch(`${origin}/api/projects/second/threads`);
   expect(overview.status).toBe(200);

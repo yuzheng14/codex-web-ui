@@ -297,7 +297,7 @@ describe('domain execution and approval recovery', () => {
     };
     ctx.codex.emit({ type: 'action', action });
     const snapshot = await ctx.service.getThread(id);
-    const spy = vi.spyOn(ctx.service, 'getThread').mockImplementation(async () => {
+    const spy = vi.spyOn(ctx.codex, 'readThread').mockImplementation(async () => {
       ctx.codex.emit({ type: 'action', action: { ...action, status: 'expired' } });
       return snapshot;
     });

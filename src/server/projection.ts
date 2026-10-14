@@ -34,8 +34,12 @@ export class Projection {
     } else {
       const oldTurns = current.turns;
       const oldStatus = current.status;
+      const oldTitle = current.title;
       Object.assign(current, incoming, { turns: oldTurns, actions: current.actions });
-      if (preserveCurrent) current.status = oldStatus;
+      if (preserveCurrent) {
+        current.status = oldStatus;
+        current.title = oldTitle;
+      }
       for (const turn of incoming.turns) this.turn(incoming.id, turn, preserveCurrent);
     }
     this.touch(incoming.id);

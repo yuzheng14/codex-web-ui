@@ -48,6 +48,7 @@ export interface SimulatorOptions {
   hugeLineBytes?: number;
   malformedTurnReceipt?: boolean;
   nonblockingQuestions?: boolean;
+  threadNames?: string[];
 }
 const optionsIndex = process.argv.indexOf('--options');
 const options = JSON.parse(
@@ -160,7 +161,15 @@ function complete(
   turn.completedAt = Date.now() / 1000;
   thread.status = { type: 'idle' };
   // Explicit test prompt: retain real terminal history while dropping its notification.
-  if (!thread.preview.includes('[miss-completion]'))
+  if (
+    !turn.items.some(
+      (item) =>
+        item.type === 'userMessage' &&
+        item.content.some(
+          (input) => input.type === 'text' && input.text.includes('[miss-completion]'),
+        ),
+    )
+  )
     notify({ method: 'turn/completed', params: { threadId: thread.id, turn } });
   notify({
     method: 'thread/status/changed',
@@ -624,10 +633,19 @@ function receive(request: ClientRequest): void {
       };
       thread.turns.push(turn);
       thread.status = { type: 'active', activeFlags: [] };
-      thread.preview = request.params.input
+      const text = request.params.input
         .flatMap((input) => (input.type === 'text' ? input.text : ''))
         .join('');
+      if (!thread.preview) thread.preview = text;
       notify({ method: 'turn/started', params: { threadId: thread.id, turn } });
+      const name = options.threadNames?.[thread.turns.length - 1];
+      if (name !== undefined) {
+        thread.name = name || null;
+        notify({
+          method: 'thread/name/updated',
+          params: { threadId: thread.id, threadName: name || undefined },
+        });
+      }
       const receipt = structuredClone(turn);
       setTimeout(
         () =>
@@ -638,7 +656,7 @@ function receive(request: ClientRequest): void {
           }),
         options.ackDelayMs ?? 0,
       );
-      const prompt = thread.preview.toLowerCase();
+      const prompt = text.toLowerCase();
       const interactive = [
         'permissions',
         'unsupported',

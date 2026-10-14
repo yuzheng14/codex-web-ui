@@ -57,6 +57,9 @@ export class GatewayService {
   private readonly reads = new Map<string, Promise<ThreadView>>();
   private readonly executionReads = new Map<string, Promise<void>>();
   private readonly summaries = new Map<string, string>();
+  // Request ordering only: title values always come from app-server.
+  private titleReadSequence = 0;
+  private readonly titleReads = new Map<string, number>();
 
   constructor(private readonly options: GatewayOptions) {
     this.store = options.store;
@@ -130,12 +133,21 @@ export class GatewayService {
 
   async listThreads(projectId: string, cursor?: string): Promise<ThreadPage> {
     const project = this.projects.get(projectId);
+    const titleReads = new Map(
+      this.projection
+        .values()
+        .filter((thread) => thread.projectId === projectId)
+        .map((thread) => [thread.id, this.beginTitleRead(thread.id)]),
+    );
     const page = await this.codex.listThreads(project.canonicalRoot, cursor);
     const data: ThreadView[] = [];
     for (const thread of page.data) {
       try {
         const normalized = this.normalize(thread, projectId);
         const cached = this.projection.get(thread.id);
+        const titleRead = titleReads.get(thread.id);
+        if (cached && titleRead !== undefined)
+          this.updateThreadTitle(thread.id, normalized.title, titleRead);
         data.push(this.threadView(cached ?? normalized));
       } catch (error) {
         if (
@@ -169,6 +181,13 @@ export class GatewayService {
   }
 
   async getThread(threadId: string): Promise<ThreadView> {
+    const cached = this.projection.get(threadId);
+    await this.loadThread(threadId);
+    if (cached && this.codex.ready) await this.refreshThreadTitle(threadId);
+    return this.threadView(this.projection.get(threadId)!);
+  }
+
+  private async loadThread(threadId: string): Promise<ThreadView> {
     const cached = this.projection.get(threadId);
     if (cached) {
       this.projects.assertOwnership(cached.projectId, cached.cwd);
@@ -221,7 +240,7 @@ export class GatewayService {
 
   async resumeThread(threadId: string, input: ResumeThreadInput): Promise<Operation> {
     return this.perform('thread.resume', threadId, input, async () => {
-      const thread = await this.getThread(threadId);
+      const thread = await this.loadThread(threadId);
       this.ensureReady();
       const link = this.store.getThreadLink(threadId);
       if (link?.managedEpoch === this.codex.epoch) {
@@ -287,7 +306,7 @@ export class GatewayService {
 
   async startTurn(threadId: string, input: StartTurnInput): Promise<Operation> {
     return this.perform('turn.start', threadId, input, async () => {
-      const thread = await this.getThread(threadId);
+      const thread = await this.loadThread(threadId);
       this.ensureManaged(thread);
       const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
       if (isActive(thread.status))
@@ -340,7 +359,7 @@ export class GatewayService {
         throw new AppError('ACTION_EXPIRED', '该人工请求已失效', 409);
       if (action.status !== 'pending')
         throw new AppError('ACTION_CONFLICT', '该人工请求已由另一次提交处理', 409);
-      if (action.threadId) await this.getThread(action.threadId);
+      if (action.threadId) await this.loadThread(action.threadId);
       // Recheck after the only async validation before the atomic in-memory claim.
       action = this.projection.actions.get(actionId);
       if (!action || action.status === 'expired' || action.codexEpoch !== this.codex.epoch)
@@ -674,7 +693,7 @@ export class GatewayService {
   }
 
   private async requireActiveTurn(threadId: string, expectedTurnId: string): Promise<void> {
-    const thread = await this.getThread(threadId);
+    const thread = await this.loadThread(threadId);
     this.ensureManaged(thread);
     const turn = thread.turns.find((entry) => entry.id === expectedTurnId);
     const marker = this.store.activeForThread(threadId);
@@ -810,11 +829,40 @@ export class GatewayService {
     return result;
   }
 
+  private beginTitleRead(threadId: string): number {
+    const sequence = ++this.titleReadSequence;
+    this.titleReads.set(threadId, sequence);
+    return sequence;
+  }
+
+  private updateThreadTitle(threadId: string, title: string, sequence: number): void {
+    const thread = this.projection.get(threadId);
+    if (!thread || this.titleReads.get(threadId) !== sequence || thread.title === title) return;
+    thread.title = title;
+    this.projection.touch(threadId);
+    this.publishThread(threadId);
+  }
+
+  private async refreshThreadTitle(threadId: string): Promise<void> {
+    const sequence = this.beginTitleRead(threadId);
+    try {
+      const thread = await this.codex.readThreadMetadata(threadId);
+      const current = this.projection.get(threadId);
+      if (!current || thread.id !== threadId) return;
+      this.projects.assertOwnership(current.projectId, thread.cwd);
+      this.updateThreadTitle(threadId, thread.title, sequence);
+    } catch {
+      // Metadata refresh must not break live execution when upstream is unavailable.
+      // The next list/detail read or turn notification will retry.
+    }
+  }
+
   private consume(event: CodexEvent): void {
     if (event.type === 'runtime') {
       this.compatibilityConfirmation(event.diagnostics);
       if (!event.diagnostics.ready || event.diagnostics.codexEpoch !== this.currentEpoch) {
         this.currentEpoch = event.diagnostics.codexEpoch;
+        this.titleReads.clear();
         this.store.recover();
         this.projection.runtimeReset();
         for (const thread of this.projection.values()) this.publishThread(thread.id);
@@ -845,12 +893,22 @@ export class GatewayService {
     }
     const thread = this.projection.get(event.threadId);
     if (!thread) return;
+    if (event.type === 'threadName') {
+      // Also invalidate history reads when the notification repeats the current name.
+      this.projection.touch(thread.id);
+      if (event.name) this.updateThreadTitle(thread.id, event.name, this.beginTitleRead(thread.id));
+      else void this.refreshThreadTitle(thread.id);
+      return;
+    }
     if (event.type === 'threadStatus') {
       // Idle/notLoaded is not proof that an uncertain execution finished.
       if (this.store.activeForThread(thread.id)?.state !== 'unknown') thread.status = event.status;
       this.projection.touch(thread.id);
     } else if (event.type === 'turn') {
       this.projection.turn(thread.id, event.turn);
+      // Preview changes do not have a dedicated notification. Read the upstream
+      // title at turn boundaries, including the first prompt of a new thread.
+      void this.refreshThreadTitle(thread.id);
       const marker = this.store.activeForThread(thread.id);
       if (marker?.codexEpoch === this.codex.epoch && marker.turnId === null)
         this.store.attachTurn(marker.operationId, event.turn.id);

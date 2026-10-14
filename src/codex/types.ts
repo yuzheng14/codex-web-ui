@@ -13,6 +13,7 @@ import type {
 export type CodexDiagnostics = Omit<SystemInfo, 'authMode' | 'demo' | 'compatibilityConfirmation'>;
 export type CodexEvent =
   | { type: 'thread'; thread: ThreadView }
+  | { type: 'threadName'; threadId: string; name?: string }
   | { type: 'threadStatus'; threadId: string; status: RunStatus }
   | { type: 'turn'; threadId: string; turn: TurnView }
   | { type: 'item'; threadId: string; turnId: string; item: ItemView }
@@ -39,6 +40,7 @@ export interface CodexClient {
   onEvent(listener: (event: CodexEvent) => void): () => void;
   listThreads(cwd: string, cursor?: string): Promise<ThreadPage>;
   readThread(id: string): Promise<ThreadView>;
+  readThreadMetadata(id: string): Promise<ThreadView>;
   createThread(cwd: string, settings?: Settings): Promise<ThreadView>;
   forkThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView>;
   resumeThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView>;

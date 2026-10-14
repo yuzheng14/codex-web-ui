@@ -57,7 +57,9 @@ test('complete turn, tool output, file diff and refresh recover through the real
   await expect(page.locator('.file-change')).toContainText('+你好 Codex');
   await page.reload();
   await expect(page.getByText('模拟任务已完成。', { exact: true })).toBeVisible();
-  await expect(page.getByText('创建一个简单的问候文件', { exact: true })).toBeVisible();
+  await expect(
+    page.locator('.conversation-content').getByText('创建一个简单的问候文件', { exact: true }),
+  ).toBeVisible();
   await page.screenshot({ path: '/tmp/codex-web-desktop.png', fullPage: true });
 });
 
@@ -149,7 +151,9 @@ test('a lost HTTP receipt queries the durable operation without replaying the pr
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
   await page.reload();
-  await expect(page.getByText('提交回执丢失的任务', { exact: true })).toHaveCount(1);
+  await expect(
+    page.locator('.conversation-content').getByText('提交回执丢失的任务', { exact: true }),
+  ).toHaveCount(1);
   await expect(page.getByText('模拟任务已完成。', { exact: true })).toHaveCount(1);
   expect(submissions).toBe(1);
 });
