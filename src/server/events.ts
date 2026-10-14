@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import type { Cursor, Operation, ServerMessage, SystemInfo, ThreadView } from '../shared/types.js';
+import type {
+  Cursor,
+  Operation,
+  ServerMessage,
+  SystemInfo,
+  ThreadSummary,
+  ThreadView,
+} from '../shared/types.js';
 
 type BusinessEvent = Extract<ServerMessage, { type: 'event' }>;
 type Listener = (message: ServerMessage) => void;
@@ -13,6 +20,7 @@ export class EventHub {
   private readonly events: { event: BusinessEvent; bytes: number }[] = [];
   private readonly listeners = new Set<{ threadId: string; send: Listener }>();
   private readonly runtimeListeners = new Set<Listener>();
+  private readonly overviewListeners = new Set<Listener>();
 
   constructor(private readonly maxBytes = 16 * 1024 * 1024) {}
 
@@ -51,6 +59,25 @@ export class EventHub {
     this.runtimeListeners.add(send);
     return () => {
       this.runtimeListeners.delete(send);
+    };
+  }
+
+  /** Overview is recovered via HTTP; it never consumes the detailed replay buffer. */
+  publishSummary(summary: ThreadSummary): void {
+    const event: BusinessEvent = {
+      type: 'event',
+      kind: 'threadSummary',
+      threadId: summary.id,
+      cursor: this.cursor(),
+      payload: structuredClone(summary),
+    };
+    for (const listener of this.overviewListeners) this.deliver(listener, event);
+  }
+
+  subscribeOverview(send: Listener): () => void {
+    this.overviewListeners.add(send);
+    return () => {
+      this.overviewListeners.delete(send);
     };
   }
 

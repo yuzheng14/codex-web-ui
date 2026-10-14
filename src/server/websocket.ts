@@ -1,7 +1,7 @@
 import type { WSEvents, WSContext } from 'hono/ws';
 import type { WebSocketLike } from '@hono/node-server';
 import type { WebSocketServer, WebSocket } from 'ws';
-import { subscribeSchema } from '../shared/validation.js';
+import { socketMessageSchema } from '../shared/validation.js';
 import type { ServerMessage, ThreadView } from '../shared/types.js';
 import { AppError } from '../shared/errors.js';
 import type { GatewayService } from './service.js';
@@ -53,9 +53,11 @@ export function socketHandlers(
   service: GatewayService,
   config: AppConfig,
   identity: Identity,
+  overview = false,
 ): WSEvents<WebSocketLike> {
   let unsubscribe: (() => void) | undefined;
   let stopRuntime: (() => void) | undefined;
+  let stopOverview: (() => void) | undefined;
   let generation = 0;
   let expiry: ReturnType<typeof setTimeout> | undefined;
   const send = (ws: WSContext<WebSocketLike>, message: ServerMessage) => {
@@ -74,6 +76,7 @@ export function socketHandlers(
   return {
     onOpen(_event, ws) {
       stopRuntime = service.subscribeRuntime((message) => send(ws, message));
+      if (overview) stopOverview = service.subscribeOverview((message) => send(ws, message));
       if (identity.expiresAt)
         expiry = setTimeout(
           () => ws.close(4001, 'Authentication expired'),
@@ -91,7 +94,8 @@ export function socketHandlers(
       try {
         if (typeof event.data !== 'string' || Buffer.byteLength(event.data) > 8192)
           throw new AppError('VALIDATION_FAILED', 'Invalid subscription');
-        const input = subscribeSchema.parse(JSON.parse(event.data));
+        const input = socketMessageSchema.parse(JSON.parse(event.data));
+        if (input.type === 'unsubscribe') return;
         const stop = await service.subscribe(input.threadId, input.after, deliver);
         if (current !== generation || ws.readyState !== 1) stop();
         else unsubscribe = stop;
@@ -109,12 +113,14 @@ export function socketHandlers(
       generation++;
       unsubscribe?.();
       stopRuntime?.();
+      stopOverview?.();
       clearTimeout(expiry);
     },
     onError() {
       generation++;
       unsubscribe?.();
       stopRuntime?.();
+      stopOverview?.();
       clearTimeout(expiry);
     },
   };

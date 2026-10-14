@@ -1,5 +1,6 @@
 import type { CodexClient, CodexDiagnostics, CodexEvent } from '../codex/types.js';
 import { AppError } from '../shared/errors.js';
+import { toThreadSummary } from '../shared/thread-summary.js';
 import type {
   ConfirmCompatibilityInput,
   CreateThreadInput,
@@ -16,6 +17,7 @@ import type {
   SteerInput,
   SystemInfo,
   ThreadPage,
+  ThreadSummaryPage,
   ThreadView,
 } from '../shared/types.js';
 import { OperationStore, StoreConflict, type OperationRow } from './db/operations.js';
@@ -44,6 +46,7 @@ export class GatewayService {
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly reads = new Map<string, Promise<ThreadView>>();
+  private readonly summaries = new Map<string, string>();
 
   constructor(private readonly options: GatewayOptions) {
     this.store = options.store;
@@ -70,6 +73,9 @@ export class GatewayService {
   }
   subscribeRuntime(listener: (message: ServerMessage) => void): () => void {
     return this.events.subscribeRuntime(listener);
+  }
+  subscribeOverview(listener: (message: ServerMessage) => void): () => void {
+    return this.events.subscribeOverview(listener);
   }
 
   async confirmCompatibility(input: ConfirmCompatibilityInput): Promise<Operation> {
@@ -143,6 +149,13 @@ export class GatewayService {
       }
     }
     return { data, nextCursor: page.nextCursor };
+  }
+
+  async listThreadSummaries(projectId: string, cursor?: string): Promise<ThreadSummaryPage> {
+    // The list can race with live updates. Browsers retain updates newer than this boundary.
+    const boundary = this.events.cursor();
+    const page = await this.listThreads(projectId, cursor);
+    return { data: page.data.map(toThreadSummary), nextCursor: page.nextCursor, cursor: boundary };
   }
 
   async getThread(threadId: string): Promise<ThreadView> {
@@ -675,7 +688,18 @@ export class GatewayService {
 
   private publishThread(threadId: string): void {
     const thread = this.projection.get(threadId);
-    if (thread) this.events.publish('thread', this.threadView(thread), threadId);
+    if (!thread) return;
+    this.events.publish('thread', this.threadView(thread), threadId);
+    const summary = toThreadSummary(thread);
+    const encoded = JSON.stringify(summary);
+    if (this.summaries.get(threadId) === encoded) return;
+    try {
+      this.projects.assertOwnership(thread.projectId, thread.cwd);
+    } catch {
+      return;
+    }
+    this.summaries.set(threadId, encoded);
+    this.events.publishSummary(summary);
   }
 
   private threadView(thread: ThreadView): ThreadView {

@@ -17,6 +17,8 @@
 
 投影按上游 thread/turn/item ID 合并。完整 item 替换内容，增量按顺序追加。快照、订阅注册及补发在一个同步边界内完成；服务端单调序号与 serverEpoch 构成恢复游标。前端仅为仍持有同会话投影的连接发送 after，刷新不复用单独残留游标。全局运行状态与会话游标分开跟踪。
 
+`GET /api/projects/:projectId/threads` 返回分页会话摘要与读取开始时的事件游标。摘要只包括身份、项目、标题、来源、状态、更新时间、待处理数量及最后一轮状态，不包含正文、工具内容或审批参数；原有会话列表与详情 API 保持不变。`/ws?overview=1` 显式订阅跨项目摘要变化，普通 `/ws` 维持原有消息合同。摘要使用独立监听通道，不占详情重放缓存，重连后由 HTTP 列表恢复；详情仍只订阅当前会话。`unsubscribe` 清理详情订阅，保留运行状态和已启用的摘要订阅。
+
 Git checkout 根目录决定工作区互斥，不使用 git common-dir，因此不同 worktree 可以并行。此锁只约束本网关，不阻止用户在终端改文件。
 
 `POST /api/threads/:threadId/fork` 接受 `{ clientOperationId, settings? }`，返回标准操作回执，成功结果为 `{ threadId, forkedFromId }`。服务端只读源会话并校验注册项目归属，再将其 canonical cwd 交给适配层调用 `thread/fork`；客户端不能指定目录。新 ID 注册为当前进程持有的会话，历史由 Codex 保存，无需新增数据库表。
