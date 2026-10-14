@@ -26,7 +26,7 @@ test.afterEach(async ({ request }) => {
   }
 });
 
-test('shows the occupying conversation, preserves the draft, and navigates to resolve it', async ({
+test('runs two conversations in one directory and interrupts them independently', async ({
   page,
   request,
 }, testInfo) => {
@@ -40,43 +40,49 @@ test('shows the occupying conversation, preserves the draft, and navigates to re
   await createThreadButton(page).click();
   await expect(page.getByText('这个会话准备好了')).toBeVisible();
   const target = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
-  const draft = '继续检查运行设置';
-  await page.getByRole('textbox', { name: '任务内容', exact: true }).fill(draft);
+  await page
+    .getByRole('textbox', { name: '任务内容', exact: true })
+    .fill('检查运行设置 [approval]');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
-  const notice = page.locator('.workspace-busy-notice');
-  await expect(notice).toContainText('占用会话：检查项目改动 [approval]');
-  await expect(notice).toContainText('等待审批');
-  await expect(page.getByRole('textbox', { name: '任务内容', exact: true })).toHaveValue(draft);
+  await expect(page.locator('.action-card')).toHaveCount(1);
+  await expect(page.locator('.error-banner.dismissible')).not.toBeVisible();
+  for (const id of [owner, target]) {
+    await expect(page.locator(`[data-thread-id="${id}"] .status`)).toHaveText('等待审批');
+  }
+  const draft = '仅调整当前会话';
+  await page.getByRole('textbox', { name: '追加要求', exact: true }).fill(draft);
   for (const [name, viewport] of [
     ['desktop', { width: 1280, height: 900 }],
     ['mobile', { width: 390, height: 844 }],
   ] as const) {
     await page.setViewportSize(viewport);
-    await expect(notice.getByRole('button', { name: '查看占用会话' })).toBeVisible();
+    if (name === 'mobile') await page.getByRole('button', { name: '打开项目与会话' }).click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    const path = testInfo.outputPath(`workspace-busy-${name}.png`);
+    const path = testInfo.outputPath(`parallel-threads-${name}.png`);
     await page.screenshot({ path, fullPage: true, animations: 'disabled' });
-    await testInfo.attach(`workspace-busy-${name}`, { path, contentType: 'image/png' });
+    await testInfo.attach(`parallel-threads-${name}`, { path, contentType: 'image/png' });
   }
-  await page.getByRole('button', { name: '查看占用会话' }).click();
-  await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('codex-web.selected:fixture')))
-    .toBe(owner);
-  await expect(notice).not.toBeVisible();
-  await expect(page.locator('.action-card')).toHaveCount(1);
+  await page.locator(`[data-thread-id="${owner}"]`).click();
+  await expect(page.getByRole('textbox', { name: '追加要求', exact: true })).toHaveValue('');
   await page.getByRole('button', { name: '中断', exact: true }).click();
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已中断');
   await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(page.locator(`[data-thread-id="${target}"] .status`)).toHaveText('等待审批');
   await page.locator(`[data-thread-id="${target}"]`).click();
-  await expect(page.getByRole('textbox', { name: '任务内容', exact: true })).toHaveValue(draft);
-  await page.getByRole('button', { name: '发送任务', exact: true }).click();
-  await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
+  await expect(page.getByRole('textbox', { name: '追加要求', exact: true })).toHaveValue(draft);
+  await page.getByRole('button', { name: '追加要求', exact: true }).click();
+  await expect(
+    page.locator('.conversation-content').getByText(draft, { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('.action-card')).toHaveCount(1);
+  await page.getByRole('button', { name: '中断', exact: true }).click();
+  await expect(page.locator('.turn-heading .status').last()).toHaveText('已中断');
 });
 
 for (const destination of ['same', 'new'] as const) {
-  test(`recovers a missing completion event when sending in the ${destination} conversation`, async ({
+  test(`continues after a missing completion event in the ${destination} conversation`, async ({
     page,
     request,
   }) => {
@@ -99,10 +105,12 @@ for (const destination of ['same', 'new'] as const) {
     await page.getByRole('button', { name: '发送任务', exact: true }).click();
     await expect(page.locator('.turn')).toHaveCount(destination === 'same' ? 2 : 1);
     await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
-    await expect(page.locator('.workspace-busy-notice')).not.toBeVisible();
+    await expect(page.locator('.error-banner.dismissible')).not.toBeVisible();
     const operation = (await (
       await request.get(`/api/operations/${original.clientOperationId}`)
     ).json()) as Operation;
-    expect(operation.execution?.ended).toBe(true);
+    if (destination === 'same') expect(operation.execution?.ended).toBe(true);
+    // Creating in the current project may also refresh the old selection. A different
+    // thread can proceed regardless of whether that refresh has reconciled the old turn.
   });
 }

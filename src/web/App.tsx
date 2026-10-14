@@ -10,7 +10,6 @@ import { Icon } from './components/Icon';
 import { Button } from './components/ui/button';
 import { blocksTarget } from './lib/operations';
 import { CompatibilityNotice } from './components/CompatibilityNotice';
-import { WorkspaceBusyNotice } from './components/WorkspaceBusyNotice';
 import {
   canConfirmCompatibility,
   compatibilityConfirmationRequired,
@@ -233,15 +232,6 @@ export function App() {
           <div className="error-banner dismissible" role="alert">
             <div>
               <span>{workspace.error}</span>
-              {workspace.errorCode === 'WORKSPACE_BUSY' && (
-                <WorkspaceBusyNotice
-                  details={workspace.errorDetails}
-                  onOpen={(id) => {
-                    workspace.clearError();
-                    void workspace.selectThread(id);
-                  }}
-                />
-              )}
               {workspace.errorDetails !== undefined && (
                 <details className="raw-details">
                   <summary>错误详情</summary>
@@ -278,7 +268,7 @@ export function App() {
                   ? '当前 Codex 版本不支持 Fork 会话。'
                   : thread.turns.length === 0
                     ? '发送首条消息后可 Fork 已保存的历史。'
-                    : 'Fork 复制已保存的历史，不会停止原会话。同一目录的任务仍需依次执行。'}
+                    : 'Fork 复制已保存的历史，新会话可与原会话同时执行。'}
               </span>
             </div>
             <Button variant="secondary" size="sm" disabled={!canFork} onClick={forkThread}>

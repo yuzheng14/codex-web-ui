@@ -51,14 +51,19 @@ describe('domain execution and approval recovery', () => {
     expect(ctx.store.activeForThread(id)).toBeUndefined();
   });
 
-  it('holds the checkout across distinct threads and waits for real terminal evidence after interruption', async () => {
+  it('allows parallel threads and releases only the interrupted turn after terminal evidence', async () => {
     const ctx = setup();
     const first = await create(ctx);
     const second = await create(ctx);
     await ctx.service.startTurn(first, { clientOperationId: operationId(), text: 'one' });
     await expect(
       ctx.service.startTurn(second, { clientOperationId: operationId(), text: 'two' }),
-    ).rejects.toMatchObject({ code: 'WORKSPACE_BUSY', details: { threadId: first } });
+    ).resolves.toMatchObject({ status: 'acknowledged' });
+    expect(ctx.store.activeMarkers()).toHaveLength(2);
+    const secondMarker = ctx.store.activeForThread(second);
+    await expect(
+      ctx.service.startTurn(first, { clientOperationId: operationId(), text: 'duplicate turn' }),
+    ).rejects.toMatchObject({ code: 'THREAD_BUSY' });
     await expect(
       ctx.service.steer(first, {
         clientOperationId: operationId(),
@@ -77,8 +82,10 @@ describe('domain execution and approval recovery', () => {
     });
     expect(ctx.store.activeForThread(first)).toBeDefined();
     ctx.codex.complete(first, 'turn-1');
-    await ctx.service.startTurn(second, { clientOperationId: operationId(), text: 'two' });
-    expect(ctx.codex.starts).toBe(2);
+    expect(ctx.store.activeForThread(first)).toBeUndefined();
+    expect(ctx.store.activeForThread(second)).toEqual(secondMarker);
+    await ctx.service.startTurn(first, { clientOperationId: operationId(), text: 'next turn' });
+    expect(ctx.codex.starts).toBe(3);
   });
 
   it('lets only one tab claim an approval and rejects stale actions after runtime reset', async () => {

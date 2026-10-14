@@ -33,15 +33,14 @@ async function setup() {
 }
 
 it.each(['completed', 'failed', 'interrupted'] as const)(
-  'releases an orphaned %s turn before sending in another thread',
+  'releases an orphaned %s turn before sending again in that thread',
   async (status) => {
     const ctx = await setup();
     ctx.finishSilently(status);
-    await expect(ctx.send(ctx.target)).resolves.toMatchObject({ status: 'acknowledged' });
-    expect(ctx.store.activeForThread(ctx.owner)).toBeUndefined();
+    await expect(ctx.send(ctx.owner)).resolves.toMatchObject({ status: 'acknowledged' });
     expect(await ctx.service.getThread(ctx.owner)).toMatchObject({
       title: '之前的工作',
-      turns: [{ status }],
+      turns: [{ status }, { status: 'running' }],
     });
     expect(ctx.service.getOperation(ctx.original.clientOperationId)).toMatchObject({
       status: 'acknowledged',
@@ -60,42 +59,40 @@ it('refreshes a cached running thread so a missed completion does not block foll
   expect(ctx.codex.starts).toBe(2);
 });
 
-it('recovers a completed reservation from an older runtime without first opening its thread', async () => {
+it('allows new threads without reading or changing an older runtime reservation', async () => {
   const ctx = await setup();
   ctx.codex.reset();
   ctx.finishSilently();
   const fresh = await ctx.create();
+  const reads = vi.spyOn(ctx.codex, 'readThread');
   await expect(ctx.send(fresh)).resolves.toMatchObject({ status: 'acknowledged' });
-  expect(ctx.store.activeForThread(ctx.owner)).toBeUndefined();
+  expect(ctx.store.activeForThread(ctx.owner)?.state).toBe('unknown');
+  expect(reads).not.toHaveBeenCalled();
   expect(ctx.codex.resumes).toBe(0);
 });
 
 it.each(['running', 'waitingApproval', 'waitingInput'] as const)(
-  'keeps a %s task occupied and persists navigable conflict details for retries',
+  'keeps a %s task in its thread without blocking another thread',
   async (status) => {
     const ctx = await setup();
     ctx.actual.status = status;
     ctx.actual.turns[0]!.status = status;
     ctx.codex.emit({ type: 'threadStatus', threadId: ctx.owner, status });
     const input = { clientOperationId: operationId(), text: 'blocked' };
-    const details = {
-      threadId: ctx.owner,
-      threadTitle: '之前的工作',
-      projectId: 'project',
-      status,
-      operationId: ctx.original.clientOperationId,
-      turnId: 'turn-1',
-    };
-    await expect(ctx.service.startTurn(ctx.target, input)).rejects.toMatchObject({
-      code: 'WORKSPACE_BUSY',
+    const details = { threadId: ctx.owner };
+    await expect(ctx.service.startTurn(ctx.owner, input)).rejects.toMatchObject({
+      code: 'THREAD_BUSY',
       details,
     });
-    expect(await ctx.service.startTurn(ctx.target, input)).toMatchObject({
+    expect(await ctx.service.startTurn(ctx.owner, input)).toMatchObject({
       status: 'failed',
-      error: { code: 'WORKSPACE_BUSY', details },
+      error: { code: 'THREAD_BUSY', details },
     });
-    expect(ctx.store.activeForThread(ctx.owner)).toBeDefined();
-    expect(ctx.codex.starts).toBe(1);
+    const marker = ctx.store.activeForThread(ctx.owner);
+    await expect(ctx.send(ctx.target)).resolves.toMatchObject({ status: 'acknowledged' });
+    expect(ctx.store.activeForThread(ctx.owner)).toEqual(marker);
+    expect(ctx.store.activeMarkers()).toHaveLength(2);
+    expect(ctx.codex.starts).toBe(2);
   },
 );
 
@@ -133,9 +130,12 @@ it.each([
     ctx.finishSilently();
     ctx.actual.turns.push({ id: 'other', threadId: ctx.owner, status: 'running', items: [] });
   }
-  await expect(ctx.send(ctx.target)).rejects.toMatchObject({ code: 'WORKSPACE_BUSY' });
-  expect(ctx.store.activeForThread(ctx.owner)).toBeDefined();
-  expect(ctx.codex.starts).toBe(1);
+  await expect(ctx.send(ctx.owner)).rejects.toMatchObject({ code: 'THREAD_BUSY' });
+  const marker = ctx.store.activeForThread(ctx.owner);
+  expect(marker).toBeDefined();
+  await expect(ctx.send(ctx.target)).resolves.toMatchObject({ status: 'acknowledged' });
+  expect(ctx.store.activeForThread(ctx.owner)).toEqual(marker);
+  expect(ctx.codex.starts).toBe(2);
 });
 
 it('does not release a new reservation when an older history read finishes late', async () => {
@@ -148,15 +148,12 @@ it('does not release a new reservation when an older history read finishes late'
     entered.resolve();
     return gate.promise;
   });
-  const pending = ctx.send(ctx.target);
+  const pending = ctx.service.getThread(ctx.owner);
   await entered.promise;
   ctx.codex.complete(ctx.owner, 'turn-1');
   const replacement = await ctx.send(ctx.owner);
   gate.resolve(snapshot);
-  await expect(pending).rejects.toMatchObject({
-    code: 'WORKSPACE_BUSY',
-    details: { operationId: replacement.clientOperationId },
-  });
+  await expect(pending).resolves.toMatchObject({ status: 'running' });
   expect(ctx.store.activeForThread(ctx.owner)?.operationId).toBe(replacement.clientOperationId);
 });
 
@@ -169,7 +166,7 @@ it('ignores terminal history superseded by live events during the read', async (
     ctx.codex.emit({ type: 'threadStatus', threadId: ctx.owner, status: 'waitingApproval' });
     return snapshot;
   });
-  await expect(ctx.send(ctx.target)).rejects.toMatchObject({ code: 'WORKSPACE_BUSY' });
+  await expect(ctx.send(ctx.owner)).rejects.toMatchObject({ code: 'THREAD_BUSY' });
   expect(ctx.store.activeForThread(ctx.owner)).toBeDefined();
 });
 
@@ -180,20 +177,19 @@ it('rechecks runtime ownership after a reset during the history read', async () 
     ctx.codex.reset();
     return structuredClone(ctx.actual);
   });
-  await expect(ctx.send(ctx.target)).rejects.toMatchObject({ code: 'THREAD_NOT_RESUMED' });
+  await expect(ctx.send(ctx.owner)).rejects.toMatchObject({ code: 'THREAD_NOT_RESUMED' });
   expect(ctx.store.activeForThread(ctx.owner)?.state).toBe('unknown');
   expect(ctx.codex.starts).toBe(1);
 });
 
-it('coalesces concurrent checks and still reserves the checkout for only one sender', async () => {
+it('coalesces concurrent checks and starts only one next turn in the same thread', async () => {
   const ctx = await setup();
-  const third = await ctx.create();
   ctx.finishSilently();
   const reads = vi.spyOn(ctx.codex, 'readThread');
-  const results = await Promise.allSettled([ctx.send(ctx.target), ctx.send(third)]);
+  const results = await Promise.allSettled([ctx.send(ctx.owner), ctx.send(ctx.owner)]);
   expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
   expect(results.find((result) => result.status === 'rejected')).toMatchObject({
-    reason: { code: 'WORKSPACE_BUSY' },
+    reason: { code: 'THREAD_BUSY' },
   });
   expect(reads).toHaveBeenCalledTimes(1);
   expect(ctx.store.activeMarkers()).toHaveLength(1);
@@ -211,4 +207,17 @@ it('does not release recovered occupancy on a cold read while another upstream t
   });
   await restarted.getThread(ctx.owner);
   expect(ctx.store.activeForThread(ctx.owner)).toBeDefined();
+});
+
+it('dispatches concurrent turns in different threads of the same directory', async () => {
+  const ctx = await setup();
+  const third = await ctx.create();
+  const reads = vi.spyOn(ctx.codex, 'readThread');
+  const original = ctx.store.activeForThread(ctx.owner);
+  const results = await Promise.all([ctx.send(ctx.target), ctx.send(third)]);
+  expect(results.map((entry) => entry.status)).toEqual(['acknowledged', 'acknowledged']);
+  expect(reads).not.toHaveBeenCalled();
+  expect(ctx.store.activeForThread(ctx.owner)).toEqual(original);
+  expect(ctx.store.activeMarkers()).toHaveLength(3);
+  expect(ctx.codex.starts).toBe(3);
 });

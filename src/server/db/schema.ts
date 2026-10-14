@@ -54,9 +54,6 @@ export const executionMarkers = sqliteTable(
     uniqueIndex('execution_markers_active_thread')
       .on(table.threadId)
       .where(sql`${table.endedAt} is null`),
-    uniqueIndex('execution_markers_active_workspace')
-      .on(table.workspaceKey)
-      .where(sql`${table.endedAt} is null`),
   ],
 );
 

@@ -1268,21 +1268,6 @@ input[type='radio'] {
   color: #b36f63 !important;
   overflow-wrap: anywhere;
 }
-.workspace-busy-notice {
-  margin-top: 12px;
-}
-.workspace-busy-owner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.workspace-busy-owner strong {
-  overflow-wrap: anywhere;
-}
-.workspace-busy-notice p {
-  margin: 8px 0 12px;
-}
 .raw-details {
   margin: 10px 0;
   color: #98a097;

@@ -19,7 +19,6 @@ import type {
   ThreadPage,
   ThreadSummaryPage,
   ThreadView,
-  WorkspaceBusyDetails,
 } from '../shared/types.js';
 import {
   OperationStore,
@@ -52,7 +51,7 @@ export class GatewayService {
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly reads = new Map<string, Promise<ThreadView>>();
-  private readonly executionReads = new Map<string, Promise<ThreadView | undefined>>();
+  private readonly executionReads = new Map<string, Promise<void>>();
   private readonly summaries = new Map<string, string>();
 
   constructor(private readonly options: GatewayOptions) {
@@ -281,34 +280,17 @@ export class GatewayService {
 
   async startTurn(threadId: string, input: StartTurnInput): Promise<Operation> {
     return this.perform('turn.start', threadId, input, async () => {
-      let thread = await this.getThread(threadId);
+      const thread = await this.getThread(threadId);
       this.ensureManaged(thread);
       const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
-      const occupied = this.store.activeForWorkspace(ownership.workspaceKey);
-      let occupyingThread: ThreadView | undefined;
-      if (occupied && occupied.threadId !== threadId) {
-        occupyingThread = await this.refreshExecution(occupied);
-        thread = this.threadView(this.projection.get(threadId) ?? thread);
-        this.ensureManaged(thread);
-      }
       if (isActive(thread.status))
         throw new AppError('THREAD_BUSY', '会话已有活动任务，请追加要求或中断', 409, { threadId });
       this.ensureCompatibilityConfirmed();
-      try {
-        this.store.dispatch(input.clientOperationId, {
-          threadId,
-          workspaceKey: ownership.workspaceKey,
-          codexEpoch: this.codex.epoch,
-        });
-      } catch (error) {
-        throw this.asAppError(
-          error,
-          occupied &&
-            this.store.activeForThread(occupied.threadId)?.operationId === occupied.operationId
-            ? occupyingThread
-            : undefined,
-        );
-      }
+      this.store.dispatch(input.clientOperationId, {
+        threadId,
+        workspaceKey: ownership.workspaceKey,
+        codexEpoch: this.codex.epoch,
+      });
       const revision = this.projection.revision(threadId);
       const turn = await this.codex.startTurn(threadId, ownership.cwd, input.text, input.settings);
       this.store.attachTurn(input.clientOperationId, turn.id);
@@ -563,8 +545,8 @@ export class GatewayService {
     }
   }
 
-  /** A conflict is a reason to check history, never proof that the old execution ended. */
-  private async refreshExecution(marker: ExecutionMarker): Promise<ThreadView | undefined> {
+  /** Refresh only this thread; missing completion events must not block its next turn. */
+  private async refreshExecution(marker: ExecutionMarker): Promise<void> {
     if (!marker.turnId || !this.codex.ready) return;
     const existing = this.executionReads.get(marker.operationId);
     if (existing) return existing;
@@ -590,7 +572,6 @@ export class GatewayService {
           ? this.projects.assertOwnership(link.projectId, actual.cwd)
           : this.projects.findOwner(actual.cwd);
         if (ownership.workspaceKey !== marker.workspaceKey) return;
-        const observed = { ...actual, projectId: ownership.project.id, cwd: ownership.cwd };
         const turn = actual.turns.find((entry) => entry.id === marker.turnId);
         if (
           !turn ||
@@ -598,13 +579,12 @@ export class GatewayService {
           isActive(actual.status) ||
           actual.turns.some((entry) => isActive(entry.status))
         )
-          return observed;
+          return;
         this.store.finishTurn(marker.threadId, turn.id, marker.codexEpoch);
         this.projection.thread(this.normalize(actual));
         this.projection.expireTurn(marker.threadId, turn.id);
         this.publishThread(marker.threadId);
         this.events.publish('operation', this.getOperation(marker.operationId), marker.threadId);
-        return observed;
       } catch {
         // Missing/unavailable history is not terminal evidence. Keep the durable reservation.
       }
@@ -762,39 +742,8 @@ export class GatewayService {
     };
   }
 
-  private asAppError(error: unknown, observed?: ThreadView): AppError {
+  private asAppError(error: unknown): AppError {
     if (error instanceof AppError) return error;
-    if (error instanceof StoreConflict && error.code === 'WORKSPACE_BUSY' && error.threadId) {
-      const marker = this.store.activeForThread(error.threadId);
-      const thread =
-        observed?.id === error.threadId ? observed : this.projection.get(error.threadId);
-      if (marker) {
-        const details: WorkspaceBusyDetails = {
-          threadId: marker.threadId,
-          operationId: marker.operationId,
-          ...(marker.turnId ? { turnId: marker.turnId } : {}),
-          status:
-            marker.state === 'active' && thread && isActive(thread.status)
-              ? thread.status
-              : 'unknown',
-        };
-        if (thread) {
-          try {
-            this.projects.assertOwnership(thread.projectId, thread.cwd);
-            details.threadTitle = thread.title;
-            details.projectId = thread.projectId;
-          } catch {
-            /* Do not expose metadata outside registered projects. */
-          }
-        }
-        return new AppError(
-          'WORKSPACE_BUSY',
-          '工作区仍有未结束的任务，请查看占用会话',
-          409,
-          details,
-        );
-      }
-    }
     if (error instanceof StoreConflict)
       return new AppError(
         error.code,
