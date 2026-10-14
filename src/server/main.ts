@@ -32,7 +32,7 @@ export async function startGateway(
     codex = overrides.codex ?? new CodexAdapter(config.codex);
     const service = new GatewayService({
       store: new OperationStore(db.database),
-      projects: new ProjectRegistry(config.projects),
+      projects: new ProjectRegistry(config.projects, db.database),
       codex,
       limits: config.limits,
       authMode: config.auth.mode,

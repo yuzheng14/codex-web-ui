@@ -8,6 +8,7 @@ export const operations = sqliteTable(
     clientOperationId: text('client_operation_id').primaryKey(),
     kind: text('kind').notNull(),
     target: text('target').notNull(),
+    projectId: text('project_id'),
     requestDigest: text('request_digest').notNull(),
     state: text('state', {
       enum: ['accepted', 'dispatching', 'acknowledged', 'failed', 'unknown'],
@@ -69,4 +70,15 @@ export const threadLinks = sqliteTable('thread_links', {
 export const preferences = sqliteTable('preferences', {
   key: text('key').primaryKey(),
   value: text('value', { mode: 'json' }).$type<unknown>().notNull(),
+});
+
+/** Removing a registration retains its identity and all existing thread links. */
+export const projectRegistrations = sqliteTable('project_registrations', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  path: text('path').notNull(),
+  canonicalRoot: text('canonical_root'),
+  removedAt: integer('removed_at'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
 });
