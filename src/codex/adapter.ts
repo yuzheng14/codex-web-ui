@@ -403,6 +403,11 @@ export class CodexAdapter implements CodexClient {
     });
     return { data: page.data.map(mapThread), nextCursor: page.nextCursor };
   }
+  async readThreadMetadata(id: string): Promise<ThreadView> {
+    return mapThread(
+      (await this.call('thread/read', { threadId: id, includeTurns: false })).thread,
+    );
+  }
   async readThread(id: string): Promise<ThreadView> {
     const { thread } = await this.call('thread/read', { threadId: id, includeTurns: false });
     if (thread.historyMode !== 'paginated')
@@ -530,6 +535,13 @@ export class CodexAdapter implements CodexClient {
     switch (event.method) {
       case 'thread/started':
         this.emit({ type: 'thread', thread: mapThread(event.params.thread) });
+        break;
+      case 'thread/name/updated':
+        this.emit({
+          type: 'threadName',
+          threadId: event.params.threadId,
+          name: event.params.threadName,
+        });
         break;
       case 'thread/status/changed':
         this.emit({

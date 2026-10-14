@@ -64,6 +64,51 @@ async function waitFor<T>(get: () => T | undefined): Promise<T> {
 }
 
 describe('verified protocol adapter with a real subprocess', () => {
+  it.each([false, true])(
+    'reads title metadata without fetching history (paginated: %s) and maps name updates',
+    async (paginated) => {
+      const { adapter, events, requests } = await fixture({
+        paginated,
+        threadNames: ['自定义名称', ''],
+        turnDelayMs: 10,
+      });
+      const thread = await adapter.createThread('/tmp');
+      expect(thread.title).toBe('新会话');
+      for (const [index, prompt] of ['第一条消息', '后续问题'].entries()) {
+        const turn = await adapter.startTurn(thread.id, thread.cwd, prompt);
+        await waitFor(() =>
+          events.find(
+            (event) =>
+              event.type === 'turn' &&
+              event.turn.id === turn.id &&
+              event.turn.status === 'completed',
+          ),
+        );
+        expect(events).toContainEqual({
+          type: 'threadName',
+          threadId: thread.id,
+          name: index === 0 ? '自定义名称' : undefined,
+        });
+        const metadata = await adapter.readThreadMetadata(thread.id);
+        expect(metadata.title).toBe(index === 0 ? '自定义名称' : '第一条消息');
+        expect(metadata.turns).toEqual([]);
+      }
+      const historyRequests = (await requests()).filter(
+        (request) =>
+          request.method.startsWith('thread/') &&
+          !['thread/start', 'thread/read'].includes(request.method),
+      );
+      expect(historyRequests).toEqual([]);
+      expect(
+        (await requests())
+          .filter((request) => request.method === 'thread/read')
+          .map((request) => request.params),
+      ).toEqual([
+        { threadId: thread.id, includeTurns: false },
+        { threadId: thread.id, includeTurns: false },
+      ]);
+    },
+  );
   it('handshakes before business operations, maps deltas/tool output, paginates history and explicitly includes CLI sources', async () => {
     const { adapter, events, requests } = await fixture({
       fragmentBytes: 1,

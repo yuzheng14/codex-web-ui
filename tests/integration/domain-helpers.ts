@@ -88,6 +88,11 @@ export class DomainCodex implements CodexClient {
   async listThreads(_cwd: string, _cursor?: string): Promise<ThreadPage> {
     return { data: structuredClone([...this.threads.values()]), nextCursor: null };
   }
+  async readThreadMetadata(id: string): Promise<ThreadView> {
+    const thread = this.threads.get(id);
+    if (!thread) throw new Error('Thread not found');
+    return structuredClone({ ...thread, turns: [] });
+  }
   async readThread(id: string) {
     const thread = this.threads.get(id);
     if (!thread) throw new Error('Thread not found');
