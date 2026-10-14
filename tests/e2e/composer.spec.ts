@@ -80,6 +80,12 @@ test('Enter submits a task and steers the same active thread and turn', async ({
   await expect(steer).toHaveValue('');
   const additional = '    保留这段缩进\n第二行也需要保留\n';
   await steer.fill(additional);
+  const steerButton = page.getByRole('button', { name: '追加要求', exact: true });
+  await expect(steerButton).toHaveAccessibleDescription('Enter 发送 / Shift + Enter 换行');
+  await steerButton.hover();
+  await expect(page.getByRole('tooltip')).toHaveText('Enter 发送 / Shift + Enter 换行');
+  await page.mouse.move(0, 0);
+  await expect(page.getByRole('tooltip', { includeHidden: true })).toBeHidden();
   const steered = page.waitForRequest(isSubmission);
   await steer.press('Enter');
   const steerRequest = await steered;
@@ -330,17 +336,20 @@ for (const viewport of [
   { name: 'desktop', width: 1280, height: 900 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
-  test(`${viewport.name} composer shows Enter guidance and its send button still works`, async ({
+  test(`${viewport.name} composer keeps shortcut guidance in a tooltip and its send button works`, async ({
     page,
   }) => {
     await newThread(page);
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     if (viewport.name === 'mobile') await expect(page.locator('.sidebar')).not.toBeInViewport();
-    await expect(page.locator('.keyboard-hint')).toContainText('Enter 发送');
-    await expect(page.locator('.keyboard-hint')).toContainText('Shift + Enter 换行');
-    await expect(page.locator('.keyboard-hint')).toBeVisible();
+    const tooltip = page.getByRole('tooltip', { includeHidden: true });
+    await expect(tooltip).toHaveCount(1);
+    await expect(tooltip).toContainText('Enter 发送');
+    await expect(tooltip).toContainText('Shift + Enter 换行');
+    await expect(tooltip).toBeHidden();
     await taskInput(page).fill('点击发送按钮提交任务\n也可以使用 Shift + Enter 换行');
     await expect(sendButton(page)).toBeVisible();
+    await expect(sendButton(page)).toHaveAccessibleDescription('Enter 发送 / Shift + Enter 换行');
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
@@ -349,6 +358,39 @@ for (const viewport of [
       fullPage: true,
       animations: 'disabled',
     });
+    if (viewport.name === 'desktop') {
+      await sendButton(page).hover();
+      await expect(tooltip).toBeVisible();
+      await page.screenshot({
+        path: '/tmp/issue-26-tooltip.png',
+        fullPage: true,
+        animations: 'disabled',
+      });
+      // Hover does not move focus from the editor, so Escape must also dismiss
+      // the hint when its keyboard event originates outside the button wrapper.
+      await expect(taskInput(page)).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(tooltip).toBeHidden();
+      await expect(taskInput(page)).toBeFocused();
+      await page.mouse.move(0, 0);
+      await sendButton(page).hover();
+      await expect(tooltip).toBeVisible();
+      await page.mouse.move(0, 0);
+      await expect(tooltip).toBeHidden();
+      await taskInput(page).focus();
+      await taskInput(page).press('Tab');
+      await expect(sendButton(page)).toBeFocused();
+      await expect(tooltip).toBeVisible();
+      await sendButton(page).press('Escape');
+      await expect(tooltip).toBeHidden();
+      await expect(sendButton(page)).toBeFocused();
+      await sendButton(page).press('Shift+Tab');
+      await taskInput(page).press('Tab');
+      await expect(tooltip).toBeVisible();
+      await sendButton(page).press('Shift+Tab');
+      await expect(taskInput(page)).toBeFocused();
+      await expect(tooltip).toBeHidden();
+    }
     await sendButton(page).click();
     await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
     await expect(taskInput(page)).toHaveValue('');

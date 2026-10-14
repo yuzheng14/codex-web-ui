@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { ModelInfo, Settings, ThreadView } from '../../shared/types';
 import { isActive } from './Status';
 import { Button } from './ui/button';
@@ -27,6 +27,8 @@ interface Props {
 export function Composer(props: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [confirmExternal, setConfirmExternal] = useState(false);
+  const [shortcutDismissed, setShortcutDismissed] = useState(false);
+  const shortcutId = useId();
   const composingRef = useRef(false);
   const compositionEndedAtRef = useRef(-Infinity);
   const sendingRef = useRef(new Set<string>());
@@ -36,6 +38,14 @@ export function Composer(props: Props) {
     composingRef.current = false;
     compositionEndedAtRef.current = -Infinity;
   }, [key]);
+  useEffect(() => {
+    // A hover hint must also dismiss when keyboard focus is still in the textarea.
+    const dismissShortcut = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShortcutDismissed(true);
+    };
+    document.addEventListener('keydown', dismissShortcut);
+    return () => document.removeEventListener('keydown', dismissShortcut);
+  }, []);
   const text = drafts[key] ?? '';
   const active = isActive(props.thread?.status);
   const external = props.thread && !props.thread.managed;
@@ -145,19 +155,29 @@ export function Composer(props: Props) {
                 {props.interrupting ? '请求中…' : '中断'}
               </Button>
             )}
-            <Button
-              size="sm"
-              onClick={() => {
-                void send();
-              }}
-              disabled={!canSend}
+            <span
+              className="composer-submit"
+              data-tooltip-dismissed={shortcutDismissed || undefined}
+              onMouseEnter={() => setShortcutDismissed(false)}
+              onFocus={() => setShortcutDismissed(false)}
             >
-              <Icon name="send" size={14} />
-              {props.submitting ? '正在提交…' : active ? '追加要求' : '发送任务'}
-            </Button>
+              <Button
+                size="sm"
+                aria-describedby={shortcutId}
+                onClick={() => {
+                  void send();
+                }}
+                disabled={!canSend}
+              >
+                <Icon name="send" size={14} />
+                {props.submitting ? '正在提交…' : active ? '追加要求' : '发送任务'}
+              </Button>
+              <span id={shortcutId} role="tooltip" className="keyboard-hint">
+                Enter 发送 / Shift + Enter 换行
+              </span>
+            </span>
           </div>
         </div>
-        <p className="keyboard-hint">Enter 发送 / Shift + Enter 换行</p>
       </div>
       <p className="composer-note">
         {active
