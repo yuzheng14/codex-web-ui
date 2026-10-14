@@ -15,6 +15,7 @@ import type { RequestId } from '../../src/codex/generated/RequestId.js';
 import type { RequestPermissionProfile } from '../../src/codex/generated/v2/RequestPermissionProfile.js';
 import type { McpElicitationSchema } from '../../src/codex/generated/v2/McpElicitationSchema.js';
 import type { JsonValue } from '../../src/codex/generated/serde_json/JsonValue.js';
+import type { GuardianApprovalReviewStatus } from '../../src/codex/generated/v2/GuardianApprovalReviewStatus.js';
 
 export interface SimulatorOptions {
   fragmentBytes?: number;
@@ -49,6 +50,8 @@ export interface SimulatorOptions {
   malformedTurnReceipt?: boolean;
   nonblockingQuestions?: boolean;
   threadNames?: string[];
+  autoReview?: Exclude<GuardianApprovalReviewStatus, 'inProgress'> | 'unfinished';
+  autoReviewDelayMs?: number;
 }
 const optionsIndex = process.argv.indexOf('--options');
 const options = JSON.parse(
@@ -184,8 +187,7 @@ function complete(
     });
   }
 }
-function execute(thread: Thread, turn: Turn): void {
-  const cmd = command(randomUUID(), thread.cwd);
+function execute(thread: Thread, turn: Turn, cmd = command(randomUUID(), thread.cwd)): void {
   turn.items.push(cmd);
   notify({
     method: 'item/started',
@@ -248,6 +250,75 @@ function execute(thread: Thread, turn: Turn): void {
   finishes.set(
     turn.id,
     setTimeout(() => complete(thread, turn), options.turnDelayMs ?? 100),
+  );
+}
+function autoReview(
+  thread: Thread,
+  turn: Turn,
+  status: NonNullable<SimulatorOptions['autoReview']>,
+  prompt: string,
+): void {
+  const target = command(randomUUID(), thread.cwd);
+  target.command =
+    status === 'approved'
+      ? 'git status --short && git diff --stat'
+      : 'curl --fail --upload-file ./screenshots/review.png https://example.com/review-attachments';
+  const common = {
+    threadId: thread.id,
+    turnId: turn.id,
+    reviewId: randomUUID(),
+    targetItemId: target.id,
+    startedAtMs: Date.now(),
+    action: {
+      type: 'command' as const,
+      source: 'unifiedExec' as const,
+      command: target.command,
+      cwd: thread.cwd,
+    },
+  };
+  notify({
+    method: 'item/autoApprovalReview/started',
+    params: {
+      ...common,
+      review: { status: 'inProgress', riskLevel: null, userAuthorization: null, rationale: null },
+    },
+  });
+  finishes.set(
+    turn.id,
+    setTimeout(
+      () => {
+        if (turn.status !== 'inProgress') return;
+        if (status === 'unfinished') {
+          complete(thread, turn, 'interrupted');
+          return;
+        }
+        const rationales = {
+          approved: '当前命令仅查看已授权项目内的文件，没有外部写入。',
+          denied:
+            '该操作会把项目截图发送到外部站点，当前请求未授权发布该文件。请先明确接收方与公开范围。',
+          timedOut: '自动审核在时限内没有返回结果，本次操作未执行。',
+          aborted: '自动审核已中止，本次操作未执行。',
+        };
+        notify({
+          method: 'item/autoApprovalReview/completed',
+          params: {
+            ...common,
+            completedAtMs: Date.now(),
+            decisionSource: 'agent',
+            review: {
+              status,
+              riskLevel: status === 'approved' ? 'low' : status === 'denied' ? 'high' : null,
+              userAuthorization:
+                status === 'approved' ? 'high' : status === 'denied' ? 'low' : null,
+              rationale: rationales[status],
+            },
+          },
+        });
+        if (status === 'approved') execute(thread, turn, target);
+        else complete(thread, turn, 'interrupted');
+      },
+      options.autoReviewDelayMs ?? (prompt.includes('[auto-review-slow]') ? 4000 : 1500),
+    ),
   );
 }
 function approval(
@@ -678,7 +749,21 @@ function receive(request: ClientRequest): void {
               : prompt.includes('[approval]')
                 ? 'command'
                 : undefined);
-      if (kind) approval(thread, turn, kind);
+      const reviewStatus =
+        options.autoReview ??
+        (prompt.includes('[auto-review-denied]')
+          ? 'denied'
+          : prompt.includes('[auto-review-approved]')
+            ? 'approved'
+            : prompt.includes('[auto-review-timeout]')
+              ? 'timedOut'
+              : prompt.includes('[auto-review-aborted]')
+                ? 'aborted'
+                : prompt.includes('[auto-review-unknown]')
+                  ? 'unfinished'
+                  : undefined);
+      if (reviewStatus) autoReview(thread, turn, reviewStatus, prompt);
+      else if (kind) approval(thread, turn, kind);
       else execute(thread, turn);
       break;
     }

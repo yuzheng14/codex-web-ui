@@ -832,6 +832,127 @@ svg {
 .markdown img {
   max-width: 100%;
 }
+.auto-review-card {
+  min-width: 0;
+  margin: 10px 0 10px 40px;
+  padding: 12px 14px;
+  border: 1px solid #e2e7e3;
+  border-radius: 7px;
+  background: #fafcfb;
+  color: #66756c;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.auto-review-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+.auto-review-heading > svg {
+  flex-shrink: 0;
+}
+.auto-review-heading h3 {
+  min-width: 0;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+}
+.auto-review-status {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: #edf1ee;
+  color: #617267;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.auto-review-inProgress,
+.auto-review-timedOut {
+  border-color: #e8dfc9;
+  background: #fdfbf5;
+}
+.auto-review-inProgress .auto-review-heading,
+.auto-review-timedOut .auto-review-heading {
+  color: #8f7135;
+}
+.auto-review-inProgress .auto-review-status,
+.auto-review-timedOut .auto-review-status {
+  background: #f5edd9;
+  color: #8b6726;
+}
+.auto-review-approved .auto-review-status {
+  background: #e9f2eb;
+  color: #41694c;
+}
+.auto-review-denied {
+  border-color: #efd0cc;
+  background: #fff6f4;
+}
+.auto-review-denied .auto-review-heading {
+  color: #ae4c42;
+}
+.auto-review-denied .auto-review-status {
+  background: #fae5e1;
+  color: #a13e34;
+}
+.auto-review-operation {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.auto-review-operation > span {
+  font-weight: 600;
+  color: #66746b;
+}
+.auto-review-operation > code {
+  min-width: 0;
+  color: #4e6154;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.auto-review-rationale {
+  margin-top: 10px;
+  line-height: 1.6;
+}
+.auto-review-rationale strong {
+  font-weight: 600;
+}
+.auto-review-rationale p {
+  margin: 3px 0 0;
+  color: #56655c;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.auto-review-details {
+  margin-top: 10px;
+  font-size: 10px;
+}
+.auto-review-details > summary {
+  color: #839087;
+}
+.auto-review-details dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid #e4e8e3;
+  line-height: 1.5;
+}
+.auto-review-details dt {
+  color: #7c897f;
+}
+.auto-review-details dd {
+  min-width: 0;
+  margin: 0;
+  color: #586b5d;
+  overflow-wrap: anywhere;
+}
 .activity {
   margin: 10px 0 10px 40px;
   border: 1px solid #e8ebea;
@@ -1746,6 +1867,7 @@ dd {
     padding: 11px 15px;
   }
   .activity,
+  .auto-review-card,
   .turn-diff {
     margin-left: 0;
   }

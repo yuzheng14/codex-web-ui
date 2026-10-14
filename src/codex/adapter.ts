@@ -2,6 +2,7 @@ import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import { AppError } from '../shared/errors.js';
+import { mapAutoReview } from './auto-review.js';
 import {
   normalizeElicitationRequest,
   validateElicitationResolution,
@@ -533,6 +534,15 @@ export class CodexAdapter implements CodexClient {
     const event = message as ServerNotification;
     const p = event.params;
     switch (event.method) {
+      case 'item/autoApprovalReview/started':
+      case 'item/autoApprovalReview/completed':
+        this.emit({
+          type: 'autoReview',
+          threadId: event.params.threadId,
+          turnId: event.params.turnId,
+          review: mapAutoReview(event.params),
+        });
+        break;
       case 'thread/started':
         this.emit({ type: 'thread', thread: mapThread(event.params.thread) });
         break;

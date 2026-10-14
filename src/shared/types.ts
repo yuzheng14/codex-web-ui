@@ -28,6 +28,20 @@ export interface FileChange {
   kind: string;
   diff: string;
 }
+/** Observed automatic review only; it is never a request for user authorization. */
+export interface AutoReviewView {
+  reviewId: string;
+  targetItemId?: string;
+  status: 'inProgress' | 'approved' | 'denied' | 'timedOut' | 'aborted' | 'unknown';
+  actionLabel: string;
+  actionSummary: string;
+  cwd?: string;
+  rationale?: string;
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+  userAuthorization?: 'unknown' | 'low' | 'medium' | 'high';
+  startedAtMs: number;
+  completedAtMs?: number;
+}
 export interface ItemView {
   id: string;
   type: string;
@@ -40,6 +54,7 @@ export interface ItemView {
   details?: unknown;
   truncated?: boolean;
   error?: string;
+  autoReview?: AutoReviewView;
 }
 export interface TurnView {
   id: string;

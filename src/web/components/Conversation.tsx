@@ -4,6 +4,7 @@ import type { ItemView, ThreadView } from '../../shared/types';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { Status } from './Status';
+import { AutoReviewCard } from './AutoReviewCard';
 
 function TextContent({ text }: { text: string }) {
   return (
@@ -121,6 +122,9 @@ function Diff({ text }: { text: string }) {
 }
 
 function Item({ item }: { item: ItemView }) {
+  if (item.type === 'autoApprovalReview' && item.autoReview) {
+    return <AutoReviewCard review={item.autoReview} />;
+  }
   if (item.type === 'userMessage' || item.type === 'agentMessage') {
     const user = item.type === 'userMessage';
     return (
