@@ -8,10 +8,10 @@
 | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm install --frozen-lockfile` / `pnpm peers check`             | 锁定稳定依赖，无未满足 peer 依赖；允许 esbuild/better-sqlite3 必要安装脚本                                                 |
 | `pnpm typecheck`、`pnpm lint`                                     | 通过，全应用严格 TypeScript，生成协议不手工改动                                                                            |
-| `pnpm test`                                                       | 112 项通过；真实测试子进程和临时 SQLite，覆盖多入口配置、兼容性确认、文本保真、传输、事务、恢复、竞争、鉴权、WS、浏览器状态逻辑 |
+| `pnpm test`                                                       | 135 项通过；真实测试子进程和临时 SQLite，覆盖 Fork、多入口配置、兼容性确认、文本保真、传输、事务、恢复、竞争、鉴权、WS、浏览器状态逻辑 |
 | `pnpm start -- --config …` / `pnpm db:migrate -- --config …`      | 使用隔离临时配置实际执行，生产启动和连续两次迁移通过                                                                       |
 | `pnpm build`                                                      | 通过；Vite 页面、Node ESM、SQL 迁移及元数据均在 dist                                                                       |
-| `pnpm test:e2e`                                                   | Chromium 验证生产构建 React 去重，以及显式模拟 app-server 下的兼容性确认与恢复、对话/工具/diff、刷新、审批断线、结构化问题、手机及 IME；11 项全部通过 |
+| `pnpm test:e2e`                                                   | Chromium 验证生产构建 React 去重，以及显式模拟 app-server 下的 Fork、兼容性确认与恢复、对话/工具/diff、刷新、审批断线、结构化问题、手机及 IME；19 项全部通过 |
 | `node --import tsx scripts/verify-production.ts`                  | 通过；复制生产产物到独立临时目录，从其他 cwd 启动。打包迁移、页面、API、WS 可用；Codex 缺失显示不可用，不回退模拟          |
 | `pnpm codex:generate -- --config …`                               | 通过；使用配置指定的实际 0.162.1 二进制生成 743 个协议类型文件                                                             |
 | `node --import tsx scripts/live-browser-smoke.ts --inference`     | 真实 Chromium + 实际 Codex 通过；见 [机器可读记录](real-browser-verification.json)                                         |
@@ -36,6 +36,10 @@
 2026-10-14 修复首页白屏：生产副本的依赖树包含同版本 React 的不同目录副本，原始构建在 Chromium 中复现 `Cannot read properties of null (reading 'useState')`。Vite 对 React / ReactDOM 统一解析到根依赖后，用相同生产依赖构建到隔离目录，首页渲染成功且无 pageerror；未改动生产副本或运行中的服务。新增浏览器回归测试主动构造两份 React，校验生产构建后的首次渲染和状态更新；移除修复可复现同一错误。112 项测试、11 项 Chromium 验收、类型检查、Lint、构建与隔离生产检查通过。
 
 ## 故障和恢复覆盖
+
+2026-10-14 Fork 功能增加 23 项单元/集成测试及 8 项浏览器验收。覆盖普通、外部、活动及未知源会话；分页 turn/item 历史复制、源审批保持、同目录互斥、目录归属、兼容性确认、操作去重、成功后历史读取失败、回执恢复、源草稿保留、晚到结果不抢导航、空会话提示及 390px 手机布局。外部来源的浏览器用例只模拟展示状态，成功 Fork 仍经过真实网关；外部所有权语义由服务层测试覆盖。
+
+API 层从独立 Git 归档通过 typecheck、lint 和 134 项测试；最终两层合入 React 去重修复后，通过 typecheck、lint、135 项测试、19 项浏览器验收、构建及隔离生产产物检查。另以真实 Codex 0.162.1、隔离 CODEX_HOME 和人工持久历史执行无推理 Fork，已验证副本 ID、父 ID、目录、消息及源文件不变，精确范围见 [兼容性说明](compatibility.md)。未使用用户历史或发起模型请求。
 
 - T01–T02：UTF-8 跨块、0 与字符串 ID、乱序/交错、回执不等于终态、无效/超大 JSONL、写入失败和超时。
 - T03–T04：关闭所有 WS 后 PID 不变、完成后快照恢复；快照发送边界内插入事件、过期游标、不同会话缓存、重复序号与全局事件分离。

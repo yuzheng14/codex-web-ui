@@ -1,7 +1,7 @@
 import type { SystemInfo } from '../../shared/types';
 import type { ConnectionState } from './realtime';
 
-const protectedOperations = new Set(['create', 'resume', 'send', 'steer', 'resolve']);
+const protectedOperations = new Set(['create', 'fork', 'resume', 'send', 'steer', 'resolve']);
 
 /** A dismissal never applies to a different runtime, executable version or verified baseline. */
 export function compatibilityFingerprint(system?: SystemInfo) {

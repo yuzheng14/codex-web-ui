@@ -19,6 +19,9 @@ interface Props {
   submitting: boolean;
   interrupting: boolean;
   resuming: boolean;
+  canFork: boolean;
+  forking: boolean;
+  onFork: () => void;
 }
 export function Composer(props: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -45,7 +48,12 @@ export function Composer(props: Props) {
       {external && (
         <div className="external-handoff">
           <strong>外部会话 · 活动状态未知</strong>
-          <p>继续前，请先停止原 CLI 或编辑器中对此会话的操作。</p>
+          <p>可直接 Fork 已保存的历史为新会话，无需停止原会话。新会话使用同一项目目录。</p>
+          <Button size="sm" variant="secondary" disabled={!props.canFork} onClick={props.onFork}>
+            <Icon name="fork" size={14} />
+            {props.forking ? '正在确认 Fork…' : 'Fork 为新会话'}
+          </Button>
+          <p>要继续操作原会话，请先停止原 CLI 或编辑器中对此会话的操作。</p>
           <label>
             <input
               type="checkbox"

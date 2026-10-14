@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Operation, Project, Settings, SystemInfo, ThreadView } from '../../shared/types';
 import { api, HttpError } from '../lib/api';
-import { isSettled, readOperations, saveOperations, type SavedOperation } from '../lib/operations';
+import {
+  blocksTarget,
+  isSettled,
+  readOperations,
+  saveOperations,
+  type SavedOperation,
+} from '../lib/operations';
 import { ThreadStream, type ConnectionState } from '../lib/realtime';
 import { readableError } from '../lib/utils';
 import { operationNeedsCompatibilityConfirmation } from '../lib/compatibility';
@@ -143,13 +149,25 @@ export function useWorkspace() {
           (known.kind === 'create' ? result?.id : undefined);
         if (known.kind === 'create' && known.target === projectRef.current && id)
           void selectThread(id);
+        if (known.kind === 'fork' && id) {
+          if (
+            known.navigateToResult &&
+            known.projectId === projectRef.current &&
+            known.target === selectedRef.current
+          ) {
+            void selectThread(id);
+          } else {
+            // A late receipt still adds the new thread to the list without changing navigation.
+            void api.thread(id).then(updateThread).catch(report);
+          }
+        }
       }
       if (isSettled(operation))
         track((previous) =>
           previous.filter((entry) => entry.clientOperationId !== operation.clientOperationId),
         );
     },
-    [refreshSystem, selectThread, track],
+    [refreshSystem, selectThread, track, updateThread, report],
   );
 
   const refreshOperations = useCallback(async () => {
@@ -303,6 +321,11 @@ export function useWorkspace() {
       }
       const key = `${kind}:${target}`;
       if (busyRef.current.has(key)) return;
+      if (
+        kind === 'fork' &&
+        operationsRef.current.some((entry) => entry.kind === 'fork' && blocksTarget(entry, target))
+      )
+        return;
       busyRef.current.add(key);
       setBusy([...busyRef.current]);
       setError(undefined);
@@ -310,7 +333,14 @@ export function useWorkspace() {
       const clientOperationId = crypto.randomUUID();
       track((previous) => [
         ...previous,
-        { clientOperationId, kind, target, createdAt: Date.now(), status: 'accepted' },
+        {
+          clientOperationId,
+          kind,
+          target,
+          createdAt: Date.now(),
+          status: 'accepted',
+          ...(kind === 'fork' ? { projectId: projectRef.current, navigateToResult: true } : {}),
+        },
       ]);
       try {
         const operation = await api.submit(path, { ...body, clientOperationId });
@@ -322,7 +352,8 @@ export function useWorkspace() {
           problem instanceof HttpError &&
           problem.status >= 400 &&
           problem.status < 500 &&
-          problem.status !== 408
+          problem.status !== 408 &&
+          problem.problem.code !== 'RESULT_UNKNOWN'
         ) {
           track((previous) =>
             previous.filter((entry) => entry.clientOperationId !== clientOperationId),
@@ -356,15 +387,30 @@ export function useWorkspace() {
     [applyOperation, report, track, system],
   );
 
+  const cancelForkNavigation = () => {
+    if (operationsRef.current.some((entry) => entry.kind === 'fork' && entry.navigateToResult))
+      track((previous) =>
+        previous.map((entry) =>
+          entry.kind === 'fork' ? { ...entry, navigateToResult: false } : entry,
+        ),
+      );
+  };
+
   return {
     projects,
     projectId,
-    setProjectId,
+    setProjectId: (id: string) => {
+      cancelForkNavigation();
+      setProjectId(id);
+    },
     threads,
     nextCursor,
     thread,
     selectedId,
-    selectThread,
+    selectThread: (id: string) => {
+      cancelForkNavigation();
+      return selectThread(id);
+    },
     system,
     connection,
     error,

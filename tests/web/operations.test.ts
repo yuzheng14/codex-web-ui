@@ -54,6 +54,29 @@ describe('durable operation identity', () => {
     expect(readOperations({ getItem: () => '{invalid' })).toEqual([]);
     expect(readOperations({ getItem: () => '[null, {"target":123}]' })).toEqual([]);
   });
+  it('preserves fork identity and cancelled navigation while discarding response projections', () => {
+    let data = '';
+    const storage = {
+      setItem: (_key: string, value: string) => {
+        data = value;
+      },
+      getItem: () => data,
+    };
+    const entry: SavedOperation = {
+      clientOperationId: 'fork-id',
+      kind: 'fork',
+      target: 'source-thread',
+      projectId: 'project',
+      createdAt: 1,
+      status: 'unknown',
+      navigateToResult: false,
+      error: 'Response details are not durable',
+    };
+    expect(saveOperations([entry], storage)).toBe(true);
+    expect(readOperations(storage)).toEqual([{ ...entry, error: undefined }]);
+    expect(data).not.toContain('Response details');
+    expect(blocksTarget(readOperations(storage)[0]!, 'source-thread')).toBe(true);
+  });
   it('retains unknown audit state without blocking new work after explicit reconciliation', () => {
     const entry: SavedOperation = {
       clientOperationId: 'old',
