@@ -182,7 +182,7 @@ export function Composer(props: Props) {
       <p className="composer-note">
         {active
           ? '关闭页面不会停止任务。中断以 Codex 返回的实际状态为准。'
-          : 'Codex 使用本机项目与权限执行，请核对操作和变更。'}
+          : 'Codex 使用服务器项目与权限执行，请核对操作和变更。'}
       </p>
     </div>
   );

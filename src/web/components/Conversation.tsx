@@ -152,10 +152,16 @@ export function Conversation({
   thread,
   offline,
   projectName,
+  needsProject = false,
+  canAddProject = true,
+  onAddProject,
 }: {
   thread?: ThreadView;
   offline: boolean;
   projectName?: string;
+  needsProject?: boolean;
+  canAddProject?: boolean;
+  onAddProject?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -194,13 +200,27 @@ export function Conversation({
               <div className="empty-symbol">
                 <Icon name="code" size={36} />
               </div>
-              <p className="eyebrow">你的本地开发工作空间</p>
-              <h1>从一个想法，开始工作。</h1>
-              <p>
-                选择会话继续，或在{projectName ? `「${projectName}」` : '项目'}中新建会话。
-                <br />
-                Codex 在你的电脑上执行，你在这里掌握进展。
-              </p>
+              <p className="eyebrow">你的开发工作空间</p>
+              <h1>{needsProject ? '添加项目，开始工作。' : '从一个想法，开始工作。'}</h1>
+              {needsProject ? (
+                <>
+                  <p>
+                    连接服务器上已有的项目目录，继续历史会话或创建新任务。
+                    <br />
+                    项目会保存在服务器上，下次打开即可继续。
+                  </p>
+                  <Button onClick={onAddProject} disabled={!canAddProject}>
+                    <Icon name="plus" size={16} />
+                    添加项目
+                  </Button>
+                </>
+              ) : (
+                <p>
+                  选择会话继续，或在{projectName ? `「${projectName}」` : '项目'}中新建会话。
+                  <br />
+                  Codex 在运行服务的电脑上执行，你在这里掌握进展。
+                </p>
+              )}
               <div className="empty-features">
                 <span>
                   <Icon name="terminal" size={16} />

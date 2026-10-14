@@ -40,6 +40,15 @@ export class ProjectThreadsStore {
     )?.[0];
   }
 
+  removeProject(projectId: string) {
+    // Keep the sequence as a tombstone so an older read cannot restore a removed project.
+    this.sequences.set(projectId, (this.sequences.get(projectId) ?? 0) + 1);
+    const next = { ...this.value };
+    for (const thread of next[projectId]?.data ?? []) this.versions.delete(thread.id);
+    delete next[projectId];
+    this.value = next;
+  }
+
   beginRead(projectId: string, append = false): Read {
     const sequence = (this.sequences.get(projectId) ?? 0) + 1;
     this.sequences.set(projectId, sequence);
