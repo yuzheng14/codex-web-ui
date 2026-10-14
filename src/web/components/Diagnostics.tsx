@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Operation, SystemInfo, ThreadView } from '../../shared/types';
 import type { SavedOperation } from '../lib/operations';
 import { needsReconciliation } from '../lib/operations';
@@ -36,11 +36,13 @@ function OperationCard({
   thread,
   onReconcile,
   busy,
+  refreshing,
 }: {
   entry: SavedOperation;
   thread?: ThreadView;
   onReconcile: (id: string) => void;
   busy: boolean;
+  refreshing: boolean;
 }) {
   const [confirmed, setConfirmed] = useState(false);
   const execution = entry.operation?.execution;
@@ -104,10 +106,10 @@ function OperationCard({
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={!confirmed || busy}
+                  disabled={!confirmed || busy || refreshing}
                   onClick={() => onReconcile(entry.clientOperationId)}
                 >
-                  {fork ? '核对此次 Fork' : '核对并解除旧占用'}
+                  {busy ? '正在提交核对…' : fork ? '核对此次 Fork' : '核对并解除旧占用'}
                 </Button>
               </>
             )}
@@ -131,6 +133,9 @@ export function Diagnostics({
   onRefresh,
   onReconcile,
   busy,
+  open,
+  onOpenChange,
+  refreshing,
 }: {
   system?: SystemInfo;
   connection: ConnectionState;
@@ -139,21 +144,62 @@ export function Diagnostics({
   onRefresh: () => void;
   onReconcile: (id: string) => void;
   busy: string[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  refreshing: boolean;
 }) {
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) panel.current?.focus();
+  }, [open]);
   return (
-    <details className="diagnostics">
+    <details
+      className="diagnostics"
+      open={open}
+      onToggle={(event) => onOpenChange(event.currentTarget.open)}
+    >
       <summary>
         <Icon name="settings" size={16} />
         状态诊断{operations.length > 0 && <span className="count-badge">{operations.length}</span>}
       </summary>
-      <div className="diagnostics-panel">
+      <div
+        className="diagnostics-panel"
+        id="diagnostics-panel"
+        ref={panel}
+        tabIndex={-1}
+        role="region"
+        aria-label="状态诊断详情"
+        aria-busy={refreshing}
+      >
         <div className="diagnostics-heading">
           <h2>运行状态</h2>
-          <Button variant="ghost" size="sm" onClick={onRefresh}>
+          <Button variant="ghost" size="sm" disabled={refreshing} onClick={onRefresh}>
             <Icon name="refresh" size={14} />
-            刷新状态
+            {refreshing ? '正在核对…' : '刷新状态'}
           </Button>
         </div>
+        <section className="operation-section">
+          <h3>操作与状态核对</h3>
+          <p className="subtle" role="status">
+            {refreshing
+              ? '正在核对会话历史和提交回执…'
+              : thread?.status === 'unknown'
+                ? '会话状态仍待核对。请检查操作记录和原执行环境。'
+                : operations.length > 0
+                  ? '请查看提交记录；核对不会自动重发任务。'
+                  : '没有待核对的提交。'}
+          </p>
+          {operations.map((entry) => (
+            <OperationCard
+              key={entry.clientOperationId}
+              entry={entry}
+              thread={thread}
+              onReconcile={onReconcile}
+              busy={busy.includes(`reconcile:${entry.clientOperationId}`)}
+              refreshing={refreshing}
+            />
+          ))}
+        </section>
         <dl>
           <dt>网页连接</dt>
           <dd>{connectionLabels[connection]}</dd>
@@ -192,20 +238,6 @@ export function Diagnostics({
             <summary>已支持能力</summary>
             <p>{system.capabilities.join(' · ') || '暂无'}</p>
           </details>
-        )}
-        {operations.length > 0 && (
-          <section className="operation-section">
-            <h3>操作与状态核对</h3>
-            {operations.map((entry) => (
-              <OperationCard
-                key={entry.clientOperationId}
-                entry={entry}
-                thread={thread}
-                onReconcile={onReconcile}
-                busy={busy.includes(`reconcile:${entry.clientOperationId}`)}
-              />
-            ))}
-          </section>
         )}
       </div>
     </details>
