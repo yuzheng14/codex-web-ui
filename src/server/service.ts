@@ -4,6 +4,7 @@ import type {
   ConfirmCompatibilityInput,
   CreateThreadInput,
   Cursor,
+  ForkThreadInput,
   InterruptInput,
   Operation,
   PendingAction,
@@ -217,6 +218,39 @@ export class GatewayService {
       this.projection.thread(resumed, this.projection.revision(threadId) !== revision);
       this.publishThread(threadId);
       return { result: { threadId } };
+    });
+  }
+
+  async forkThread(threadId: string, input: ForkThreadInput): Promise<Operation> {
+    return this.perform('thread.fork', threadId, input, async () => {
+      this.ensureReady();
+      // Reading through getThread can reconcile recovered execution markers. Forking only
+      // reads the source: its ownership, projection and execution remain untouched.
+      const source = this.projection.get(threadId) ?? (await this.codex.readThread(threadId));
+      const link = this.store.getThreadLink(threadId);
+      const ownership = link
+        ? this.projects.assertOwnership(link.projectId, source.cwd)
+        : this.projects.findOwner(source.cwd);
+      this.ensureCompatibilityConfirmed();
+      const epoch = this.codex.epoch;
+      this.store.dispatch(input.clientOperationId);
+      const forked = await this.codex.forkThread(threadId, ownership.cwd, input.settings);
+      if (forked.id === threadId || this.codex.epoch !== epoch || !this.codex.ready)
+        throw new Error('分叉请求已发送，但返回的新会话无法确认，请核对历史');
+      let normalized: ThreadView;
+      try {
+        normalized = this.normalize(
+          { ...forked, forkedFromId: threadId },
+          ownership.project.id,
+          true,
+        );
+      } catch (error) {
+        // A malformed result does not prove that upstream failed to create the fork.
+        throw new Error('分叉请求已发送，但返回的会话目录无法确认，请核对历史', { cause: error });
+      }
+      this.projection.thread(normalized, this.projection.get(forked.id) !== undefined);
+      this.publishThread(forked.id);
+      return { result: { threadId: forked.id, forkedFromId: threadId } };
     });
   }
 

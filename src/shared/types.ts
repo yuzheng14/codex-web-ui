@@ -51,6 +51,7 @@ export interface TurnView {
 }
 export interface ThreadView {
   id: string;
+  forkedFromId?: string;
   projectId: string;
   cwd: string;
   source: string;
@@ -105,6 +106,7 @@ export interface ConfirmCompatibilityInput extends OperationInput {
 export interface CreateThreadInput extends OperationInput {
   settings?: Settings;
 }
+export type ForkThreadInput = CreateThreadInput;
 export interface ResumeThreadInput extends CreateThreadInput {
   confirmExternalStopped?: boolean;
 }

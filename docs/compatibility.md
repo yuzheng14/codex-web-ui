@@ -12,6 +12,7 @@
 | 历史来源   | `thread/list.sourceKinds` 显式为 `cli`、`appServer`、`vscode`；省略只匹配原始字符串的 `cwd`，由服务层按 realpath 和目录边界筛选归属，保留符号链接别名和项目子目录历史 |
 | 分页历史   | `Thread.historyMode` 可为 `paginated`；此时用 `thread/turns/list` 与必要的 `thread/items/list` 完整加载，不假定 `thread/read(includeTurns)` 覆盖所有历史              |
 | 新建、恢复 | `thread/start`、`thread/resume` 只映射已定义设置；恢复附带服务端已校验的 `cwd`                                                                                        |
+| 分叉会话   | `thread/fork` 使用源会话校验后的 `cwd`、`excludeTurns: true`，省略 `lastTurnId`；新 ID 再通过历史读取接口加载，保留 `forkedFromId`。运行中的源会话继续执行，分支记录已保存历史及中断状态 |
 | 文本输入   | `input: [{ type: 'text', text, text_elements: [] }]`，追加要求使用 `turn/steer.expectedTurnId`                                                                        |
 | 推理强度   | turn 使用 `effort`；新建和恢复通过协议支持的 `config.model_reasoning_effort` 设置；选项来自 `model/list`                                                              |
 | 权限       | thread 使用 `sandbox` 枚举；turn 映射为 `sandboxPolicy` 对象，不直接透传浏览器字段                                                                                    |
@@ -20,6 +21,8 @@
 | 回答确认   | 写入回复后保持 responding；`serverRequest/resolved` 才确认 answered，turn 结束或进程退出使遗留请求失效                                                                |
 | 请求 ID    | 字符串与数字分别匹配，数字 `0` 有效；不依赖响应顺序                                                                                                                   |
 | 新活动类型 | 保留稳定 item ID，以通用活动详情展示；未知交互请求显示兼容错误并回复 JSON-RPC `-32601`，不会自动同意                                                                  |
+
+2026-10-14 的 Fork 检查使用真实 `0.162.1`、独立临时 `CODEX_HOME` 和人工构造的持久历史，无登录、无模型请求。已验证新 ID、父会话 ID、目录与消息复制、completed 状态保留，以及源历史文件逐字节不变；未结束的静态历史副本为 interrupted。真实运行中推理及真实分页 Fork 未在此检查中验证，相关行为由协议 fixture 覆盖。刚新建但未落盘的空会话会被 CLI 拒绝（`no rollout found`）。
 
 历史列表保留上游分页游标。归属筛选后某页可能较少或为空，仍可通过“加载更多”继续下一页；不能将空页误判为历史结束。
 
@@ -33,7 +36,7 @@
 
 `GET /api/system` 的 `compatibilityConfirmation` 为 `not-required`、`required` 或 `confirmed`。客户端通过 `POST /api/system/compatibility/confirm` 明确确认，提交新的 `clientOperationId`、当前 `codexEpoch`、`codexVersion`、`verifiedVersion` 和 `confirm: true`，返回可查询、可去重的标准操作回执。此接口使用与其他变更操作相同的身份、Origin、JSON 和请求体校验。
 
-确认前，服务端阻止新建、恢复、发送、追加和回答人工请求，返回 `COMPATIBILITY_CONFIRMATION_REQUIRED`；新确认携带旧版本或旧运行实例时返回 `COMPATIBILITY_CHANGED`。重试相同操作 ID 只返回原回执，不重新授权。读取历史、查看诊断、正常中断和原有人工核对不受该确认门槛影响。确认只允许尝试尚未验证的版本，不能绕过初始化失败或已经禁用的方法。
+确认前，服务端阻止新建、Fork、恢复、发送、追加和回答人工请求，返回 `COMPATIBILITY_CONFIRMATION_REQUIRED`；新确认携带旧版本或旧运行实例时返回 `COMPATIBILITY_CHANGED`。重试相同操作 ID 只返回原回执，不重新授权。读取历史、查看诊断、正常中断和原有人工核对不受该确认门槛影响。确认只允许尝试尚未验证的版本，不能绕过初始化失败或已经禁用的方法。
 
 确认在网关内存中绑定运行版本、已验证版本和 Codex 运行实例。同一实例内刷新、重连或打开其他标签页共享确认；网关或 Codex 重启、版本变化后重新确认。持久化操作回执仅用于审计和查询，不会在重启后重新授予确认。已确认的版本仍显示“尚未验证”，不会变为 verified。
 

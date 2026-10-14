@@ -17,6 +17,7 @@ export const confirmCompatibilitySchema = operationSchema.extend({
   confirm: z.literal(true),
 });
 export const createThreadSchema = operationSchema.extend({ settings: settingsSchema.optional() });
+export const forkThreadSchema = createThreadSchema;
 export const resumeThreadSchema = createThreadSchema.extend({
   confirmExternalStopped: z.boolean().optional(),
 });

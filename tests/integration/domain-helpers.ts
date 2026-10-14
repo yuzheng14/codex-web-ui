@@ -50,6 +50,7 @@ export class DomainCodex implements CodexClient {
   steers = 0;
   interrupts = 0;
   resumes = 0;
+  forks = 0;
   replies = 0;
   stops = 0;
   startGate?: ReturnType<typeof deferred<TurnView>>;
@@ -102,6 +103,30 @@ export class DomainCodex implements CodexClient {
   async resumeThread(id: string, _cwd: string, _settings?: Settings) {
     this.resumes++;
     return this.readThread(id);
+  }
+  async forkThread(id: string, cwd: string, _settings?: Settings) {
+    this.forks++;
+    const source = await this.readThread(id);
+    const fork: ThreadView = {
+      ...source,
+      id: `fork-${this.forks}`,
+      cwd,
+      forkedFromId: id,
+      source: 'appServer',
+      managed: false,
+      status: 'idle',
+      actions: [],
+      turns: source.turns.map((turn) => ({
+        ...turn,
+        threadId: `fork-${this.forks}`,
+        status: ['running', 'waitingApproval', 'waitingInput'].includes(turn.status)
+          ? 'interrupted'
+          : turn.status,
+      })),
+    };
+    this.threads.set(fork.id, fork);
+    this.emit({ type: 'thread', thread: structuredClone(fork) });
+    return structuredClone(fork);
   }
   async startTurn(id: string, _cwd: string, text: string, _settings?: Settings) {
     this.starts++;

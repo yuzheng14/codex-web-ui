@@ -19,6 +19,7 @@ import type { ModelListResponse } from './generated/v2/ModelListResponse.js';
 import type { ThreadListResponse } from './generated/v2/ThreadListResponse.js';
 import type { ThreadReadResponse } from './generated/v2/ThreadReadResponse.js';
 import type { ThreadStartResponse } from './generated/v2/ThreadStartResponse.js';
+import type { ThreadForkResponse } from './generated/v2/ThreadForkResponse.js';
 import type { ThreadResumeResponse } from './generated/v2/ThreadResumeResponse.js';
 import type { ThreadTurnsListResponse } from './generated/v2/ThreadTurnsListResponse.js';
 import type { ThreadItemsListResponse } from './generated/v2/ThreadItemsListResponse.js';
@@ -58,6 +59,7 @@ export { CodexError } from './transport.js';
 export const VERIFIED_CODEX_VERSION = '0.162.1';
 const CAPABILITIES = [
   'thread/start',
+  'thread/fork',
   'thread/read',
   'thread/list',
   'thread/resume',
@@ -76,6 +78,7 @@ type Responses = {
   'thread/list': ThreadListResponse;
   'thread/read': ThreadReadResponse;
   'thread/start': ThreadStartResponse;
+  'thread/fork': ThreadForkResponse;
   'thread/resume': ThreadResumeResponse;
   'thread/turns/list': ThreadTurnsListResponse;
   'thread/items/list': ThreadItemsListResponse;
@@ -430,6 +433,41 @@ export class CodexAdapter implements CodexClient {
       ...threadSettings(settings),
     });
     return thread.historyMode === 'paginated' ? this.readThread(thread.id) : mapThread(thread);
+  }
+  async forkThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
+    this.validateSettings(settings);
+    const result = await this.call('thread/fork', {
+      threadId: id,
+      cwd,
+      ...threadSettings(settings),
+      // Omitting lastTurnId copies the persisted history, including an active turn's
+      // interruption marker in the fork. The source is never resumed or interrupted.
+      excludeTurns: true,
+    });
+    let forkedId: string | undefined;
+    try {
+      if (isRecord(result) && isRecord(result.thread) && typeof result.thread.id === 'string')
+        forkedId = result.thread.id === id ? undefined : result.thread.id;
+      const metadata = mapThread(result.thread);
+      if (metadata.id === id)
+        throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex fork returned the source thread ID');
+      forkedId = metadata.id;
+      const thread = await this.readThread(forkedId);
+      if (thread.id !== forkedId)
+        throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex returned a different fork thread ID');
+      return thread;
+    } catch (error) {
+      const failure = asCodexError(error);
+      // The mutating RPC already succeeded. A read failure cannot make a retry safe.
+      throw new CodexError(
+        failure.code,
+        forkedId
+          ? `已创建分支会话 ${forkedId}，但无法加载历史；请从会话列表重新打开，不要重复 fork。${failure.message}`
+          : `Codex fork 已返回结果，但无法确认新会话；请检查会话列表，不要重复 fork。${failure.message}`,
+        true,
+        failure.rpcCode,
+      );
+    }
   }
   async startTurn(id: string, cwd: string, text: string, settings?: Settings): Promise<TurnView> {
     this.validateSettings(settings);

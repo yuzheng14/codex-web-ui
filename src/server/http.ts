@@ -105,6 +105,13 @@ export function createApp({
     );
     return c.json(op, status(op));
   });
+  app.post('/api/threads/:threadId/fork', async (c) => {
+    const op = await service.forkThread(
+      id(c.req.param('threadId')),
+      await parse(c, schemas.forkThreadSchema),
+    );
+    return c.json(op, status(op));
+  });
   app.post('/api/threads/:threadId/turns', async (c) => {
     const op = await service.startTurn(
       id(c.req.param('threadId')),
