@@ -1,11 +1,13 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { ThreadPage, ThreadView } from '../../src/shared/types';
 import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
 
 const headers = { Origin: 'http://127.0.0.1:8788' };
-const evidence = '/private/tmp/codex-permissions-evidence';
+const evidence = join(tmpdir(), 'codex-permissions-evidence');
 const isResolution = (request: Request) =>
   request.method() === 'POST' && /\/api\/actions\/[^/]+\/resolve$/.test(request.url());
 async function pendingTask(page: Page, prompt: string) {
