@@ -34,9 +34,20 @@ export const steerSchema = operationSchema.extend({
   text: taskTextSchema,
 });
 export const interruptSchema = operationSchema.extend({ expectedTurnId: idSchema });
+const elicitationValueSchema = z.union([
+  z.string().max(10_000),
+  z.number().finite(),
+  z.boolean(),
+  z.array(z.string().max(10_000)).max(500),
+]);
 export const resolveActionSchema = operationSchema.extend({
   resolution: z.union([
-    z.object({ decision: z.string().min(1).max(200) }).strict(),
+    z
+      .object({
+        decision: z.string().min(1).max(200),
+        content: z.record(z.string().max(1000), elicitationValueSchema).optional(),
+      })
+      .strict(),
     z.object({ answers: z.record(z.string(), z.array(z.string().max(10_000)).max(50)) }).strict(),
   ]),
 });

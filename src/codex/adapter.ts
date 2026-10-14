@@ -2,6 +2,11 @@ import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import { AppError } from '../shared/errors.js';
+import {
+  normalizeElicitationRequest,
+  validateElicitationResolution,
+  validatePermissionResolution,
+} from '../shared/elicitation.js';
 import type {
   ActionResolution,
   PendingAction,
@@ -30,6 +35,9 @@ import type { CommandExecutionApprovalDecision } from './generated/v2/CommandExe
 import type { CommandExecutionRequestApprovalResponse } from './generated/v2/CommandExecutionRequestApprovalResponse.js';
 import type { FileChangeRequestApprovalResponse } from './generated/v2/FileChangeRequestApprovalResponse.js';
 import type { ToolRequestUserInputResponse } from './generated/v2/ToolRequestUserInputResponse.js';
+import type { PermissionsRequestApprovalResponse } from './generated/v2/PermissionsRequestApprovalResponse.js';
+import type { McpServerElicitationRequestResponse } from './generated/v2/McpServerElicitationRequestResponse.js';
+import type { FileSystemPath } from './generated/v2/FileSystemPath.js';
 import {
   mapItem,
   mapThread,
@@ -101,6 +109,28 @@ type ActionContext = {
   decisions: Map<string, CommandExecutionApprovalDecision>;
   responding: boolean;
 };
+
+function permissionPathLabel(path: FileSystemPath): string {
+  if (path.type === 'path') return path.path;
+  if (path.type === 'glob_pattern') return `匹配：${path.pattern}`;
+  const special = path.value;
+  const subpath =
+    'subpath' in special && special.subpath !== null ? `（子路径：${special.subpath}）` : '';
+  switch (special.kind) {
+    case 'root':
+      return '整个文件系统（/）';
+    case 'minimal':
+      return '系统基础运行目录';
+    case 'project_roots':
+      return `项目根目录${subpath}`;
+    case 'tmpdir':
+      return '系统临时目录（TMPDIR）';
+    case 'slash_tmp':
+      return '/tmp';
+    case 'unknown':
+      return `特殊路径：${special.path}${subpath}`;
+  }
+}
 
 export class CodexAdapter implements CodexClient {
   epoch = randomUUID();
@@ -646,6 +676,55 @@ export class CodexAdapter implements CodexClient {
         action.title = '文件变更审批';
         action.details = { itemId: request.params.itemId, grantRoot: request.params.grantRoot };
       }
+    } else if (request.method === 'item/permissions/requestApproval') {
+      const p = request.params;
+      action.kind = 'permissions';
+      action.title = '额外权限审批';
+      action.reason = p.reason ?? undefined;
+      action.cwd = p.cwd;
+      action.options = [
+        { id: 'accept', label: '当前任务允许' },
+        { id: 'acceptForSession', label: '本会话允许' },
+        { id: 'decline', label: '拒绝' },
+      ];
+      action.permissionRequest = {
+        ...(p.permissions.network === null ? {} : { network: p.permissions.network.enabled }),
+        ...(p.permissions.fileSystem === null
+          ? {}
+          : {
+              fileSystem: {
+                read: p.permissions.fileSystem.read ?? [],
+                write: p.permissions.fileSystem.write ?? [],
+                entries: (p.permissions.fileSystem.entries ?? []).map((entry) => ({
+                  path: permissionPathLabel(entry.path),
+                  access: entry.access,
+                })),
+                ...(p.permissions.fileSystem.globScanMaxDepth === undefined
+                  ? {}
+                  : {
+                      globScanMaxDepth: p.permissions.fileSystem.globScanMaxDepth,
+                    }),
+              },
+            }),
+      };
+      action.details = {
+        itemId: p.itemId,
+        environmentId: p.environmentId,
+        permissions: p.permissions,
+      };
+    } else if (request.method === 'mcpServer/elicitation/request') {
+      action.kind = 'elicitation';
+      action.title = `MCP 交互：${request.params.serverName}`;
+      action.reason = request.params.message;
+      action.elicitation = normalizeElicitationRequest(params);
+      action.options = [
+        { id: 'accept', label: action.elicitation.mode === 'url' ? '已完成，继续' : '提交' },
+        { id: 'decline', label: '拒绝' },
+        { id: 'cancel', label: '取消' },
+      ];
+      // Keep an unsupported schema reviewable while allowing an explicit decline/cancel.
+      if (action.elicitation.schemaError)
+        action.details = { requestedSchema: params.requestedSchema, mode: params.mode };
     } else if (request.method === 'item/tool/requestUserInput') {
       action.kind = 'questions';
       action.title = '需要你的回答';
@@ -679,8 +758,33 @@ export class CodexAdapter implements CodexClient {
     let response:
       | ToolRequestUserInputResponse
       | CommandExecutionRequestApprovalResponse
-      | FileChangeRequestApprovalResponse;
-    if (context.request.method === 'item/tool/requestUserInput') {
+      | FileChangeRequestApprovalResponse
+      | PermissionsRequestApprovalResponse
+      | McpServerElicitationRequestResponse;
+    if (context.request.method === 'item/permissions/requestApproval') {
+      const decision = validatePermissionResolution(resolution);
+      const requested = context.request.params.permissions;
+      response = {
+        permissions:
+          decision === 'decline'
+            ? {}
+            : structuredClone({
+                ...(requested.network === null ? {} : { network: requested.network }),
+                ...(requested.fileSystem === null ? {} : { fileSystem: requested.fileSystem }),
+              }),
+        scope: decision === 'acceptForSession' ? 'session' : 'turn',
+      };
+    } else if (context.request.method === 'mcpServer/elicitation/request') {
+      const content = validateElicitationResolution(
+        normalizeElicitationRequest({ ...context.request.params }),
+        resolution,
+      );
+      response = {
+        action: (resolution as { decision: 'accept' | 'decline' | 'cancel' }).decision,
+        content,
+        _meta: null,
+      };
+    } else if (context.request.method === 'item/tool/requestUserInput') {
       if (!('answers' in resolution))
         throw new AppError('VALIDATION_ERROR', '此请求需要结构化回答');
       const questions = context.request.params.questions;
@@ -706,7 +810,11 @@ export class CodexAdapter implements CodexClient {
       }
       response = { answers };
     } else {
-      if (!('decision' in resolution) || !context.decisions.has(resolution.decision))
+      if (
+        !('decision' in resolution) ||
+        'content' in resolution ||
+        !context.decisions.has(resolution.decision)
+      )
         throw new AppError('VALIDATION_ERROR', '此请求不支持所提交的决定');
       response = { decision: context.decisions.get(resolution.decision)! };
     }

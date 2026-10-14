@@ -43,7 +43,10 @@ export function App() {
   const activeTurn = thread?.turns.findLast((turn) => isActive(turn.status));
   const actions =
     thread?.actions.filter(
-      (action) => action.status === 'pending' || action.status === 'responding',
+      (action) =>
+        action.status === 'pending' ||
+        action.status === 'responding' ||
+        (action.kind === 'unsupported' && action.status === 'expired'),
     ) ?? [];
   const waitingForConfirmation = thread && (unsettledFor(thread.id) || thread.status === 'unknown');
   const pendingFork = Boolean(

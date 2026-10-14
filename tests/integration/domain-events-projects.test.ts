@@ -239,6 +239,94 @@ describe('snapshot boundary, bounded events, and projection identity', () => {
   });
 });
 
+describe('approval context in bounded snapshots', () => {
+  it('preserves permission targets and form constraints when display-only context is removed', () => {
+    const thread = threadView('t', '/project');
+    thread.actions = [
+      {
+        actionId: 'permissions',
+        codexEpoch: 'epoch',
+        rpcId: 0,
+        threadId: 't',
+        kind: 'permissions',
+        status: 'pending',
+        title: '额外权限请求',
+        options: [
+          { id: 'accept', label: '允许本轮' },
+          { id: 'decline', label: '拒绝' },
+        ],
+        permissionRequest: {
+          network: true,
+          fileSystem: {
+            read: ['/project/config'],
+            write: ['/project/output'],
+            entries: [{ path: '/project/private', access: 'deny' }],
+          },
+        },
+        details: 'x'.repeat(100_000),
+      },
+      {
+        actionId: 'form',
+        codexEpoch: 'epoch',
+        rpcId: 1,
+        threadId: 't',
+        kind: 'elicitation',
+        status: 'pending',
+        title: '确认发布配置',
+        options: [
+          { id: 'accept', label: '提交' },
+          { id: 'decline', label: '拒绝' },
+        ],
+        elicitation: {
+          serverName: 'release',
+          mode: 'form',
+          fields: [
+            {
+              name: 'count',
+              title: '数量',
+              type: 'integer',
+              required: true,
+              minimum: 1,
+              maximum: 3,
+            },
+          ],
+        },
+        details: 'y'.repeat(100_000),
+      },
+    ];
+    const snapshot = compactThreadForTransport(thread, 4096);
+    expect(snapshot.actions[0]?.details).toBeUndefined();
+    expect(snapshot.actions[0]?.permissionRequest).toEqual(thread.actions[0]?.permissionRequest);
+    expect(snapshot.actions[1]?.elicitation).toEqual(thread.actions[1]?.elicitation);
+    expect(snapshot.actions.map((action) => action.options)).toEqual(
+      thread.actions.map((action) => action.options),
+    );
+  });
+
+  it('refuses to truncate an oversized permission target into a different grant', () => {
+    const thread = threadView('t', '/project');
+    thread.actions = [
+      {
+        actionId: 'permissions',
+        codexEpoch: 'epoch',
+        rpcId: 0,
+        threadId: 't',
+        kind: 'permissions',
+        status: 'pending',
+        title: '额外权限请求',
+        options: [{ id: 'accept', label: '允许本轮' }],
+        permissionRequest: {
+          fileSystem: { read: [], write: [`/project/${'a'.repeat(5000)}`], entries: [] },
+        },
+      },
+    ];
+    expect(() => compactThreadForTransport(thread, 1024)).toThrow('控制信息超出连接缓冲限制');
+    expect(thread.actions[0]?.permissionRequest?.fileSystem?.write[0]?.length).toBeGreaterThan(
+      5000,
+    );
+  });
+});
+
 describe('realpath ownership and checkout identity', () => {
   it('rejects sibling prefixes and symlinks escaping a registered directory', () => {
     const root = directory();

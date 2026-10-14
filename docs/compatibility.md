@@ -17,10 +17,14 @@
 | 推理强度   | turn 使用 `effort`；新建和恢复通过协议支持的 `config.model_reasoning_effort` 设置；选项来自 `model/list`                                                              |
 | 权限       | thread 使用 `sandbox` 枚举；turn 映射为 `sandboxPolicy` 对象，不直接透传浏览器字段                                                                                    |
 | 审批       | command/file 使用各自 decision 枚举；命令规则和网络规则只能采用上游请求提供的具体 amendment                                                                           |
+| 额外权限   | `item/permissions/requestApproval` 展示原始请求的网络及文件范围；允许本轮/本会话分别回复 `scope: turn/session`，拒绝回复空权限；浏览器不能提交或扩大权限范围 |
+| MCP 交互   | `mcpServer/elicitation/request` 支持 `form`、`openai/form`、`openaiForm` 的平面表单及 `url` 模式；回复 `action/content/_meta`，拒绝与取消保持独立语义。URL 仅允许 HTTP/HTTPS，必须由用户主动打开 |
 | 结构化问题 | `item/tool/requestUserInput`，回复为 `{ answers: { questionId: { answers: [...] } } }`；校验选项、自由输入和题目 ID，保留 `isBlocking` 语义                           |
 | 回答确认   | 写入回复后保持 responding；`serverRequest/resolved` 才确认 answered，turn 结束或进程退出使遗留请求失效                                                                |
 | 请求 ID    | 字符串与数字分别匹配，数字 `0` 有效；不依赖响应顺序                                                                                                                   |
 | 新活动类型 | 保留稳定 item ID，以通用活动详情展示；未知交互请求显示兼容错误并回复 JSON-RPC `-32601`，不会自动同意                                                                  |
+
+MCP 表单支持字符串、数字、整数、布尔值、单选和多选，以及必填、长度、数值范围、选项和数组长度约束。服务端在领取请求前校验回答，保留 `false`、`0` 和字符串空白；适配层发送前再次校验。不支持的结构或约束会显示说明并禁止接受，但仍允许明确拒绝或取消；不会默默忽略约束后授权。权限目标和表单控制信息不会随长会话输出一起被截断。
 
 2026-10-14 的 Fork 检查使用真实 `0.162.1`、独立临时 `CODEX_HOME` 和人工构造的持久历史，无登录、无模型请求。已验证新 ID、父会话 ID、目录与消息复制、completed 状态保留，以及源历史文件逐字节不变；未结束的静态历史副本为 interrupted。真实运行中推理及真实分页 Fork 未在此检查中验证，相关行为由协议 fixture 覆盖。刚新建但未落盘的空会话会被 CLI 拒绝（`no rollout found`）。
 

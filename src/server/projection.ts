@@ -151,7 +151,9 @@ export class Projection {
     );
     const turn = [...thread.turns].reverse().find((entry) => isActive(entry.status));
     if (!turn) return;
-    const status = active.some((action) => action.kind === 'questions')
+    const status = active.some(
+      (action) => action.kind === 'questions' || action.kind === 'elicitation',
+    )
       ? 'waitingInput'
       : active.length > 0
         ? 'waitingApproval'

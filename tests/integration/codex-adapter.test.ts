@@ -41,6 +41,19 @@ async function fixture(options: SimulatorOptions = {}, timeout = 5000) {
         .map((line) => JSON.parse(line) as { method: string; params: Record<string, unknown> }),
   };
 }
+async function replies(
+  dir: string,
+): Promise<{ id: string | number; result?: unknown; error?: unknown }[]> {
+  return (await readFile(join(dir, 'requests.jsonl'), 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
+    .filter((message) => !Object.hasOwn(message, 'method')) as {
+    id: string | number;
+    result?: unknown;
+    error?: unknown;
+  }[];
+}
 async function waitFor<T>(get: () => T | undefined): Promise<T> {
   for (let i = 0; i < 150; i++) {
     const value = get();
@@ -326,6 +339,239 @@ describe('verified protocol adapter with a real subprocess', () => {
       result: { answers: { theme: { answers: ['深色'] }, name: { answers: ['名字'] } } },
     });
   });
+  it.each([
+    ['accept', 'turn'],
+    ['acceptForSession', 'session'],
+    ['decline', 'turn'],
+  ] as const)(
+    'answers permission %s with the exact original profile and %s scope',
+    async (decision, scope) => {
+      const permissions = {
+        network: { enabled: true },
+        fileSystem: {
+          read: ['/tmp/reference'],
+          write: ['/tmp/report.txt'],
+          globScanMaxDepth: 2,
+          entries: [
+            {
+              path: { type: 'glob_pattern' as const, pattern: '/tmp/reports/*.png' },
+              access: 'write' as const,
+            },
+            {
+              path: { type: 'special' as const, value: { kind: 'tmpdir' as const } },
+              access: 'read' as const,
+            },
+            { path: { type: 'path' as const, path: '/tmp/private' }, access: 'deny' as const },
+          ],
+        },
+      };
+      const { adapter, events, dir } = await fixture({ approval: 'permissions', permissions });
+      const thread = await adapter.createThread('/tmp');
+      await adapter.startTurn(thread.id, thread.cwd, 'permission scope');
+      const incoming = await waitFor(() => events.find((event) => event.type === 'action'));
+      if (incoming.type !== 'action') throw new Error('Wrong event');
+      expect(incoming.action).toMatchObject({
+        kind: 'permissions',
+        status: 'pending',
+      });
+      expect(incoming.action.blocking).not.toBe(false);
+      expect(incoming.action.options.map((option) => option.id)).toEqual([
+        'accept',
+        'acceptForSession',
+        'decline',
+      ]);
+      const unsubscribe = adapter.onEvent(() => {});
+      unsubscribe();
+      expect((await adapter.readThread(thread.id)).status).toBe('waitingApproval');
+      expect(await replies(dir)).toEqual([]);
+      await expect(
+        adapter.respond(incoming.action.actionId, {
+          decision: 'accept',
+          content: { network: true },
+        }),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      await expect(
+        adapter.respond(incoming.action.actionId, { decision: 'cancel' }),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect(await replies(dir)).toEqual([]);
+      await adapter.respond(incoming.action.actionId, { decision });
+      await expect(adapter.respond(incoming.action.actionId, { decision })).rejects.toMatchObject({
+        code: 'ACTION_CONFLICT',
+      });
+      await waitFor(() => events.find((event) => event.type === 'actionResolved'));
+      expect(await replies(dir)).toEqual([
+        { id: 0, result: { permissions: decision === 'decline' ? {} : permissions, scope } },
+      ]);
+      await expect(adapter.respond(incoming.action.actionId, { decision })).rejects.toMatchObject({
+        code: 'ACTION_EXPIRED',
+      });
+      await waitFor(() =>
+        events.find(
+          (event) =>
+            event.type === 'turn' &&
+            event.turn.status === (decision === 'decline' ? 'interrupted' : 'completed'),
+        ),
+      );
+    },
+  );
+  it.each([
+    { network: { enabled: true }, fileSystem: null },
+    { network: null, fileSystem: { read: null, write: ['/tmp/only-this-file'] } },
+    { network: null, fileSystem: null },
+  ])('never adds omitted requested permissions: %j', async (permissions) => {
+    const { adapter, events, dir } = await fixture({ approval: 'permissions', permissions });
+    const thread = await adapter.createThread('/tmp');
+    await adapter.startTurn(thread.id, thread.cwd, 'limited permissions');
+    const incoming = await waitFor(() => events.find((event) => event.type === 'action'));
+    if (incoming.type !== 'action') throw new Error('Wrong event');
+    await adapter.respond(incoming.action.actionId, { decision: 'accept' });
+    await waitFor(() => events.find((event) => event.type === 'actionResolved'));
+    expect(await replies(dir)).toEqual([
+      {
+        id: 0,
+        result: {
+          permissions: Object.fromEntries(
+            Object.entries(permissions).filter(([, value]) => value !== null),
+          ),
+          scope: 'turn',
+        },
+      },
+    ]);
+  });
+  it.each(['elicitation-form', 'elicitation-openai', 'elicitation-openai-form'] as const)(
+    'accepts %s typed values only after valid explicit input',
+    async (approval) => {
+      const { adapter, events, dir } = await fixture({ approval, elicitationTurnId: null });
+      const thread = await adapter.createThread('/tmp');
+      await adapter.startTurn(thread.id, thread.cwd, 'structured MCP input');
+      const incoming = await waitFor(() => events.find((event) => event.type === 'action'));
+      if (incoming.type !== 'action') throw new Error('Wrong event');
+      expect(incoming.action).toMatchObject({
+        kind: 'elicitation',
+        status: 'pending',
+        elicitation: { mode: 'form', serverName: '截图发布服务' },
+      });
+      expect(incoming.action.turnId).toBeUndefined();
+      expect(incoming.action.elicitation?.schemaError).toBeUndefined();
+      const content = {
+        project: '截图项目',
+        retries: 0,
+        rating: 4.5,
+        notify: false,
+        environment: 'preview',
+        channels: ['web', 'mobile'],
+      };
+      for (const invalid of [
+        {},
+        { ...content, retries: '2' },
+        { ...content, retries: 1.5 },
+        { ...content, retries: 6 },
+        { ...content, rating: -1 },
+        { ...content, notify: 'false' },
+        { ...content, environment: 'invented' },
+        { ...content, channels: [] },
+        { ...content, channels: ['web', 'web'] },
+        { ...content, channels: ['invented'] },
+        { ...content, unexpected: 'field' },
+      ]) {
+        await expect(
+          adapter.respond(incoming.action.actionId, { decision: 'accept', content: invalid }),
+        ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      }
+      expect(await replies(dir)).toEqual([]);
+      expect((await adapter.readThread(thread.id)).status).toBe('waitingInput');
+      await adapter.respond(incoming.action.actionId, { decision: 'accept', content });
+      await waitFor(() => events.find((event) => event.type === 'actionResolved'));
+      expect(await replies(dir)).toEqual([
+        { id: 0, result: { action: 'accept', content, _meta: null } },
+      ]);
+      await waitFor(() =>
+        events.find((event) => event.type === 'turn' && event.turn.status === 'completed'),
+      );
+    },
+  );
+  it.each(['decline', 'cancel'] as const)(
+    'returns MCP %s unchanged without content or tool execution',
+    async (decision) => {
+      const { adapter, events, dir } = await fixture({ approval: 'elicitation-form' });
+      const thread = await adapter.createThread('/tmp');
+      await adapter.startTurn(thread.id, thread.cwd, 'structured MCP input');
+      const incoming = await waitFor(() => events.find((event) => event.type === 'action'));
+      if (incoming.type !== 'action') throw new Error('Wrong event');
+      await expect(
+        adapter.respond(incoming.action.actionId, { decision, content: { project: 'unexpected' } }),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      await adapter.respond(incoming.action.actionId, { decision });
+      await waitFor(() => events.find((event) => event.type === 'actionResolved'));
+      expect(await replies(dir)).toEqual([
+        { id: 0, result: { action: decision, content: null, _meta: null } },
+      ]);
+      const interrupted = await waitFor(() =>
+        events.find((event) => event.type === 'turn' && event.turn.status === 'interrupted'),
+      );
+      if (interrupted.type !== 'turn') throw new Error('Wrong event');
+      expect(interrupted.turn.items.some((item) => item.type === 'commandExecution')).toBe(false);
+    },
+  );
+  it('keeps URL elicitation waiting until explicitly acknowledged and returns no form content', async () => {
+    const { adapter, events, dir } = await fixture({ approval: 'elicitation-url' });
+    const thread = await adapter.createThread('/tmp');
+    await adapter.startTurn(thread.id, thread.cwd, 'authorize external service');
+    const incoming = await waitFor(() => events.find((event) => event.type === 'action'));
+    if (incoming.type !== 'action') throw new Error('Wrong event');
+    expect(incoming.action.elicitation).toMatchObject({
+      mode: 'url',
+      url: 'https://example.com/authorize?service=screenshots',
+    });
+    expect(await replies(dir)).toEqual([]);
+    await expect(
+      adapter.respond(incoming.action.actionId, { decision: 'accept', content: {} }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await adapter.respond(incoming.action.actionId, { decision: 'accept' });
+    await waitFor(() => events.find((event) => event.type === 'actionResolved'));
+    expect(await replies(dir)).toEqual([
+      { id: 0, result: { action: 'accept', content: null, _meta: null } },
+    ]);
+  });
+  it('shows unsupported form schemas as pending, rejects accept, and lets the user explicitly decline', async () => {
+    const { adapter, events, dir } = await fixture({ approval: 'elicitation-malformed' });
+    const thread = await adapter.createThread('/tmp');
+    await adapter.startTurn(thread.id, thread.cwd, 'unknown form schema');
+    const incoming = await waitFor(() => events.find((event) => event.type === 'action'));
+    if (incoming.type !== 'action') throw new Error('Wrong event');
+    expect(incoming.action).toMatchObject({
+      kind: 'elicitation',
+      status: 'pending',
+      elicitation: { schemaError: expect.any(String) },
+    });
+    expect(await replies(dir)).toEqual([]);
+    await expect(
+      adapter.respond(incoming.action.actionId, { decision: 'accept', content: {} }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await adapter.respond(incoming.action.actionId, { decision: 'decline' });
+    await waitFor(() => events.find((event) => event.type === 'actionResolved'));
+    expect(await replies(dir)).toEqual([
+      { id: 0, result: { action: 'decline', content: null, _meta: null } },
+    ]);
+  });
+  it.each(['permissions', 'elicitation-form'] as const)(
+    'expires %s requests on interrupted turns without granting or answering',
+    async (approval) => {
+      const { adapter, events, dir } = await fixture({ approval });
+      const thread = await adapter.createThread('/tmp');
+      const turn = await adapter.startTurn(thread.id, thread.cwd, 'interrupt approval');
+      const incoming = await waitFor(() => events.find((event) => event.type === 'action'));
+      if (incoming.type !== 'action') throw new Error('Wrong event');
+      await adapter.interruptTurn(thread.id, turn.id);
+      await waitFor(() =>
+        events.find((event) => event.type === 'turn' && event.turn.status === 'interrupted'),
+      );
+      await expect(
+        adapter.respond(incoming.action.actionId, { decision: 'decline' }),
+      ).rejects.toMatchObject({ code: 'ACTION_EXPIRED' });
+      expect(await replies(dir)).toEqual([]);
+    },
+  );
   it('preserves the upstream nonblocking question contract', async () => {
     const { adapter, events } = await fixture({
       approval: 'questions',

@@ -1,5 +1,9 @@
 import type { CodexClient, CodexDiagnostics, CodexEvent } from '../codex/types.js';
 import { AppError } from '../shared/errors.js';
+import {
+  validateElicitationResolution,
+  validatePermissionResolution,
+} from '../shared/elicitation.js';
 import { toThreadSummary } from '../shared/thread-summary.js';
 import type {
   ConfirmCompatibilityInput,
@@ -676,7 +680,11 @@ export class GatewayService {
 
   private validateResolution(action: PendingAction, input: ResolveActionInput): void {
     const resolution = input.resolution;
-    if (action.kind === 'questions') {
+    if (action.kind === 'permissions') {
+      validatePermissionResolution(resolution);
+    } else if (action.kind === 'elicitation') {
+      validateElicitationResolution(action.elicitation, resolution);
+    } else if (action.kind === 'questions') {
       if (!('answers' in resolution)) throw new AppError('VALIDATION_ERROR', '请按问题提交答案');
       const questions = action.questions ?? [];
       if (
@@ -701,6 +709,7 @@ export class GatewayService {
       }
     } else if (
       !('decision' in resolution) ||
+      'content' in resolution ||
       !action.options.some((option) => option.id === resolution.decision)
     )
       throw new AppError('VALIDATION_ERROR', '请选择上游提供的合法选项');

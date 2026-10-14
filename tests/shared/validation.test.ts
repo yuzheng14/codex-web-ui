@@ -1,7 +1,47 @@
 import { describe, expect, it } from 'vitest';
-import { startTurnSchema, steerSchema } from '../../src/shared/validation.js';
+import { resolveActionSchema, startTurnSchema, steerSchema } from '../../src/shared/validation.js';
 
 const clientOperationId = 'be1ce8c0-c87e-4a42-92cd-ef9f77e019df';
+
+describe('interactive response contract', () => {
+  it('preserves typed form values including false, zero, and exact text', () => {
+    const resolution = {
+      decision: 'accept',
+      content: { enabled: false, count: 0, note: '  保留空白\n', channels: ['web', 'mobile'] },
+    };
+    expect(resolveActionSchema.parse({ clientOperationId, resolution }).resolution).toEqual(
+      resolution,
+    );
+  });
+
+  it('rejects invented grants and mixed response types', () => {
+    for (const resolution of [
+      { decision: 'accept', permissions: { network: { enabled: true } } },
+      { decision: 'accept', scope: 'session' },
+      { decision: 'accept', answers: {} },
+      { answers: {}, content: {} },
+    ]) {
+      expect(resolveActionSchema.safeParse({ clientOperationId, resolution }).success).toBe(false);
+    }
+  });
+
+  it('rejects nested or unbounded elicitation values at the HTTP boundary', () => {
+    for (const content of [
+      { nested: { enabled: true } },
+      { channels: [true] },
+      { empty: null },
+      { note: 'x'.repeat(10_001) },
+      { count: Infinity },
+    ]) {
+      expect(
+        resolveActionSchema.safeParse({
+          clientOperationId,
+          resolution: { decision: 'accept', content },
+        }).success,
+      ).toBe(false);
+    }
+  });
+});
 
 describe.each([
   { name: 'start turn', schema: startTurnSchema, input: { clientOperationId } },

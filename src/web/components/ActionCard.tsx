@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { ActionResolution, PendingAction } from '../../shared/types';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
+import { PermissionDetails } from './PermissionDetails';
+import { ElicitationForm } from './ElicitationForm';
 
 export function ActionCard({
   action,
@@ -20,7 +22,10 @@ export function ActionCard({
     answers[id] === '__other__' ? (other[id]?.trim() ?? '') : (answers[id]?.trim() ?? '');
   const canSubmit = questions.length > 0 && questions.every((question) => answerFor(question.id));
   return (
-    <section className="action-card" aria-label={action.title}>
+    <section
+      className={`action-card${action.kind === 'unsupported' ? ' action-card-unsupported' : ''}`}
+      aria-label={action.title}
+    >
       <div className="action-heading">
         <span className="action-icon">
           <Icon name={action.kind === 'questions' ? 'chat' : 'alert'} size={17} />
@@ -32,16 +37,26 @@ export function ActionCard({
             : action.status === 'responded'
               ? '已回答'
               : action.status === 'expired'
-                ? '请求已失效'
+                ? action.kind === 'unsupported'
+                  ? '请求未能处理'
+                  : '请求已失效'
                 : '需要你处理'}
         </span>
       </div>
       {action.reason && <p>{action.reason}</p>}
-      {action.cwd && <p className="mono subtle">工作目录：{action.cwd}</p>}
+      {action.cwd && (
+        <p className="mono subtle action-cwd">
+          <span>工作目录：</span>
+          {action.cwd}
+        </p>
+      )}
       {action.command && (
         <pre className="command">
           <code>{action.command}</code>
         </pre>
+      )}
+      {action.kind === 'permissions' && action.permissionRequest && (
+        <PermissionDetails request={action.permissionRequest} />
       )}
       {action.details !== undefined && (
         <details
@@ -53,12 +68,21 @@ export function ActionCard({
               ? '网络访问目标'
               : action.kind === 'file'
                 ? '变更详情'
-                : '请求详情'}
+                : action.kind === 'permissions' || action.kind === 'elicitation'
+                  ? '技术详情'
+                  : '请求详情'}
           </summary>
           <pre>{JSON.stringify(action.details, null, 2)}</pre>
         </details>
       )}
-      {action.kind === 'questions' ? (
+      {action.kind === 'elicitation' && action.elicitation ? (
+        <ElicitationForm
+          request={action.elicitation}
+          actionId={action.actionId}
+          disabled={disabled || !pending}
+          onResolve={onResolve}
+        />
+      ) : action.kind === 'questions' ? (
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -149,7 +173,7 @@ export function ActionCard({
         </div>
       )}
       {action.kind === 'unsupported' && (
-        <p className="inline-error">当前版本不支持此交互请求。请查看兼容性诊断。</p>
+        <p className="inline-error">当前版本不支持此交互请求，未发送批准。请查看兼容性诊断。</p>
       )}
     </section>
   );

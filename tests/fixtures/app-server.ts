@@ -12,6 +12,9 @@ import type { Model } from '../../src/codex/generated/v2/Model.js';
 import type { ThreadStartResponse } from '../../src/codex/generated/v2/ThreadStartResponse.js';
 import type { InitializeResponse } from '../../src/codex/generated/InitializeResponse.js';
 import type { RequestId } from '../../src/codex/generated/RequestId.js';
+import type { RequestPermissionProfile } from '../../src/codex/generated/v2/RequestPermissionProfile.js';
+import type { McpElicitationSchema } from '../../src/codex/generated/v2/McpElicitationSchema.js';
+import type { JsonValue } from '../../src/codex/generated/serde_json/JsonValue.js';
 
 export interface SimulatorOptions {
   fragmentBytes?: number;
@@ -26,7 +29,21 @@ export interface SimulatorOptions {
   historyItemSummaries?: boolean;
   forkHistoryReadError?: boolean;
   malformedForkReceipt?: boolean;
-  approval?: 'command' | 'file' | 'network' | 'questions' | 'unsupported';
+  approval?:
+    | 'command'
+    | 'file'
+    | 'network'
+    | 'questions'
+    | 'unsupported'
+    | 'permissions'
+    | 'elicitation-form'
+    | 'elicitation-url'
+    | 'elicitation-openai'
+    | 'elicitation-openai-form'
+    | 'elicitation-malformed';
+  permissions?: RequestPermissionProfile;
+  elicitationSchema?: unknown;
+  elicitationTurnId?: null;
   malformed?: boolean;
   hugeLineBytes?: number;
   malformedTurnReceipt?: boolean;
@@ -38,7 +55,8 @@ const options = JSON.parse(
 ) as SimulatorOptions;
 const threads = new Map<string, Thread>();
 const finishes = new Map<string, NodeJS.Timeout>();
-const callbacks = new Map<RequestId, () => void>();
+type ServerReply = { id: RequestId; result?: unknown; error?: unknown };
+const callbacks = new Map<RequestId, (response: ServerReply) => void>();
 let initialized = false;
 let handshaken = false;
 let nextRequestId = 0;
@@ -254,7 +272,90 @@ function approval(
         ],
       },
     };
-  else if (kind === 'file')
+  else if (kind === 'permissions')
+    request = {
+      id,
+      method: 'item/permissions/requestApproval',
+      params: {
+        ...common,
+        environmentId: null,
+        startedAtMs: Date.now(),
+        cwd: thread.cwd,
+        reason: '需要联网并保存截图附件，请确认权限范围。',
+        permissions: options.permissions ?? {
+          network: { enabled: true },
+          fileSystem: {
+            read: [`${thread.cwd}/reference`],
+            write: [`${thread.cwd}/report.txt`],
+            globScanMaxDepth: 2,
+            entries: [
+              { path: { type: 'path', path: `${thread.cwd}/screenshots` }, access: 'write' },
+            ],
+          },
+        },
+      },
+    };
+  else if (kind.startsWith('elicitation-')) {
+    const context = {
+      threadId: thread.id,
+      turnId: options.elicitationTurnId === null ? null : turn.id,
+      serverName: '截图发布服务',
+      _meta: null,
+      message: '请确认截图发布设置，只有提交后任务才会继续。',
+    };
+    const schema =
+      options.elicitationSchema ??
+      (kind === 'elicitation-malformed'
+        ? { type: 'object', properties: { nested: { type: 'object', properties: {} } } }
+        : {
+            type: 'object',
+            properties: {
+              project: { type: 'string', title: '项目名称', minLength: 2, maxLength: 60 },
+              retries: { type: 'integer', title: '重试次数', minimum: 0, maximum: 5 },
+              rating: { type: 'number', title: '评分', minimum: 0, maximum: 10 },
+              notify: { type: 'boolean', title: '启用通知' },
+              environment: {
+                type: 'string',
+                title: '环境',
+                oneOf: [
+                  { const: 'production', title: '生产' },
+                  { const: 'preview', title: '预览' },
+                ],
+              },
+              channels: {
+                type: 'array',
+                title: '发布渠道',
+                minItems: 1,
+                maxItems: 2,
+                items: {
+                  anyOf: [
+                    { const: 'web', title: '网页' },
+                    { const: 'mobile', title: '移动端' },
+                  ],
+                },
+              },
+              note: { type: 'string', title: '备注' },
+            },
+            required: ['project', 'retries', 'rating', 'notify', 'environment', 'channels'],
+          });
+    request = {
+      id,
+      method: 'mcpServer/elicitation/request',
+      params:
+        kind === 'elicitation-url'
+          ? {
+              ...context,
+              mode: 'url',
+              url: 'https://example.com/authorize?service=screenshots',
+              elicitationId: `elicitation-${id}`,
+            }
+          : kind === 'elicitation-openai'
+            ? { ...context, mode: 'openai/form', requestedSchema: schema as JsonValue }
+            : kind === 'elicitation-openai-form'
+              ? { ...context, mode: 'openaiForm', requestedSchema: schema as JsonValue }
+              : { ...context, mode: 'form', requestedSchema: schema as McpElicitationSchema },
+    };
+  } else if (kind === 'file')
     request = {
       id,
       method: 'item/fileChange/requestApproval',
@@ -289,16 +390,31 @@ function approval(
     activeFlags:
       kind === 'questions' && options.nonblockingQuestions
         ? []
-        : [kind === 'questions' ? 'waitingOnUserInput' : 'waitingOnApproval'],
+        : [
+            kind === 'questions' || kind.startsWith('elicitation-')
+              ? 'waitingOnUserInput'
+              : 'waitingOnApproval',
+          ],
   };
   notify({
     method: 'thread/status/changed',
     params: { threadId: thread.id, status: thread.status },
   });
   send(request);
-  callbacks.set(id, () => {
+  callbacks.set(id, (response) => {
     notify({ method: 'serverRequest/resolved', params: { threadId: thread.id, requestId: id } });
     thread.status = { type: 'active', activeFlags: [] };
+    if (kind === 'permissions' || kind.startsWith('elicitation-')) {
+      const result = response.result as Record<string, unknown> | undefined;
+      const accepted =
+        kind === 'permissions'
+          ? result?.permissions && Object.keys(result.permissions).length > 0
+          : result?.action === 'accept';
+      if (!accepted || response.error) {
+        complete(thread, turn, 'interrupted');
+        return;
+      }
+    }
     execute(thread, turn);
   });
 }
@@ -515,8 +631,18 @@ function receive(request: ClientRequest): void {
         options.ackDelayMs ?? 0,
       );
       const prompt = thread.preview.toLowerCase();
+      const interactive = [
+        'permissions',
+        'unsupported',
+        'elicitation-form',
+        'elicitation-url',
+        'elicitation-openai',
+        'elicitation-openai-form',
+        'elicitation-malformed',
+      ] as const;
       const kind =
         options.approval ??
+        interactive.find((candidate) => prompt.includes(`[${candidate}]`)) ??
         (prompt.includes('[questions]')
           ? 'questions'
           : prompt.includes('[file-approval]')
@@ -576,7 +702,7 @@ input.on('line', (line) => {
   if (!('method' in message)) {
     const callback = callbacks.get(message.id);
     callbacks.delete(message.id);
-    callback?.();
+    callback?.(message);
     return;
   }
   receive(message);

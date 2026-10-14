@@ -83,12 +83,46 @@ export interface ActionOption {
   id: string;
   label: string;
 }
+export type ElicitationValue = string | number | boolean | string[];
+export interface ElicitationField {
+  name: string;
+  title: string;
+  description?: string;
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'enum' | 'multiEnum';
+  required: boolean;
+  options?: { value: string; label: string }[];
+  default?: ElicitationValue;
+  minLength?: number;
+  maxLength?: number;
+  minimum?: number;
+  maximum?: number;
+  minItems?: number;
+  maxItems?: number;
+  format?: 'email' | 'uri' | 'date' | 'date-time';
+}
+export interface ElicitationRequest {
+  serverName: string;
+  mode: 'form' | 'url';
+  url?: string;
+  fields?: ElicitationField[];
+  schemaError?: string;
+}
+export interface PermissionRequest {
+  network?: boolean | null;
+  fileSystem?: {
+    read: string[];
+    write: string[];
+    entries: { path: string; access: string }[];
+    globScanMaxDepth?: number;
+  };
+}
 export interface PendingAction {
   blocking?: boolean;
   actionId: string;
   codexEpoch: string;
   rpcId: string | number;
-  kind: 'command' | 'file' | 'questions' | 'network' | 'unsupported';
+  kind:
+    'command' | 'file' | 'questions' | 'network' | 'permissions' | 'elicitation' | 'unsupported';
   threadId?: string;
   turnId?: string;
   status: 'pending' | 'responding' | 'responded' | 'expired';
@@ -99,8 +133,12 @@ export interface PendingAction {
   details?: unknown;
   options: ActionOption[];
   questions?: Question[];
+  permissionRequest?: PermissionRequest;
+  elicitation?: ElicitationRequest;
 }
-export type ActionResolution = { decision: string } | { answers: Record<string, string[]> };
+export type ActionResolution =
+  | { decision: string; content?: Record<string, ElicitationValue> }
+  | { answers: Record<string, string[]> };
 export interface OperationInput {
   clientOperationId: string;
 }
