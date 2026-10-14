@@ -1,6 +1,6 @@
 # 验证记录
 
-日期：2026-10-13（Asia/Shanghai）。开发环境为 macOS、Node 24.19.0、pnpm 12.11.2、Codex CLI 0.162.1。此记录区分模拟、真实适配器与外网验证。
+日期：2026-10-14（Asia/Shanghai）。开发环境为 macOS、Node 24.19.0、pnpm 12.11.2、Codex CLI 0.162.1。此记录区分模拟、真实适配器与外网验证。
 
 ## 已执行
 
@@ -11,7 +11,7 @@
 | `pnpm test`                                                       | 112 项通过；真实测试子进程和临时 SQLite，覆盖多入口配置、兼容性确认、文本保真、传输、事务、恢复、竞争、鉴权、WS、浏览器状态逻辑 |
 | `pnpm start -- --config …` / `pnpm db:migrate -- --config …`      | 使用隔离临时配置实际执行，生产启动和连续两次迁移通过                                                                       |
 | `pnpm build`                                                      | 通过；Vite 页面、Node ESM、SQL 迁移及元数据均在 dist                                                                       |
-| `pnpm test:e2e`                                                   | Chromium、显式模拟 app-server，验证兼容性确认与恢复、对话/工具/diff、刷新、审批断线、结构化问题、手机及 IME；10 项全部通过 |
+| `pnpm test:e2e`                                                   | Chromium 验证生产构建 React 去重，以及显式模拟 app-server 下的兼容性确认与恢复、对话/工具/diff、刷新、审批断线、结构化问题、手机及 IME；11 项全部通过 |
 | `node --import tsx scripts/verify-production.ts`                  | 通过；复制生产产物到独立临时目录，从其他 cwd 启动。打包迁移、页面、API、WS 可用；Codex 缺失显示不可用，不回退模拟          |
 | `pnpm codex:generate -- --config …`                               | 通过；使用配置指定的实际 0.162.1 二进制生成 743 个协议类型文件                                                             |
 | `node --import tsx scripts/live-browser-smoke.ts --inference`     | 真实 Chromium + 实际 Codex 通过；见 [机器可读记录](real-browser-verification.json)                                         |
@@ -32,6 +32,8 @@
 新增 6 项浏览器流程：首次确认及取消、两标签页同步与刷新保留、版本与实际子进程重启后重新确认、不可用状态不能绕过、失去确认后仍可中断，以及确认 POST 未到服务端且查询为 404 后显式重新授权。恢复流程核对新的操作 ID、提交前刷新运行状态和零自动任务提交。完整 104 项测试、10 项 Chromium 验收、类型检查、Lint、构建与隔离生产产物检查通过；桌面及 390px 窄屏弹窗已目视检查。测试运行状态控制仅存在于显式测试入口，不加入生产 API。
 
 多入口配置增加 8 项回归测试：`publicOrigin` 非空数组及逐项校验、旧字符串拒绝、规范化去重、开发入口开关、所有 Access 入口的 HTTPS/JWT 约束，以及三个入口的页面导航、API 写入和 WS 订阅。真实回环监听器模拟代理保留 Host / Origin，验证入口共享同一任务和 Codex PID、拒绝未配置地址及错误端口。完整 112 项测试、10 项 Chromium 验收、类型检查、Lint、构建与隔离生产产物检查通过；本次未运行真实 Tailscale 或真实 Codex 推理。
+
+2026-10-14 修复首页白屏：生产副本的依赖树包含同版本 React 的不同目录副本，原始构建在 Chromium 中复现 `Cannot read properties of null (reading 'useState')`。Vite 对 React / ReactDOM 统一解析到根依赖后，用相同生产依赖构建到隔离目录，首页渲染成功且无 pageerror；未改动生产副本或运行中的服务。新增浏览器回归测试主动构造两份 React，校验生产构建后的首次渲染和状态更新；移除修复可复现同一错误。112 项测试、11 项 Chromium 验收、类型检查、Lint、构建与隔离生产检查通过。
 
 ## 故障和恢复覆盖
 
