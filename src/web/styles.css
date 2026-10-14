@@ -765,9 +765,19 @@ svg {
   font-weight: 600;
   margin: 1px 0 10px;
 }
+.user-message {
+  justify-content: flex-end;
+}
+.user-message .message-content {
+  flex: 0 1 auto;
+  max-width: 85%;
+  padding: 12px 18px;
+  border-radius: 18px;
+  background: var(--accent-soft);
+  color: #284d3f;
+}
 .user-text {
   margin-bottom: 0;
-  color: #535c65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1523,6 +1533,10 @@ dd {
   }
   .message-content {
     font-size: 12px;
+  }
+  .user-message .message-content {
+    max-width: 90%;
+    padding: 11px 15px;
   }
   .activity,
   .turn-diff {

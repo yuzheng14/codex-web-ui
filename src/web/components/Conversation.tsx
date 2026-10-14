@@ -122,10 +122,17 @@ function Item({ item }: { item: ItemView }) {
   if (item.type === 'userMessage' || item.type === 'agentMessage') {
     const user = item.type === 'userMessage';
     return (
-      <article className={user ? 'message user-message' : 'message assistant-message'}>
-        <div className="message-avatar">{user ? '你' : <Icon name="code" size={17} />}</div>
+      <article
+        className={user ? 'message user-message' : 'message assistant-message'}
+        aria-label={user ? '你的消息' : 'Codex 的回复'}
+      >
+        {!user && (
+          <div className="message-avatar" aria-hidden="true">
+            <Icon name="code" size={17} />
+          </div>
+        )}
         <div className="message-content">
-          <div className="message-author">{user ? '你' : 'Codex'}</div>
+          {!user && <div className="message-author">Codex</div>}
           {user ? <p className="user-text">{item.text}</p> : <TextContent text={item.text ?? ''} />}
           {item.error && <p className="inline-error">{item.error}</p>}
         </div>
