@@ -54,10 +54,10 @@ test('replaces the first prompt with an AI title in both tabs and retains it aft
   }
 });
 
-test('keeps the first prompt when title generation fails and allows another user turn', async ({
+test('keeps the preview on failure and generates a title after the next user message', async ({
   page,
   request,
-}) => {
+}, testInfo) => {
   await controlRuntime(request, { reset: true });
   await page.goto('/');
   await confirmCompatibility(page);
@@ -67,10 +67,21 @@ test('keeps the first prompt when title generation fails and allows another user
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill(prompt);
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
+  await expect(page.locator('.topbar h1')).toHaveText(prompt);
+  await page.screenshot({
+    path: testInfo.outputPath('thread-title-retry-before.png'),
+    fullPage: true,
+  });
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill('继续回答');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(page.locator('.turn')).toHaveCount(2);
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
+  await expect(page.locator('.topbar h1')).toHaveText('Codex 配置继承与运行设置');
   await page.reload();
-  await expect(page.locator('.topbar h1')).toHaveText(prompt);
+  await expect(page.locator('.topbar h1')).toHaveText('Codex 配置继承与运行设置');
+  await expect(page.locator('.turn')).toHaveCount(2);
+  await page.screenshot({
+    path: testInfo.outputPath('thread-title-retry-after.png'),
+    fullPage: true,
+  });
 });

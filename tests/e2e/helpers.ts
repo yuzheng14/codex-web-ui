@@ -16,8 +16,7 @@ export async function controlRuntime(
     releaseThreadId?: string;
   },
 ): Promise<SystemInfo & { externalThreadId?: string }> {
-  const port = Number(process.env.CODEX_WEB_TEST_PORT ?? 8788) + 1;
-  const response = await request.post(`http://127.0.0.1:${port}/runtime`, { data: input });
+  const response = await request.post('http://127.0.0.1:8789/runtime', { data: input });
   expect(response.ok()).toBe(true);
   return (await response.json()) as SystemInfo;
 }

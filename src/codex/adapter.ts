@@ -318,6 +318,10 @@ export class CodexAdapter implements CodexClient {
         );
         cursor = page.nextCursor;
       }
+      this.titles?.configure(
+        account.account?.type === 'chatgpt',
+        this.state.models.map((model) => model.id),
+      );
       this.state.ready = true;
       this.state.connection = 'ready';
       this.state.capabilities = CAPABILITIES.filter((method) => !this.disabled.has(method));
@@ -470,13 +474,14 @@ export class CodexAdapter implements CodexClient {
   }
   async resumeThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
     this.validateSettings(settings);
-    let thread;
+    const titles = this.titles;
+    let result;
     try {
-      ({ thread } = await this.call('thread/resume', {
+      result = await this.call('thread/resume', {
         threadId: id,
         cwd,
         ...threadSettings(settings),
-      }));
+      });
     } catch (error) {
       // Verified with two 0.162.1 processes, for both legacy and paginated histories.
       // -32600 alone covers many failures; match this thread's writer conflict exactly.
@@ -488,10 +493,13 @@ export class CodexAdapter implements CodexClient {
         throw new AppError('THREAD_IN_USE', '此会话正被其他进程使用', 409, { threadId: id });
       throw error;
     }
+    titles?.register(result);
+    const { thread } = result;
     return thread.historyMode === 'paginated' ? this.readThread(thread.id) : mapThread(thread);
   }
   async forkThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
     this.validateSettings(settings);
+    const titles = this.titles;
     const result = await this.call('thread/fork', {
       threadId: id,
       cwd,
@@ -511,6 +519,7 @@ export class CodexAdapter implements CodexClient {
       const thread = await this.readThread(forkedId);
       if (thread.id !== forkedId)
         throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex returned a different fork thread ID');
+      titles?.register(result);
       return thread;
     } catch (error) {
       const failure = asCodexError(error);
@@ -533,7 +542,6 @@ export class CodexAdapter implements CodexClient {
     images?: string[],
   ): Promise<TurnView> {
     this.validateSettings(settings);
-    const titles = this.titles;
     const turn = mapTurn(
       id,
       (
@@ -545,11 +553,6 @@ export class CodexAdapter implements CodexClient {
         })
       ).turn,
     );
-    const model = this.state.models.find(
-      (entry) => entry.id === (settings?.model ?? titles?.modelFor(id)),
-    );
-    const effort = model?.reasoningEfforts.includes('low') ? 'low' : undefined;
-    titles?.start(id, text, settings?.model, effort);
     return turn;
   }
   steerTurn(

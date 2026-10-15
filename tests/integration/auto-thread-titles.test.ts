@@ -78,13 +78,21 @@ it('generates once outside the user history, persists the title, and hides tempo
     model: 'simulated-model',
     modelProvider: 'openai',
     sandbox: 'read-only',
-    approvalPolicy: 'never',
+    threadSource: 'thread_title',
+    runtimeWorkspaceRoots: [],
+    environments: [],
+    dynamicTools: [],
+    selectedCapabilityRoots: [],
     config: {
       'features.shell_tool': false,
       'features.apps': false,
       'features.plugins': false,
       'features.hooks': false,
       'features.multi_agent': false,
+      'features.unified_exec': false,
+      'features.view_image': false,
+      'skills.include_instructions': false,
+      default_permissions: ':read-only',
       web_search: 'disabled',
       mcp_servers: { 'fixture.tools': { enabled: false } },
     },
@@ -95,7 +103,14 @@ it('generates once outside the user history, persists the title, and hides tempo
   expect(
     sent.find((entry) => entry.method === 'turn/start' && entry.params?.threadId !== thread.id)
       ?.params,
-  ).toMatchObject({ effort: 'low', outputSchema: { required: ['title'] } });
+  ).toMatchObject({
+    outputSchema: { required: ['title'], properties: { title: { maxLength: 36 } } },
+  });
+  expect(temporary?.params).not.toHaveProperty('approvalPolicy');
+  expect(
+    sent.find((entry) => entry.method === 'turn/start' && entry.params?.threadId !== thread.id)
+      ?.params,
+  ).not.toHaveProperty('effort');
   expect(events.filter((event) => event.type === 'thread').map((event) => event.thread.id)).toEqual(
     [thread.id],
   );
@@ -107,20 +122,23 @@ it('generates once outside the user history, persists the title, and hides tempo
   ]);
 });
 
-it.each(['not json', '{}', '{"title":"   "}', JSON.stringify({ title: '长'.repeat(81) })])(
-  'keeps the preview when the title output is invalid: %s',
-  async (titleOutput) => {
-    const { adapter, requests } = await fixture({ titleOutput });
-    const thread = await adapter.createThread('/tmp');
-    await adapter.startTurn(thread.id, thread.cwd, '第一条问题');
-    await vi.waitFor(async () =>
-      expect((await requests()).some((r) => r.method === 'thread/unsubscribe')).toBe(true),
-    );
-    expect((await adapter.readThreadMetadata(thread.id)).title).toBe('第一条问题');
-    expect((await requests()).some((r) => r.method === 'thread/name/set')).toBe(false);
-    expect(adapter.ready).toBe(true);
-  },
-);
+it.each([
+  'not json',
+  '{}',
+  '{"title":"   "}',
+  '{"title":"Valid","extra":true}',
+  JSON.stringify({ title: '长'.repeat(3000) }),
+])('keeps the preview when the title output is invalid: %s', async (titleOutput) => {
+  const { adapter, requests } = await fixture({ titleOutput });
+  const thread = await adapter.createThread('/tmp');
+  await adapter.startTurn(thread.id, thread.cwd, '第一条问题');
+  await vi.waitFor(async () =>
+    expect((await requests()).some((r) => r.method === 'thread/unsubscribe')).toBe(true),
+  );
+  expect((await adapter.readThreadMetadata(thread.id)).title).toBe('第一条问题');
+  expect((await requests()).some((r) => r.method === 'thread/name/set')).toBe(false);
+  expect(adapter.ready).toBe(true);
+});
 
 it('accepts a late thread/started notification without losing the naming job', async () => {
   const { adapter, requests } = await fixture({ threadStartedDelayMs: 30, titleDelayMs: 100 });
@@ -164,7 +182,7 @@ it('does not rename explicitly named sessions, including a name equal to the pla
   expect((await requests()).some((r) => r.params?.ephemeral)).toBe(false);
 });
 
-it('does not auto-name a fork, and isolates two concurrent naming jobs', async () => {
+it('keeps an inherited fork name, and isolates two concurrent naming jobs', async () => {
   const { adapter, requests } = await fixture();
   const first = await adapter.createThread('/tmp');
   const second = await adapter.createThread('/tmp');
@@ -179,6 +197,121 @@ it('does not auto-name a fork, and isolates two concurrent naming jobs', async (
   expect((await requests()).filter((r) => r.params?.ephemeral)).toHaveLength(2);
   expect((await adapter.readThread(fork.id)).turns).toHaveLength(2);
 });
+
+it.each([
+  ['chatgpt', 'openai', ['simulated-model', 'gpt-5.6-luna'], 'gpt-5.6-luna'],
+  ['chatgpt', 'openai', ['simulated-model'], 'simulated-model'],
+  ['apiKey', 'openai', ['simulated-model', 'gpt-5.6-luna'], 'simulated-model'],
+  ['chatgpt', 'custom', ['simulated-model', 'gpt-5.6-luna'], 'simulated-model'],
+] as const)(
+  'selects the CLI title model for %s / %s / %j',
+  async (accountType, modelProvider, models, expected) => {
+    const { adapter, requests } = await fixture({
+      accountType,
+      modelProvider,
+      models: [...models],
+    });
+    const thread = await adapter.createThread('/tmp');
+    await adapter.startTurn(thread.id, thread.cwd, 'Explain the model');
+    await vi.waitFor(async () =>
+      expect((await requests()).some((r) => r.method === 'thread/name/set')).toBe(true),
+    );
+    const sent = await requests();
+    expect(sent.find((r) => r.params?.ephemeral)?.params).toMatchObject({
+      model: expected,
+      modelProvider,
+    });
+    const namingTurn = sent.find(
+      (r) => r.method === 'turn/start' && r.params?.threadId !== thread.id,
+    );
+    expect(namingTurn?.params?.effort).toBe(expected === 'gpt-5.6-luna' ? 'low' : undefined);
+  },
+);
+
+it('waits for an accepted user-message event instead of the turn receipt', async () => {
+  const { adapter, requests } = await fixture({ userMessageDelayMs: 150 });
+  const thread = await adapter.createThread('/tmp');
+  await adapter.startTurn(thread.id, thread.cwd, '第一条问题');
+  expect((await requests()).some((r) => r.params?.ephemeral)).toBe(false);
+  await vi.waitFor(async () =>
+    expect((await requests()).some((r) => r.method === 'thread/name/set')).toBe(true),
+  );
+});
+
+it('retries only after another user message, using that message and the current model', async () => {
+  const { adapter, requests } = await fixture({
+    titleOutputs: ['not json'],
+    models: ['simulated-model', 'another-model'],
+  });
+  const thread = await adapter.createThread('/tmp');
+  await adapter.startTurn(thread.id, thread.cwd, '第一条问题');
+  await vi.waitFor(async () =>
+    expect((await requests()).filter((r) => r.method === 'thread/unsubscribe')).toHaveLength(1),
+  );
+  expect((await adapter.readThreadMetadata(thread.id)).title).toBe('第一条问题');
+  await adapter.resumeThread(thread.id, thread.cwd);
+  expect((await requests()).filter((r) => r.params?.ephemeral)).toHaveLength(1);
+  await adapter.startTurn(thread.id, thread.cwd, '第二条问题', { model: 'another-model' });
+  await vi.waitFor(async () =>
+    expect((await requests()).some((r) => r.method === 'thread/name/set')).toBe(true),
+  );
+  const sent = await requests();
+  expect(sent.filter((r) => r.params?.ephemeral)).toHaveLength(2);
+  expect(sent.filter((r) => r.params?.ephemeral).at(-1)?.params?.model).toBe('another-model');
+  expect(
+    JSON.stringify(sent.filter((r) => r.method === 'turn/start').at(-1)?.params?.input),
+  ).toContain('第二条问题');
+});
+
+it('names an unnamed fork only when it receives a new user message', async () => {
+  const { adapter, requests } = await fixture({ titleOutputs: ['not json'] });
+  const thread = await adapter.createThread('/tmp');
+  await adapter.startTurn(thread.id, thread.cwd, '第一条问题');
+  await vi.waitFor(async () =>
+    expect((await requests()).some((r) => r.method === 'thread/unsubscribe')).toBe(true),
+  );
+  const fork = await adapter.forkThread(thread.id, thread.cwd);
+  expect((await requests()).filter((r) => r.params?.ephemeral)).toHaveLength(1);
+  await adapter.startTurn(fork.id, fork.cwd, '处理分支任务');
+  await vi.waitFor(async () =>
+    expect((await adapter.readThreadMetadata(fork.id)).title).toBe('Codex 配置继承与运行设置'),
+  );
+  expect((await adapter.readThreadMetadata(thread.id)).title).toBe('第一条问题');
+});
+
+it('does not start duplicate title jobs when another message arrives during generation', async () => {
+  const { adapter, requests } = await fixture({ titleDelayMs: 250 });
+  const thread = await adapter.createThread('/tmp');
+  await adapter.startTurn(thread.id, thread.cwd, '第一条问题');
+  await vi.waitFor(async () =>
+    expect((await adapter.readThread(thread.id)).turns[0]?.status).toBe('completed'),
+  );
+  await adapter.startTurn(thread.id, thread.cwd, '第二条问题');
+  await vi.waitFor(async () =>
+    expect((await requests()).some((r) => r.method === 'thread/name/set')).toBe(true),
+  );
+  expect((await requests()).filter((r) => r.params?.ephemeral)).toHaveLength(1);
+});
+
+it.each([true, false])(
+  'preserves custom permission profiles and checks the temporary response (matches: %s)',
+  async (matches) => {
+    const { adapter, requests } = await fixture({
+      activePermissionProfile: 'managed',
+      temporaryPermissionProfile: matches ? 'managed' : 'other',
+    });
+    const thread = await adapter.createThread('/tmp');
+    await adapter.startTurn(thread.id, thread.cwd, '第一条问题');
+    await vi.waitFor(async () =>
+      expect((await requests()).some((r) => r.method === 'thread/unsubscribe')).toBe(true),
+    );
+    const sent = await requests();
+    const temporary = sent.find((r) => r.params?.ephemeral);
+    expect(temporary?.params?.permissions).toBe('managed');
+    expect(temporary?.params).not.toHaveProperty('sandbox');
+    expect(sent.some((r) => r.method === 'thread/name/set')).toBe(matches);
+  },
+);
 
 it('cancels pending naming when the runtime stops and never sends it to the replacement process', async () => {
   const { adapter, requests } = await fixture({ titleBehavior: 'hang' });

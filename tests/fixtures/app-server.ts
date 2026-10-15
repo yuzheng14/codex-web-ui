@@ -52,6 +52,13 @@ export interface SimulatorOptions {
   nonblockingQuestions?: boolean;
   threadNames?: string[];
   titleOutput?: string;
+  titleOutputs?: string[];
+  accountType?: 'chatgpt' | 'apiKey';
+  models?: string[];
+  modelProvider?: string;
+  activePermissionProfile?: string;
+  temporaryPermissionProfile?: string;
+  userMessageDelayMs?: number;
   titleDelayMs?: number;
   threadStartedDelayMs?: number;
   titleBehavior?: 'fail' | 'hang' | 'rename' | 'interaction';
@@ -69,6 +76,7 @@ const callbacks = new Map<RequestId, (response: ServerReply) => void>();
 let initialized = false;
 let handshaken = false;
 let nextRequestId = 0;
+let titleAttempts = 0;
 let writes = Promise.resolve();
 function send(message: unknown): void {
   const data = Buffer.from(JSON.stringify(message) + '\n');
@@ -105,7 +113,7 @@ function makeThread(cwd: string): Thread {
     sectionEnteredAt: null,
     projectId: null,
     historyMode: options.paginated ? 'paginated' : 'legacy',
-    modelProvider: 'openai',
+    modelProvider: options.modelProvider ?? 'openai',
     model: 'simulated-model',
     reasoningEffort: 'medium',
     createdAt: Date.now() / 1000,
@@ -125,11 +133,13 @@ function makeThread(cwd: string): Thread {
     turns: [],
   };
 }
-function startResponse(thread: Thread): ThreadStartResponse {
+function startResponse(
+  thread: Thread,
+): ThreadStartResponse & { activePermissionProfile?: { id: string } } {
   return {
     thread,
-    model: 'simulated-model',
-    modelProvider: 'openai',
+    model: thread.model ?? 'simulated-model',
+    modelProvider: thread.modelProvider,
     serviceTier: null,
     disabledPluginIds: [],
     cwd: thread.cwd,
@@ -138,6 +148,15 @@ function startResponse(thread: Thread): ThreadStartResponse {
     approvalsReviewer: 'user',
     sandbox: { type: 'readOnly', networkAccess: false },
     reasoningEffort: 'medium',
+    ...(options.activePermissionProfile
+      ? {
+          activePermissionProfile: {
+            id: thread.ephemeral
+              ? (options.temporaryPermissionProfile ?? options.activePermissionProfile)
+              : options.activePermissionProfile,
+          },
+        }
+      : {}),
   };
 }
 function command(id: string, cwd: string): Extract<ThreadItem, { type: 'commandExecution' }> {
@@ -557,10 +576,25 @@ function receive(request: ClientRequest): void {
   }
   switch (request.method) {
     case 'account/read':
-      reply(request.id, { account: null, requiresOpenaiAuth: false });
+      reply(request.id, {
+        account:
+          options.accountType === 'chatgpt'
+            ? { type: 'chatgpt', email: null, planType: 'plus' }
+            : options.accountType === 'apiKey'
+              ? { type: 'apiKey' }
+              : null,
+        requiresOpenaiAuth: false,
+      });
       break;
     case 'model/list':
-      reply(request.id, { data: [model], nextCursor: null });
+      reply(request.id, {
+        data: (options.models ?? [model.model]).map((name) => ({
+          ...model,
+          id: name,
+          model: name,
+        })),
+        nextCursor: null,
+      });
       break;
     case 'config/read':
       reply(request.id, {
@@ -572,6 +606,8 @@ function receive(request: ClientRequest): void {
     case 'thread/start': {
       const thread = makeThread(request.params.cwd ?? process.cwd());
       thread.ephemeral = request.params.ephemeral ?? false;
+      thread.model = request.params.model ?? thread.model;
+      thread.modelProvider = request.params.modelProvider ?? thread.modelProvider;
       threads.set(thread.id, thread);
       const started = () =>
         notify({ method: 'thread/started', params: { thread: { ...thread, turns: [] } } });
@@ -751,6 +787,8 @@ function receive(request: ClientRequest): void {
         durationMs: null,
       };
       thread.turns.push(turn);
+      thread.model = request.params.model ?? thread.model;
+      thread.cwd = request.params.cwd ?? thread.cwd;
       thread.status = { type: 'active', activeFlags: [] };
       const text = request.params.input
         .flatMap((input) => (input.type === 'text' ? input.text : ''))
@@ -765,6 +803,14 @@ function receive(request: ClientRequest): void {
           params: { threadId: thread.id, threadName: name || undefined },
         });
       }
+      const acceptedInput = () =>
+        notify({
+          method: 'item/completed',
+          params: { threadId: thread.id, turnId: turn.id, item: input, completedAtMs: Date.now() },
+        });
+      if (options.userMessageDelayMs && !thread.ephemeral)
+        setTimeout(acceptedInput, options.userMessageDelayMs);
+      else acceptedInput();
       const receipt = structuredClone(turn);
       setTimeout(
         () =>
@@ -777,6 +823,7 @@ function receive(request: ClientRequest): void {
       );
       const prompt = text.toLowerCase();
       if (thread.ephemeral) {
+        const titleOutput = options.titleOutputs?.[titleAttempts++] ?? options.titleOutput;
         if (options.titleBehavior === 'hang') break;
         if (options.titleBehavior === 'interaction') {
           approval(thread, turn, 'command');
@@ -794,29 +841,32 @@ function receive(request: ClientRequest): void {
         }
         finishes.set(
           turn.id,
-          setTimeout(() => {
-            const item: ThreadItem = {
-              id: randomUUID(),
-              type: 'agentMessage',
-              phase: 'final_answer',
-              memoryCitation: null,
-              delivery: null,
-              questions: null,
-              text: options.titleOutput ?? JSON.stringify({ title: 'Codex 配置继承与运行设置' }),
-            };
-            notify({
-              method: 'item/completed',
-              params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
-            });
-            // Real turn/completed notifications may omit items; the completed item carries the answer.
-            complete(
-              thread,
-              turn,
-              options.titleBehavior === 'fail' || prompt.includes('[title-fail]')
-                ? 'failed'
-                : 'completed',
-            );
-          }, options.titleDelayMs ?? 50),
+          setTimeout(
+            () => {
+              const item: ThreadItem = {
+                id: randomUUID(),
+                type: 'agentMessage',
+                phase: 'final_answer',
+                memoryCitation: null,
+                delivery: null,
+                questions: null,
+                text: titleOutput ?? JSON.stringify({ title: 'Codex 配置继承与运行设置' }),
+              };
+              notify({
+                method: 'item/completed',
+                params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
+              });
+              // Real turn/completed notifications may omit items; the completed item carries the answer.
+              complete(
+                thread,
+                turn,
+                options.titleBehavior === 'fail' || prompt.includes('[title-fail]')
+                  ? 'failed'
+                  : 'completed',
+              );
+            },
+            prompt.includes('[title-fail]') ? 10 : (options.titleDelayMs ?? 50),
+          ),
         );
         break;
       }
