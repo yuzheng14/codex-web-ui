@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
 
 const input = (page: Page) => page.locator('.composer-box textarea');
@@ -86,7 +88,7 @@ for (const viewport of [
       true,
     );
     await page.screenshot({
-      path: `/private/tmp/paste-images-${viewport.name}-draft.png`,
+      path: join(tmpdir(), `paste-images-${viewport.name}-draft.png`),
       fullPage: true,
       animations: 'disabled',
     });
@@ -106,7 +108,7 @@ for (const viewport of [
     await page.reload();
     await expect(page.locator('.message-images img')).toHaveJSProperty('naturalWidth', 520);
     await page.screenshot({
-      path: `/private/tmp/paste-images-${viewport.name}-sent.png`,
+      path: join(tmpdir(), `paste-images-${viewport.name}-sent.png`),
       fullPage: true,
       animations: 'disabled',
     });
