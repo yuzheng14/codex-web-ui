@@ -134,7 +134,7 @@ const codex = new ControlledFixture(
       'tsx',
       resolve('tests/fixtures/app-server.ts'),
       '--options',
-      JSON.stringify({ fragmentBytes: 7, turnDelayMs: 800 }),
+      JSON.stringify({ fragmentBytes: 7, turnDelayMs: 800, titleDelayMs: 1500 }),
     ],
   }),
 );

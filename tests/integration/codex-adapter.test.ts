@@ -209,7 +209,11 @@ describe('verified protocol adapter with a real subprocess', () => {
     expect(events.some((event) => event.type === 'turn' && event.turn.status === 'completed')).toBe(
       true,
     );
-    expect((await requests()).filter((entry) => entry.method === 'turn/start')).toHaveLength(1);
+    expect(
+      (await requests()).filter(
+        (entry) => entry.method === 'turn/start' && entry.params.threadId === thread.id,
+      ),
+    ).toHaveLength(1);
   });
   it.each([false, true])(
     'forks complete persisted history (paginated: %s) into an independent thread',

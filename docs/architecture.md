@@ -27,6 +27,12 @@
 
 浏览器按项目维护摘要列表、分页与错误；详情缓存单独持有会话投影与恢复游标。HTTP 读取序号和摘要事件游标共同防止迟到响应回滚状态。切换会话只替换同一 WebSocket 的详情订阅，真实重连才重新读取各项目列表。项目选择、会话草稿、执行设置与创建/Fork 的导航意图分别记录，用户切换位置后迟到回执仅更新原项目。
 
+自动命名对齐 [Codex CLI 0.162.1 的终端实现](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/tui/src/app/thread_title.rs)。适配层 `ThreadTitles` 在 `item/completed` 用户消息事件到达时，为尚未命名的受管会话启动异步命名；创建、恢复及 Fork 均登记候选，同一会话只允许一个在途命名任务。`thread-title-policy.ts` 复用 CLI 的模型选择、提示词、JSON Schema 和结果清理规则：OpenAI provider + ChatGPT 账户 + 可用模型目录包含 `gpt-5.6-luna` 时选该模型及 low effort，否则选当前会话模型且不覆盖 effort；整个提示词限制 960 UTF-8 字节，结果限制 36 个 Unicode 字符，拒绝多余 JSON 字段。
+
+命名使用同一 app-server 上的独立 `ephemeral` 会话，来源为 `thread_title`，不进入用户历史。沿用 CLI 的临时请求隔离：清空工作区根、环境和动态工具，关闭 shell、MCP、Apps、插件、skills、hooks 等能力，并额外显式关闭浏览器和 computer use。自定义权限 profile 原样保留并核验响应；其余情况要求只读权限，审批策略由服务端继承，临时交互请求由适配层拒绝。实验性字段在本模块按已核对的协议补充类型，不改写生成文件。配置查询只提取 MCP 名称并覆盖 `enabled`，不回传可能已脱敏的配置值。
+
+生成结果在保存前重新检查 `thread.name`，名称更新通知会取消在途命名。标题通过 `thread/name/set` 持久化，沿用 `thread/name/updated` 的详情与概览推送。启动、推理阶段分别有 30 秒期限；失败或断线保留预览，仅中断临时 turn 并取消订阅，不改变用户任务状态。创建通知可早于或晚于响应，完成通知可不带 items，均通过独立生命周期与 `item/completed` 处理。失败后保留未命名候选，直到下一条用户消息才重试；恢复或 Fork 本身不触发命名，也不批量改写历史。重启后通过正常 resume 重新登记候选。
+
 不同 thread 可在同一目录并行，包括等待审批、等待输入或旧执行未知的情况。`workspaceKey` 保留为项目与执行的诊断信息，不再作为互斥键。迁移 `0002_allow_parallel_threads.sql` 删除旧数据库的工作区唯一索引并保留现有执行记录；需要文件隔离时由用户自行使用 Git worktree。
 
 `POST /api/threads/:threadId/fork` 接受 `{ clientOperationId, settings? }`，返回标准操作回执，成功结果为 `{ threadId, forkedFromId }`。服务端只读源会话并校验注册项目归属，再将其 canonical cwd 交给适配层调用 `thread/fork`；客户端不能指定目录。新 ID 注册为当前进程持有的会话，历史由 Codex 保存，无需新增数据库表。
