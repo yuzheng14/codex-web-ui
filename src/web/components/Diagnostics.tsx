@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Operation, SystemInfo, ThreadView } from '../../shared/types';
 import type { SavedOperation } from '../lib/operations';
-import { needsReconciliation } from '../lib/operations';
+import { canDiscardMissingOperation, needsReconciliation } from '../lib/operations';
 import type { ConnectionState } from '../lib/realtime';
 import { formatTime } from '../lib/utils';
 import { Button } from './ui/button';
@@ -35,20 +35,26 @@ function OperationCard({
   entry,
   thread,
   onReconcile,
+  onDiscardMissing,
   busy,
   refreshing,
 }: {
   entry: SavedOperation;
   thread?: ThreadView;
   onReconcile: (id: string) => void;
+  onDiscardMissing: (id: string) => void;
   busy: boolean;
   refreshing: boolean;
 }) {
   const [confirmed, setConfirmed] = useState(false);
+  const [discardConfirmed, setDiscardConfirmed] = useState(false);
   const execution = entry.operation?.execution;
   const fork = entry.kind === 'fork';
   const currentlyActive = Boolean(
     thread && isActive(thread.status) && execution?.threadId === thread.id,
+  );
+  const missingTaskActive = Boolean(
+    !fork && thread && isActive(thread.status) && entry.target === thread.id,
   );
   return (
     <div className="operation-card">
@@ -74,7 +80,40 @@ function OperationCard({
           </>
         )}
       </dl>
-      {entry.error && <p className="inline-error">{entry.error}</p>}
+      {(entry.lookupError?.message || entry.error) && (
+        <p className="inline-error" role="alert">
+          {entry.lookupError?.message ?? entry.error}
+        </p>
+      )}
+      {canDiscardMissingOperation(entry) && (
+        <div className="reconcile">
+          <p>
+            请先检查会话历史、会话列表和原执行环境。清理仅移除此浏览器的待核对记录，不会停止任务或重新提交。
+          </p>
+          {missingTaskActive ? (
+            <p>当前会话仍在执行，请等待结束或正常中断后再核对。</p>
+          ) : (
+            <>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={discardConfirmed}
+                  onChange={(event) => setDiscardConfirmed(event.target.checked)}
+                />
+                我已检查历史和原执行环境，确认无需继续核对这笔提交
+              </label>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!discardConfirmed || busy || refreshing}
+                onClick={() => onDiscardMissing(entry.clientOperationId)}
+              >
+                清除此浏览器的待核对记录
+              </Button>
+            </>
+          )}
+        </div>
+      )}
       {entry.kind === 'confirmCompatibility' && entry.status === 'unknown' && (
         <p className="subtle">
           兼容性确认结果待核对，请刷新状态。此记录不代表任务执行，也不会自动重新提交。
@@ -82,6 +121,7 @@ function OperationCard({
       )}
       {entry.kind !== 'confirmCompatibility' &&
         needsReconciliation(entry) &&
+        !entry.lookupError?.missing &&
         !entry.operation?.reconciliation && (
           <div className="reconcile">
             <p>
@@ -132,6 +172,7 @@ export function Diagnostics({
   thread,
   onRefresh,
   onReconcile,
+  onDiscardMissing,
   busy,
   open,
   onOpenChange,
@@ -143,6 +184,7 @@ export function Diagnostics({
   thread?: ThreadView;
   onRefresh: () => void;
   onReconcile: (id: string) => void;
+  onDiscardMissing: (id: string) => void;
   busy: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -195,7 +237,11 @@ export function Diagnostics({
               entry={entry}
               thread={thread}
               onReconcile={onReconcile}
-              busy={busy.includes(`reconcile:${entry.clientOperationId}`)}
+              onDiscardMissing={onDiscardMissing}
+              busy={
+                busy.includes(`reconcile:${entry.clientOperationId}`) ||
+                busy.includes(`${entry.kind}:${entry.target}`)
+              }
               refreshing={refreshing}
             />
           ))}

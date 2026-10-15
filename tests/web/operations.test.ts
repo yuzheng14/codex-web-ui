@@ -1,10 +1,63 @@
 import { describe, expect, it } from 'vitest';
 import {
   blocksTarget,
+  canDiscardMissingOperation,
+  operationLookupError,
   readOperations,
   saveOperations,
   type SavedOperation,
 } from '../../src/web/lib/operations';
+import { HttpError } from '../../src/web/lib/api';
+
+describe('missing operation receipts', () => {
+  it('requires the operation-specific 404 before offering local dismissal', () => {
+    const missing = operationLookupError(
+      new HttpError(404, { code: 'OPERATION_NOT_FOUND', message: '未找到该操作' }),
+    );
+    expect(missing.missing).toBe(true);
+    expect(missing.message).toContain('不能证明任务没有执行');
+    for (const problem of [
+      new HttpError(404, { code: 'NOT_FOUND', message: '路由不存在' }),
+      new HttpError(503, { code: 'UNAVAILABLE', message: '不可用' }),
+      new Error('Failed to fetch'),
+    ])
+      expect(operationLookupError(problem).missing).toBe(false);
+    const entry: SavedOperation = {
+      clientOperationId: 'missing',
+      kind: 'send',
+      target: 'thread',
+      createdAt: 1,
+      status: 'unknown',
+      lookupError: missing,
+    };
+    expect(blocksTarget(entry, 'thread')).toBe(true);
+    expect(canDiscardMissingOperation(entry)).toBe(true);
+    expect(canDiscardMissingOperation({ ...entry, status: 'accepted' })).toBe(false);
+    expect(
+      canDiscardMissingOperation({
+        ...entry,
+        operation: {
+          clientOperationId: 'missing',
+          kind: 'turn.start',
+          target: 'thread',
+          status: 'unknown',
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      }),
+    ).toBe(false);
+    let saved = '';
+    saveOperations([entry], {
+      setItem: (_key, value) => {
+        saved = value;
+      },
+    });
+    const restored = readOperations({ getItem: () => saved })[0]!;
+    expect(restored.lookupError).toBeUndefined();
+    expect(canDiscardMissingOperation(restored)).toBe(false);
+    expect(blocksTarget(restored, 'thread')).toBe(true);
+  });
+});
 
 describe('durable operation identity', () => {
   it('persists uncertain IDs and targets across refresh without persisting prompts or projections', () => {

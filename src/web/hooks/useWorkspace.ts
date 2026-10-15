@@ -11,7 +11,9 @@ import type {
 import { api, HttpError } from '../lib/api';
 import {
   blocksTarget,
+  canDiscardMissingOperation,
   isSettled,
+  operationLookupError,
   readOperations,
   saveOperations,
   type SavedOperation,
@@ -289,10 +291,18 @@ export function useWorkspace() {
         (entry) => entry.clientOperationId === operation.clientOperationId,
       );
       if (!known) return;
+      if (known.lookupError)
+        setError((previous) => (previous === known.lookupError?.message ? undefined : previous));
       track((previous) =>
         previous.map((entry) =>
           entry.clientOperationId === operation.clientOperationId
-            ? { ...entry, status: operation.status, operation, error: operation.error?.message }
+            ? {
+                ...entry,
+                status: operation.status,
+                operation,
+                error: operation.error?.message,
+                lookupError: undefined,
+              }
             : entry,
         ),
       );
@@ -343,27 +353,53 @@ export function useWorkspace() {
     }
   }, [projectsLoaded, applyOperation]);
 
-  const refreshOperations = useCallback(async () => {
-    await Promise.all(
-      operationsRef.current.map(async (entry) => {
-        try {
-          applyOperation(await api.operation(entry.clientOperationId));
-        } catch (problem) {
-          if (problem instanceof HttpError && problem.authenticationRequired) {
-            report(problem);
-            return;
+  const recordLookupError = useCallback(
+    (entry: SavedOperation, problem: unknown) => {
+      const lookupError = operationLookupError(problem);
+      let applied = false;
+      track((previous) =>
+        previous.map((current) => {
+          // A late failed read must not overwrite a receipt received through POST or WebSocket.
+          if (
+            current.clientOperationId !== entry.clientOperationId ||
+            current.operation !== entry.operation
+          )
+            return current;
+          applied = true;
+          return { ...current, lookupError };
+        }),
+      );
+      return applied ? lookupError.message : undefined;
+    },
+    [track],
+  );
+  const refreshOperations = useCallback(
+    async (reportErrors = false) => {
+      const failures: string[] = [];
+      await Promise.all(
+        operationsRef.current.map(async (entry) => {
+          // A browser identity is saved before POST; it may not have reached the gateway yet.
+          if (busyRef.current.has(`${entry.kind}:${entry.target}`)) return;
+          try {
+            applyOperation(await api.operation(entry.clientOperationId));
+          } catch (problem) {
+            if (problem instanceof HttpError && problem.authenticationRequired) {
+              report(problem);
+              return;
+            }
+            const message = recordLookupError(entry, problem);
+            if (message) failures.push(message);
           }
-          track((previous) =>
-            previous.map((current) =>
-              current.clientOperationId === entry.clientOperationId
-                ? { ...current, error: `无法确认提交：${readableError(problem)}` }
-                : current,
-            ),
-          );
-        }
-      }),
-    );
-  }, [applyOperation, report, track]);
+        }),
+      );
+      const currentFailures = failures.filter((message) =>
+        operationsRef.current.some((entry) => entry.lookupError?.message === message),
+      );
+      if (reportErrors && currentFailures.length)
+        report(new Error([...new Set(currentFailures)].join('\n')));
+    },
+    [applyOperation, report, recordLookupError],
+  );
   const refreshThread = useCallback(async () => {
     const id = selectedRef.current;
     if (!id) return;
@@ -512,6 +548,9 @@ export function useWorkspace() {
           ),
         );
         // Query the same operation identity. Never automatically resend an uncertain intent.
+        const entry = operationsRef.current.find(
+          (current) => current.clientOperationId === clientOperationId,
+        );
         try {
           const recovered = await api.operation(clientOperationId);
           applyOperation(recovered);
@@ -519,8 +558,13 @@ export function useWorkspace() {
             setError((previous) => (previous === readableError(problem) ? undefined : previous));
             return recovered;
           }
-        } catch {
-          /* Remains visible for explicit reconciliation. */
+        } catch (lookupProblem) {
+          if (lookupProblem instanceof HttpError && lookupProblem.authenticationRequired)
+            report(lookupProblem);
+          else if (entry) {
+            const message = recordLookupError(entry, lookupProblem);
+            if (message) report(new Error(message));
+          }
         }
         return undefined;
       } finally {
@@ -528,7 +572,7 @@ export function useWorkspace() {
         setBusy([...busyRef.current]);
       }
     },
-    [applyOperation, report, track, system],
+    [applyOperation, report, track, system, recordLookupError],
   );
 
   const cancelResultNavigation = () => {
@@ -615,6 +659,17 @@ export function useWorkspace() {
     refreshThread,
     refreshSystem,
     refreshOperations,
+    discardMissingOperation: (id: string) => {
+      const entry = operationsRef.current.find((current) => current.clientOperationId === id);
+      if (
+        !entry ||
+        !canDiscardMissingOperation(entry) ||
+        busyRef.current.has(`${entry.kind}:${entry.target}`)
+      )
+        return;
+      track((previous) => previous.filter((current) => current.clientOperationId !== id));
+      setError((previous) => (previous === entry.lookupError?.message ? undefined : previous));
+    },
     retryConnection: () => streamRef.current?.retry(),
   };
 }
