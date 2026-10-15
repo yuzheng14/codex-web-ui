@@ -51,6 +51,10 @@ export interface SimulatorOptions {
   malformedTurnReceipt?: boolean;
   nonblockingQuestions?: boolean;
   threadNames?: string[];
+  titleOutput?: string;
+  titleDelayMs?: number;
+  threadStartedDelayMs?: number;
+  titleBehavior?: 'fail' | 'hang' | 'rename' | 'interaction';
   autoReview?: Exclude<GuardianApprovalReviewStatus, 'inProgress'> | 'unfinished';
   autoReviewDelayMs?: number;
 }
@@ -156,7 +160,7 @@ function command(id: string, cwd: string): Extract<ThreadItem, { type: 'commandE
 function complete(
   thread: Thread,
   turn: Turn,
-  status: 'completed' | 'interrupted' = 'completed',
+  status: 'completed' | 'interrupted' | 'failed' = 'completed',
 ): void {
   clearTimeout(finishes.get(turn.id));
   finishes.delete(turn.id);
@@ -558,21 +562,56 @@ function receive(request: ClientRequest): void {
     case 'model/list':
       reply(request.id, { data: [model], nextCursor: null });
       break;
+    case 'config/read':
+      reply(request.id, {
+        config: { mcp_servers: { 'fixture.tools': { command: 'unused', enabled: true } } },
+        origins: {},
+        layers: null,
+      });
+      break;
     case 'thread/start': {
       const thread = makeThread(request.params.cwd ?? process.cwd());
+      thread.ephemeral = request.params.ephemeral ?? false;
       threads.set(thread.id, thread);
-      notify({ method: 'thread/started', params: { thread: { ...thread, turns: [] } } });
+      const started = () =>
+        notify({ method: 'thread/started', params: { thread: { ...thread, turns: [] } } });
+      if (options.threadStartedDelayMs) setTimeout(started, options.threadStartedDelayMs);
+      else started();
       reply(request.id, startResponse(thread));
       break;
     }
     case 'thread/list':
       reply(request.id, {
         data: [...threads.values()]
+          .filter((thread) => !thread.ephemeral)
           .filter((thread) => !request.params.cwd || thread.cwd === request.params.cwd)
           .map((thread) => ({ ...thread, turns: [] })),
         nextCursor: null,
       });
       break;
+    case 'thread/name/set': {
+      const thread = threads.get(request.params.threadId);
+      if (!thread) {
+        error(request.id, 'Thread not found');
+        break;
+      }
+      thread.name = request.params.name;
+      notify({
+        method: 'thread/name/updated',
+        params: { threadId: thread.id, threadName: thread.name },
+      });
+      reply(request.id, {});
+      break;
+    }
+    case 'thread/unsubscribe': {
+      const thread = threads.get(request.params.threadId);
+      reply(request.id, { status: 'unsubscribed' });
+      if (thread?.ephemeral) {
+        threads.delete(thread.id);
+        notify({ method: 'thread/closed', params: { threadId: thread.id } });
+      }
+      break;
+    }
     case 'thread/read': {
       const thread = threads.get(request.params.threadId);
       if (!thread) {
@@ -718,7 +757,7 @@ function receive(request: ClientRequest): void {
         .join('');
       if (!thread.preview) thread.preview = text;
       notify({ method: 'turn/started', params: { threadId: thread.id, turn } });
-      const name = options.threadNames?.[thread.turns.length - 1];
+      const name = thread.ephemeral ? undefined : options.threadNames?.[thread.turns.length - 1];
       if (name !== undefined) {
         thread.name = name || null;
         notify({
@@ -737,6 +776,50 @@ function receive(request: ClientRequest): void {
         options.ackDelayMs ?? 0,
       );
       const prompt = text.toLowerCase();
+      if (thread.ephemeral) {
+        if (options.titleBehavior === 'hang') break;
+        if (options.titleBehavior === 'interaction') {
+          approval(thread, turn, 'command');
+          break;
+        }
+        if (options.titleBehavior === 'rename') {
+          const original = [...threads.values()].find((entry) => !entry.ephemeral);
+          if (original) {
+            original.name = '用户手动命名';
+            notify({
+              method: 'thread/name/updated',
+              params: { threadId: original.id, threadName: original.name },
+            });
+          }
+        }
+        finishes.set(
+          turn.id,
+          setTimeout(() => {
+            const item: ThreadItem = {
+              id: randomUUID(),
+              type: 'agentMessage',
+              phase: 'final_answer',
+              memoryCitation: null,
+              delivery: null,
+              questions: null,
+              text: options.titleOutput ?? JSON.stringify({ title: 'Codex 配置继承与运行设置' }),
+            };
+            notify({
+              method: 'item/completed',
+              params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
+            });
+            // Real turn/completed notifications may omit items; the completed item carries the answer.
+            complete(
+              thread,
+              turn,
+              options.titleBehavior === 'fail' || prompt.includes('[title-fail]')
+                ? 'failed'
+                : 'completed',
+            );
+          }, options.titleDelayMs ?? 50),
+        );
+        break;
+      }
       const interactive = [
         'permissions',
         'unsupported',

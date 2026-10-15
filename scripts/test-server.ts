@@ -108,14 +108,15 @@ class ControlledFixture implements CodexClient {
 }
 
 const root = await mkdtemp(join(tmpdir(), 'codex-web-e2e-'));
+const port = Number(process.env.CODEX_WEB_TEST_PORT ?? 8788);
 const project = join(root, 'project');
 const otherProject = join(root, 'other-project');
 await mkdir(project);
 await mkdir(otherProject);
 const config = parseConfig(
   {
-    port: 8788,
-    publicOrigin: ['http://127.0.0.1:8788'],
+    port,
+    publicOrigin: [`http://127.0.0.1:${port}`],
     dataDir: join(root, 'data'),
     projects: [
       { id: 'fixture', name: '测试项目', path: project },
@@ -134,7 +135,7 @@ const codex = new ControlledFixture(
       'tsx',
       resolve('tests/fixtures/app-server.ts'),
       '--options',
-      JSON.stringify({ fragmentBytes: 7, turnDelayMs: 800 }),
+      JSON.stringify({ fragmentBytes: 7, turnDelayMs: 800, titleDelayMs: 1500 }),
     ],
   }),
 );
@@ -198,9 +199,9 @@ const control = createServer((request, response) => {
 });
 await new Promise<void>((resolveListening, reject) => {
   control.once('error', reject);
-  control.listen(8789, '127.0.0.1', resolveListening);
+  control.listen(port + 1, '127.0.0.1', resolveListening);
 });
-console.log('Explicit fixture server: http://127.0.0.1:8788');
+console.log(`Explicit fixture server: http://127.0.0.1:${port}`);
 let closing = false;
 const close = () => {
   if (closing) return;

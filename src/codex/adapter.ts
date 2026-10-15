@@ -1,6 +1,7 @@
 import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
+import { ThreadTitles } from './thread-titles.js';
 import { AppError } from '../shared/errors.js';
 import { mapAutoReview } from './auto-review.js';
 import {
@@ -102,6 +103,7 @@ export interface CodexAdapterOptions {
   /** Explicit argument override for the test simulator; production leaves this unset. */
   args?: string[];
   requestTimeoutMs?: number;
+  titleTimeoutMs?: number;
   maxLineBytes?: number;
   maxStderrBytes?: number;
 }
@@ -138,6 +140,7 @@ export class CodexAdapter implements CodexClient {
   epoch = randomUUID();
   private child?: ChildProcessWithoutNullStreams;
   private rpc?: RpcTransport;
+  private titles?: ThreadTitles;
   private listeners = new Set<(event: CodexEvent) => void>();
   private actions = new Map<string, ActionContext>();
   private actionIds = new Map<RpcId, string>();
@@ -212,6 +215,7 @@ export class CodexAdapter implements CodexClient {
         maxLineBytes: this.options.maxLineBytes,
       });
       this.rpc = rpc;
+      this.titles = new ThreadTitles(rpc, this.options.titleTimeoutMs);
       child.stderr.on('data', (chunk: Buffer) => {
         const max = this.options.maxStderrBytes ?? 64 * 1024;
         this.stderrTail = Buffer.concat([this.stderrTail, chunk.subarray(-max)]).subarray(-max);
@@ -458,9 +462,11 @@ export class CodexAdapter implements CodexClient {
   }
   async createThread(cwd: string, settings?: Settings): Promise<ThreadView> {
     this.validateSettings(settings);
-    return mapThread(
-      (await this.call('thread/start', { cwd, ...threadSettings(settings) })).thread,
-    );
+    const titles = this.titles;
+    const result = await this.call('thread/start', { cwd, ...threadSettings(settings) });
+    const thread = mapThread(result.thread);
+    titles?.register(result);
+    return thread;
   }
   async resumeThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
     this.validateSettings(settings);
@@ -527,7 +533,8 @@ export class CodexAdapter implements CodexClient {
     images?: string[],
   ): Promise<TurnView> {
     this.validateSettings(settings);
-    return mapTurn(
+    const titles = this.titles;
+    const turn = mapTurn(
       id,
       (
         await this.call('turn/start', {
@@ -538,6 +545,12 @@ export class CodexAdapter implements CodexClient {
         })
       ).turn,
     );
+    const model = this.state.models.find(
+      (entry) => entry.id === (settings?.model ?? titles?.modelFor(id)),
+    );
+    const effort = model?.reasoningEfforts.includes('low') ? 'low' : undefined;
+    titles?.start(id, text, settings?.model, effort);
+    return turn;
   }
   steerTurn(
     id: string,
@@ -556,6 +569,7 @@ export class CodexAdapter implements CodexClient {
   }
 
   private notification(message: RpcNotification): void {
+    if (this.titles?.notification(message)) return;
     const event = message as ServerNotification;
     const p = event.params;
     switch (event.method) {
@@ -661,6 +675,14 @@ export class CodexAdapter implements CodexClient {
     }
   }
   private async serverRequest(message: RpcServerRequest): Promise<void> {
+    if (isRecord(message.params) && this.titles?.isInternal(message.params.threadId)) {
+      await this.rpc?.reject(
+        message.id,
+        -32601,
+        'Interactive tools are disabled for title generation',
+      );
+      return;
+    }
     const request = message as ServerRequest;
     const params: Record<string, unknown> = isRecord(message.params) ? message.params : {};
     const action: PendingAction = {

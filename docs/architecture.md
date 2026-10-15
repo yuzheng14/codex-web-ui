@@ -27,6 +27,10 @@
 
 浏览器按项目维护摘要列表、分页与错误；详情缓存单独持有会话投影与恢复游标。HTTP 读取序号和摘要事件游标共同防止迟到响应回滚状态。切换会话只替换同一 WebSocket 的详情订阅，真实重连才重新读取各项目列表。项目选择、会话草稿、执行设置与创建/Fork 的导航意图分别记录，用户切换位置后迟到回执仅更新原项目。
 
+新会话的首条 `turn/start` 成功返回后，适配层的 `ThreadTitles` 异步进行一次命名。它使用同一 app-server 上的独立 `ephemeral` 会话，按 JSON Schema 从首条消息前 8000 个 UTF-16 字元生成最多 80 个 Unicode 字符的标题。命名会话采用只读沙箱，禁用 shell、MCP、Apps、插件、浏览器、hooks 等能力，不加载项目说明；临时通知及交互请求不会进入业务投影。配置查询只用于获取 MCP 名称并覆盖 `enabled`，不回传可能已脱敏的配置值。
+
+生成结果在保存前重新检查 `thread.name`，且名称更新通知会取消在途命名，保留已设置的名称。标题通过 `thread/name/set` 交给 Codex 持久化，沿用 `thread/name/updated` 的详情与概览推送。60 秒期限、失败或断线会放弃命名并保留预览；仅中断临时 turn，并取消其订阅，不改变用户任务状态。创建通知可早于或晚于创建响应，完成通知可不带 items，均通过独立生命周期与 `item/completed` 处理。候选与在途命名只存在于当前进程，不回填历史、Fork 或重启后遗留的会话。
+
 不同 thread 可在同一目录并行，包括等待审批、等待输入或旧执行未知的情况。`workspaceKey` 保留为项目与执行的诊断信息，不再作为互斥键。迁移 `0002_allow_parallel_threads.sql` 删除旧数据库的工作区唯一索引并保留现有执行记录；需要文件隔离时由用户自行使用 Git worktree。
 
 `POST /api/threads/:threadId/fork` 接受 `{ clientOperationId, settings? }`，返回标准操作回执，成功结果为 `{ threadId, forkedFromId }`。服务端只读源会话并校验注册项目归属，再将其 canonical cwd 交给适配层调用 `thread/fork`；客户端不能指定目录。新 ID 注册为当前进程持有的会话，历史由 Codex 保存，无需新增数据库表。

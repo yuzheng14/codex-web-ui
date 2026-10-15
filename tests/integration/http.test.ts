@@ -232,12 +232,22 @@ it('broadcasts other project summaries before selection and alongside one detail
     event.type === 'event' &&
     (event.payload as ThreadSummary).pendingActionCount === 1;
   const approvals = [selected, idle].map((ws) => message(ws, waitingApproval));
+  const titles = [selected, idle].map((ws) =>
+    message(
+      ws,
+      (event) =>
+        waitingApproval(event) &&
+        event.type === 'event' &&
+        (event.payload as ThreadSummary).title === 'Codex 配置继承与运行设置',
+    ),
+  );
   await post(`/api/threads/${secondId}/turns`, {
     clientOperationId: randomUUID(),
     text: '[approval] private request body',
   });
   for (const result of await Promise.all(approvals))
     expect(result).toMatchObject({ payload: { pendingActionCount: 1 } });
+  await Promise.all(titles);
   const detail = (await (await fetch(`${origin}/api/threads/${secondId}`)).json()) as ThreadView;
   const action = detail.actions[0]!;
   const completions = [selected, idle].map((ws) => message(ws, summary('completed')));
@@ -262,7 +272,7 @@ it('broadcasts other project summaries before selection and alongside one detail
       ).size,
     ).toBe(approvalSummaries.length);
     expect(approvalSummaries.at(-1)).toMatchObject({
-      payload: { title: '[approval] private request body' },
+      payload: { title: 'Codex 配置继承与运行设置' },
     });
     expect(events.filter(summary('completed'))).toHaveLength(1);
     expect(events.some((event) => event.type === 'event' && event.kind === 'thread')).toBe(false);
@@ -584,6 +594,7 @@ it('forks a busy conversation over HTTP, restores its history over WebSocket, an
   const read = async (id: string) =>
     (await (await fetch(`${origin}/api/threads/${id}`)).json()) as ThreadView;
   await expect.poll(async () => (await read(sourceId)).actions.length).toBe(1);
+  await expect.poll(async () => (await read(sourceId)).title).toBe('Codex 配置继承与运行设置');
   const source = await read(sourceId);
   const fork = vi.spyOn(runtime.codex, 'forkThread');
   const input = { clientOperationId: randomUUID() };
