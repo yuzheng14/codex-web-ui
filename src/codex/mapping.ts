@@ -47,6 +47,7 @@ export function mapThread(thread: Thread): ThreadView {
     status: threadStatus(thread.status),
     turns: thread.turns.map((turn) => mapTurn(thread.id, turn)),
     managed: false,
+    modelSettings: { model: thread.model ?? null, reasoningEffort: thread.reasoningEffort ?? null },
     updatedAt: thread.updatedAt * 1000,
     actions: [],
   };

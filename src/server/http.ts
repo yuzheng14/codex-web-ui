@@ -77,6 +77,9 @@ export function createApp({
     return c.json(op, status(op));
   });
   app.get('/api/projects', async (c) => c.json({ data: await service.listProjects() }));
+  app.get('/api/projects/:projectId/model-settings', async (c) =>
+    c.json(await service.readModelSettings(id(c.req.param('projectId')))),
+  );
   app.post('/api/projects', async (c) =>
     c.json(service.addProject(await parse(c, schemas.createProjectSchema))),
   );

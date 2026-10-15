@@ -1402,7 +1402,9 @@ svg {
   font-size: 13px;
 }
 .settings-panel > summary span {
-  color: #a9b0aa;
+  color: #65776a;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .settings-panel > summary::after {
   content: '⌄';
@@ -1410,7 +1412,7 @@ svg {
 }
 .settings-fields {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   background: #f8faf8;
   border: 1px solid #e9eeea;
@@ -1440,6 +1442,24 @@ svg {
   margin: 0;
   font-size: 10px;
   color: #a0aaa3;
+}
+.settings-current {
+  grid-column: 1 / -1;
+  color: #65776a;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.settings-current p {
+  margin: 0;
+}
+.settings-current .settings-pending {
+  margin-top: 4px;
+  color: #857044;
+}
+.settings-current button {
+  margin-left: 6px;
+  text-decoration: underline;
 }
 .pending-actions {
   max-height: 38vh;

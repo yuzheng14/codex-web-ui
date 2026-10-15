@@ -183,6 +183,11 @@ export class GatewayService {
     });
   }
 
+  async readModelSettings(projectId: string) {
+    const project = this.projects.get(projectId);
+    return this.codex.readModelSettings(project.canonicalRoot);
+  }
+
   async listThreads(projectId: string, cursor?: string): Promise<ThreadPage> {
     const project = this.projects.get(projectId);
     const titleReads = new Map(
@@ -236,7 +241,7 @@ export class GatewayService {
   async getThread(threadId: string): Promise<ThreadView> {
     const cached = this.projection.get(threadId);
     await this.loadThread(threadId);
-    if (cached && this.codex.ready) await this.refreshThreadTitle(threadId);
+    if (cached && this.codex.ready) await this.refreshThreadMetadata(threadId);
     const thread = this.projection.get(threadId)!;
     // A completed project can be removed while its metadata request is in flight.
     this.projects.assertOwnership(thread.projectId, thread.cwd);
@@ -953,13 +958,24 @@ export class GatewayService {
     this.publishThread(threadId);
   }
 
-  private async refreshThreadTitle(threadId: string): Promise<void> {
+  private async refreshThreadMetadata(threadId: string): Promise<void> {
     const sequence = this.beginTitleRead(threadId);
+    const revision = this.projection.revision(threadId);
     try {
       const thread = await this.codex.readThreadMetadata(threadId);
       const current = this.projection.get(threadId);
       if (!current || thread.id !== threadId) return;
       this.projects.assertOwnership(current.projectId, thread.cwd);
+      if (
+        this.titleReads.get(threadId) === sequence &&
+        this.projection.revision(threadId) === revision &&
+        thread.modelSettings &&
+        JSON.stringify(current.modelSettings) !== JSON.stringify(thread.modelSettings)
+      ) {
+        current.modelSettings = thread.modelSettings;
+        this.projection.touch(threadId);
+        this.publishThread(threadId);
+      }
       this.updateThreadTitle(threadId, thread.title, sequence);
     } catch {
       // Metadata refresh must not break live execution when upstream is unavailable.
@@ -1020,10 +1036,13 @@ export class GatewayService {
       // Also invalidate history reads when the notification repeats the current name.
       this.projection.touch(thread.id);
       if (event.name) this.updateThreadTitle(thread.id, event.name, this.beginTitleRead(thread.id));
-      else void this.refreshThreadTitle(thread.id);
+      else void this.refreshThreadMetadata(thread.id);
       return;
     }
-    if (event.type === 'threadStatus') {
+    if (event.type === 'threadSettings') {
+      thread.modelSettings = event.settings;
+      this.projection.touch(thread.id);
+    } else if (event.type === 'threadStatus') {
       // Idle/notLoaded is not proof that an uncertain execution finished.
       if (this.store.activeForThread(thread.id)?.state !== 'unknown') thread.status = event.status;
       this.projection.touch(thread.id);
@@ -1031,7 +1050,7 @@ export class GatewayService {
       this.projection.turn(thread.id, event.turn);
       // Preview changes do not have a dedicated notification. Read the upstream
       // title at turn boundaries, including the first prompt of a new thread.
-      void this.refreshThreadTitle(thread.id);
+      void this.refreshThreadMetadata(thread.id);
       const marker = this.store.activeForThread(thread.id);
       if (marker?.codexEpoch === this.codex.epoch && marker.turnId === null)
         this.store.attachTurn(marker.operationId, event.turn.id);

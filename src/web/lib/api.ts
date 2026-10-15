@@ -1,5 +1,6 @@
 import type {
   ApiError,
+  ModelSettings,
   Operation,
   Project,
   SystemInfo,
@@ -53,6 +54,8 @@ export async function request<T>(path: string, body?: object, signal?: AbortSign
 
 export const api = {
   system: () => request<SystemInfo>('/api/system'),
+  modelSettings: (projectId: string) =>
+    request<ModelSettings>(`/api/projects/${encodeURIComponent(projectId)}/model-settings`),
   projects: () => request<{ data: Project[] }>('/api/projects'),
   addProject: (input: { path: string; name?: string }) => request<Project>('/api/projects', input),
   renameProject: (id: string, name: string) =>

@@ -833,3 +833,11 @@ it('does not override an explicitly unsupported upstream method after compatibil
   expect((await rejected.json()).error.code).toBe('PROTOCOL_INCOMPATIBLE');
   expect(runtime.service.getSystem().capabilities).not.toContain('thread/start');
 });
+
+it('returns only model defaults for registered projects and rejects arbitrary project paths', async () => {
+  const { origin } = await setup();
+  const response = await fetch(`${origin}/api/projects/test/model-settings`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ model: 'simulated-model', reasoningEffort: 'medium' });
+  expect((await fetch(`${origin}/api/projects/unknown/model-settings`)).status).toBe(404);
+});

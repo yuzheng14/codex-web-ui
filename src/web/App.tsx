@@ -416,6 +416,10 @@ export function App() {
             thread={thread}
             draftKey={workspace.selectedId ?? `project:${workspace.projectId}`}
             projectName={project?.name}
+            projectId={project?.available ? project.id : undefined}
+            runtimeKey={
+              system?.ready && workspace.connection === 'connected' ? system.codexEpoch : undefined
+            }
             settings={workspace.settings}
             models={system?.models ?? []}
             onSettings={workspace.setSettings}

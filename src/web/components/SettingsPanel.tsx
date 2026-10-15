@@ -1,15 +1,33 @@
-import type { ModelInfo, Settings } from '../../shared/types';
+import type { ModelInfo, Settings, ThreadView } from '../../shared/types';
+import { useModelDefaults } from '../hooks/useModelDefaults';
 
 export function SettingsPanel({
   settings,
   models,
+  thread,
+  projectId,
+  runtimeKey,
   onChange,
 }: {
   settings: Settings;
   models: ModelInfo[];
+  thread?: ThreadView;
+  projectId?: string;
+  runtimeKey?: string;
   onChange: (settings: Settings) => void;
 }) {
-  const selectedModel = models.find((model) => model.id === settings.model);
+  const defaults = useModelDefaults(thread ? undefined : projectId, runtimeKey);
+  const current = thread ? thread.modelSettings : defaults.value;
+  const model = current?.model ?? (defaults.loading && !thread ? '读取中…' : '未报告');
+  const effort = current?.reasoningEffort ?? (defaults.loading && !thread ? '读取中…' : '未报告');
+  const source = thread ? (thread.managed ? '会话当前配置' : '会话保存配置') : '新会话默认配置';
+  const selectedModel = models.find((model) => model.id === (settings.model ?? current?.model));
+  const modelChanged = settings.model !== undefined && settings.model !== current?.model;
+  const pending =
+    modelChanged ||
+    (settings.reasoningEffort !== undefined &&
+      settings.reasoningEffort !== current?.reasoningEffort);
+  const inheritedEffort = modelChanged ? '由 Codex 确认' : effort;
   function update(key: keyof Settings, value: string) {
     const next = { ...settings };
     if (value === '') delete next[key];
@@ -20,16 +38,41 @@ export function SettingsPanel({
   return (
     <details className="settings-panel">
       <summary>
-        运行设置 <span>{selectedModel?.name ?? '继承 Codex 配置'}</span>
+        运行设置{' '}
+        <span>
+          {model} · {effort}
+        </span>
       </summary>
       <div className="settings-fields">
+        <div className="settings-current" aria-live="polite">
+          <p>
+            {source}：<strong>{model}</strong> · 推理强度 <strong>{effort}</strong>
+          </p>
+          {pending && (
+            <p className="settings-pending">
+              下次使用：{settings.model ?? model} · {settings.reasoningEffort ?? inheritedEffort}
+              （待 Codex 确认）
+            </p>
+          )}
+          {!thread && defaults.error && (
+            <p>
+              {defaults.error}{' '}
+              <button type="button" onClick={defaults.retry}>
+                重试
+              </button>
+            </p>
+          )}
+          {current && (!current.model || !current.reasoningEffort) && (
+            <p>未报告表示尚未设置或无法读取，以 Codex 返回为准。</p>
+          )}
+        </div>
         <label>
           模型
           <select
             value={settings.model ?? ''}
             onChange={(event) => update('model', event.target.value)}
           >
-            <option value="">继承 Codex 配置</option>
+            <option value="">继承（{model}）</option>
             {models.map((model) => (
               <option key={model.id} value={model.id}>
                 {model.name}
@@ -44,7 +87,7 @@ export function SettingsPanel({
             onChange={(event) => update('reasoningEffort', event.target.value)}
             disabled={!selectedModel}
           >
-            <option value="">继承 Codex 配置</option>
+            <option value="">继承（{inheritedEffort}）</option>
             {selectedModel?.reasoningEfforts.map((effort) => (
               <option key={effort} value={effort}>
                 {effort}
@@ -78,6 +121,7 @@ export function SettingsPanel({
         </label>
         <p className="settings-note">
           设置作用于新建、恢复会话及下一轮任务；不覆盖本机全局配置。
+          继承会沿用会话设置，不会重置为全局默认值。
           {settings.sandbox === 'danger-full-access' && '完全访问允许在沙箱外执行操作。'}
         </p>
       </div>

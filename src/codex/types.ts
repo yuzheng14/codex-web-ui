@@ -2,6 +2,7 @@ import type {
   ActionResolution,
   AutoReviewView,
   ItemView,
+  ModelSettings,
   PendingAction,
   RunStatus,
   Settings,
@@ -14,6 +15,7 @@ import type {
 export type CodexDiagnostics = Omit<SystemInfo, 'authMode' | 'demo' | 'compatibilityConfirmation'>;
 export type CodexEvent =
   | { type: 'thread'; thread: ThreadView }
+  | { type: 'threadSettings'; threadId: string; settings: ModelSettings }
   | { type: 'threadName'; threadId: string; name?: string }
   | { type: 'threadStatus'; threadId: string; status: RunStatus }
   | { type: 'turn'; threadId: string; turn: TurnView }
@@ -39,6 +41,7 @@ export interface CodexClient {
   start(): Promise<void>;
   stop(): Promise<void>;
   diagnostics(): CodexDiagnostics;
+  readModelSettings(cwd: string): Promise<ModelSettings>;
   onEvent(listener: (event: CodexEvent) => void): () => void;
   listThreads(cwd: string, cursor?: string): Promise<ThreadPage>;
   readThread(id: string): Promise<ThreadView>;

@@ -10,6 +10,8 @@ interface Props {
   thread?: ThreadView;
   draftKey: string;
   projectName?: string;
+  projectId?: string;
+  runtimeKey?: string;
   settings: Settings;
   models: ModelInfo[];
   onSettings: (settings: Settings) => void;
@@ -175,7 +177,14 @@ export function Composer(props: Props) {
           </Button>
         </div>
       )}
-      <SettingsPanel settings={props.settings} models={props.models} onChange={props.onSettings} />
+      <SettingsPanel
+        settings={props.settings}
+        models={props.models}
+        onChange={props.onSettings}
+        thread={props.thread}
+        projectId={props.projectId}
+        runtimeKey={props.runtimeKey}
+      />
       <div className="composer-box">
         {images.length > 0 && (
           <ul className="composer-images" aria-label="待发送的图片">

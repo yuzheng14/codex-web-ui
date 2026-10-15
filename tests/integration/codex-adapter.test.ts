@@ -156,6 +156,53 @@ describe('verified protocol adapter with a real subprocess', () => {
       ]);
     },
   );
+  it('reads project-scoped defaults without exposing the rest of the config', async () => {
+    const { adapter, requests } = await fixture({
+      configModel: 'custom-model',
+      configEffort: 'high',
+    });
+    expect(await adapter.readModelSettings('/tmp/project')).toEqual({
+      model: 'custom-model',
+      reasoningEffort: 'high',
+    });
+    expect((await requests()).find((entry) => entry.method === 'config/read')?.params).toEqual({
+      cwd: '/tmp/project',
+      includeLayers: false,
+    });
+  });
+  it('preserves unknown defaults and keeps a missing config API from disabling execution', async () => {
+    const { adapter } = await fixture({ configModel: null, configEffort: null });
+    expect(await adapter.readModelSettings('/tmp')).toEqual({ model: null, reasoningEffort: null });
+    const unsupported = (await fixture({ unsupportedMethod: 'config/read' })).adapter;
+    await expect(unsupported.readModelSettings('/tmp')).rejects.toMatchObject({
+      code: 'PROTOCOL_INCOMPATIBLE',
+    });
+    expect(unsupported.ready).toBe(true);
+    expect((await unsupported.createThread('/tmp')).modelSettings?.model).toBe('simulated-model');
+  });
+  it.each([false, true])(
+    'reports confirmed settings across create, turn, read, resume and fork (paginated: %s)',
+    async (paginated) => {
+      const { adapter, events } = await fixture({ paginated });
+      const thread = await adapter.createThread('/tmp', { reasoningEffort: 'low' });
+      expect(thread.modelSettings).toEqual({ model: 'simulated-model', reasoningEffort: 'low' });
+      await adapter.startTurn(thread.id, '/tmp', 'settings', { reasoningEffort: 'high' });
+      await waitFor(() => events.find((event) => event.type === 'threadSettings'));
+      expect(events).toContainEqual({
+        type: 'threadSettings',
+        threadId: thread.id,
+        settings: { model: 'simulated-model', reasoningEffort: 'high' },
+      });
+      expect((await adapter.readThread(thread.id)).modelSettings?.reasoningEffort).toBe('high');
+      expect((await adapter.resumeThread(thread.id, '/tmp')).modelSettings?.reasoningEffort).toBe(
+        'high',
+      );
+      expect(
+        (await adapter.forkThread(thread.id, '/tmp', { reasoningEffort: 'low' })).modelSettings
+          ?.reasoningEffort,
+      ).toBe('low');
+    },
+  );
   it('handshakes before business operations, maps deltas/tool output, paginates history and explicitly includes CLI sources', async () => {
     const { adapter, events, requests } = await fixture({
       fragmentBytes: 1,
