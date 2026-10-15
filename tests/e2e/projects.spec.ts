@@ -233,7 +233,7 @@ test('project overview drafts and execution settings remain independent before a
   await open(page);
   const input = page.getByRole('textbox', { name: '任务内容', exact: true });
   await input.fill('项目 A 概览草稿');
-  await page.getByRole('button', { name: '更多设置', exact: true }).click();
+  await page.getByRole('button', { name: '权限与审批设置', exact: true }).click();
   await page
     .getByRole('combobox', { name: '权限范围', exact: true })
     .selectOption('workspace-write');

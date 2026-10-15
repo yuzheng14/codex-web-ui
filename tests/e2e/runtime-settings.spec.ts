@@ -17,12 +17,12 @@ test('direct selectors show reported settings, keep proposals distinct and follo
   await createThreadButton(page).click();
   await expect(page.getByText('这个会话准备好了')).toBeVisible();
   await expect(effort).toHaveValue('medium');
-  await page.locator('.composer-box').screenshot({ path: '/tmp/codex-settings-direct.png' });
+  await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-direct.png' });
   await effort.selectOption('high');
   await expect(page.locator('.settings-pending')).toContainText(
     '下次任务生效 · 当前 simulated-model / medium',
   );
-  await page.locator('.composer-box').screenshot({ path: '/tmp/codex-settings-pending.png' });
+  await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-pending.png' });
   await page.getByRole('textbox', { name: '任务内容' }).fill('确认推理强度设置');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(effort).toBeDisabled();
@@ -35,7 +35,7 @@ test('direct selectors show reported settings, keep proposals distinct and follo
   await expect(effort).toHaveValue('high');
   await page.reload();
   await expect(effort).toHaveValue('high');
-  await page.getByRole('button', { name: '更多设置' }).click();
+  await page.getByRole('button', { name: '权限与审批设置' }).click();
   await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
     'read-only',
   );
@@ -44,7 +44,7 @@ test('direct selectors show reported settings, keep proposals distinct and follo
   );
   await expect(page.locator('.settings-observed')).toContainText('当前网络权限：受限');
   await expect(page.locator('.settings-panel')).not.toContainText('继承');
-  await page.locator('.composer-box').screenshot({ path: '/tmp/codex-settings-advanced.png' });
+  await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-advanced.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: '打开项目与会话', exact: true }).click();
   await page.getByRole('button', { name: '关闭导航', exact: true }).click();
@@ -52,10 +52,12 @@ test('direct selectors show reported settings, keep proposals distinct and follo
     true,
   );
   await page.screenshot({
-    path: '/tmp/codex-settings-mobile.png',
+    path: '/tmp/codex-toolbar-mobile.png',
     fullPage: true,
     animations: 'disabled',
   });
+  await page.getByRole('button', { name: '权限与审批设置' }).click();
+  await page.screenshot({ path: '/tmp/codex-toolbar-mobile-collapsed.png', fullPage: true });
 });
 
 test('isolates unsent edits by session and sends only explicit edits', async ({ page }) => {
@@ -136,7 +138,7 @@ test('retries unavailable defaults and preserves unknown or custom values withou
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
   await expect(effort.locator('option:checked')).toHaveText('未报告');
   await expect(effort).toBeDisabled();
-  await page.getByRole('button', { name: '更多设置' }).click();
+  await page.getByRole('button', { name: '权限与审批设置' }).click();
   await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
     'external-sandbox',
   );
@@ -162,7 +164,7 @@ test('restored saved settings stay distinct from edits until the next task confi
   await expect(notice).toContainText('此会话正被其他进程使用');
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
   await expect(effort).toHaveValue('medium');
-  await page.getByRole('button', { name: '更多设置' }).click();
+  await page.getByRole('button', { name: '权限与审批设置' }).click();
   // Seeding this fixture emits a settings notification, so its actual policy is already known.
   await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
     'read-only',
@@ -189,4 +191,84 @@ test('restored saved settings stay distinct from edits until the next task confi
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
   await expect(effort).toHaveValue('high');
   await expect(page.locator('.settings-pending')).toHaveCount(0);
+});
+
+test('one-row controls stay grouped on desktop and narrow screens, with distinct effort gauges', async ({
+  page,
+  request,
+}) => {
+  await page.route('**/api/projects/fixture/runtime-settings', async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      json: {
+        ...(await response.json()),
+        model: 'private-model-with-a-very-long-provider-and-version-name',
+      },
+    });
+  });
+  await page.goto('/');
+  await confirmCompatibility(page);
+  const row = page.locator('.composer-actions');
+  const policy = row.getByRole('button', { name: '权限与审批设置', exact: true });
+  const model = row.getByRole('combobox', { name: '模型', exact: true });
+  const effort = row.getByRole('combobox', { name: '推理强度', exact: true });
+  const send = row.getByRole('button', { name: '发送任务', exact: true });
+  await expect(model).toHaveValue('private-model-with-a-very-long-provider-and-version-name');
+  for (const width of [1280, 390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    const elements = [page.locator('.composer-target'), policy, model, effort, send];
+    const boxes = await Promise.all(elements.map((element) => element.boundingBox()));
+    const centers = boxes.map((box) => box!.y + box!.height / 2);
+    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
+    for (let index = 1; index < boxes.length; index++)
+      expect(boxes[index]!.x).toBeGreaterThanOrEqual(boxes[index - 1]!.x + boxes[index - 1]!.width);
+    expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page
+      .locator('.composer-box')
+      .screenshot({ path: `/tmp/codex-toolbar-long-${width}.png` });
+  }
+  await page.setViewportSize({ width: 1280, height: 844 });
+  await createThreadButton(page).click();
+  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  const gauge = page.locator('.reasoning-gauge');
+  await effort.selectOption('low');
+  const low = Number(await gauge.getAttribute('data-progress'));
+  await expect(effort).toHaveAttribute('title', '推理强度：low');
+  await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-low.png' });
+  await effort.selectOption('high');
+  expect(Number(await gauge.getAttribute('data-progress'))).toBeGreaterThan(low);
+  await expect(effort).toHaveAttribute('title', '推理强度：high');
+  await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-high.png' });
+  await page
+    .getByRole('textbox', { name: '任务内容', exact: true })
+    .fill('[approval] 检查运行中的发送栏');
+  await send.click();
+  await expect(page.locator('.action-card')).toBeVisible();
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    const elements = [
+      page.locator('.composer-target'),
+      policy,
+      model,
+      effort,
+      row.getByRole('button', { name: '中断', exact: true }),
+      row.getByRole('button', { name: '追加要求', exact: true }),
+    ];
+    const boxes = await Promise.all(elements.map((element) => element.boundingBox()));
+    const centers = boxes.map((box) => box!.y + box!.height / 2);
+    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
+    for (let index = 1; index < boxes.length; index++)
+      expect(boxes[index]!.x).toBeGreaterThanOrEqual(boxes[index - 1]!.x + boxes[index - 1]!.width);
+    expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page
+      .locator('.composer-box')
+      .screenshot({ path: `/tmp/codex-toolbar-active-${width}.png` });
+  }
+  await row.getByRole('button', { name: '中断', exact: true }).click();
+  await expect(row.getByRole('button', { name: '中断', exact: true })).toHaveCount(0);
+  await controlRuntime(request, { reset: true });
 });

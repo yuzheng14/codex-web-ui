@@ -1,8 +1,9 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import type { ModelInfo, Settings, ThreadView } from '../../shared/types';
 import { useRuntimeDefaults } from '../hooks/useRuntimeDefaults';
 import { chooseModel, pendingSettings } from '../lib/settings';
 import { Icon } from './Icon';
+import { ReasoningGauge } from './ReasoningGauge';
 
 const sandboxLabels: Record<string, string> = {
   'read-only': '只读',
@@ -16,9 +17,17 @@ const approvalLabels: Record<string, string> = {
   never: '不请求审批',
   granular: '自定义审批规则',
 };
+const approvalShortLabels: Record<string, string> = {
+  untrusted: '操作审批',
+  'on-request': '按需审批',
+  never: '无需审批',
+  granular: '自定义审批',
+};
 
 export function SettingsPanel({
   settings,
+  projectName,
+  children,
   models,
   thread,
   projectId,
@@ -28,6 +37,8 @@ export function SettingsPanel({
   onChange,
 }: {
   settings: Settings;
+  projectName?: string;
+  children: ReactNode;
   models: ModelInfo[];
   thread?: ThreadView;
   projectId?: string;
@@ -48,66 +59,12 @@ export function SettingsPanel({
   const selectedModel = models.find((entry) => entry.id === model);
   const pending = Object.keys(pendingSettings(settings, current)).length > 0;
   const source = thread ? (thread.managed ? '会话当前配置' : '会话保存配置') : '新会话默认配置';
+  const policyLabel = approvalShortLabels[approval] ?? `审批${unknown}`;
   function update(key: keyof Settings, value: string) {
     onChange(pendingSettings({ ...settings, [key]: value }, current));
   }
   return (
     <div className="settings-panel" role="group" aria-label="运行设置">
-      <div className="settings-toolbar">
-        <label className="settings-choice settings-model">
-          <span>模型</span>
-          <select
-            aria-label="模型"
-            value={model}
-            disabled={disabled || !models.length}
-            onChange={(event) => {
-              const selected = models.find((entry) => entry.id === event.target.value);
-              if (selected) onChange(chooseModel(settings, current, selected));
-            }}
-          >
-            {!selectedModel && (
-              <option value={model} disabled>
-                {model || unknown}
-              </option>
-            )}
-            {models.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.id}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="settings-choice settings-effort">
-          <span>推理</span>
-          <select
-            aria-label="推理强度"
-            value={effort}
-            disabled={disabled || !selectedModel?.reasoningEfforts.length}
-            onChange={(event) => update('reasoningEffort', event.target.value)}
-          >
-            {!selectedModel?.reasoningEfforts.includes(effort) && (
-              <option value={effort} disabled>
-                {effort || unknown}
-              </option>
-            )}
-            {selectedModel?.reasoningEfforts.map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="settings-more"
-          type="button"
-          aria-expanded={expanded}
-          aria-controls={advancedId}
-          onClick={() => setExpanded(!expanded)}
-        >
-          <Icon name="settings" size={15} />
-          <span>更多设置</span>
-        </button>
-      </div>
       {pending && (
         <div className="settings-pending" role="status">
           <span>
@@ -199,6 +156,76 @@ export function SettingsPanel({
           </p>
         </div>
       )}
+      <div className="composer-actions">
+        <div className="composer-context">
+          <span className="composer-target" title={projectName ?? '未选择项目'}>
+            <Icon name="folder" size={14} />
+            <span>{projectName ?? '未选择项目'}</span>
+          </span>
+          <button
+            className="settings-policy"
+            type="button"
+            aria-label="权限与审批设置"
+            title={`审批策略：${approvalLabels[approval] ?? unknown}；权限范围：${sandboxLabels[sandbox] ?? unknown}`}
+            aria-expanded={expanded}
+            aria-controls={advancedId}
+            onClick={() => setExpanded(!expanded)}
+          >
+            <Icon name="shield" size={16} />
+            <span>{policyLabel}</span>
+            <Icon name="down" size={11} />
+          </button>
+        </div>
+        <div className="composer-send-controls">
+          <label className="settings-choice settings-model" title={`模型：${model || unknown}`}>
+            <select
+              aria-label="模型"
+              value={model}
+              disabled={disabled || !models.length}
+              onChange={(event) => {
+                const selected = models.find((entry) => entry.id === event.target.value);
+                if (selected) onChange(chooseModel(settings, current, selected));
+              }}
+            >
+              {!selectedModel && (
+                <option value={model} disabled>
+                  {model || unknown}
+                </option>
+              )}
+              {models.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label
+            className="settings-choice settings-effort"
+            title={`推理强度：${effort || unknown}`}
+          >
+            <ReasoningGauge effort={effort} />
+            <select
+              title={`推理强度：${effort || unknown}`}
+              aria-label="推理强度"
+              value={effort}
+              disabled={disabled || !selectedModel?.reasoningEfforts.length}
+              onChange={(event) => update('reasoningEffort', event.target.value)}
+            >
+              {!selectedModel?.reasoningEfforts.includes(effort) && (
+                <option value={effort} disabled>
+                  {effort || unknown}
+                </option>
+              )}
+              {selectedModel?.reasoningEfforts.map((entry) => (
+                <option key={entry} value={entry}>
+                  {entry}
+                </option>
+              ))}
+            </select>
+          </label>
+          {children}
+        </div>
+      </div>
     </div>
   );
 }
