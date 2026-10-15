@@ -48,7 +48,7 @@ API 层从独立 Git 归档通过 typecheck、lint 和 134 项测试；最终两
 - T05–T06：并发同 ID 只派发一次，内容冲突拒绝；SQLite 事务失败回滚，重启后 dispatching 为 unknown、acknowledged 未终结标记仍占用；旧核对不会释放新任务。
 - T07–T10：两标签页审批竞争、旧 epoch 请求失效、结构化问题选项、非阻塞问题、线程/checkout 互斥、目录别名、不同 worktree、中断及子进程退出。
 - T11：事件缓存、单 item 输出与 diff 有界；大快照压缩保留人工请求和执行标记，截断可见；慢连接不会阻塞另一个连接。
-- T12–T13：真实本地签名 JWT 的错误签名/audience/issuer/exp/nbf、Origin/Host/Content-Type、注册目录边界、外部交接确认、受管会话重开不重复 resume。
+- T12–T13：真实本地签名 JWT 的错误签名/audience/issuer/exp/nbf、Origin/Host/Content-Type、注册目录边界、写入占用识别、受管会话重开不重复 resume。
 - T14–T15：独立生产产物和非仓库 cwd；正式迁移初始化、重复应用、追加升级保留记录、无效迁移失败。
 
 测试基于故障窗口而非覆盖率数字。浏览器与本地模拟使用同一真正的 HTTP/WS 网关和适配层；模拟进程使用目标 CLI 生成类型。

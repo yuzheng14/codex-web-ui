@@ -306,7 +306,7 @@ export function useWorkspace() {
             : entry,
         ),
       );
-      if (operation.status === 'failed') {
+      if (operation.status === 'failed' && operation.error?.code !== 'THREAD_IN_USE') {
         setError(operation.error?.message ?? '操作失败，请查看详情。');
         setErrorDetails(operation.error?.details);
       }
@@ -527,7 +527,8 @@ export function useWorkspace() {
         applyOperation(operation);
         return operation;
       } catch (problem) {
-        report(problem);
+        if (!(problem instanceof HttpError && problem.problem.code === 'THREAD_IN_USE'))
+          report(problem);
         if (
           problem instanceof HttpError &&
           problem.status >= 400 &&

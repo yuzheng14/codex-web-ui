@@ -57,4 +57,4 @@ MCP 表单支持字符串、数字、整数、布尔值、单选和多选，以�
 - `pnpm test:live` 默认只执行上述诊断，不发起模型推理。`pnpm test:live -- --inference` 显式使用额度，在独立临时目录创建 `smoke.txt`、核对内容、继续对话、检查历史，并验证无事件订阅期间 app-server PID 不变。可用 `--output /tmp/report.json` 保存范围明确的报告。
 - 本机真实推理冒烟已完成：临时项目文件内容正确、收到实际文件变更、继续对话和历史查询通过；无需执行 shell，因此该轮没有命令输出，不能将此写成真实命令输出验证。网页断线恢复、实际人工审批及经 Cloudflare 的完整访问，须以 `docs/verification.md` 中对应实测记录为准；适配器的订阅测试不等同于浏览器或 Tunnel 验证。
 
-本应用不更改全局 Codex 配置、不自动登录或升级、不编辑 Codex 的内部数据库或 rollout 文件。CLI 历史交接由业务层要求用户明确确认原终端已停止工作，协议中的 `notLoaded` 只映射为状态未知。
+本应用不更改全局 Codex 配置、不自动登录或升级、不编辑 Codex 的内部数据库或 rollout 文件。恢复会话时由 Codex 的跨进程写入锁判定占用。已用本机 0.162.1 的两个独立进程验证 legacy、paginated 历史：持有写入权时，另一进程的 `thread/read` 可返回 `notLoaded`，而 `thread/resume` 返回 `-32600` 和 `thread <当前 ID> already has an active writer`；原进程退出后恢复成功。适配层严格匹配错误码、当前 ID 和完整错误文本，再映射为 `THREAD_IN_USE`；其他错误不推断为占用。未来版本若改变错误格式，会显示原始恢复错误，不冒充占用。旧客户端的 `confirmExternalStopped` 参数继续接受，但不再作为恢复前提。

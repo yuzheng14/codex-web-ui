@@ -58,6 +58,7 @@ export class GatewayService {
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly reads = new Map<string, Promise<ThreadView>>();
+  private readonly resumes = new Map<string, Promise<void>>();
   private readonly executionReads = new Map<string, Promise<void>>();
   private readonly summaries = new Map<string, string>();
   // Request ordering only: title values always come from app-server.
@@ -307,8 +308,6 @@ export class GatewayService {
         this.store.dispatch(input.clientOperationId);
         return { result: { threadId } };
       }
-      if (!input.confirmExternalStopped)
-        throw new AppError('EXTERNAL_HANDOFF_REQUIRED', '请先确认原 CLI 已停止使用此会话', 409);
       const marker = this.store.activeForThread(threadId);
       if (marker)
         throw new AppError('RESULT_UNKNOWN', '旧执行仍待核对，请先检查历史并核对旧操作', 409, {
@@ -316,16 +315,46 @@ export class GatewayService {
           threadId,
         });
       const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
-      const revision = this.projection.revision(threadId);
       this.ensureCompatibilityConfirmed();
       this.store.dispatch(input.clientOperationId);
-      const resumed = this.normalize(
-        await this.codex.resumeThread(threadId, ownership.cwd, input.settings),
-        thread.projectId,
-        true,
-      );
-      this.projection.thread(resumed, this.projection.revision(threadId) !== revision);
-      this.publishThread(threadId);
+      // Multiple tabs may open the same history simultaneously. Acquire its writer once.
+      let pending = this.resumes.get(threadId);
+      if (!pending) {
+        const epoch = this.codex.epoch;
+        const revision = this.projection.revision(threadId);
+        const current = this.projection.get(threadId)!;
+        delete current.resumeError;
+        pending = (async () => {
+          try {
+            const resumed = await this.codex.resumeThread(threadId, ownership.cwd, input.settings);
+            if (this.codex.epoch !== epoch || !this.codex.ready)
+              throw new Error('恢复请求已发送，但 Codex 实例已变化，请核对提交');
+            this.projection.thread(
+              this.normalize(resumed, thread.projectId, true),
+              this.projection.revision(threadId) !== revision,
+            );
+            this.publishThread(threadId);
+          } catch (error) {
+            if (
+              this.codex.epoch === epoch &&
+              this.codex.ready &&
+              error instanceof AppError &&
+              !('uncertain' in error && error.uncertain)
+            ) {
+              current.resumeError = error.toJSON();
+              this.projection.touch(threadId);
+              this.publishThread(threadId);
+            }
+            throw error;
+          }
+        })();
+        this.resumes.set(threadId, pending);
+      }
+      try {
+        await pending;
+      } finally {
+        if (this.resumes.get(threadId) === pending) this.resumes.delete(threadId);
+      }
       return { result: { threadId } };
     });
   }
@@ -606,6 +635,7 @@ export class GatewayService {
       projectId: ownership.project.id,
       cwd: ownership.cwd,
       managed: managedEpoch === this.codex.epoch,
+      resumeError: managed ? undefined : this.projection.get(thread.id)?.resumeError,
       actions: [...this.projection.actions.values()].filter(
         (action) => action.threadId === thread.id,
       ),
@@ -758,7 +788,7 @@ export class GatewayService {
   private ensureManaged(thread: ThreadView): void {
     this.ensureReady();
     if (!thread.managed || this.store.getThreadLink(thread.id)?.managedEpoch !== this.codex.epoch)
-      throw new AppError('THREAD_NOT_RESUMED', '请先完成会话交接并恢复此会话', 409);
+      throw new AppError('THREAD_NOT_RESUMED', '会话尚未恢复，请重试恢复后继续', 409);
   }
 
   private async requireActiveTurn(threadId: string, expectedTurnId: string): Promise<void> {
@@ -932,6 +962,7 @@ export class GatewayService {
       if (!event.diagnostics.ready || event.diagnostics.codexEpoch !== this.currentEpoch) {
         this.currentEpoch = event.diagnostics.codexEpoch;
         this.titleReads.clear();
+        this.resumes.clear();
         this.store.recover();
         this.projection.runtimeReset();
         for (const thread of this.projection.values()) this.publishThread(thread.id);

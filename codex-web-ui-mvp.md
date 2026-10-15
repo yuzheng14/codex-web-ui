@@ -223,9 +223,9 @@ serverEpoch 标识本次 Web 服务启动；codexEpoch 标识本次受管 app-se
 
 Codex 本地状态默认位于 CODEX_HOME 下，通常为 ~/.codex。应用使用官方接口读取历史，保留这套存储的所有权，不修改其内部数据库或 rollout 文件。[S4]
 
-外部 CLI 历史允许浏览。恢复必须使用 thread/resume，并在继续前确定原 CLI 已停止在该会话中工作。
+外部 CLI 历史允许浏览。页面打开当前选中的未受管会话后，自动调用 thread/resume 获取写入权；历史列表、GET 和 WebSocket 订阅仍保持只读。
 
-本应用无法可靠判定独立 CLI 是否仍活跃时，显示外部会话状态未知，提供一次明确的交接确认：用户确认已停止原 CLI 后才恢复。不能用历史更新时间或新 app-server 中的 notLoaded 状态证明原进程已停止。已由本服务持有的会话不反复要求该确认。
+Codex 的跨进程写入锁负责会话互斥。只有恢复接口明确返回当前会话已有 active writer 时，才显示占用提示及 Fork、重试恢复入口；普通恢复失败显示实际原因，回执丢失保留待核对操作，不自动重发。不能用历史更新时间或 notLoaded 状态推断占用，也不要求用户勾选已停止原进程。已受管会话重开不重复恢复；运行实例重置后重新获取写入权。
 
 协议返回占用、冲突或不支持的历史格式时，展示原因并停止该恢复动作。不能复制会话、修改历史或另起进程来绕过冲突。
 
@@ -243,7 +243,7 @@ Codex 本地状态默认位于 CODEX_HOME 下，通常为 ~/.codex。应用使�
 | GET /api/threads?projectId=…&cursor=… | 返回该项目分页历史与上游分页游标 |
 | GET /api/threads/:threadId | 读取经过目录归属校验的会话视图 |
 | POST /api/projects/:projectId/threads | 创建会话，接收 clientOperationId 与可选 settings |
-| POST /api/threads/:threadId/resume | 恢复会话，接收 clientOperationId 和必要的外部交接确认 |
+| POST /api/threads/:threadId/resume | 恢复会话，接收 clientOperationId，由 Codex 原子获取写入权 |
 | POST /api/threads/:threadId/turns | 发起一轮，接收 clientOperationId、text、可选 settings |
 | POST /api/threads/:threadId/steer | 追加要求，接收 clientOperationId、expectedTurnId、text |
 | POST /api/threads/:threadId/interrupt | 中断指定 turn，接收 clientOperationId、expectedTurnId |
@@ -612,7 +612,7 @@ docs/compatibility.md 记录实际 Codex 版本、生成协议来源、必要能
 | T10 | 中断与子进程退出 | 中断与真实终态一致；退出清理旧请求，不影响无关进程 |
 | T11 | 慢连接与输出上限 | 慢浏览器不阻塞上游或其他浏览器；输出截断有标识，控制状态仍可恢复 |
 | T12 | 认证与路径 | 无效签名、错误 audience、过期 token、错误 Origin、未注册目录、路径别名均正确处理 |
-| T13 | 历史交接 | 模拟占用不被绕过，未知外部活动需交接确认，受管会话重开不反复 resume |
+| T13 | 历史交接 | 空闲历史自动恢复，占用时提示 Fork/重试，受管会话重开不反复 resume |
 | T14 | 生产产物 | 构建后从说明中的目录和命令启动，静态页面、API、WS 均可用 |
 | T15 | 数据库与迁移 | 临时 SQLite 文件通过正式迁移建表；重复迁移保留记录，升级迁移保留操作与执行标记；迁移失败阻止派发 |
 

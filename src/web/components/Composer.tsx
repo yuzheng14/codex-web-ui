@@ -14,7 +14,9 @@ interface Props {
   onSettings: (settings: Settings) => void;
   onSend: (text: string, steer: boolean) => Promise<boolean>;
   onInterrupt: () => void;
-  onResume: (confirmed: boolean) => void;
+  onResume: () => void;
+  canResume: boolean;
+  resumeAttempted: boolean;
   disabled: boolean;
   canInterrupt: boolean;
   submitting: boolean;
@@ -26,7 +28,6 @@ interface Props {
 }
 export function Composer(props: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [confirmExternal, setConfirmExternal] = useState(false);
   const [shortcutDismissed, setShortcutDismissed] = useState(false);
   const shortcutId = useId();
   const composingRef = useRef(false);
@@ -34,7 +35,6 @@ export function Composer(props: Props) {
   const sendingRef = useRef(new Set<string>());
   const key = props.thread?.id ?? props.draftKey;
   useEffect(() => {
-    setConfirmExternal(false);
     composingRef.current = false;
     compositionEndedAtRef.current = -Infinity;
   }, [key]);
@@ -47,8 +47,10 @@ export function Composer(props: Props) {
     return () => document.removeEventListener('keydown', dismissShortcut);
   }, []);
   const text = drafts[key] ?? '';
-  const active = isActive(props.thread?.status);
+  const active = Boolean(props.thread?.managed && isActive(props.thread.status));
   const external = props.thread && !props.thread.managed;
+  const resumeError = external ? props.thread?.resumeError : undefined;
+  const occupied = resumeError?.code === 'THREAD_IN_USE';
   const canSend = Boolean(
     props.thread && !external && text.trim() && !props.disabled && !props.submitting,
   );
@@ -65,29 +67,28 @@ export function Composer(props: Props) {
   }
   return (
     <div className="composer-region">
-      {external && (
-        <div className="external-handoff">
-          <strong>外部会话 · 活动状态未知</strong>
-          <p>可直接 Fork 已保存的历史为新会话，无需停止原会话。新会话使用同一项目目录。</p>
-          <Button size="sm" variant="secondary" disabled={!props.canFork} onClick={props.onFork}>
-            <Icon name="fork" size={14} />
-            {props.forking ? '正在确认 Fork…' : 'Fork 为新会话'}
-          </Button>
-          <p>要继续操作原会话，请先停止原 CLI 或编辑器中对此会话的操作。</p>
-          <label>
-            <input
-              type="checkbox"
-              checked={confirmExternal}
-              onChange={(event) => setConfirmExternal(event.target.checked)}
-            />
-            我确认原会话已停止执行
-          </label>
-          <Button
-            size="sm"
-            disabled={!confirmExternal || props.disabled || props.resuming}
-            onClick={() => props.onResume(confirmExternal)}
-          >
-            {props.resuming ? '正在恢复…' : '恢复并继续此会话'}
+      {external && props.resuming && <p role="status">正在恢复会话…</p>}
+      {external && props.resumeAttempted && !props.resuming && !resumeError && props.canResume && (
+        <Button size="sm" variant="secondary" onClick={props.onResume}>
+          重试恢复
+        </Button>
+      )}
+      {resumeError && !props.resuming && (
+        <div className="session-resume-notice" role="status">
+          <strong>{occupied ? '此会话正被其他进程使用' : '无法恢复会话'}</strong>
+          <p>
+            {occupied
+              ? '可以 Fork 已保存的历史继续对话，或在原进程释放会话后重试。新会话使用同一项目目录。'
+              : resumeError.message}
+          </p>
+          {occupied && (
+            <Button size="sm" variant="secondary" disabled={!props.canFork} onClick={props.onFork}>
+              <Icon name="fork" size={14} />
+              {props.forking ? '正在确认 Fork…' : 'Fork 为新会话'}
+            </Button>
+          )}
+          <Button size="sm" disabled={!props.canResume} onClick={props.onResume}>
+            重试恢复
           </Button>
         </div>
       )}

@@ -188,7 +188,7 @@ describe('domain execution and approval recovery', () => {
     expect(ctx.codex.replies).toBe(1);
   });
 
-  it('requires explicit CLI handoff once and never resumes just to read or subscribe', async () => {
+  it('acquires an external session without confirmation, but never resumes just to read or subscribe', async () => {
     const ctx = setup();
     const external = threadView('external', ctx.project);
     external.source = 'cli';
@@ -197,13 +197,7 @@ describe('domain execution and approval recovery', () => {
     const unsubscribe = await ctx.service.subscribe(external.id, undefined, () => {});
     unsubscribe();
     expect(ctx.codex.resumes).toBe(0);
-    await expect(
-      ctx.service.resumeThread(external.id, { clientOperationId: operationId() }),
-    ).rejects.toMatchObject({ code: 'EXTERNAL_HANDOFF_REQUIRED' });
-    await ctx.service.resumeThread(external.id, {
-      clientOperationId: operationId(),
-      confirmExternalStopped: true,
-    });
+    await ctx.service.resumeThread(external.id, { clientOperationId: operationId() });
     await ctx.service.resumeThread(external.id, { clientOperationId: operationId() });
     expect(ctx.codex.resumes).toBe(1);
   });

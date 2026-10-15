@@ -463,11 +463,24 @@ export class CodexAdapter implements CodexClient {
   }
   async resumeThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
     this.validateSettings(settings);
-    const { thread } = await this.call('thread/resume', {
-      threadId: id,
-      cwd,
-      ...threadSettings(settings),
-    });
+    let thread;
+    try {
+      ({ thread } = await this.call('thread/resume', {
+        threadId: id,
+        cwd,
+        ...threadSettings(settings),
+      }));
+    } catch (error) {
+      // Verified with two 0.162.1 processes, for both legacy and paginated histories.
+      // -32600 alone covers many failures; match this thread's writer conflict exactly.
+      if (
+        error instanceof CodexError &&
+        error.rpcCode === -32600 &&
+        error.message === `thread ${id} already has an active writer`
+      )
+        throw new AppError('THREAD_IN_USE', '此会话正被其他进程使用', 409, { threadId: id });
+      throw error;
+    }
     return thread.historyMode === 'paginated' ? this.readThread(thread.id) : mapThread(thread);
   }
   async forkThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {

@@ -7,11 +7,13 @@ import { CodexAdapter } from '../src/codex/adapter.js';
 import type { CodexClient, CodexDiagnostics, CodexEvent } from '../src/codex/types.js';
 import { parseConfig } from '../src/server/config.js';
 import { startGateway } from '../src/server/main.js';
+import { AppError } from '../src/shared/errors.js';
 
 /** Test-only diagnostics controls; the production adapter has no hook. */
 class ControlledFixture implements CodexClient {
   private version = 'fixture-unverified-1';
   private unavailable = false;
+  private readonly externalFailures = new Map<string, AppError>();
   private readonly listeners = new Set<(event: CodexEvent) => void>();
   constructor(private readonly inner: CodexClient) {
     inner.onEvent((event) => {
@@ -58,7 +60,32 @@ class ControlledFixture implements CodexClient {
     this.inner.readThreadMetadata(...args);
   createThread: CodexClient['createThread'] = (...args) => this.inner.createThread(...args);
   forkThread: CodexClient['forkThread'] = (...args) => this.inner.forkThread(...args);
-  resumeThread: CodexClient['resumeThread'] = (...args) => this.inner.resumeThread(...args);
+  resumeThread: CodexClient['resumeThread'] = async (...args) => {
+    const failure = this.externalFailures.get(args[0]);
+    if (failure) throw failure;
+    return this.inner.resumeThread(...args);
+  };
+  async seedExternal(cwd: string, state: 'free' | 'occupied' | 'error') {
+    // Deliberately bypass the gateway's create/resume methods: this history is unmanaged.
+    const thread = await this.inner.createThread(cwd);
+    if (state !== 'free')
+      this.externalFailures.set(
+        thread.id,
+        state === 'occupied'
+          ? new AppError('THREAD_IN_USE', '此会话正被其他进程使用', 409)
+          : new AppError('CODEX_REQUEST_FAILED', '测试历史格式无法恢复', 400),
+      );
+    await this.inner.startTurn(thread.id, cwd, '已保存的会话历史');
+    for (let i = 0; i < 100; i++) {
+      const history = await this.inner.readThread(thread.id);
+      if (history.turns.some((turn) => turn.status === 'completed')) return thread.id;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('External fixture did not finish');
+  }
+  releaseExternal(id: string) {
+    this.externalFailures.delete(id);
+  }
   startTurn: CodexClient['startTurn'] = (...args) => this.inner.startTurn(...args);
   steerTurn: CodexClient['steerTurn'] = (...args) => this.inner.steerTurn(...args);
   interruptTurn: CodexClient['interruptTurn'] = (...args) => this.inner.interruptTurn(...args);
@@ -67,6 +94,7 @@ class ControlledFixture implements CodexClient {
     await this.stop();
     this.version = version;
     this.unavailable = false;
+    this.externalFailures.clear();
     await this.start();
   }
   update(version: string | undefined, unavailable: boolean | undefined) {
@@ -134,7 +162,13 @@ const control = createServer((request, response) => {
         return;
       }
     }
-    const input = JSON.parse(body) as { reset?: boolean; version?: string; unavailable?: boolean };
+    const input = JSON.parse(body) as {
+      reset?: boolean;
+      version?: string;
+      unavailable?: boolean;
+      external?: 'free' | 'occupied' | 'error';
+      releaseThreadId?: string;
+    };
     if (
       input.version !== undefined &&
       (typeof input.version !== 'string' || input.version.length > 80)
@@ -146,15 +180,18 @@ const control = createServer((request, response) => {
       response.writeHead(400).end();
       return;
     }
+    let externalThreadId: string | undefined;
     const work = controlling.then(async () => {
       if (input.reset === true) await codex.reset(input.version);
       else codex.update(input.version, input.unavailable);
+      if (input.releaseThreadId) codex.releaseExternal(input.releaseThreadId);
+      if (input.external) externalThreadId = await codex.seedExternal(project, input.external);
     });
     controlling = work.catch(() => {});
     await work;
     response
       .writeHead(200, { 'Content-Type': 'application/json' })
-      .end(JSON.stringify(runtime.service.getSystem()));
+      .end(JSON.stringify({ ...runtime.service.getSystem(), externalThreadId }));
   })().catch((error: unknown) => {
     response.writeHead(500).end(error instanceof Error ? error.message : 'Fixture control failed');
   });

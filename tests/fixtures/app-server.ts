@@ -30,6 +30,7 @@ export interface SimulatorOptions {
   historyItemSummaries?: boolean;
   forkHistoryReadError?: boolean;
   malformedForkReceipt?: boolean;
+  resumeFailure?: { code: number; message: string };
   approval?:
     | 'command'
     | 'file'
@@ -620,6 +621,14 @@ function receive(request: ClientRequest): void {
       const thread = threads.get(request.params.threadId);
       if (!thread) {
         error(request.id, 'Thread not found');
+        break;
+      }
+      if (options.resumeFailure) {
+        error(
+          request.id,
+          options.resumeFailure.message.replaceAll('{threadId}', thread.id),
+          options.resumeFailure.code,
+        );
         break;
       }
       reply(request.id, {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspace } from './hooks/useWorkspace';
 import { Sidebar } from './components/Sidebar';
 import { Conversation } from './components/Conversation';
@@ -44,6 +44,7 @@ export function App() {
     setProjectDialog({ kind: 'add' });
   };
   const { thread, system } = workspace;
+  const resumeAttempt = useRef<string | undefined>(undefined);
   const canControl = Boolean(
     system?.ready &&
     system.authenticated !== false &&
@@ -66,7 +67,33 @@ export function App() {
         action.status === 'responding' ||
         (action.kind === 'unsupported' && action.status === 'expired'),
     ) ?? [];
-  const waitingForConfirmation = thread && (unsettledFor(thread.id) || thread.status === 'unknown');
+  const waitingForConfirmation =
+    thread &&
+    ((unsettledFor(thread.id) && !busyFor('resume')) ||
+      (thread.managed && thread.status === 'unknown') ||
+      (thread.execution && !thread.execution.ended && thread.status === 'unknown'));
+  const resumeBlocked = Boolean(
+    thread &&
+    (!canOperate ||
+      unsettledFor(thread.id) ||
+      busyFor('resume') ||
+      (thread.execution && !thread.execution.ended)),
+  );
+  const { run, refreshThread } = workspace;
+  const resumeThread = useCallback(() => {
+    if (!thread || resumeBlocked) return;
+    resumeAttempt.current = `${system?.codexEpoch}:${thread.id}`;
+    // Preserve the saved session settings; composer overrides apply when sending a task.
+    void run('resume', thread.id, `/api/threads/${encode(thread.id)}/resume`).then(() =>
+      refreshThread(),
+    );
+  }, [thread, resumeBlocked, system?.codexEpoch, run, refreshThread]);
+  useEffect(() => {
+    if (!system?.ready) resumeAttempt.current = undefined;
+    if (!thread || thread.managed || resumeBlocked) return;
+    const key = `${system?.codexEpoch}:${thread.id}`;
+    if (resumeAttempt.current !== key) resumeThread();
+  }, [thread, system?.ready, system?.codexEpoch, resumeBlocked, resumeThread]);
   const pendingFork = Boolean(
     thread &&
     workspace.operations.some((entry) => entry.kind === 'fork' && blocksTarget(entry, thread.id)),
@@ -393,22 +420,16 @@ export function App() {
             models={system?.models ?? []}
             onSettings={workspace.setSettings}
             disabled={!canOperate || Boolean(waitingForConfirmation)}
-            canInterrupt={canControl && Boolean(activeTurn)}
+            canInterrupt={canControl && Boolean(thread?.managed && activeTurn)}
             submitting={busyFor('send') || busyFor('steer')}
             interrupting={busyFor('interrupt')}
             resuming={busyFor('resume')}
+            canResume={!resumeBlocked}
+            resumeAttempted={resumeAttempt.current === `${system?.codexEpoch}:${thread?.id}`}
             canFork={canFork}
             forking={forking}
             onFork={forkThread}
-            onResume={(confirmed) => {
-              if (thread)
-                void workspace
-                  .run('resume', thread.id, `/api/threads/${encode(thread.id)}/resume`, {
-                    confirmExternalStopped: confirmed,
-                    settings: workspace.settings,
-                  })
-                  .then(() => workspace.refreshThread());
-            }}
+            onResume={resumeThread}
             onInterrupt={() => {
               if (thread && activeTurn)
                 void workspace.run(
