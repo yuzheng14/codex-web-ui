@@ -1,20 +1,20 @@
 import { useEffect, useState } from 'react';
-import type { ModelSettings } from '../../shared/types';
+import type { RuntimeSettings } from '../../shared/types';
 import { api } from '../lib/api';
 
 /** A project or runtime change must never show another project's defaults. */
-export function useModelDefaults(projectId?: string, runtimeKey?: string) {
+export function useRuntimeDefaults(projectId?: string, runtimeKey?: string) {
   const [attempt, setAttempt] = useState(0);
   const key = projectId && runtimeKey ? JSON.stringify([projectId, runtimeKey, attempt]) : '';
   const [result, setResult] = useState<{
     key: string;
-    value?: ModelSettings;
+    value?: RuntimeSettings;
     error?: string;
   }>();
   useEffect(() => {
     if (!key || !projectId) return;
     let cancelled = false;
-    void api.modelSettings(projectId).then(
+    void api.runtimeSettings(projectId).then(
       (value) => {
         if (!cancelled) setResult({ key, value });
       },

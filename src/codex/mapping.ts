@@ -1,4 +1,13 @@
-import type { ItemView, RunStatus, Settings, ThreadView, TurnView } from '../shared/types.js';
+import type {
+  ItemView,
+  RunStatus,
+  RuntimeSettings,
+  Settings,
+  ThreadView,
+  TurnView,
+} from '../shared/types.js';
+import type { AskForApproval } from './generated/v2/AskForApproval.js';
+import type { SandboxPolicy } from './generated/v2/SandboxPolicy.js';
 import type { Thread } from './generated/v2/Thread.js';
 import type { ThreadItem } from './generated/v2/ThreadItem.js';
 import type { ThreadStatus } from './generated/v2/ThreadStatus.js';
@@ -15,6 +24,34 @@ export function taskInput(text: string, images: string[] = []): UserInput[] {
     ...(text ? [{ type: 'text' as const, text, text_elements: [] }] : []),
     ...images.map((url) => ({ type: 'image' as const, url })),
   ];
+}
+
+/** Display-only summary: never round-trip a custom policy into a basic preset. */
+export function permissionSettings(
+  sandbox?: SandboxPolicy,
+  approvalPolicy?: AskForApproval | null,
+  reviewer?: string | null,
+): Pick<RuntimeSettings, 'sandbox' | 'approvalPolicy' | 'approvalReviewer' | 'networkAccess'> {
+  return {
+    sandbox: sandbox
+      ? ({
+          dangerFullAccess: 'danger-full-access',
+          readOnly: 'read-only',
+          workspaceWrite: 'workspace-write',
+          externalSandbox: 'external-sandbox',
+        }[sandbox.type] as RuntimeSettings['sandbox'])
+      : null,
+    approvalPolicy:
+      typeof approvalPolicy === 'string' ? approvalPolicy : approvalPolicy ? 'granular' : null,
+    approvalReviewer: reviewer ?? null,
+    networkAccess: !sandbox
+      ? null
+      : sandbox.type === 'dangerFullAccess'
+        ? true
+        : sandbox.type === 'externalSandbox'
+          ? sandbox.networkAccess === 'enabled'
+          : sandbox.networkAccess,
+  };
 }
 
 export function threadStatus(status: ThreadStatus): RunStatus {
@@ -47,7 +84,10 @@ export function mapThread(thread: Thread): ThreadView {
     status: threadStatus(thread.status),
     turns: thread.turns.map((turn) => mapTurn(thread.id, turn)),
     managed: false,
-    modelSettings: { model: thread.model ?? null, reasoningEffort: thread.reasoningEffort ?? null },
+    runtimeSettings: {
+      model: thread.model ?? null,
+      reasoningEffort: thread.reasoningEffort ?? null,
+    },
     updatedAt: thread.updatedAt * 1000,
     actions: [],
   };

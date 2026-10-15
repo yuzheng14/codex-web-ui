@@ -349,16 +349,26 @@ for (const viewport of [
       await expect(tooltip).toBeHidden();
       await taskInput(page).focus();
       await taskInput(page).press('Tab');
+      const model = page.getByRole('combobox', { name: '模型', exact: true });
+      const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
+      const more = page.getByRole('button', { name: '更多设置', exact: true });
+      await expect(model).toBeFocused();
+      await model.press('Tab');
+      await expect(effort).toBeFocused();
+      await effort.press('Tab');
+      await expect(more).toBeFocused();
+      await more.press('Tab');
       await expect(sendButton(page)).toBeFocused();
       await expect(tooltip).toBeVisible();
       await sendButton(page).press('Escape');
       await expect(tooltip).toBeHidden();
       await expect(sendButton(page)).toBeFocused();
       await sendButton(page).press('Shift+Tab');
-      await taskInput(page).press('Tab');
+      await expect(more).toBeFocused();
+      await more.press('Tab');
       await expect(tooltip).toBeVisible();
       await sendButton(page).press('Shift+Tab');
-      await expect(taskInput(page)).toBeFocused();
+      await expect(more).toBeFocused();
       await expect(tooltip).toBeHidden();
     }
     await sendButton(page).click();

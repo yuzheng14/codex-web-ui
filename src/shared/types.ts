@@ -15,9 +15,13 @@ export interface Settings {
   sandbox?: 'read-only' | 'workspace-write' | 'danger-full-access';
 }
 /** Values reported by Codex; null means unset or unavailable, never a guessed default. */
-export interface ModelSettings {
+export interface RuntimeSettings {
   model: string | null;
   reasoningEffort: string | null;
+  sandbox?: Settings['sandbox'] | 'external-sandbox' | null;
+  approvalPolicy?: Settings['approvalPolicy'] | 'granular' | null;
+  approvalReviewer?: string | null;
+  networkAccess?: boolean | null;
 }
 export interface Project {
   id: string;
@@ -80,7 +84,7 @@ export interface TurnView {
 }
 export interface ThreadView {
   id: string;
-  modelSettings?: ModelSettings;
+  runtimeSettings?: RuntimeSettings;
   forkedFromId?: string;
   projectId: string;
   cwd: string;

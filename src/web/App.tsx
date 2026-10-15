@@ -414,6 +414,7 @@ export function App() {
           )}
           <Composer
             thread={thread}
+            threadLoading={Boolean(workspace.selectedId && !thread)}
             draftKey={workspace.selectedId ?? `project:${workspace.projectId}`}
             projectName={project?.name}
             projectId={project?.available ? project.id : undefined}

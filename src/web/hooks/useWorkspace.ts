@@ -9,6 +9,7 @@ import type {
   ThreadView,
 } from '../../shared/types';
 import { api, HttpError } from '../lib/api';
+import { pendingSettings } from '../lib/settings';
 import {
   blocksTarget,
   canDiscardMissingOperation,
@@ -59,13 +60,19 @@ export function useWorkspace() {
   const streamRef = useRef<ThreadStream | undefined>(undefined);
   const projectRef = useRef(projectId);
   const settingsRef = useRef<Record<string, Settings>>({});
-  const [settingsByProject, setSettingsByProject] = useState(settingsRef.current);
+  const [settingsByScope, setSettingsByScope] = useState(settingsRef.current);
   const navigationRevision = useRef(0);
   const detailReadSequence = useRef(0);
-  const getProjectSettings = useCallback((id: string) => settingsRef.current[id] ?? {}, []);
+  const getProjectSettings = useCallback(
+    (id: string) => settingsRef.current[`project:${id}`] ?? {},
+    [],
+  );
   const setSettings = useCallback((next: Settings) => {
-    settingsRef.current = { ...settingsRef.current, [projectRef.current]: next };
-    setSettingsByProject(settingsRef.current);
+    const scope = selectedRef.current
+      ? `thread:${selectedRef.current}`
+      : `project:${projectRef.current}`;
+    settingsRef.current = { ...settingsRef.current, [scope]: next };
+    setSettingsByScope(settingsRef.current);
   }, []);
 
   const report = useCallback((problem: unknown) => {
@@ -127,6 +134,15 @@ export function useWorkspace() {
     (next: ThreadView) => {
       if (!projectsRef.current.some((project) => project.id === next.projectId)) return;
       if (next.id === selectedRef.current && next.projectId === projectRef.current) setThread(next);
+      const scope = `thread:${next.id}`;
+      const draft = settingsRef.current[scope];
+      if (draft && next.runtimeSettings) {
+        const pending = pendingSettings(draft, next.runtimeSettings);
+        if (Object.keys(pending).length !== Object.keys(draft).length) {
+          settingsRef.current = { ...settingsRef.current, [scope]: pending };
+          setSettingsByScope(settingsRef.current);
+        }
+      }
       if (
         next.execution &&
         !next.execution.ended &&
@@ -649,7 +665,7 @@ export function useWorkspace() {
     busy,
     loadingThreads: projectThreads[projectId]?.loading ?? false,
     operations,
-    settings: settingsByProject[projectId] ?? {},
+    settings: settingsByScope[selectedId ? `thread:${selectedId}` : `project:${projectId}`] ?? {},
     setSettings,
     getProjectSettings,
     run,

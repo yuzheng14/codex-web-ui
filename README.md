@@ -44,7 +44,7 @@ node /absolute/path/codex-web-ui/dist/server/main.js --config /absolute/path/cod
 - `dataDir` 相对于配置文件所在目录解析。数据库在 `dataDir/app.sqlite`，目录权限 0700、数据库权限 0600。实例锁覆盖运行服务和显式迁移命令，异常退出后的锁约十秒可恢复。
 - `publicOrigin` 是允许访问地址的非空数组，每项填写完整的 `协议://主机[:端口]`，不带路径、通配符、凭据、查询或片段。HTTP 与 WebSocket 都按此列表检查 Host / Origin；`localhost` 和 `127.0.0.1` 需要分别配置。旧配置的字符串需改为数组，例如 `"publicOrigin": ["http://127.0.0.1:8787"]`，修改后重启服务。
 - `host` / `port` 控制实际监听地址；`local` 模式要求 `host` 为回环地址，可显式允许 Tailscale Serve 的 HTTPS 入口，由 Tailscale 控制访问身份。公开互联网入口使用 `cloudflare-access` 模式，所有 `publicOrigin` 项必须为 HTTPS，并通过同一 Access 应用的 JWT 校验。具体配置参见 [部署指南](docs/deployment.md)。
-- 模型、推理强度、审批与沙箱默认继承 Codex 配置；显式选择通过版本适配层校验和映射。运行设置会显示 Codex 返回的会话模型和推理强度，未选择会话时读取当前项目的默认配置。手动选择与已确认的会话值分开展示；切回继承沿用会话已有设置，不会重置全局配置。上游未报告的值明确显示为“未报告”。
+- 输入框直接显示 app-server 返回的会话模型和推理强度，“更多设置”显示权限与审批。手动选择按会话隔离，待服务器确认后生效；无会话时读取当前项目的默认配置，缺失值显示“未报告”。详见 [运行配置来源、生效时机与 UI 调研](docs/runtime-settings.md)。
 
 本机升级 Codex 后，若运行版本尚未验证，页面会先提示可能无法正常使用，并要求明确“确认继续”。确认前不能新建、Fork、恢复或发送任务，但仍可查看诊断和中断已有任务。确认在同一服务与 Codex 实例内共享，刷新不会重复询问；重启或版本变化后需要重新确认。初始化失败或已知不支持的操作不能通过确认绕过，详见 [兼容性说明](docs/compatibility.md)。
 

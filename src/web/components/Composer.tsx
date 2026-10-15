@@ -8,6 +8,7 @@ import { SettingsPanel } from './SettingsPanel';
 
 interface Props {
   thread?: ThreadView;
+  threadLoading?: boolean;
   draftKey: string;
   projectName?: string;
   projectId?: string;
@@ -177,14 +178,6 @@ export function Composer(props: Props) {
           </Button>
         </div>
       )}
-      <SettingsPanel
-        settings={props.settings}
-        models={props.models}
-        onChange={props.onSettings}
-        thread={props.thread}
-        projectId={props.projectId}
-        runtimeKey={props.runtimeKey}
-      />
       <div className="composer-box">
         {images.length > 0 && (
           <ul className="composer-images" aria-label="待发送的图片">
@@ -266,6 +259,23 @@ export function Composer(props: Props) {
             if (event.key === 'Enter') compositionEndedAtRef.current = -Infinity;
           }}
           rows={3}
+        />
+        <SettingsPanel
+          settings={props.settings}
+          models={props.models}
+          onChange={props.onSettings}
+          thread={props.thread}
+          projectId={props.projectId}
+          runtimeKey={props.runtimeKey}
+          threadLoading={props.threadLoading}
+          disabled={
+            props.disabled ||
+            Boolean(props.threadLoading) ||
+            active ||
+            props.submitting ||
+            props.resuming ||
+            props.forking
+          }
         />
         <div className="composer-actions">
           <span className="composer-target">

@@ -183,9 +183,9 @@ export class GatewayService {
     });
   }
 
-  async readModelSettings(projectId: string) {
+  async readRuntimeSettings(projectId: string) {
     const project = this.projects.get(projectId);
-    return this.codex.readModelSettings(project.canonicalRoot);
+    return this.codex.readRuntimeSettings(project.canonicalRoot);
   }
 
   async listThreads(projectId: string, cursor?: string): Promise<ThreadPage> {
@@ -966,13 +966,16 @@ export class GatewayService {
       const current = this.projection.get(threadId);
       if (!current || thread.id !== threadId) return;
       this.projects.assertOwnership(current.projectId, thread.cwd);
+      const settings = thread.runtimeSettings
+        ? { ...current.runtimeSettings, ...thread.runtimeSettings }
+        : undefined;
       if (
         this.titleReads.get(threadId) === sequence &&
         this.projection.revision(threadId) === revision &&
-        thread.modelSettings &&
-        JSON.stringify(current.modelSettings) !== JSON.stringify(thread.modelSettings)
+        settings &&
+        JSON.stringify(current.runtimeSettings) !== JSON.stringify(settings)
       ) {
-        current.modelSettings = thread.modelSettings;
+        current.runtimeSettings = settings;
         this.projection.touch(threadId);
         this.publishThread(threadId);
       }
@@ -1040,7 +1043,7 @@ export class GatewayService {
       return;
     }
     if (event.type === 'threadSettings') {
-      thread.modelSettings = event.settings;
+      thread.runtimeSettings = event.settings;
       this.projection.touch(thread.id);
     } else if (event.type === 'threadStatus') {
       // Idle/notLoaded is not proof that an uncertain execution finished.

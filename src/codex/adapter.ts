@@ -11,7 +11,7 @@ import {
 } from '../shared/elicitation.js';
 import type {
   ActionResolution,
-  ModelSettings,
+  RuntimeSettings,
   PendingAction,
   Settings,
   ThreadPage,
@@ -46,6 +46,7 @@ import {
   mapItem,
   mapThread,
   mapTurn,
+  permissionSettings,
   threadSettings,
   threadStatus,
   turnSettings,
@@ -473,21 +474,30 @@ export class CodexAdapter implements CodexClient {
     const titles = this.titles;
     const result = await this.call('thread/start', { cwd, ...threadSettings(settings) });
     titles?.register(result);
-    return { ...mapThread(result.thread), modelSettings: this.responseModelSettings(result) };
+    return { ...mapThread(result.thread), runtimeSettings: this.responseRuntimeSettings(result) };
   }
-  async readModelSettings(cwd: string): Promise<ModelSettings> {
+  async readRuntimeSettings(cwd: string): Promise<RuntimeSettings> {
     const { config } = await this.call('config/read', { cwd, includeLayers: false });
-    // Config can contain credentials and instructions. Only these two values cross the gateway.
+    // Config can contain credentials and instructions. Only displayable fields cross the gateway.
     return {
       model: typeof config.model === 'string' ? config.model : null,
       reasoningEffort:
         typeof config.model_reasoning_effort === 'string' ? config.model_reasoning_effort : null,
+      sandbox: config.sandbox_mode ?? null,
+      approvalPolicy:
+        typeof config.approval_policy === 'string'
+          ? config.approval_policy
+          : config.approval_policy
+            ? 'granular'
+            : null,
+      approvalReviewer: config.approvals_reviewer ?? null,
     };
   }
-  private responseModelSettings(result: ThreadStartResponse): ModelSettings {
+  private responseRuntimeSettings(result: ThreadStartResponse): RuntimeSettings {
     return {
       model: result.model ?? result.thread.model ?? null,
       reasoningEffort: result.reasoningEffort ?? null,
+      ...permissionSettings(result.sandbox, result.approvalPolicy, result.approvalsReviewer),
     };
   }
   async resumeThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
@@ -513,8 +523,9 @@ export class CodexAdapter implements CodexClient {
     }
     titles?.register(result);
     const thread = result.thread;
-    const view = thread.historyMode === 'paginated' ? await this.readThread(thread.id) : mapThread(thread);
-    return { ...view, modelSettings: this.responseModelSettings(result) };
+    const view =
+      thread.historyMode === 'paginated' ? await this.readThread(thread.id) : mapThread(thread);
+    return { ...view, runtimeSettings: this.responseRuntimeSettings(result) };
   }
   async forkThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
     this.validateSettings(settings);
@@ -539,7 +550,7 @@ export class CodexAdapter implements CodexClient {
       if (thread.id !== forkedId)
         throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex returned a different fork thread ID');
       titles?.register(result);
-      return { ...thread, modelSettings: this.responseModelSettings(result) };
+      return { ...thread, runtimeSettings: this.responseRuntimeSettings(result) };
     } catch (error) {
       const failure = asCodexError(error);
       // The mutating RPC already succeeded. A read failure cannot make a retry safe.
@@ -602,6 +613,11 @@ export class CodexAdapter implements CodexClient {
           settings: {
             model: event.params.threadSettings.model ?? null,
             reasoningEffort: event.params.threadSettings.effort ?? null,
+            ...permissionSettings(
+              event.params.threadSettings.sandboxPolicy,
+              event.params.threadSettings.approvalPolicy,
+              event.params.threadSettings.approvalsReviewer,
+            ),
           },
         });
         break;

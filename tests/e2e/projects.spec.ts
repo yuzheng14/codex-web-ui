@@ -233,13 +233,17 @@ test('project overview drafts and execution settings remain independent before a
   await open(page);
   const input = page.getByRole('textbox', { name: '任务内容', exact: true });
   await input.fill('项目 A 概览草稿');
-  await page.locator('.settings-panel > summary').click();
-  await page.getByRole('combobox', { name: '权限范围', exact: true }).selectOption('read-only');
+  await page.getByRole('button', { name: '更多设置', exact: true }).click();
+  await page
+    .getByRole('combobox', { name: '权限范围', exact: true })
+    .selectOption('workspace-write');
   await projectGroup(page, '另一个项目')
     .getByRole('button', { name: '另一个项目', exact: true })
     .click();
   await expect(input).toHaveValue('');
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue('');
+  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
+    'read-only',
+  );
   await input.fill('项目 B 概览草稿');
   await page
     .getByRole('combobox', { name: '权限范围', exact: true })
@@ -247,7 +251,7 @@ test('project overview drafts and execution settings remain independent before a
   await projectGroup(page).getByRole('button', { name: '测试项目', exact: true }).click();
   await expect(input).toHaveValue('项目 A 概览草稿');
   await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
-    'read-only',
+    'workspace-write',
   );
   const creation = page.waitForRequest(
     (request) =>

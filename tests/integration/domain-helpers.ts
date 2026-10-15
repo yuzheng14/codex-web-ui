@@ -88,7 +88,7 @@ export class DomainCodex implements CodexClient {
   async listThreads(_cwd: string, _cursor?: string): Promise<ThreadPage> {
     return { data: structuredClone([...this.threads.values()]), nextCursor: null };
   }
-  async readModelSettings(_cwd: string) {
+  async readRuntimeSettings(_cwd: string) {
     return { model: 'test-model', reasoningEffort: 'medium' };
   }
   async readThreadMetadata(id: string): Promise<ThreadView> {

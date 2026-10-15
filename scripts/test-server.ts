@@ -55,8 +55,8 @@ class ControlledFixture implements CodexClient {
     return this.inner.stop();
   }
   listThreads: CodexClient['listThreads'] = (...args) => this.inner.listThreads(...args);
-  readModelSettings: CodexClient['readModelSettings'] = (...args) =>
-    this.inner.readModelSettings(...args);
+  readRuntimeSettings: CodexClient['readRuntimeSettings'] = (...args) =>
+    this.inner.readRuntimeSettings(...args);
   readThread: CodexClient['readThread'] = (...args) => this.inner.readThread(...args);
   readThreadMetadata: CodexClient['readThreadMetadata'] = (...args) =>
     this.inner.readThreadMetadata(...args);
