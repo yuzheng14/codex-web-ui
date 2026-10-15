@@ -1,4 +1,6 @@
 import type { Operation } from '../../shared/types';
+import { HttpError } from './api';
+import { readableError } from './utils';
 
 const STORAGE_KEY = 'codex-web.operations.v1';
 export interface SavedOperation {
@@ -9,8 +11,27 @@ export interface SavedOperation {
   status: Operation['status'];
   operation?: Operation;
   error?: string;
+  lookupError?: { message: string; missing: boolean };
   projectId?: string;
   navigateToResult?: boolean;
+}
+
+export function operationLookupError(problem: unknown): NonNullable<SavedOperation['lookupError']> {
+  const missing =
+    problem instanceof HttpError &&
+    problem.status === 404 &&
+    problem.problem.code === 'OPERATION_NOT_FOUND';
+  return {
+    missing,
+    message: missing
+      ? '无法确认提交：当前服务未找到这笔提交记录（404 / OPERATION_NOT_FOUND）。请求可能未到达服务，或服务数据已更换；这不能证明任务没有执行。'
+      : `无法确认提交：${readableError(problem)}`,
+  };
+}
+
+/** A missing receipt is not a failed task. Only an explicit local decision can dismiss it. */
+export function canDiscardMissingOperation(entry: SavedOperation) {
+  return entry.lookupError?.missing === true && entry.status === 'unknown' && !entry.operation;
 }
 
 /** Persist operation identity and navigation intent, never prompts, answers or RPC credentials. */

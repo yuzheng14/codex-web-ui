@@ -222,10 +222,165 @@ test('a failed receipt lookup is visible and retry does not resubmit the task', 
   await send(page).click();
   await checkButton(page).click();
   await expect(panel(page).getByText('无法确认提交：核对服务暂时不可用')).toBeVisible();
+  await expect(page.locator('.error-banner.dismissible')).toContainText(
+    '无法确认提交：核对服务暂时不可用',
+  );
+  await expect(panel(page).getByRole('button', { name: '清除此浏览器的待核对记录' })).toHaveCount(
+    0,
+  );
   await expect(panel(page).getByRole('button', { name: '刷新状态' })).toBeEnabled();
   await panel(page).getByRole('button', { name: '刷新状态' }).click();
   await expect(panel(page).getByRole('button', { name: '刷新状态' })).toBeEnabled();
   await expect(send(page)).toBeDisabled();
   await expect(input(page)).toHaveValue('回执丢失时保留的草稿');
   expect(submissions).toBe(1);
+});
+
+for (const mobile of [false, true]) {
+  test(`missing receipt reports a real 404 and permits confirmed browser-only cleanup (${mobile ? 'mobile' : 'desktop'})`, async ({
+    page,
+    request,
+  }, testInfo) => {
+    await completedThread(page);
+    await page.setViewportSize(
+      mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+    );
+    const posts: string[] = [];
+    let missingId = '';
+    page.on('request', (outgoing) => {
+      if (outgoing.method() === 'POST') posts.push(outgoing.url());
+    });
+    await page.route('**/api/threads/*/turns', async (route) => {
+      missingId = route.request().postDataJSON().clientOperationId;
+      await route.abort('failed'); // Browser identity persists, but no server operation is created.
+    });
+    await input(page).fill('尚未送达服务的任务草稿');
+    const missing = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/operations/${missingId}`) && response.status() === 404,
+    );
+    await send(page).click();
+    expect(await (await missing).json()).toEqual({
+      error: { code: 'OPERATION_NOT_FOUND', message: '未找到该操作' },
+    });
+    await expect(page.locator('.error-banner.dismissible')).toContainText(
+      '当前服务未找到这笔提交记录',
+    );
+    await expect(send(page)).toBeDisabled();
+    // A reload must preserve the uncertain identity and query it again, never assume failure.
+    await page.screenshot({
+      path: testInfo.outputPath(`missing-receipt-banner-${mobile ? 'mobile' : 'desktop'}.png`),
+      fullPage: true,
+    });
+    await page.reload();
+    await expect(checkButton(page)).toBeVisible();
+    await input(page).fill('核对后仍保留的草稿');
+    await checkButton(page).click();
+    await expect(panel(page)).toBeVisible();
+    await expect(panel(page).getByRole('alert')).toContainText('404 / OPERATION_NOT_FOUND');
+    await expect(page.locator('.error-banner.dismissible')).toContainText('不能证明任务没有执行');
+    await expect(panel(page).getByRole('button', { name: '核对并解除旧占用' })).toHaveCount(0);
+    const discard = panel(page).getByRole('button', { name: '清除此浏览器的待核对记录' });
+    await expect(discard).toBeDisabled();
+    await expect(send(page)).toBeDisabled();
+    await page.screenshot({
+      path: testInfo.outputPath(`missing-receipt-${mobile ? 'mobile' : 'desktop'}.png`),
+      fullPage: true,
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await panel(page)
+      .getByRole('checkbox', { name: '我已检查历史和原执行环境，确认无需继续核对这笔提交' })
+      .check();
+    await discard.click();
+    await expect(panel(page).getByText('没有待核对的提交。')).toBeVisible();
+    await expect(page.locator('.pending-notice')).toHaveCount(0);
+    await expect(page.locator('.error-banner.dismissible')).toHaveCount(0);
+    await expect(send(page)).toBeEnabled();
+    await expect(input(page)).toHaveValue('核对后仍保留的草稿');
+    expect(posts).toHaveLength(1); // No resend, reconciliation POST, or server-side deletion.
+    expect((await request.get(`/api/operations/${missingId}`)).status()).toBe(404);
+    await page.reload();
+    await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
+    await input(page).fill('刷新后可继续的新任务');
+    await expect(send(page)).toBeEnabled();
+    await expect(page.locator('.pending-notice')).toHaveCount(0);
+  });
+}
+
+test('an in-flight submission is not polled as a missing receipt', async ({ page }) => {
+  await completedThread(page);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let pendingId = '';
+  const lookups: string[] = [];
+  await page.route('**/api/threads/*/turns', async (route) => {
+    pendingId = route.request().postDataJSON().clientOperationId;
+    await gate;
+    await route.continue();
+  });
+  page.on('request', (outgoing) => {
+    if (pendingId && outgoing.url().endsWith(`/api/operations/${pendingId}`))
+      lookups.push(outgoing.url());
+  });
+  await input(page).fill('正在发送中的任务');
+  await send(page).click();
+  await checkButton(page).click();
+  await expect(panel(page).getByRole('button', { name: '刷新状态' })).toBeEnabled();
+  expect(lookups).toHaveLength(0);
+  await expect(panel(page).getByRole('alert')).toHaveCount(0);
+  await expect(panel(page).getByRole('button', { name: '清除此浏览器的待核对记录' })).toHaveCount(
+    0,
+  );
+  release();
+  await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
+  await expect(page.locator('.pending-notice')).toHaveCount(0);
+});
+
+test('a late 404 cannot replace a receipt delivered through the live stream', async ({
+  page,
+  request,
+}) => {
+  const first = await completedThread(page);
+  let missingId = '';
+  await page.route('**/api/threads/*/turns', async (route) => {
+    missingId = route.request().postDataJSON().clientOperationId;
+    await route.abort('failed');
+  });
+  await input(page).fill('稍后才到达网关的任务');
+  await send(page).click();
+  await expect(page.locator('.error-banner.dismissible')).toContainText('OPERATION_NOT_FOUND');
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let readStarted!: () => void;
+  const reading = new Promise<void>((resolve) => {
+    readStarted = resolve;
+  });
+  await page.route(`**/api/operations/${missingId}`, async (route) => {
+    const response = await route.fetch();
+    readStarted();
+    await gate;
+    await route.fulfill({ response });
+  });
+  await checkButton(page).click();
+  await reading;
+  // Simulate delayed delivery of the original identity while its older read is in flight.
+  const delivered = await request.post(`/api/threads/${first.target}/turns`, {
+    headers: { Origin: 'http://127.0.0.1:8788' },
+    data: { clientOperationId: missingId, text: '[approval] 等待人工处理' },
+  });
+  expect(delivered.ok()).toBe(true);
+  await expect(panel(page).getByText('上游已确认提交', { exact: true })).toBeVisible();
+  release();
+  await expect(panel(page).getByRole('button', { name: '刷新状态' })).toBeEnabled();
+  await expect(panel(page).getByRole('alert')).toHaveCount(0);
+  await expect(page.locator('.error-banner.dismissible')).toHaveCount(0);
+  await expect(panel(page).getByRole('button', { name: '清除此浏览器的待核对记录' })).toHaveCount(
+    0,
+  );
 });

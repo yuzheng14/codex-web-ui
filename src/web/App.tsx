@@ -101,7 +101,7 @@ export function App() {
     try {
       await Promise.all([workspace.refreshSystem(), workspace.refreshThread()]);
       // Reading history may recover a terminal execution. Read its receipt afterwards.
-      await workspace.refreshOperations();
+      await workspace.refreshOperations(true);
     } finally {
       statusCheck.current = false;
       setCheckingStatus(false);
@@ -211,6 +211,7 @@ export function App() {
               open={diagnosticsOpen}
               onOpenChange={setDiagnosticsOpen}
               refreshing={checkingStatus}
+              onDiscardMissing={workspace.discardMissingOperation}
               onRefresh={() => {
                 void refreshStatus();
                 if (offline) workspace.retryConnection();
