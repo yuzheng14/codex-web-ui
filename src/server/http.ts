@@ -5,6 +5,7 @@ import { upgradeWebSocket, type HttpBindings } from '@hono/node-server';
 import type { ZodType } from 'zod';
 import { ZodError } from 'zod';
 import { AppError } from '../shared/errors.js';
+import { IMAGE_REQUEST_BYTES } from '../shared/images.js';
 import * as schemas from '../shared/validation.js';
 import type { Operation } from '../shared/types.js';
 import type { AppConfig } from './config.js';
@@ -41,14 +42,15 @@ export function createApp({
     c.set('identity', await authenticate(c.req.raw, c.req.path === '/ws'));
     await next();
   });
-  app.use(
-    '/api/*',
+  app.use('/api/*', (c, next) =>
     bodyLimit({
-      maxSize: 512 * 1024,
+      maxSize: /^\/api\/threads\/[^/]+\/(turns|steer)$/.test(c.req.path)
+        ? IMAGE_REQUEST_BYTES
+        : 512 * 1024,
       onError: () => {
         throw new AppError('BODY_TOO_LARGE', 'Request body exceeds limit', 413);
       },
-    }),
+    })(c, next),
   );
   const id = (value: string) => schemas.idSchema.parse(value);
   const parse = async <T>(

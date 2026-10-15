@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ClipboardEvent } from 'react';
+import { emptyDraft, imagePasteError, readImage, type MessageDraft } from '../lib/image-paste';
 import type { ModelInfo, Settings, ThreadView } from '../../shared/types';
 import { isActive } from './Status';
 import { Button } from './ui/button';
@@ -12,7 +13,7 @@ interface Props {
   settings: Settings;
   models: ModelInfo[];
   onSettings: (settings: Settings) => void;
-  onSend: (text: string, steer: boolean) => Promise<boolean>;
+  onSend: (text: string, steer: boolean, images?: string[]) => Promise<boolean>;
   onInterrupt: () => void;
   onResume: () => void;
   canResume: boolean;
@@ -27,7 +28,8 @@ interface Props {
   onFork: () => void;
 }
 export function Composer(props: Props) {
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, MessageDraft>>({});
+  const draftsRef = useRef(drafts);
   const [shortcutDismissed, setShortcutDismissed] = useState(false);
   const shortcutId = useId();
   const composingRef = useRef(false);
@@ -46,21 +48,102 @@ export function Composer(props: Props) {
     document.addEventListener('keydown', dismissShortcut);
     return () => document.removeEventListener('keydown', dismissShortcut);
   }, []);
-  const text = drafts[key] ?? '';
+  const draft = drafts[key] ?? emptyDraft;
+  const { text, images } = draft;
+  const readingImages = images.some((image) => !image.dataUrl);
+  function updateDraft(draftKey: string, update: (draft: MessageDraft) => MessageDraft) {
+    const next = {
+      ...draftsRef.current,
+      [draftKey]: update(draftsRef.current[draftKey] ?? emptyDraft),
+    };
+    draftsRef.current = next;
+    setDrafts(next);
+  }
+  function paste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    if (event.defaultPrevented) return;
+    const files = Array.from(event.clipboardData.files);
+    if (!files.length) return;
+    // Plain text continues through the browser's native paste and IME handling.
+    event.preventDefault();
+    const current = draftsRef.current[key] ?? emptyDraft;
+    const error = imagePasteError(files, current.images);
+    if (error) {
+      updateDraft(key, (previous) => ({ ...previous, error }));
+      return;
+    }
+    const added = files.map((file) => ({
+      id: crypto.randomUUID(),
+      name: file.name || '粘贴的图片',
+      size: file.size,
+    }));
+    const pastedText = event.clipboardData.getData('text/plain');
+    const start = event.currentTarget.selectionStart;
+    const end = event.currentTarget.selectionEnd;
+    updateDraft(key, (previous) => ({
+      text: pastedText
+        ? (previous.text.slice(0, start) + pastedText + previous.text.slice(end)).slice(0, 100000)
+        : previous.text,
+      images: [...previous.images, ...added],
+    }));
+    files.forEach((file, index) => {
+      const id = added[index]!.id;
+      void readImage(file).then(
+        (dataUrl) =>
+          updateDraft(key, (previous) => ({
+            ...previous,
+            images: previous.images.map((image) =>
+              image.id === id ? { ...image, dataUrl } : image,
+            ),
+          })),
+        () =>
+          updateDraft(key, (previous) =>
+            previous.images.some((image) => image.id === id)
+              ? {
+                  ...previous,
+                  images: previous.images.filter((image) => image.id !== id),
+                  error: '图片读取失败，请重新粘贴。',
+                }
+              : previous,
+          ),
+      );
+    });
+  }
   const active = Boolean(props.thread?.managed && isActive(props.thread.status));
   const external = props.thread && !props.thread.managed;
   const resumeError = external ? props.thread?.resumeError : undefined;
   const occupied = resumeError?.code === 'THREAD_IN_USE';
   const canSend = Boolean(
-    props.thread && !external && text.trim() && !props.disabled && !props.submitting,
+    props.thread &&
+    !external &&
+    (text.trim() || images.length) &&
+    !readingImages &&
+    !props.disabled &&
+    !props.submitting,
   );
   async function send() {
     if (!canSend || sendingRef.current.has(key)) return;
+    const current = draftsRef.current[key] ?? emptyDraft;
+    if (!current.text.trim() && !current.images.length) return;
+    if (current.images.some((image) => !image.dataUrl)) return;
     sendingRef.current.add(key);
-    const sent = text;
+    const sent = current.text;
+    const sentImages = current.images;
     try {
-      if (await props.onSend(sent, active))
-        setDrafts((previous) => (previous[key] === sent ? { ...previous, [key]: '' } : previous));
+      if (
+        await props.onSend(
+          sent,
+          active,
+          sentImages.length ? sentImages.map((image) => image.dataUrl!) : undefined,
+        )
+      )
+        updateDraft(key, (previous) => ({
+          ...previous,
+          error: previous.error === current.error ? undefined : previous.error,
+          text: previous.text === sent ? '' : previous.text,
+          images: previous.images.filter(
+            (image) => !sentImages.some((sentImage) => sentImage.id === image.id),
+          ),
+        }));
     } finally {
       sendingRef.current.delete(key);
     }
@@ -94,6 +177,41 @@ export function Composer(props: Props) {
       )}
       <SettingsPanel settings={props.settings} models={props.models} onChange={props.onSettings} />
       <div className="composer-box">
+        {images.length > 0 && (
+          <ul className="composer-images" aria-label="待发送的图片">
+            {images.map((image, index) => (
+              <li key={image.id}>
+                {image.dataUrl ? (
+                  <img src={image.dataUrl} alt={`待发送的图片 ${index + 1}`} />
+                ) : (
+                  <span role="status">读取中…</span>
+                )}
+                <span className="composer-image-name" title={image.name}>
+                  {image.name}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-label={`移除图片 ${index + 1}`}
+                  onClick={() =>
+                    updateDraft(key, (previous) => ({
+                      ...previous,
+                      error: undefined,
+                      images: previous.images.filter((entry) => entry.id !== image.id),
+                    }))
+                  }
+                >
+                  <Icon name="close" size={13} />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {draft.error && (
+          <p className="composer-image-error" role="alert">
+            {draft.error}
+          </p>
+        )}
         <textarea
           aria-label={active ? '追加要求' : '任务内容'}
           value={text}
@@ -102,12 +220,13 @@ export function Composer(props: Props) {
               ? '新建或选择会话后，描述你的任务…'
               : active
                 ? '补充要求或调整方向…'
-                : '描述你想完成的任务…'
+                : '描述你想完成的任务，也可以粘贴图片…'
           }
           maxLength={100000}
           onChange={(event) =>
-            setDrafts((previous) => ({ ...previous, [key]: event.target.value }))
+            updateDraft(key, (previous) => ({ ...previous, text: event.target.value }))
           }
+          onPaste={paste}
           onCompositionStart={() => {
             composingRef.current = true;
           }}

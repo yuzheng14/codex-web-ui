@@ -46,6 +46,7 @@ import {
   threadSettings,
   threadStatus,
   turnSettings,
+  taskInput,
 } from './mapping.js';
 import {
   asCodexError,
@@ -518,7 +519,13 @@ export class CodexAdapter implements CodexClient {
       );
     }
   }
-  async startTurn(id: string, cwd: string, text: string, settings?: Settings): Promise<TurnView> {
+  async startTurn(
+    id: string,
+    cwd: string,
+    text: string,
+    settings?: Settings,
+    images?: string[],
+  ): Promise<TurnView> {
     this.validateSettings(settings);
     return mapTurn(
       id,
@@ -526,17 +533,22 @@ export class CodexAdapter implements CodexClient {
         await this.call('turn/start', {
           threadId: id,
           cwd,
-          input: [{ type: 'text', text, text_elements: [] }],
+          input: taskInput(text, images),
           ...turnSettings(cwd, settings),
         })
       ).turn,
     );
   }
-  steerTurn(id: string, turnId: string, text: string): Promise<TurnSteerResponse> {
+  steerTurn(
+    id: string,
+    turnId: string,
+    text: string,
+    images?: string[],
+  ): Promise<TurnSteerResponse> {
     return this.call('turn/steer', {
       threadId: id,
       expectedTurnId: turnId,
-      input: [{ type: 'text', text, text_elements: [] }],
+      input: taskInput(text, images),
     });
   }
   async interruptTurn(id: string, turnId: string): Promise<void> {

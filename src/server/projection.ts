@@ -278,6 +278,14 @@ export class Projection {
 
   private limit(item: ItemView): ItemView {
     const result = structuredClone(item);
+    if (result.images) {
+      let bytes = 0;
+      result.imageCount ??= result.images.length;
+      result.images = result.images.filter((image) => {
+        bytes += Buffer.byteLength(image);
+        return bytes <= this.maxItemBytes;
+      });
+    }
     for (const field of ['text', 'output', 'command'] as const) {
       const value = result[field];
       if (value) {

@@ -408,7 +408,13 @@ export class GatewayService {
         codexEpoch: this.codex.epoch,
       });
       const revision = this.projection.revision(threadId);
-      const turn = await this.codex.startTurn(threadId, ownership.cwd, input.text, input.settings);
+      const turn = await this.codex.startTurn(
+        threadId,
+        ownership.cwd,
+        input.text,
+        input.settings,
+        input.images,
+      );
       this.store.attachTurn(input.clientOperationId, turn.id);
       this.projection.turn(threadId, turn, this.projection.revision(threadId) !== revision);
       const projectedTurn = this.projection
@@ -426,7 +432,12 @@ export class GatewayService {
       await this.requireActiveTurn(threadId, input.expectedTurnId);
       this.ensureCompatibilityConfirmed();
       this.store.dispatch(input.clientOperationId);
-      const result = await this.codex.steerTurn(threadId, input.expectedTurnId, input.text);
+      const result = await this.codex.steerTurn(
+        threadId,
+        input.expectedTurnId,
+        input.text,
+        input.images,
+      );
       return { result: { threadId, turnId: result.turnId } };
     });
   }

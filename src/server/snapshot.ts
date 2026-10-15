@@ -27,6 +27,10 @@ export function compactThreadForTransport(thread: ThreadView, maxBytes: number):
       if (item.command !== undefined) item.command = preview(item.command);
       if (item.error !== undefined) item.error = preview(item.error);
       if (item.details !== undefined) item.details = truncated;
+      if (item.images) {
+        item.imageCount ??= item.images.length;
+        delete item.images;
+      }
       if (item.changes)
         item.changes = item.changes.map((change) => ({ ...change, diff: preview(change.diff) }));
       if (item.autoReview)

@@ -46,8 +46,19 @@ export interface CodexClient {
   createThread(cwd: string, settings?: Settings): Promise<ThreadView>;
   forkThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView>;
   resumeThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView>;
-  startTurn(id: string, cwd: string, text: string, settings?: Settings): Promise<TurnView>;
-  steerTurn(id: string, turnId: string, text: string): Promise<{ turnId: string }>;
+  startTurn(
+    id: string,
+    cwd: string,
+    text: string,
+    settings?: Settings,
+    images?: string[],
+  ): Promise<TurnView>;
+  steerTurn(
+    id: string,
+    turnId: string,
+    text: string,
+    images?: string[],
+  ): Promise<{ turnId: string }>;
   interruptTurn(id: string, turnId: string): Promise<void>;
   respond(actionId: string, resolution: ActionResolution): Promise<void>;
 }

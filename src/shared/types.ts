@@ -54,6 +54,8 @@ export interface ItemView {
   type: string;
   status?: string;
   text?: string;
+  images?: string[];
+  imageCount?: number;
   command?: string;
   cwd?: string;
   output?: string;
@@ -180,12 +182,13 @@ export interface ResumeThreadInput extends CreateThreadInput {
   /** Kept for older clients; writer ownership is now checked by Codex, not this flag. */
   confirmExternalStopped?: boolean;
 }
-export interface StartTurnInput extends CreateThreadInput {
+export interface TaskMessage {
   text: string;
+  images?: string[];
 }
-export interface SteerInput extends OperationInput {
+export interface StartTurnInput extends CreateThreadInput, TaskMessage {}
+export interface SteerInput extends OperationInput, TaskMessage {
   expectedTurnId: string;
-  text: string;
 }
 export interface InterruptInput extends OperationInput {
   expectedTurnId: string;
