@@ -6,7 +6,16 @@ import type { Turn } from './generated/v2/Turn.js';
 import type { ThreadStartParams } from './generated/v2/ThreadStartParams.js';
 import type { TurnStartParams } from './generated/v2/TurnStartParams.js';
 import type { ReasoningEffort } from './generated/ReasoningEffort.js';
+import type { UserInput } from './generated/v2/UserInput.js';
+import { imageDataBytes, MAX_IMAGES, MAX_IMAGE_BYTES } from '../shared/images.js';
 import { CodexError, isRecord } from './transport.js';
+
+export function taskInput(text: string, images: string[] = []): UserInput[] {
+  return [
+    ...(text ? [{ type: 'text' as const, text, text_elements: [] }] : []),
+    ...images.map((url) => ({ type: 'image' as const, url })),
+  ];
+}
 
 export function threadStatus(status: ThreadStatus): RunStatus {
   if (!isRecord(status))
@@ -61,14 +70,28 @@ export function mapItem(item: ThreadItem): ItemView {
   if (typeof item.type !== 'string')
     throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex item has no type', true);
   switch (item.type) {
-    case 'userMessage':
+    case 'userMessage': {
+      const imageInputs = item.content.filter(
+        (input) => input.type === 'image' || input.type === 'localImage',
+      );
+      let bytes = 0;
+      const images = imageInputs.slice(0, MAX_IMAGES).flatMap((input) => {
+        if (input.type !== 'image' || !('url' in input)) return [];
+        const size = imageDataBytes(input.url);
+        if (size === undefined || bytes + size > MAX_IMAGE_BYTES) return [];
+        bytes += size;
+        return [input.url];
+      });
       return {
         id: item.id,
         type: item.type,
         text: item.content
+          .filter((input) => input.type !== 'image' && input.type !== 'localImage')
           .map((input) => (input.type === 'text' ? input.text : `[${input.type}]`))
           .join('\n'),
+        ...(imageInputs.length ? { images, imageCount: imageInputs.length } : {}),
       };
+    }
     case 'agentMessage':
       return { id: item.id, type: item.type, text: item.text };
     case 'reasoning':

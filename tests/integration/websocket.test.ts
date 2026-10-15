@@ -1,6 +1,35 @@
 import { expect, it } from 'vitest';
 import { sendBounded, type SocketSink } from '../../src/server/websocket.js';
 import type { ServerMessage, ThreadView } from '../../src/shared/types.js';
+import { Projection } from '../../src/server/projection.js';
+import { compactThreadForTransport } from '../../src/server/snapshot.js';
+import { threadView } from './domain-helpers.js';
+
+it('omits whole image previews within projection and socket budgets, preserving message identity and counts', () => {
+  const image = `data:image/png;base64,${'AAAA'.repeat(200)}`;
+  const thread = threadView('thread', '/tmp');
+  thread.turns = [
+    {
+      id: 'turn',
+      threadId: thread.id,
+      status: 'running',
+      items: [
+        { id: 'message', type: 'userMessage', text: '看图', images: [image, image], imageCount: 2 },
+      ],
+    },
+  ];
+  const projection = new Projection(1024);
+  projection.thread(thread);
+  expect(projection.get('thread')?.turns[0]?.items[0]).toMatchObject({
+    images: [image],
+    imageCount: 2,
+  });
+  const compact = compactThreadForTransport(thread, 1024);
+  expect(compact.turns[0]?.items[0]).toMatchObject({ id: 'message', text: '看图', imageCount: 2 });
+  expect(compact.turns[0]?.items[0]?.images).toBeUndefined();
+  expect(Buffer.byteLength(JSON.stringify(compact))).toBeLessThan(1024);
+  expect(thread.turns[0]?.items[0]?.images).toEqual([image, image]);
+});
 function socket(bufferedAmount = 0) {
   const sent: string[] = [];
   const closed: number[] = [];

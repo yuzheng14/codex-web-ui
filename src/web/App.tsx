@@ -439,15 +439,15 @@ export function App() {
                   { expectedTurnId: activeTurn.id },
                 );
             }}
-            onSend={async (text, steer) => {
+            onSend={async (text, steer, images) => {
               if (!thread || (steer && !activeTurn)) return false;
               const operation = await workspace.run(
                 steer ? 'steer' : 'send',
                 thread.id,
                 `/api/threads/${encode(thread.id)}/${steer ? 'steer' : 'turns'}`,
                 steer
-                  ? { text, expectedTurnId: activeTurn!.id }
-                  : { text, settings: workspace.settings },
+                  ? { text, images, expectedTurnId: activeTurn!.id }
+                  : { text, images, settings: workspace.settings },
               );
               return operation?.status === 'acknowledged';
             }}

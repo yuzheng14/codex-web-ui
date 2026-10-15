@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { imageDataBytes, MAX_IMAGE_BYTES, MAX_IMAGES } from './images.js';
+import type { TaskMessage } from './types.js';
 export const cursorSchema = z.string().min(1).max(4096);
 export const idSchema = z.string().min(1).max(256);
 const projectNameSchema = z.string().trim().min(1).max(100);
@@ -27,18 +29,31 @@ export const forkThreadSchema = createThreadSchema;
 export const resumeThreadSchema = createThreadSchema.extend({
   confirmExternalStopped: z.boolean().optional(),
 });
-const taskTextSchema = z
-  .string()
-  .min(1)
-  .max(100_000)
-  .refine((text) => text.trim().length > 0, 'Text must not be blank');
-export const startTurnSchema = createThreadSchema.extend({
-  text: taskTextSchema,
-});
-export const steerSchema = operationSchema.extend({
-  expectedTurnId: idSchema,
-  text: taskTextSchema,
-});
+const taskFields = {
+  text: z.string().max(100_000),
+  images: z
+    .array(z.string().refine((value) => imageDataBytes(value) !== undefined, 'Invalid image'))
+    .max(MAX_IMAGES)
+    .refine(
+      (images) =>
+        images.reduce((sum, image) => sum + (imageDataBytes(image) ?? Infinity), 0) <=
+        MAX_IMAGE_BYTES,
+      'Images exceed size limit',
+    )
+    .optional(),
+};
+const hasContent = (input: TaskMessage) => Boolean(input.text.trim() || input.images?.length);
+export const startTurnSchema = createThreadSchema
+  .extend({
+    ...taskFields,
+  })
+  .refine(hasContent, 'Text or an image is required');
+export const steerSchema = operationSchema
+  .extend({
+    expectedTurnId: idSchema,
+    ...taskFields,
+  })
+  .refine(hasContent, 'Text or an image is required');
 export const interruptSchema = operationSchema.extend({ expectedTurnId: idSchema });
 const elicitationValueSchema = z.union([
   z.string().max(10_000),

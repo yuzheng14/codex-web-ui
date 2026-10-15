@@ -425,6 +425,35 @@ it('rejects unconfigured hosts, origins and ports for HTTP pages, APIs and WebSo
   expect(create).not.toHaveBeenCalled();
 });
 
+it('accepts image bodies above the old text limit and includes images in operation identity', async () => {
+  const { post, runtime } = await setup();
+  const created = (await (
+    await post('/api/projects/test/threads', { clientOperationId: randomUUID() })
+  ).json()) as Operation;
+  const threadId = (created.result as { threadId: string }).threadId;
+  const images = [`data:image/png;base64,${Buffer.alloc(400 * 1024).toString('base64')}`];
+  const input = { clientOperationId: randomUUID(), text: '', images };
+  const spy = vi.spyOn(runtime.codex, 'startTurn');
+  const response = await post(`/api/threads/${threadId}/turns`, input);
+  expect(response.status).toBe(200);
+  expect(spy.mock.calls[0]?.[4]).toEqual(images);
+  expect((await (await post(`/api/threads/${threadId}/turns`, input)).json()).status).toBe(
+    'acknowledged',
+  );
+  const conflict = await post(`/api/threads/${threadId}/turns`, {
+    ...input,
+    images: ['data:image/png;base64,aGVsbG8='],
+  });
+  expect(conflict.status).toBe(409);
+  const invalid = await post(`/api/threads/${threadId}/turns`, {
+    ...input,
+    clientOperationId: randomUUID(),
+    images: ['file:///tmp/image.png'],
+  });
+  expect(invalid.status).toBe(400);
+  expect(spy).toHaveBeenCalledTimes(1);
+});
+
 it('runs through HTTP, survives all sockets closing, and reconnects from a snapshot with real IDs', async () => {
   const { origin, runtime, post, connect } = await setup();
   const createResponse = await post('/api/projects/test/threads', {

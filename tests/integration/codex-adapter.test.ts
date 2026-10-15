@@ -80,6 +80,37 @@ describe('verified protocol adapter with a real subprocess', () => {
     },
   );
 
+  it('sends image-only turns and text-plus-image steering as native image input, and restores history', async () => {
+    const { adapter, requests } = await fixture({ turnDelayMs: 2000 });
+    const image = 'data:image/png;base64,iVBORw0KGgo=';
+    const thread = await adapter.createThread('/tmp');
+    const turn = await adapter.startTurn(thread.id, thread.cwd, '', undefined, [image]);
+    await adapter.steerTurn(thread.id, turn.id, '  看第二张图\n', [image]);
+    const calls = (await requests()).filter((entry) =>
+      ['turn/start', 'turn/steer'].includes(entry.method),
+    );
+    expect(calls[0]?.params.input).toEqual([{ type: 'image', url: image }]);
+    expect(calls[1]?.params.input).toEqual([
+      { type: 'text', text: '  看第二张图\n', text_elements: [] },
+      { type: 'image', url: image },
+    ]);
+    const history = await adapter.readThread(thread.id);
+    expect(history.turns[0]?.items.filter((item) => item.type === 'userMessage')).toMatchObject([
+      { text: '', images: [image], imageCount: 1 },
+      { text: '  看第二张图\n', images: [image], imageCount: 1 },
+    ]);
+    const hidden = mapItem({
+      id: 'external',
+      type: 'userMessage',
+      clientId: null,
+      content: [
+        { type: 'image', url: 'https://example.com/private.png' },
+        { type: 'localImage', path: '/private/image.png' },
+      ],
+    });
+    expect(hidden).toMatchObject({ images: [], imageCount: 2 });
+    await adapter.interruptTurn(thread.id, turn.id);
+  });
   it.each([false, true])(
     'reads title metadata without fetching history (paginated: %s) and maps name updates',
     async (paginated) => {
