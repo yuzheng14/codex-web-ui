@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import type { ServerMessage, ThreadPage, ThreadView } from '../../src/shared/types';
+import type { ThreadPage, ThreadView } from '../../src/shared/types';
 import {
   compatibilityDialog,
   confirmCompatibility,
@@ -221,36 +221,6 @@ test('Enter honors no-thread, blank-draft, offline, compatibility and runtime gu
   await flushKeyboardEvents(page);
   expect(outgoing).toHaveLength(0);
   await expect(input).toHaveValue(draft);
-});
-
-test('Enter cannot send to an unmanaged external thread', async ({ page }) => {
-  const external: { id?: string } = {};
-  await page.routeWebSocket('**/ws?overview=1', (socket) => {
-    const server = socket.connectToServer();
-    server.onMessage((raw) => {
-      const message = JSON.parse(raw.toString()) as ServerMessage;
-      if (message.type === 'snapshot' && message.threadId === external.id)
-        message.data = { ...message.data, managed: false, source: 'cli' };
-      socket.send(JSON.stringify(message));
-    });
-  });
-  external.id = await newThread(page);
-  await page.route(`**/api/threads/${external.id}`, async (route) => {
-    const response = await route.fetch();
-    await route.fulfill({
-      response,
-      json: { ...(await response.json()), managed: false, source: 'cli' },
-    });
-  });
-  await page.reload();
-  await expect(page.locator('.external-handoff')).toBeVisible();
-  const outgoing = submissions(page);
-  await taskInput(page).fill('外部会话不能直接发送');
-  await expect(sendButton(page)).toBeDisabled();
-  await taskInput(page).press('Enter');
-  await flushKeyboardEvents(page);
-  expect(outgoing).toHaveLength(0);
-  await expect(taskInput(page)).toHaveValue('外部会话不能直接发送');
 });
 
 test('an uncertain submission keeps its draft and blocks another Enter request', async ({

@@ -8,8 +8,14 @@ export const createThreadButton = (page: Page) =>
   projectGroup(page).getByRole('button', { name: '新建会话', exact: true, includeHidden: true });
 export async function controlRuntime(
   request: APIRequestContext,
-  input: { reset?: boolean; version?: string; unavailable?: boolean },
-): Promise<SystemInfo> {
+  input: {
+    reset?: boolean;
+    version?: string;
+    unavailable?: boolean;
+    external?: 'free' | 'occupied' | 'error';
+    releaseThreadId?: string;
+  },
+): Promise<SystemInfo & { externalThreadId?: string }> {
   const response = await request.post('http://127.0.0.1:8789/runtime', { data: input });
   expect(response.ok()).toBe(true);
   return (await response.json()) as SystemInfo;

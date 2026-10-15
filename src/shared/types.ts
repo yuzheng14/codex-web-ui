@@ -81,6 +81,8 @@ export interface ThreadView {
   status: RunStatus;
   turns: TurnView[];
   managed: boolean;
+  /** Last definite resume failure; cleared on retry, successful acquisition or runtime reset. */
+  resumeError?: ApiError;
   updatedAt?: number;
   actions: PendingAction[];
   historyTruncated?: boolean;
@@ -175,6 +177,7 @@ export interface CreateThreadInput extends OperationInput {
 }
 export type ForkThreadInput = CreateThreadInput;
 export interface ResumeThreadInput extends CreateThreadInput {
+  /** Kept for older clients; writer ownership is now checked by Codex, not this flag. */
   confirmExternalStopped?: boolean;
 }
 export interface StartTurnInput extends CreateThreadInput {

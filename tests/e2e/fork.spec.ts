@@ -88,52 +88,6 @@ test('fork preserves history and the source draft, then continues independently'
   expect(await selectedId(page)).toBe(source);
 });
 
-test('an external handoff can fork without confirming it has stopped, including on mobile', async ({
-  page,
-}) => {
-  const external: { id?: string } = {};
-  // Only presentation is made external here; service tests exercise actual unmanaged ownership.
-  await filterSocket(page, (message) => {
-    if (message.type === 'snapshot' && message.threadId === external.id)
-      return { ...message, data: { ...message.data, managed: false, source: 'cli' } };
-    return message;
-  });
-  const source = await newThread(page);
-  await finishTurn(page, '外部会话已保存的历史');
-  // A delayed creation snapshot must not make the fixture external before setup can send.
-  external.id = source;
-  await page.route(`**/api/threads/${source}`, async (route) => {
-    const response = await route.fetch();
-    await route.fulfill({
-      response,
-      json: { ...(await response.json()), managed: false, source: 'cli' },
-    });
-  });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.reload();
-  const handoff = page.locator('.external-handoff');
-  await expect(handoff).toBeVisible();
-  await expect(handoff.getByRole('checkbox')).not.toBeChecked();
-  await expect(handoff.getByRole('button', { name: '恢复并继续此会话' })).toBeDisabled();
-  let resumesOrInterrupts = 0;
-  page.on('request', (outgoing) => {
-    if (outgoing.method() === 'POST' && /\/(resume|interrupt)$/.test(outgoing.url()))
-      resumesOrInterrupts++;
-  });
-  await handoff.getByRole('button', { name: 'Fork 为新会话', exact: true }).click();
-  await expect(page.getByRole('button', { name: '返回原会话', exact: true })).toBeVisible();
-  await expect(handoff).toHaveCount(0);
-  await expect(
-    page.locator('.conversation-content').getByText('外部会话已保存的历史', { exact: true }),
-  ).toBeVisible();
-  expect(await selectedId(page)).not.toBe(source);
-  expect(resumesOrInterrupts).toBe(0);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
-    true,
-  );
-  await page.screenshot({ path: '/tmp/codex-web-fork-mobile.png', fullPage: true });
-});
-
 test('fork runs in the shared checkout while the source waits for approval', async ({
   page,
   request,

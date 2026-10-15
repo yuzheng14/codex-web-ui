@@ -64,6 +64,22 @@ async function waitFor<T>(get: () => T | undefined): Promise<T> {
 }
 
 describe('verified protocol adapter with a real subprocess', () => {
+  it.each([
+    [-32600, 'thread {threadId} already has an active writer', 'THREAD_IN_USE'],
+    [-32600, 'thread another-thread already has an active writer', 'CODEX_REQUEST_FAILED'],
+    [-32600, 'Invalid history format', 'CODEX_REQUEST_FAILED'],
+    [-32000, 'thread {threadId} already has an active writer', 'CODEX_REQUEST_FAILED'],
+  ] as const)(
+    'maps only the exact resume writer conflict (%s, %s)',
+    async (code, message, expected) => {
+      const { adapter } = await fixture({ resumeFailure: { code, message } });
+      const thread = await adapter.createThread('/tmp');
+      await expect(adapter.resumeThread(thread.id, thread.cwd)).rejects.toMatchObject({
+        code: expected,
+      });
+    },
+  );
+
   it.each([false, true])(
     'reads title metadata without fetching history (paginated: %s) and maps name updates',
     async (paginated) => {

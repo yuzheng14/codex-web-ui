@@ -236,6 +236,7 @@ export class Projection {
         this.resolveAction(action.actionId, 'expired');
     for (const thread of this.threads.values()) {
       thread.managed = false;
+      delete thread.resumeError;
       if (isActive(thread.status)) thread.status = 'unknown';
       for (const turn of thread.turns) {
         if (isActive(turn.status)) turn.status = 'unknown';
