@@ -470,21 +470,6 @@ svg {
 .thread-selected .thread-title {
   color: #244734;
 }
-.thread-progress {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 7px;
-  margin-top: 4px;
-}
-.thread-progress .status {
-  font-size: 10px;
-  padding: 2px 5px;
-}
-.thread-pending-count {
-  font-size: 10px;
-  color: #8c6540;
-}
 .sidebar-empty {
   color: #9aa1a7;
   padding: 10px 12px;
@@ -2655,7 +2640,7 @@ dd {
 }
 .thread-row .thread-link {
   min-width: 0;
-  padding-right: 66px;
+  padding-right: 88px;
 }
 .thread-row-actions {
   position: absolute;
@@ -2665,6 +2650,65 @@ dd {
   right: 4px;
   top: 4px;
   z-index: 1;
+}
+.thread-status-indicator {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 28px;
+  color: var(--muted);
+}
+.thread-status-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.thread-status-dot {
+  width: 7px;
+  height: 7px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+.thread-status-completed,
+.thread-status-running {
+  color: var(--accent);
+}
+.thread-status-completed .thread-status-dot {
+  background: currentColor;
+}
+.thread-status-waitingApproval,
+.thread-status-waitingInput,
+.thread-status-unknown {
+  color: #986414;
+}
+.thread-status-failed {
+  color: var(--destructive);
+}
+.thread-status-notification {
+  position: absolute;
+  top: 5px;
+  right: 0;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--sidebar);
+  border-radius: 50%;
+  background: #986414;
+}
+.thread-status-spinning {
+  animation: thread-status-spin 1s linear infinite;
+}
+@keyframes thread-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thread-status-spinning {
+    animation: none;
+  }
 }
 .thread-archive {
   position: relative;
@@ -2760,7 +2804,7 @@ dd {
 @media (pointer: coarse) {
   .thread-row .thread-link {
     min-height: 44px;
-    padding: 12px 94px 12px 10px;
+    padding: 12px 114px 12px 10px;
   }
   .thread-row-actions {
     top: 0;

@@ -1,10 +1,55 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { ThreadSummary } from '../../shared/types';
+import type { RunStatus, ThreadSummary } from '../../shared/types';
 import { threadOrigin } from '../lib/thread-origin';
 import { formatTime, cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { isActive, runStatusLabels, Status } from './Status';
+
+const statusIcons = {
+  running: 'loader',
+  waitingApproval: 'shieldPending',
+  waitingInput: 'chat',
+  failed: 'alert',
+  interrupted: 'stop',
+  unknown: 'question',
+} as const;
+
+function ThreadStatusIcon({
+  status,
+  label,
+  offline,
+  pending,
+}: {
+  status: RunStatus;
+  label: string;
+  offline: boolean;
+  pending: boolean;
+}) {
+  return (
+    <span
+      className={cn('thread-status-indicator', `thread-status-${status}`)}
+      data-status={status}
+      role="img"
+      aria-label={label}
+      title={label}
+    >
+      <span
+        className={cn(
+          'thread-status-glyph',
+          status === 'running' && !offline && 'thread-status-spinning',
+        )}
+      >
+        {status === 'idle' || status === 'completed' ? (
+          <span className="thread-status-dot" />
+        ) : (
+          <Icon name={statusIcons[status]} size={15} />
+        )}
+      </span>
+      {(pending || status === 'waitingApproval') && <span className="thread-status-notification" />}
+    </span>
+  );
+}
 
 export function ThreadLink({
   thread,
@@ -45,10 +90,9 @@ export function ThreadLink({
     ['completed', 'failed', 'interrupted'].includes(lastResult)
       ? lastResult
       : thread.status;
-  const needsAttention =
-    isActive(status) ||
-    ['failed', 'interrupted', 'unknown'].includes(status) ||
-    thread.pendingActionCount > 0;
+  const statusLabel = `${offline && isActive(status) ? '上次已知：' : ''}${runStatusLabels[status]}${
+    thread.pendingActionCount > 0 ? ` · ${thread.pendingActionCount} 项待处理` : ''
+  }`;
 
   return (
     <div
@@ -74,19 +118,16 @@ export function ThreadLink({
         {thread.forkedFromId && <Icon name="fork" size={14} />}
         <span className="thread-link-content">
           <span className="thread-title">{title}</span>
-          {needsAttention ? (
-            <span className="thread-progress">
-              <Status status={status} offline={offline} />
-              {thread.pendingActionCount > 0 && (
-                <span className="thread-pending-count">{thread.pendingActionCount} 项待处理</span>
-              )}
-            </span>
-          ) : (
-            <span className="sr-only"> · {runStatusLabels[status]}</span>
-          )}
+          <span className="sr-only"> · {statusLabel}</span>
         </span>
       </button>
       <div className="thread-row-actions">
+        <ThreadStatusIcon
+          status={status}
+          label={statusLabel}
+          offline={offline}
+          pending={thread.pendingActionCount > 0}
+        />
         <Button
           ref={detailsButton}
           variant="ghost"
@@ -155,6 +196,12 @@ export function ThreadLink({
               <Status status={status} offline={offline} />
             </dd>
           </div>
+          {thread.pendingActionCount > 0 && (
+            <div>
+              <dt>待处理</dt>
+              <dd>{thread.pendingActionCount} 项待处理</dd>
+            </div>
+          )}
           {thread.forkedFromId && (
             <div>
               <dt>会话类型</dt>

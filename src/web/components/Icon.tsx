@@ -2,6 +2,10 @@ import type { CSSProperties } from 'react';
 
 const paths = {
   compress: 'M4 3h16M4 21h16M12 4v5m-3-3 3 3 3-3M12 20v-5m-3 3 3-3 3 3M5 12h14',
+  loader: 'M12 3a9 9 0 1 1-9 9',
+  shieldPending: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6Z',
+  question:
+    'M9.5 9a2.5 2.5 0 0 1 5 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
   info: 'M12 8h.01M11 11h1v6m-1 0h2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
   archive: 'M3 3h18v5H3ZM5 8v13h14V8M10 12h4',
   unarchive: 'M3 3h18v5H3ZM5 8v13h14V8M12 17v-6m-3 3 3-3 3 3',

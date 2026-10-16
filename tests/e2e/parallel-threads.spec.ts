@@ -47,7 +47,9 @@ test('runs two conversations in one directory and interrupts them independently'
   await expect(page.locator('.action-card')).toHaveCount(1);
   await expect(page.locator('.error-banner.dismissible')).not.toBeVisible();
   for (const id of [owner, target]) {
-    await expect(page.locator(`[data-thread-id="${id}"] .status`)).toHaveText('等待审批');
+    await expect(
+      page.locator(`[data-thread-id="${id}"]`).locator('..').locator('.thread-status-indicator'),
+    ).toHaveAccessibleName(/等待审批/);
   }
   const draft = '仅调整当前会话';
   await page.getByRole('textbox', { name: '追加要求', exact: true }).fill(draft);
@@ -69,7 +71,9 @@ test('runs two conversations in one directory and interrupts them independently'
   await page.getByRole('button', { name: '中断', exact: true }).click();
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已中断');
   await page.setViewportSize({ width: 1280, height: 900 });
-  await expect(page.locator(`[data-thread-id="${target}"] .status`)).toHaveText('等待审批');
+  await expect(
+    page.locator(`[data-thread-id="${target}"]`).locator('..').locator('.thread-status-indicator'),
+  ).toHaveAccessibleName(/等待审批/);
   await page.locator(`[data-thread-id="${target}"]`).click();
   await expect(page.getByRole('textbox', { name: '追加要求', exact: true })).toHaveValue(draft);
   await page.getByRole('button', { name: '追加要求', exact: true }).click();

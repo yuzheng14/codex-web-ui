@@ -125,7 +125,7 @@ test('compact rows retain keyboard-accessible full titles and creation details',
   await expect(details).not.toBeVisible();
 });
 
-test('critical execution states stay visible while ordinary completion moves into details', async ({
+test('all execution states remain single-line with accessible icons and pending details', async ({
   page,
   request,
   context,
@@ -145,6 +145,7 @@ test('critical execution states stay visible while ordinary completion moves int
     { status: 'idle', lastTurnStatus: 'interrupted', label: '已中断' },
     { status: 'unknown', label: '状态待核对' },
     { status: 'idle', lastTurnStatus: 'completed', label: '已完成' },
+    { status: 'idle', label: '就绪' },
   ];
   const ids = await Promise.all(
     states.map((state, index) => create(request, `${index + 1} · ${state.label}的会话`)),
@@ -173,15 +174,57 @@ test('critical execution states stay visible while ordinary completion moves int
   });
   await page.getByRole('button', { name: '刷新会话列表' }).click();
   for (const [index, state] of states.entries()) {
-    const progress = link(page, ids[index]!).locator('.thread-progress');
-    if (state.lastTurnStatus === 'completed') await expect(progress).toHaveCount(0);
-    else {
-      await expect(progress).toBeVisible();
-      await expect(progress).toContainText(state.label);
+    const row = threadRow(page, ids[index]!);
+    const threadLink = link(page, ids[index]!);
+    const indicator = row.locator('.thread-status-indicator');
+    const detailsButton = row.locator('.thread-details-trigger');
+    await expect(threadLink.locator('.thread-progress')).toHaveCount(0);
+    await expect(threadLink.locator('.sr-only')).toContainText(state.label);
+    await expect(indicator).toBeVisible();
+    await expect(indicator).toHaveAttribute('role', 'img');
+    await expect(indicator).toHaveAttribute('data-status', state.lastTurnStatus ?? state.status);
+    await expect(indicator).toHaveAccessibleName(new RegExp(state.label));
+    expect(await indicator.evaluate((element) => element.tagName)).toBe('SPAN');
+    expect(
+      await indicator.evaluate((element) => element.parentElement?.firstElementChild === element),
+    ).toBe(true);
+    await expect(row.locator('.thread-row-actions > .thread-status-indicator')).toHaveCount(1);
+
+    const rowBounds = await threadLink.boundingBox();
+    const iconBounds = await indicator.boundingBox();
+    const detailsBounds = await detailsButton.boundingBox();
+    expect(rowBounds).not.toBeNull();
+    expect(iconBounds).not.toBeNull();
+    expect(detailsBounds).not.toBeNull();
+    expect(rowBounds!.height).toBeLessThanOrEqual(40);
+    expect(iconBounds!.y).toBeGreaterThanOrEqual(rowBounds!.y);
+    expect(iconBounds!.y + iconBounds!.height).toBeLessThanOrEqual(
+      rowBounds!.y + rowBounds!.height,
+    );
+    expect(iconBounds!.x + iconBounds!.width).toBeLessThanOrEqual(detailsBounds!.x);
+
+    const glyph = indicator.locator('.thread-status-glyph');
+    await expect(glyph).toHaveCount(1);
+    if (state.status === 'running') await expect(glyph).toHaveClass(/thread-status-spinning/);
+    else await expect(glyph).not.toHaveClass(/thread-status-spinning/);
+
+    if (state.pending) {
+      const pendingLabel = `${state.pending} 项待处理`;
+      await expect(indicator).toHaveAccessibleName(new RegExp(pendingLabel));
+      await expect(threadLink.locator('.sr-only')).toContainText(pendingLabel);
+      await detailsButton.click();
+      await expect(row.locator('.thread-details')).toContainText(state.label);
+      await expect(row.locator('.thread-details')).toContainText(pendingLabel);
+      await detailsButton.click();
     }
   }
-  await expect(link(page, ids[1]!)).toContainText('2 项待处理');
-  await expect(link(page, ids[2]!)).toContainText('1 项待处理');
+  const runningGlyph = threadRow(page, ids[0]!).locator('.thread-status-glyph');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect(runningGlyph).toHaveCSS('animation-name', 'thread-status-spin');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(runningGlyph).toHaveCSS('animation-name', 'none');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect(runningGlyph).toHaveCSS('animation-name', 'thread-status-spin');
   await link(page, ids[0]!).scrollIntoViewIfNeeded();
   const statesScreenshot = testInfo.outputPath('sidebar-critical-states.png');
   await page.screenshot({ path: statesScreenshot, animations: 'disabled' });
@@ -191,8 +234,15 @@ test('critical execution states stay visible while ordinary completion moves int
   });
   await context.setOffline(true);
   await expect(page.locator('.connection-badge')).toHaveText('连接已断开');
-  for (const id of ids.slice(0, 3))
-    await expect(link(page, id).locator('.thread-progress')).toContainText('上次已知：');
+  for (const id of ids.slice(0, 3)) {
+    await expect(threadRow(page, id).locator('.thread-status-indicator')).toHaveAccessibleName(
+      /上次已知：/,
+    );
+    await expect(link(page, id).locator('.sr-only')).toContainText('上次已知：');
+  }
+  const stoppedSpinner = threadRow(page, ids[0]!).locator('.thread-status-glyph');
+  await expect(stoppedSpinner).not.toHaveClass(/thread-status-spinning/);
+  await expect(stoppedSpinner).toHaveCSS('animation-name', 'none');
 });
 
 test.describe('touch navigation', () => {
@@ -215,9 +265,13 @@ test.describe('touch navigation', () => {
         response,
         json: {
           ...result,
-          data: result.data.filter(
-            (thread: ThreadSummary) => thread.id === (more ? second : first),
-          ),
+          data: result.data
+            .filter((thread: ThreadSummary) => thread.id === (more ? second : first))
+            .map((thread: ThreadSummary) =>
+              thread.id === first
+                ? { ...thread, status: 'waitingApproval', pendingActionCount: 2 }
+                : thread,
+            ),
           nextCursor: more ? null : 'sidebar-second-page',
         },
       });
@@ -226,9 +280,14 @@ test.describe('touch navigation', () => {
     await page.getByRole('button', { name: '刷新会话列表' }).tap();
     await expect(link(page, first)).toBeVisible();
     await expect(link(page, second)).toHaveCount(0);
+    await expect(threadRow(page, first).locator('.thread-status-indicator')).toHaveAccessibleName(
+      '等待审批 · 2 项待处理',
+    );
     const detailsButton = page.getByRole('button', { name: `会话详情：${longTitle}`, exact: true });
     await detailsButton.tap();
     await expect(threadRow(page, first).locator('.thread-details')).toContainText(longTitle);
+    await expect(threadRow(page, first).locator('.thread-details')).toContainText('等待审批');
+    await expect(threadRow(page, first).locator('.thread-details')).toContainText('2 项待处理');
     await expect(detailsButton).toHaveAttribute('aria-expanded', 'true');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -257,7 +316,7 @@ test.describe('touch navigation', () => {
     await projectGroup(page, '另一个项目')
       .getByRole('button', { name: '另一个项目', exact: true })
       .tap();
-    await projectGroup(page).getByRole('button', { name: '测试项目', exact: true }).tap();
+    await projectGroup(page).getByRole('button', { name: /^测试项目(?:\s|$)/ }).tap();
     await expect(link(page, first)).toBeVisible();
     await expect(link(page, second)).toBeVisible();
     await expect(
