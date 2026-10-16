@@ -42,6 +42,7 @@ import { EventHub } from './events.js';
 import { Projection, isActive, isTerminal } from './projection.js';
 import { ProjectRegistry } from './projects.js';
 import { renderThreadExport } from './thread-export.js';
+import { readLocalImage, temporaryImageRoots } from './images.js';
 
 export interface GatewayOptions {
   store: OperationStore;
@@ -60,6 +61,7 @@ export class GatewayService {
   private readonly projects: ProjectRegistry;
   private readonly codex: CodexClient;
   private readonly removeListener: () => void;
+  private readonly imageTemporaryRoots = temporaryImageRoots();
   private accepting = true;
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
@@ -445,6 +447,27 @@ export class GatewayService {
         thread.updatedAt !== latest.updatedAt ||
         thread.status !== latest.status,
     });
+  }
+
+  async getThreadImage(threadId: string, path: string | undefined) {
+    // Persisted ownership also authorizes saved/archived image previews after a
+    // gateway restart while Codex is offline. Never accept a cwd from the browser.
+    let link = this.store.getThreadLink(threadId);
+    if (!link) {
+      this.normalize(await this.codex.readThreadMetadata(threadId));
+      link = this.store.getThreadLink(threadId)!;
+    }
+    const { project, cwd } = this.projects.assertOwnership(link.projectId, link.cwd);
+    const image = await readLocalImage(path, {
+      cwd,
+      roots: [
+        { canonicalRoot: project.canonicalRoot, aliases: [project.rootPath] },
+        ...this.imageTemporaryRoots,
+      ],
+    });
+    // The project may have been removed or its directory replaced during the read.
+    this.projects.assertOwnership(link.projectId, link.cwd);
+    return image;
   }
 
   private async loadThread(threadId: string): Promise<ThreadView> {
