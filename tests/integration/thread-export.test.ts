@@ -125,6 +125,50 @@ describe('thread Markdown exports', () => {
     expect(exported.markdown).toContain('未结束或待核对的执行记录');
   });
 
+  it('preserves code review conclusions and labels review and compaction events without raw internals', () => {
+    const thread = history('/project');
+    const conclusion = '发现一个问题：\n\n- `src/main.ts` 缺少空值检查。';
+    thread.turns[0]!.items = [
+      { id: 'entered', type: 'enteredReviewMode', details: { secret: 'private-review-setup' } },
+      {
+        id: 'review',
+        type: 'exitedReviewMode',
+        text: conclusion,
+        details: { secret: 'private-review-payload' },
+      },
+      {
+        id: 'compacted',
+        type: 'contextCompaction',
+        text: 'private-compacted-context',
+        details: { secret: 'private-compaction-payload' },
+      },
+      { id: 'empty-review', type: 'exitedReviewMode' },
+    ];
+    const { markdown } = renderThreadExport(thread);
+    expect(markdown).toContain('进入代码审查模式。');
+    expect(markdown).toContain(`### 代码审查结果\n\n${conclusion}`);
+    expect(markdown).toContain('记录了上下文压缩事件');
+    expect(markdown).toContain('没有已保存的审查结果正文');
+    for (const secret of [
+      'private-review-setup',
+      'private-review-payload',
+      'private-compacted-context',
+      'private-compaction-payload',
+    ])
+      expect(markdown).not.toContain(secret);
+    expect(markdown.indexOf('进入代码审查模式。')).toBeLessThan(markdown.indexOf(conclusion));
+    expect(markdown.indexOf(conclusion)).toBeLessThan(markdown.indexOf('记录了上下文压缩事件'));
+  });
+
+  it('exports large tool output with many backtick runs without exceeding the argument limit', () => {
+    const thread = history('/project');
+    const output = '`x'.repeat(150_000);
+    thread.turns[0]!.items = [{ id: 'large-output', type: 'commandExecution', output }];
+    const exported = renderThreadExport(thread);
+    expect(exported.markdown).toContain(`\n\n\`\`\`text\n${output}\n\`\`\``);
+    expect(exported.partial).toBe(false);
+  });
+
   it('refuses a known partial history or a failed fresh read instead of exporting the cached copy', async () => {
     const { codex, service, project } = setup();
     const full = history(project);

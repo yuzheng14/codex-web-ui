@@ -25,7 +25,8 @@ const line = (value: string) =>
 
 /** Keep tool output literal even when it contains Markdown fences. */
 function code(value: string, language = 'text') {
-  const longest = Math.max(2, ...(value.match(/`+/g) ?? []).map((match) => match.length));
+  let longest = 2;
+  for (const match of value.matchAll(/`+/g)) longest = Math.max(longest, match[0].length);
   const fence = '`'.repeat(longest + 1);
   return `${fence}${language}\n${value}\n${fence}`;
 }
@@ -50,6 +51,12 @@ function renderItem(item: ItemView): string {
     if (item.status) parts.push(`状态：${line(item.status)}`);
   } else if (item.type === 'plan') {
     parts.push('### 计划', item.text ?? '');
+  } else if (item.type === 'exitedReviewMode') {
+    parts.push('### 代码审查结果', item.text || '> [没有已保存的审查结果正文。]');
+  } else if (item.type === 'enteredReviewMode') {
+    parts.push('### 会话事件', '进入代码审查模式。');
+  } else if (item.type === 'contextCompaction') {
+    parts.push('### 会话事件', '记录了上下文压缩事件；压缩后的内部上下文不导出。');
   } else {
     // Raw tool details, approval payloads and reasoning are not a portable conversation format.
     // An allowlist prevents private transport metadata from silently entering a downloadable file.
@@ -76,7 +83,7 @@ export function renderThreadExport(
   const parts = [
     `# ${line(thread.title) || 'Codex 会话'}`,
     `会话：${line(thread.id)}  \n导出时间：${(options.exportedAt ?? new Date()).toISOString()}  \n会话状态：${statuses[thread.status]}`,
-    '> 导出范围：从 Codex 全量读取的已保存会话历史快照。只包含接口仍保留的内容，不包括尚未持久化的增量。',
+    '> 导出范围：本次读取到的已保存会话历史快照（非原子读取）。已遍历 Codex 返回的全部历史分页，只包含接口仍保留的内容，不包括尚未持久化的增量。',
     '> 图片仅记录数量；命令、工具文本输出和文件差异按已保存内容导出。推理、未知类型的内部内容、审批数据和运行配置不导出。',
   ];
   if (partial)

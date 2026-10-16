@@ -55,6 +55,7 @@ function context(): SlashCommandContext {
     onResumeAttempt: vi.fn(),
     refreshThread: vi.fn().mockResolvedValue(undefined),
     openStatus: vi.fn(),
+    exportThread: vi.fn().mockResolvedValue('test.md'),
   };
 }
 const review = (state: SlashCommandContext) =>
