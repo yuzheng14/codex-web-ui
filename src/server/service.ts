@@ -323,6 +323,7 @@ export class GatewayService {
     return this.perform('thread.rename', threadId, input, async () => {
       const problem = threadNameError(input.name);
       if (problem) throw new AppError('VALIDATION_ERROR', problem);
+      const name = input.name.trim();
       const thread = await this.loadThread(threadId);
       this.ensureManaged(thread);
       this.ensureCompatibilityConfirmed();
@@ -332,7 +333,7 @@ export class GatewayService {
       try {
         const epoch = this.codex.epoch;
         this.store.dispatch(input.clientOperationId);
-        await this.codex.renameThread(threadId, input.name.trim());
+        await this.codex.renameThread(threadId, name);
         if (this.codex.epoch !== epoch || !this.codex.ready)
           throw new Error('重命名已发送，但 Codex 实例已变化，请核对会话名称');
         // Read native metadata after the write; preserve a newer name notification.
@@ -348,7 +349,9 @@ export class GatewayService {
           throw new Error('重命名已发送，但无法确认会话名称，请核对提交', { cause });
         }
         this.updateThreadTitle(threadId, actual.title, sequence);
-        return { result: { threadId, name: this.projection.get(threadId)?.title ?? actual.title } };
+        if (actual.title !== name || this.projection.get(threadId)?.title !== name)
+          throw new Error('重命名已发送，但当前名称与请求不一致，请核对提交');
+        return { result: { threadId, name } };
       } finally {
         this.renameChanges.delete(threadId);
       }

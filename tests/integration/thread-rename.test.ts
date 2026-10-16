@@ -65,13 +65,27 @@ it('does not overwrite a later native name notification with a delayed post-writ
     entered.resolve();
     return gate.promise;
   });
-  const pending = service.renameThread(id, input('first'));
+  const request = input('first');
+  const pending = service.renameThread(id, request);
   await entered.promise;
   codex.threads.get(id)!.title = 'newer';
   codex.emit({ type: 'threadName', threadId: id, name: 'newer' });
   gate.resolve({ ...codex.threads.get(id)!, title: 'first' });
-  await pending;
+  await expect(pending).rejects.toMatchObject({ code: 'RESULT_UNKNOWN' });
+  expect(service.getOperation(request.clientOperationId).status).toBe('unknown');
   expect(service.projection.get(id)?.title).toBe('newer');
+});
+
+it('keeps a successful native receipt unknown when the stored name does not match the request', async () => {
+  const { service, codex, id } = await setup();
+  const oldName = codex.threads.get(id)!.title;
+  const rename = vi.spyOn(codex, 'renameThread').mockResolvedValueOnce();
+  const request = input('requested name');
+  await expect(service.renameThread(id, request)).rejects.toMatchObject({ code: 'RESULT_UNKNOWN' });
+  expect(service.projection.get(id)?.title).toBe(oldName);
+  expect(service.getOperation(request.clientOperationId)).toMatchObject({ status: 'unknown' });
+  expect((await service.renameThread(id, request)).status).toBe('unknown');
+  expect(rename).toHaveBeenCalledTimes(1);
 });
 
 it('blocks overlapping rename/archive and project removal until a rename is confirmed', async () => {
@@ -90,6 +104,7 @@ it('blocks overlapping rename/archive and project removal until a rename is conf
     service.setThreadArchived(id, { clientOperationId: operationId(), archived: true }),
   ).rejects.toMatchObject({ code: 'THREAD_BUSY' });
   expect(() => service.removeProject('project')).toThrow('项目仍有活动任务');
+  codex.threads.get(id)!.title = request.name;
   gate.resolve();
   await pending;
 });
