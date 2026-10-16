@@ -44,7 +44,7 @@
 }
 
 .collapsible-activity-group > summary {
-  height: var(--activity-group-header-height);
+  min-height: 44px;
 }
 
 .collapsible-activity-group[open] > summary {

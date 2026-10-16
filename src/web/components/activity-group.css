@@ -1,0 +1,139 @@
+.activity-group {
+  --activity-surface: #f5f8f6;
+  min-width: 0;
+  margin: 10px 0 10px 40px;
+  border: 1px solid #e8ebea;
+  border-radius: 7px;
+  background: #fbfcfb;
+}
+.activity-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  background: #f5f8f6;
+  color: #7b8780;
+  font-size: 11px;
+  list-style: none;
+}
+.activity-group > summary > svg {
+  flex-shrink: 0;
+}
+.activity-group > summary::-webkit-details-marker,
+.auto-review-card > summary::-webkit-details-marker {
+  display: none;
+}
+.activity-group[open] > summary > svg:last-child,
+.auto-review-card[open] > summary > svg:last-child {
+  transform: rotate(90deg);
+}
+.activity-group > summary .activity-description {
+  flex: 1;
+}
+.activity-group-reviews {
+  flex-shrink: 0;
+  color: #7b8780;
+  font-size: 10px;
+}
+.activity-group-status {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 3px 8px;
+  max-width: 55%;
+  color: #7b8780;
+  font-size: 10px;
+}
+.activity-group-status > span {
+  white-space: nowrap;
+}
+.activity-group-running {
+  color: #55785f;
+  font-weight: 600;
+}
+.activity-group-error {
+  --activity-surface: #fff6f4;
+  border-color: #efd0cc;
+}
+.activity-group-error > summary {
+  background: #fff6f4;
+}
+.activity-group-problem {
+  color: var(--destructive);
+  font-weight: 600;
+}
+.activity-group-warning {
+  --activity-surface: #fdfbf5;
+  border-color: #e8dfc9;
+}
+.activity-group-warning > summary {
+  background: #fdfbf5;
+}
+.activity-group-attention {
+  color: #8b6726;
+  font-weight: 600;
+}
+.activity-group-items {
+  min-width: 0;
+  padding: 1px 10px;
+  border-top: 1px solid #e8ebea;
+}
+.activity-group-items > .activity,
+.activity-group-items > .auto-review-card {
+  margin: 9px 0;
+}
+.auto-review-card.collapsible-activity {
+  --activity-surface: #fafcfb;
+  padding: 0;
+}
+.auto-review-card.auto-review-inProgress,
+.auto-review-card.auto-review-timedOut {
+  --activity-surface: #fdfbf5;
+}
+.auto-review-card.auto-review-denied {
+  --activity-surface: #fff6f4;
+}
+.auto-review-card.collapsible-activity > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 11px 12px;
+  color: inherit;
+  font-size: 11px;
+  list-style: none;
+}
+.auto-review-card.collapsible-activity .activity-description {
+  flex: 1;
+}
+.auto-review-card.auto-review-denied > summary {
+  color: #ae4c42;
+}
+.auto-review-card.auto-review-inProgress > summary,
+.auto-review-card.auto-review-timedOut > summary {
+  color: #8f7135;
+}
+.auto-review-body {
+  font-size: 11px;
+}
+@media (max-width: 760px) {
+  .activity-group {
+    margin-left: 0;
+  }
+  .activity-group-reviews,
+  .activity-group > summary .command-summary {
+    display: none;
+  }
+  .activity-group > summary {
+    gap: 6px;
+  }
+  .activity-group-status {
+    max-width: 58%;
+    gap: 2px 6px;
+    font-size: 9px;
+  }
+  .activity-group-items {
+    padding-inline: 6px;
+  }
+}

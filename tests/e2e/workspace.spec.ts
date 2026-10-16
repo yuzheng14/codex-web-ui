@@ -40,6 +40,8 @@ test('complete turn, tool output, file diff and refresh recover through the real
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(page.getByText('模拟任务已完成。', { exact: true })).toBeVisible();
   await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
+  await expect(page.locator('details.activity-group')).not.toHaveAttribute('open');
+  await page.locator('details.activity-group > summary').click();
   await page
     .locator('details.activity')
     .filter({ hasText: '执行命令' })

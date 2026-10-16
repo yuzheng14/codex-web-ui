@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import './collapsible-activity.css';
 
@@ -19,6 +19,23 @@ export function CollapsibleActivity({
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const restoreFrame = useRef<number | undefined>(undefined);
   const [open, setOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    const details = detailsRef.current;
+    const summary = details?.querySelector<HTMLElement>(':scope > summary');
+    if (!group || !details || !summary) return;
+    // Status badges may wrap on narrow screens; inner headers must stick below the whole group bar.
+    const updateHeight = () => {
+      details.style.setProperty(
+        '--activity-group-header-height',
+        `${summary.getBoundingClientRect().height}px`,
+      );
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(summary);
+    return () => observer.disconnect();
+  }, [group]);
 
   useEffect(
     () => () => {
