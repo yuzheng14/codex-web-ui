@@ -59,6 +59,34 @@ function approval(threadId: string, turnId: string): PendingAction {
 }
 
 describe('project conversation overview', () => {
+  it('retains the creator through metadata refreshes, projection updates and summary broadcasts', async () => {
+    const { service, codex, first, app } = setup();
+    const originator = 'codex_web_ui';
+    const thread = { ...threadView('web-created', first), source: 'vscode', originator };
+    codex.threads.set(thread.id, thread);
+    const overview: ServerMessage[] = [];
+    service.subscribeOverview((event) => overview.push(event));
+    codex.emit({ type: 'thread', thread });
+    const identity = { id: thread.id, source: 'vscode', originator };
+    expect(overview.at(-1)).toMatchObject({ kind: 'threadSummary', payload: identity });
+    expect((await service.listThreadSummaries('first')).data).toContainEqual(
+      expect.objectContaining(identity),
+    );
+
+    await service.getThread(thread.id);
+    codex.emit({ type: 'threadName', threadId: thread.id, name: 'Renamed thread' });
+    codex.emit({ type: 'threadStatus', threadId: thread.id, status: 'running' });
+    expect(service.projection.get(thread.id)).toMatchObject({
+      ...identity,
+      title: 'Renamed thread',
+      status: 'running',
+    });
+    expect(overview.at(-1)).toMatchObject({ payload: { ...identity, status: 'running' } });
+    expect(
+      await (await app.request(`http://127.0.0.1:8787/api/threads/${thread.id}`)).json(),
+    ).toMatchObject(identity);
+  });
+
   it('reports other projects, new forks and approvals without subscribing to their content', async () => {
     const { service, codex } = setup();
     const first = await create(service, 'first');
@@ -220,6 +248,7 @@ describe('project conversation overview', () => {
           forkedFromId: 'parent',
           projectId: 'first',
           source: 'appServer',
+          originator: null,
           title: 'first-thread',
           status: 'idle',
           managed: false,

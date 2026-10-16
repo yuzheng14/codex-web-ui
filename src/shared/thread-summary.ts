@@ -8,6 +8,7 @@ export function toThreadSummary(thread: ThreadView): ThreadSummary {
     ...(thread.forkedFromId === undefined ? {} : { forkedFromId: thread.forkedFromId }),
     projectId: thread.projectId,
     source: thread.source,
+    originator: thread.originator ?? null,
     title: thread.title,
     status: thread.status,
     managed: thread.managed,

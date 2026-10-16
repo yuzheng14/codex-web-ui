@@ -80,6 +80,7 @@ export function mapThread(thread: Thread): ThreadView {
     projectId: '',
     cwd: thread.cwd,
     source: typeof thread.source === 'string' ? thread.source : JSON.stringify(thread.source),
+    originator: typeof thread.originator === 'string' ? thread.originator : null,
     title: thread.name || thread.preview || '新会话',
     status: threadStatus(thread.status),
     turns: thread.turns.map((turn) => mapTurn(thread.id, turn)),

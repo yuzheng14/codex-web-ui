@@ -98,6 +98,8 @@ export interface ThreadView {
   projectId: string;
   cwd: string;
   source: string;
+  /** Client recorded at creation; independent of the current executor. */
+  originator?: string | null;
   title: string;
   status: RunStatus;
   turns: TurnView[];
@@ -115,6 +117,7 @@ export type ThreadSummary = Pick<
   | 'forkedFromId'
   | 'projectId'
   | 'source'
+  | 'originator'
   | 'title'
   | 'status'
   | 'managed'

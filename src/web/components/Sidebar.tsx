@@ -1,9 +1,10 @@
-import { useEffect, useId, useState } from 'react';
+import { useState } from 'react';
 import type { Project, ThreadSummary } from '../../shared/types';
-import { formatTime, cn } from '../lib/utils';
+import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
-import { isActive, Status } from './Status';
+import { isActive } from './Status';
+import { ThreadLink } from './ThreadLink';
 
 interface ProjectThreads {
   data: ThreadSummary[];
@@ -35,101 +36,6 @@ interface Props {
   offline: boolean;
   open: boolean;
   onClose: () => void;
-}
-
-function ThreadLink({
-  thread,
-  selected,
-  offline,
-  onSelect,
-  onArchive,
-  archiveDisabledReason,
-}: {
-  thread: ThreadSummary;
-  selected: boolean;
-  offline: boolean;
-  onSelect: () => void;
-  onArchive: () => void;
-  archiveDisabledReason?: string;
-}) {
-  const tooltipId = useId();
-  const [tooltipDismissed, setTooltipDismissed] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  useEffect(() => {
-    if (!hovered) return;
-    const dismiss = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setTooltipDismissed(true);
-    };
-    document.addEventListener('keydown', dismiss);
-    return () => document.removeEventListener('keydown', dismiss);
-  }, [hovered]);
-  const archiveLabel = thread.archived ? '取消归档' : '归档会话';
-  const lastResult = thread.lastTurnStatus;
-  const status =
-    thread.status === 'idle' &&
-    lastResult &&
-    ['completed', 'failed', 'interrupted'].includes(lastResult)
-      ? lastResult
-      : thread.status;
-  return (
-    <div className="thread-row">
-      <button
-        className={cn('thread-link', selected && 'thread-selected')}
-        data-thread-id={thread.id}
-        onClick={onSelect}
-        aria-current={selected ? 'page' : undefined}
-      >
-        <Icon name={thread.forkedFromId ? 'fork' : 'chat'} size={16} />
-        <span className="thread-link-content">
-          <span className="thread-title">{thread.title || '未命名会话'}</span>
-          <span className="thread-meta">
-            {thread.source === 'cli'
-              ? 'CLI'
-              : thread.source === 'appServer'
-                ? 'Web'
-                : thread.source}
-            {thread.forkedFromId ? ' · Fork' : ''}
-            {thread.updatedAt ? ` · ${formatTime(thread.updatedAt)}` : ''}
-          </span>
-          <span className="thread-progress">
-            <Status status={status} offline={offline} />
-            {thread.pendingActionCount > 0 && (
-              <span className="thread-pending-count">{thread.pendingActionCount} 项待处理</span>
-            )}
-          </span>
-        </span>
-      </button>
-      <span
-        className="thread-archive"
-        onMouseEnter={() => {
-          setHovered(true);
-          setTooltipDismissed(false);
-        }}
-        onMouseLeave={() => setHovered(false)}
-        onFocus={() => setTooltipDismissed(false)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') setTooltipDismissed(true);
-        }}
-      >
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={archiveLabel}
-          aria-describedby={tooltipId}
-          aria-disabled={Boolean(archiveDisabledReason)}
-          onClick={() => {
-            setTooltipDismissed(true);
-            if (!archiveDisabledReason) onArchive();
-          }}
-        >
-          <Icon name={thread.archived ? 'unarchive' : 'archive'} size={15} />
-        </Button>
-        <span id={tooltipId} role="tooltip" className="keyboard-hint" hidden={tooltipDismissed}>
-          {archiveDisabledReason ?? archiveLabel}
-        </span>
-      </span>
-    </div>
-  );
 }
 
 export function Sidebar(props: Props) {

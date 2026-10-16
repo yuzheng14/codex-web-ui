@@ -6,6 +6,8 @@
 
 官方接口背景见 [Codex App Server 文档](https://learn.chatgpt.com/docs/app-server)。应用以本仓库生成的目标版本类型为准，重点差异如下。
 
+会话创建方 `Thread.originator` 原样进入详情与列表摘要，缺失时返回 `null`。来源展示优先精确识别 `codex_web_ui`、`codex-tui`、`codex_vscode` 和 `Codex Desktop`，其他非空创建方原样显示。仅有 `source: vscode` 时不能判断具体客户端：0.162.1 的独立 app-server 启动路径固定使用 VSCode 来源，网页和连接共享后台服务的终端会话也可能属于此类，因此显示“交互客户端”。协议 `source: appServer` 映射内部 MCP 来源，显示 MCP；原始 `source` 保留以兼容已有接口、关联记录和未知来源兜底。依据为上游 [CLI 启动代码](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/cli/src/main.rs)、[来源映射](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server-protocol/src/protocol/v2/thread_data.rs)、[客户端身份示例](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server-protocol/src/protocol/common.rs)及[初始化处理](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server/src/request_processors/initialize_processor.rs)。这些字段描述创建入口，与当前执行进程、任务状态和连接状态分别展示。
+
 | 项目       | 0.162.1 的实际映射                                                                                                                                                    |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 握手       | `initialize` 成功后发送 `initialized`，随后读认证和模型；`experimentalApi: true` 允许结构化用户请求                                                                   |

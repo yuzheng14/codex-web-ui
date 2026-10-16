@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 
 const paths = {
   compress: 'M4 3h16M4 21h16M12 4v5m-3-3 3 3 3-3M12 20v-5m-3 3 3-3 3 3M5 12h14',
+  info: 'M12 8h.01M11 11h1v6m-1 0h2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
   archive: 'M3 3h18v5H3ZM5 8v13h14V8M10 12h4',
   unarchive: 'M3 3h18v5H3ZM5 8v13h14V8M12 17v-6m-3 3 3-3 3 3',
   plus: 'M12 5v14M5 12h14',
