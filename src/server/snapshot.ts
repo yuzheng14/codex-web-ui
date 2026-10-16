@@ -41,6 +41,10 @@ export function compactThreadForTransport(thread: ThreadView, maxBytes: number):
     });
   // Remove old output first, preserving turn/item IDs and all current controls.
   for (const turn of result.turns) {
+    if (turn.reconnect)
+      mutate(turn, () => {
+        turn.reconnect!.message = preview(turn.reconnect!.message);
+      });
     if (turn.diff)
       mutate(turn, () => {
         turn.diff = preview(turn.diff!);

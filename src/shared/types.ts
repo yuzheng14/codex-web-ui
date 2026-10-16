@@ -81,6 +81,8 @@ export interface TurnView {
   items: ItemView[];
   diff?: string;
   error?: string;
+  /** Codex's upstream retry state; independent of the browser's gateway connection. */
+  reconnect?: { status: 'retrying' | 'failed'; message: string };
 }
 export interface ThreadView {
   id: string;

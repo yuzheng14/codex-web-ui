@@ -1035,6 +1035,14 @@ export class GatewayService {
     }
     const thread = this.projection.get(event.threadId);
     if (!thread) return;
+    if (event.type === 'turnError' || event.type === 'turnProgress') {
+      const changed =
+        event.type === 'turnError'
+          ? this.projection.turnError(thread.id, event.turnId, event.message, event.willRetry)
+          : this.projection.turnProgress(thread.id, event.turnId);
+      if (changed) this.publishThread(thread.id);
+      return;
+    }
     if (event.type === 'threadName') {
       // Also invalidate history reads when the notification repeats the current name.
       this.projection.touch(thread.id);
