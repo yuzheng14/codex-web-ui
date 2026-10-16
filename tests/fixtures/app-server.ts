@@ -42,9 +42,12 @@ export interface SimulatorOptions {
     | 'file'
     | 'network'
     | 'questions'
+    | 'questions-choice'
     | 'unsupported'
     | 'permissions'
     | 'elicitation-form'
+    | 'elicitation-choice'
+    | 'elicitation-confirm'
     | 'elicitation-url'
     | 'elicitation-openai'
     | 'elicitation-openai-form'
@@ -790,7 +793,7 @@ function approval(
   const id = nextRequestId++;
   const common = { threadId: thread.id, turnId: turn.id, itemId: randomUUID() };
   let request: ServerRequest;
-  if (kind === 'questions')
+  if (kind === 'questions' || kind === 'questions-choice')
     request = {
       id,
       method: 'item/tool/requestUserInput',
@@ -798,27 +801,43 @@ function approval(
         ...common,
         isBlocking: !options.nonblockingQuestions,
         autoResolutionMs: null,
-        questions: [
-          {
-            id: 'theme',
-            header: '主题',
-            question: '选择主题',
-            isOther: false,
-            isSecret: false,
-            options: [
-              { label: '深色', description: '深色界面' },
-              { label: '浅色', description: '浅色界面' },
-            ],
-          },
-          {
-            id: 'name',
-            header: '名称',
-            question: '输入名称',
-            isOther: true,
-            isSecret: false,
-            options: null,
-          },
-        ],
+        questions:
+          kind === 'questions-choice'
+            ? [
+                {
+                  id: 'confirmation',
+                  header: '操作确认',
+                  question: '是否允许执行这次操作？请选择，也可以填写其他回答。',
+                  isOther: true,
+                  isSecret: false,
+                  options: [
+                    { label: '允许本次', description: '只确认本次操作' },
+                    { label: '本会话允许', description: '确认当前会话范围' },
+                    { label: '拒绝', description: '不执行操作' },
+                  ],
+                },
+              ]
+            : [
+                {
+                  id: 'theme',
+                  header: '主题',
+                  question: '选择主题',
+                  isOther: false,
+                  isSecret: false,
+                  options: [
+                    { label: '深色', description: '深色界面' },
+                    { label: '浅色', description: '浅色界面' },
+                  ],
+                },
+                {
+                  id: 'name',
+                  header: '名称',
+                  question: '输入名称',
+                  isOther: true,
+                  isSecret: false,
+                  options: null,
+                },
+              ],
       },
     };
   else if (kind === 'permissions')
@@ -854,39 +873,47 @@ function approval(
     };
     const schema =
       options.elicitationSchema ??
-      (kind === 'elicitation-malformed'
-        ? { type: 'object', properties: { nested: { type: 'object', properties: {} } } }
-        : {
-            type: 'object',
-            properties: {
-              project: { type: 'string', title: '项目名称', minLength: 2, maxLength: 60 },
-              retries: { type: 'integer', title: '重试次数', minimum: 0, maximum: 5 },
-              rating: { type: 'number', title: '评分', minimum: 0, maximum: 10 },
-              notify: { type: 'boolean', title: '启用通知' },
-              environment: {
-                type: 'string',
-                title: '环境',
-                oneOf: [
-                  { const: 'production', title: '生产' },
-                  { const: 'preview', title: '预览' },
-                ],
-              },
-              channels: {
-                type: 'array',
-                title: '发布渠道',
-                minItems: 1,
-                maxItems: 2,
-                items: {
-                  anyOf: [
-                    { const: 'web', title: '网页' },
-                    { const: 'mobile', title: '移动端' },
-                  ],
+      (kind === 'elicitation-confirm'
+        ? { type: 'object', properties: {} }
+        : kind === 'elicitation-choice'
+          ? {
+              type: 'object',
+              properties: { allow: { type: 'boolean', title: '是否允许执行本次操作' } },
+              required: ['allow'],
+            }
+          : kind === 'elicitation-malformed'
+            ? { type: 'object', properties: { nested: { type: 'object', properties: {} } } }
+            : {
+                type: 'object',
+                properties: {
+                  project: { type: 'string', title: '项目名称', minLength: 2, maxLength: 60 },
+                  retries: { type: 'integer', title: '重试次数', minimum: 0, maximum: 5 },
+                  rating: { type: 'number', title: '评分', minimum: 0, maximum: 10 },
+                  notify: { type: 'boolean', title: '启用通知' },
+                  environment: {
+                    type: 'string',
+                    title: '环境',
+                    oneOf: [
+                      { const: 'production', title: '生产' },
+                      { const: 'preview', title: '预览' },
+                    ],
+                  },
+                  channels: {
+                    type: 'array',
+                    title: '发布渠道',
+                    minItems: 1,
+                    maxItems: 2,
+                    items: {
+                      anyOf: [
+                        { const: 'web', title: '网页' },
+                        { const: 'mobile', title: '移动端' },
+                      ],
+                    },
+                  },
+                  note: { type: 'string', title: '备注' },
                 },
-              },
-              note: { type: 'string', title: '备注' },
-            },
-            required: ['project', 'retries', 'rating', 'notify', 'environment', 'channels'],
-          });
+                required: ['project', 'retries', 'rating', 'notify', 'environment', 'channels'],
+              });
     request = {
       id,
       method: 'mcpServer/elicitation/request',
@@ -937,10 +964,10 @@ function approval(
   thread.status = {
     type: 'active',
     activeFlags:
-      kind === 'questions' && options.nonblockingQuestions
+      kind.startsWith('questions') && options.nonblockingQuestions
         ? []
         : [
-            kind === 'questions' || kind.startsWith('elicitation-')
+            kind.startsWith('questions') || kind.startsWith('elicitation-')
               ? 'waitingOnUserInput'
               : 'waitingOnApproval',
           ],
@@ -1401,9 +1428,12 @@ function receive(request: ClientRequest): void {
         break;
       }
       const interactive = [
+        'questions-choice',
         'permissions',
         'unsupported',
         'elicitation-form',
+        'elicitation-choice',
+        'elicitation-confirm',
         'elicitation-url',
         'elicitation-openai',
         'elicitation-openai-form',

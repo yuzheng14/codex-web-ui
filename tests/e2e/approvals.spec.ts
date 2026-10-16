@@ -8,6 +8,8 @@ import { confirmCompatibility, controlRuntime, createThreadButton } from './help
 
 const headers = { Origin: 'http://127.0.0.1:8788' };
 const evidence = join(tmpdir(), 'codex-permissions-evidence');
+const labelEvidence = join(tmpdir(), 'codex-issue-67-evidence');
+test.use({ viewport: { width: 1280, height: 1400 } });
 const isResolution = (request: Request) =>
   request.method() === 'POST' && /\/api\/actions\/[^/]+\/resolve$/.test(request.url());
 async function pendingTask(page: Page, prompt: string) {
@@ -48,6 +50,7 @@ const viewports = [
 
 test.beforeAll(async () => {
   await mkdir(evidence, { recursive: true });
+  await mkdir(labelEvidence, { recursive: true });
 });
 test.beforeEach(async ({ request }) => {
   await controlRuntime(request, { reset: true });
@@ -66,6 +69,106 @@ test.afterEach(async ({ request }) => {
       });
   }
 });
+
+for (const [index, label] of ['允许本次', '本会话允许', '拒绝'].entries()) {
+  test(`question confirmation preserves the selected answer: ${label}`, async ({ page }) => {
+    await pendingTask(page, '[questions-choice] 确认下一步操作');
+    const card = page.locator('.action-card');
+    const submit = card.getByRole('button', { name: '确认选择', exact: true });
+    await expect(submit).toBeDisabled();
+    await card.getByRole('radio', { name: label, exact: false }).check();
+    await expect(submit).toBeEnabled();
+    await card.screenshot({ path: join(labelEvidence, `question-${index}.png`) });
+    const submitted = page.waitForRequest(isResolution);
+    await submit.click();
+    expect((await submitted).postDataJSON().resolution).toEqual({
+      answers: { confirmation: [label] },
+    });
+    await expect(card).not.toBeVisible();
+  });
+}
+
+test('other answers switch to answer submission and cannot submit while offline', async ({
+  page,
+  context,
+}) => {
+  await pendingTask(page, '[questions-choice] 选择之外也可以填写回答');
+  const card = page.locator('.action-card');
+  await card.getByRole('radio', { name: '其他回答', exact: true }).check();
+  const submit = card.getByRole('button', { name: '提交回答', exact: true });
+  await expect(submit).toBeDisabled();
+  await card.getByRole('textbox', { name: '操作确认：自由回答' }).fill('请先解释允许的范围');
+  await expect(submit).toBeEnabled();
+  await card.screenshot({ path: join(labelEvidence, 'question-free-text.png') });
+  await context.setOffline(true);
+  await expect(page.locator('.connection-badge')).toHaveText('连接已断开');
+  await expect(submit).toBeDisabled();
+  await context.setOffline(false);
+  await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
+  await card.getByRole('radio', { name: '拒绝', exact: false }).check();
+  await expect(card.getByRole('button', { name: '确认选择', exact: true })).toBeEnabled();
+  await card.getByRole('radio', { name: '其他回答', exact: true }).check();
+  const submitted = page.waitForRequest(isResolution);
+  await submit.click();
+  expect((await submitted).postDataJSON().resolution).toEqual({
+    answers: { confirmation: ['请先解释允许的范围'] },
+  });
+  await expect(card).not.toBeVisible();
+});
+
+for (const allow of [true, false]) {
+  test(`MCP boolean confirmation submits ${allow} as form content, not an approval decision`, async ({
+    page,
+  }) => {
+    await pendingTask(page, '[elicitation-choice] 选择是否继续');
+    const card = page.locator('.action-card');
+    const submit = card.getByRole('button', { name: '确认选择', exact: true });
+    await submit.click();
+    await expect(card.getByRole('alert').last()).toBeVisible();
+    await card
+      .getByRole('combobox', { name: '是否允许执行本次操作', exact: true })
+      .selectOption(String(allow));
+    await card.screenshot({ path: join(labelEvidence, `form-choice-${allow}.png`) });
+    const submitted = page.waitForRequest(isResolution);
+    await submit.click();
+    expect((await submitted).postDataJSON().resolution).toEqual({
+      decision: 'accept',
+      content: { allow },
+    });
+    await expect(card).not.toBeVisible();
+  });
+}
+
+test('an empty MCP form confirms continuation without pretending to submit answers', async ({
+  page,
+}) => {
+  await pendingTask(page, '[elicitation-confirm] 确认继续操作');
+  const card = page.locator('.action-card');
+  await card.screenshot({ path: join(labelEvidence, 'form-confirm.png') });
+  const submitted = page.waitForRequest(isResolution);
+  await card.getByRole('button', { name: '确认继续', exact: true }).click();
+  expect((await submitted).postDataJSON().resolution).toEqual({ decision: 'accept', content: {} });
+  await expect(card).not.toBeVisible();
+});
+
+for (const [prompt, label, decision] of [
+  ['[approval]', '允许本次', 'accept'],
+  ['[file-approval]', '拒绝', 'decline'],
+  ['[network]', '本会话允许', 'acceptForSession'],
+] as const) {
+  test(`direct approval retains its decision and scope: ${prompt}`, async ({ page }) => {
+    await pendingTask(page, `${prompt} 检查审批操作与授权范围`);
+    const card = page.locator('.action-card');
+    for (const name of ['允许本次', '本会话允许', '拒绝', '取消当前任务'])
+      await expect(card.getByRole('button', { name, exact: true })).toBeVisible();
+    await expect(card.getByRole('button', { name: '提交回答', exact: true })).toHaveCount(0);
+    await card.screenshot({ path: join(labelEvidence, `direct-${decision}.png`) });
+    const submitted = page.waitForRequest(isResolution);
+    await card.getByRole('button', { name: label, exact: true }).click();
+    expect((await submitted).postDataJSON().resolution).toEqual({ decision });
+    await expect(card).not.toBeVisible();
+  });
+}
 
 for (const viewport of viewports) {
   test(`${viewport.name} permissions stay pending across refresh and resume only after explicit approval`, async ({
