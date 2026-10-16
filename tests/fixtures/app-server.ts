@@ -2,6 +2,9 @@
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import type { ClientRequest } from '../../src/codex/generated/ClientRequest.js';
 import type { ServerNotification } from '../../src/codex/generated/ServerNotification.js';
 import type { ServerRequest } from '../../src/codex/generated/ServerRequest.js';
@@ -397,6 +400,55 @@ function execute(thread: Thread, turn: Turn, cmd = command(randomUUID(), thread.
     setTimeout(() => complete(thread, turn), options.turnDelayMs ?? 100),
   );
 }
+function localImageReply(
+  thread: Thread,
+  turn: Turn,
+  variant: 'normal' | 'errors' | 'temporary',
+): void {
+  const absolute = join(thread.cwd, 'assets/发布 图表.png');
+  const temporaryDirectory = `codex-local-image-${thread.id}`;
+  const systemImage = join(tmpdir(), temporaryDirectory, '临时 图.png');
+  const text =
+    variant === 'temporary'
+      ? '图片已保存在服务器临时目录中，仍可直接查看和放大。\n\n' +
+        `![服务器临时图片](<${systemImage}>)\n\n` +
+        `[临时文件 URL 图片](${pathToFileURL(systemImage).href})` +
+        (process.platform === 'win32'
+          ? ''
+          : ` · [标准 tmp 图片](<${join('/tmp', temporaryDirectory, '临时 图.png')}>)`)
+      : variant === 'errors'
+        ? '以下图片暂时无法预览，原始路径仍可查看：\n\n' +
+          '![缺失截图](<assets/不存在 截图.png>)\n\n' +
+          '![不支持的矢量图](assets/diagram.svg)\n\n' +
+          '![损坏图片](assets/broken.png)\n\n' +
+          '![无法解码的图片](assets/undecodable.png)\n\n' +
+          '[查看缺失截图](<assets/不存在 截图.png>)'
+        : '已生成项目进度图。点击图片可放大查看，图片链接也可直接预览。\n\n' +
+          '![项目进度图](<./assets/发布 图表.png>)\n\n' +
+          `[绝对路径图片](<${absolute}>) · ` +
+          `[文件 URL 图片](${pathToFileURL(absolute).href}) · ` +
+          '[JPEG 图片](assets/preview.jpg) · [WebP 图片](assets/preview.webp) · [GIF 图片](assets/preview.gif)\n\n' +
+          '[普通文件](assets/notes.txt) · [外部说明](https://example.com/docs)';
+  const item: ThreadItem = {
+    id: randomUUID(),
+    type: 'agentMessage',
+    text,
+    phase: 'final_answer',
+    memoryCitation: null,
+    delivery: null,
+    questions: null,
+  };
+  turn.items.push(item);
+  notify({
+    method: 'item/completed',
+    params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
+  });
+  finishes.set(
+    turn.id,
+    setTimeout(() => complete(thread, turn), options.turnDelayMs ?? 100),
+  );
+}
+
 function markdownReply(thread: Thread, turn: Turn, safety: boolean): void {
   const item: Extract<ThreadItem, { type: 'agentMessage' }> = {
     id: randomUUID(),
@@ -1638,6 +1690,20 @@ function receive(request: ClientRequest): void {
       else if (prompt.includes('[codex-thinking]')) thinking(thread, turn);
       else if (reviewStatus) autoReview(thread, turn, reviewStatus, prompt);
       else if (kind) approval(thread, turn, kind);
+      else if (
+        prompt.includes('[local-images]') ||
+        prompt.includes('[local-image-errors]') ||
+        prompt.includes('[local-temp-images]')
+      )
+        localImageReply(
+          thread,
+          turn,
+          prompt.includes('[local-temp-images]')
+            ? 'temporary'
+            : prompt.includes('[local-image-errors]')
+              ? 'errors'
+              : 'normal',
+        );
       else if (prompt.includes('[markdown]') || prompt.includes('[markdown-security]'))
         markdownReply(thread, turn, prompt.includes('[markdown-security]'));
       else execute(thread, turn);

@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Markdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import type { ItemView, ThreadView, TurnView } from '../../shared/types';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
@@ -11,29 +9,8 @@ import { ActivityGroup } from './ActivityGroup';
 import { groupConversationItems } from '../lib/activity-groups';
 import { TurnCompletion } from './TurnCompletion';
 
-// Keep renderer identities stable so streamed text preserves table focus and scroll position.
-const markdownComponents: Components = {
-  a: ({ children, href }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
-  ),
-  table: ({ children }) => (
-    <div className="markdown-table-scroll" role="region" aria-label="表格" tabIndex={0}>
-      <table>{children}</table>
-    </div>
-  ),
-};
-
-function TextContent({ text }: { text: string }) {
-  return (
-    <div className="markdown">
-      <Markdown skipHtml remarkPlugins={[remarkGfm]} components={markdownComponents}>
-        {text}
-      </Markdown>
-    </div>
-  );
-}
+import { MarkdownContent as TextContent } from './MarkdownContent';
+import { ImagePreviewProvider } from './ImagePreview';
 
 const activityLabels: Record<string, string> = {
   commandExecution: '执行命令',
@@ -228,21 +205,32 @@ function CodexReconnectNotice({ turn, offline }: { turn: TurnView; offline: bool
   );
 }
 
-export function Conversation({
-  thread,
-  offline,
-  projectName,
-  needsProject = false,
-  canAddProject = true,
-  onAddProject,
-}: {
+interface ConversationProps {
   thread?: ThreadView;
   offline: boolean;
   projectName?: string;
   needsProject?: boolean;
   canAddProject?: boolean;
   onAddProject?: () => void;
-}) {
+}
+
+export function Conversation(props: ConversationProps) {
+  // A thread change releases image requests, object URLs and modal focus state.
+  return (
+    <ImagePreviewProvider key={props.thread?.id ?? 'empty'} threadId={props.thread?.id}>
+      <ConversationContent {...props} />
+    </ImagePreviewProvider>
+  );
+}
+
+function ConversationContent({
+  thread,
+  offline,
+  projectName,
+  needsProject = false,
+  canAddProject = true,
+  onAddProject,
+}: ConversationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
