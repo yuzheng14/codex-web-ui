@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { PermissionDetails } from './PermissionDetails';
 import { ElicitationForm } from './ElicitationForm';
+import { actionStatusLabel } from '../lib/action-status';
 
 export function ActionCard({
   action,
@@ -21,6 +22,13 @@ export function ActionCard({
   const answerFor = (id: string) =>
     answers[id] === '__other__' ? (other[id]?.trim() ?? '') : (answers[id]?.trim() ?? '');
   const canSubmit = questions.length > 0 && questions.every((question) => answerFor(question.id));
+  // requestUserInput carries answers, not approval decisions. Use the input structure,
+  // never words such as “允许” in the question, to describe the confirmation.
+  const choosing =
+    questions.length > 0 &&
+    questions.every(
+      (question) => question.options.length > 0 && answers[question.id] !== '__other__',
+    );
   return (
     <section
       className={`action-card${action.kind === 'unsupported' ? ' action-card-unsupported' : ''}`}
@@ -32,15 +40,9 @@ export function ActionCard({
         </span>
         <h3>{action.title}</h3>
         <span className="action-state">
-          {action.status === 'responding'
-            ? '正在确认回答'
-            : action.status === 'responded'
-              ? '已回答'
-              : action.status === 'expired'
-                ? action.kind === 'unsupported'
-                  ? '请求未能处理'
-                  : '请求已失效'
-                : '需要你处理'}
+          {action.kind === 'unsupported' && action.status === 'expired'
+            ? '请求未能处理'
+            : actionStatusLabel(action.status)}
         </span>
       </div>
       {action.reason && <p>{action.reason}</p>}
@@ -79,6 +81,7 @@ export function ActionCard({
         <ElicitationForm
           request={action.elicitation}
           actionId={action.actionId}
+          status={action.status}
           disabled={disabled || !pending}
           onResolve={onResolve}
         />
@@ -86,7 +89,7 @@ export function ActionCard({
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            if (canSubmit)
+            if (!disabled && pending && canSubmit)
               onResolve({
                 answers: Object.fromEntries(
                   questions.map((question) => [question.id, [answerFor(question.id)]]),
@@ -155,7 +158,7 @@ export function ActionCard({
             </fieldset>
           ))}
           <Button type="submit" disabled={disabled || !pending || !canSubmit}>
-            提交回答
+            {!pending ? actionStatusLabel(action.status) : choosing ? '确认选择' : '提交回答'}
           </Button>
         </form>
       ) : (

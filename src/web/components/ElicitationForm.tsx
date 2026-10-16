@@ -4,8 +4,10 @@ import type {
   ElicitationField,
   ElicitationRequest,
   ElicitationValue,
+  PendingAction,
 } from '../../shared/types';
 import { validateElicitationFieldValue } from '../../shared/elicitation';
+import { actionStatusLabel } from '../lib/action-status';
 import { Button } from './ui/button';
 
 type DraftValue = string | boolean | string[];
@@ -74,15 +76,27 @@ function safeExternalUrl(value: string | undefined): string | undefined {
 export function ElicitationForm({
   request,
   actionId,
+  status,
   disabled,
   onResolve,
 }: {
   request: ElicitationRequest;
   actionId: string;
+  status: PendingAction['status'];
   disabled: boolean;
   onResolve: (resolution: ActionResolution) => void;
 }) {
   const fields = request.fields ?? [];
+  const submitLabel =
+    status !== 'pending'
+      ? actionStatusLabel(status)
+      : request.mode === 'url'
+        ? '我已完成'
+        : fields.length === 0
+          ? '确认继续'
+          : fields.every((field) => ['boolean', 'enum', 'multiEnum'].includes(field.type))
+            ? '确认选择'
+            : '提交回答';
   const [draft, setDraft] = useState<Draft>(() => initialDraft(fields));
   const [attempted, setAttempted] = useState(false);
   const { content, errors } = contentFor(fields, draft);
@@ -295,7 +309,7 @@ export function ElicitationForm({
       <div className="action-options">
         {!unavailable && (
           <Button type="submit" disabled={disabled}>
-            {request.mode === 'url' ? '我已完成' : '提交回答'}
+            {submitLabel}
           </Button>
         )}
         <Button
