@@ -1,24 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
-import Markdown from 'react-markdown';
+import Markdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { ItemView, ThreadView, TurnView } from '../../shared/types';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { isActive, Status } from './Status';
 import { AutoReviewCard } from './AutoReviewCard';
 
+// Keep renderer identities stable so streamed text preserves table focus and scroll position.
+const markdownComponents: Components = {
+  a: ({ children, href }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ),
+  table: ({ children }) => (
+    <div className="markdown-table-scroll" role="region" aria-label="表格" tabIndex={0}>
+      <table>{children}</table>
+    </div>
+  ),
+};
+
 function TextContent({ text }: { text: string }) {
   return (
     <div className="markdown">
-      <Markdown
-        skipHtml
-        components={{
-          a: ({ children, href }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer">
-              {children}
-            </a>
-          ),
-        }}
-      >
+      <Markdown skipHtml remarkPlugins={[remarkGfm]} components={markdownComponents}>
         {text}
       </Markdown>
     </div>
