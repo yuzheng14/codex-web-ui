@@ -407,6 +407,105 @@ function markdownReply(thread: Thread, turn: Turn, safety: boolean): void {
   };
   stream(0);
 }
+/** Real protocol events for long, independent activities and streamed rerenders. */
+function activityScenario(thread: Thread, turn: Turn, streaming: boolean): void {
+  const finishedItem = (item: ThreadItem) => {
+    turn.items.push(item);
+    notify({
+      method: 'item/completed',
+      params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
+    });
+  };
+  const message = (text: string, phase: 'commentary' | 'final_answer' = 'commentary') =>
+    finishedItem({
+      id: randomUUID(),
+      type: 'agentMessage',
+      text,
+      phase,
+      memoryCitation: null,
+      delivery: null,
+      questions: null,
+    });
+  const output = (label: string) =>
+    Array.from(
+      { length: 140 },
+      (_, index) => `${label} ${String(index + 1).padStart(3, '0')}: passed`,
+    ).join('\n') + '\n';
+  const file = (path: string) => {
+    const diff = [
+      `--- a/${path}`,
+      `+++ b/${path}`,
+      '@@ -1,100 +1,100 @@',
+      ...Array.from({ length: 100 }, (_, index) => [
+        `-export const previousValue${index + 1} = 'before';`,
+        `+export const updatedValue${index + 1} = 'after';`,
+      ]).flat(),
+    ].join('\n');
+    finishedItem({
+      id: randomUUID(),
+      type: 'fileChange',
+      status: 'completed',
+      changes: [{ path, kind: { type: 'update', move_path: null }, diff }],
+    });
+  };
+  message('先运行完整测试，再检查文件变更。');
+  const first = command(randomUUID(), thread.cwd);
+  first.command = 'pnpm test -- --reporter=verbose';
+  first.aggregatedOutput = output('unit-test');
+  turn.items.push(first);
+  notify({
+    method: 'item/started',
+    params: { threadId: thread.id, turnId: turn.id, item: first, startedAtMs: Date.now() },
+  });
+  const finish = () => {
+    first.status = 'completed';
+    first.exitCode = 0;
+    notify({
+      method: 'item/completed',
+      params: { threadId: thread.id, turnId: turn.id, item: first, completedAtMs: Date.now() },
+    });
+    file('src/activity-summary.ts');
+    message('第一轮检查完成。下面单独运行构建并检查另一处文件变更。');
+    const second = command(randomUUID(), thread.cwd);
+    second.command = 'pnpm build -- --mode=production';
+    second.aggregatedOutput = output('build-module');
+    second.status = 'completed';
+    second.exitCode = 0;
+    finishedItem(second);
+    file('src/activity-details.ts');
+    // Enough following content to scroll every activity entirely out of the viewport.
+    message(
+      '所有检查完成。\n\n' +
+        Array.from(
+          { length: 24 },
+          (_, index) => `检查说明 ${index + 1}：测试与构建均已完成，可以继续阅读后续回复。`,
+        ).join('\n\n'),
+      'final_answer',
+    );
+    complete(thread, turn);
+  };
+  if (!streaming) {
+    finish();
+    return;
+  }
+  for (const [index, delay] of [2000, 4000].entries()) {
+    setTimeout(() => {
+      if (turn.status !== 'inProgress') return;
+      const delta = `stream-update-${index + 1}: more test results arrived\n`;
+      first.aggregatedOutput += delta;
+      notify({
+        method: 'item/commandExecution/outputDelta',
+        params: { threadId: thread.id, turnId: turn.id, itemId: first.id, delta },
+      });
+    }, delay);
+  }
+  finishes.set(
+    turn.id,
+    setTimeout(() => {
+      if (turn.status === 'inProgress') finish();
+    }, 6000),
+  );
+}
 function codexReconnect(thread: Thread, turn: Turn, outcome: 'recover' | 'fail' | 'hold'): void {
   const cmd = command(randomUUID(), thread.cwd);
   cmd.command = '读取已有任务的后台输出';
@@ -1260,7 +1359,9 @@ function receive(request: ClientRequest): void {
       const reconnect = (['recover', 'fail', 'hold'] as const).find((outcome) =>
         prompt.includes(`[codex-retry-${outcome}]`),
       );
-      if (reconnect) codexReconnect(thread, turn, reconnect);
+      if (prompt.includes('[activity-collapse]') || prompt.includes('[activity-stream]'))
+        activityScenario(thread, turn, prompt.includes('[activity-stream]'));
+      else if (reconnect) codexReconnect(thread, turn, reconnect);
       else if (prompt.includes('[codex-thinking]')) thinking(thread, turn);
       else if (reviewStatus) autoReview(thread, turn, reviewStatus, prompt);
       else if (kind) approval(thread, turn, kind);

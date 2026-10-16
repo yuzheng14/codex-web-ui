@@ -1162,7 +1162,7 @@ svg {
   border: 1px solid #e8ebea;
   background: #fbfcfb;
   border-radius: 7px;
-  overflow: hidden;
+  overflow: clip;
 }
 .activity > summary {
   display: flex;
