@@ -408,7 +408,7 @@ function markdownReply(thread: Thread, turn: Turn, safety: boolean): void {
   stream(0);
 }
 /** Real protocol events for long, independent activities and streamed rerenders. */
-function activityScenario(thread: Thread, turn: Turn, streaming: boolean): void {
+function activityScenario(thread: Thread, turn: Turn, streaming: boolean, mixed = false): void {
   const finishedItem = (item: ThreadItem) => {
     turn.items.push(item);
     notify({
@@ -449,6 +449,48 @@ function activityScenario(thread: Thread, turn: Turn, streaming: boolean): void 
     });
   };
   message('先运行完整测试，再检查文件变更。');
+  if (mixed)
+    for (const status of ['approved', 'denied', 'timedOut', 'aborted'] as const) {
+      const common = {
+        threadId: thread.id,
+        turnId: turn.id,
+        reviewId: randomUUID(),
+        targetItemId: randomUUID(),
+        startedAtMs: Date.now(),
+        action: {
+          type: 'command' as const,
+          source: 'unifiedExec' as const,
+          command: `检查 ${status} 审核摘要`,
+          cwd: thread.cwd,
+        },
+      };
+      notify({
+        method: 'item/autoApprovalReview/started',
+        params: {
+          ...common,
+          review: {
+            status: 'inProgress',
+            riskLevel: null,
+            userAuthorization: null,
+            rationale: null,
+          },
+        },
+      });
+      notify({
+        method: 'item/autoApprovalReview/completed',
+        params: {
+          ...common,
+          completedAtMs: Date.now(),
+          decisionSource: 'agent',
+          review: {
+            status,
+            riskLevel: null,
+            userAuthorization: null,
+            rationale: '用于检查摘要换行。',
+          },
+        },
+      });
+    }
   const first = command(randomUUID(), thread.cwd);
   first.command = 'pnpm test -- --reporter=verbose';
   first.aggregatedOutput = output('unit-test');
@@ -693,12 +735,48 @@ function autoReview(
               riskLevel: status === 'approved' ? 'low' : status === 'denied' ? 'high' : null,
               userAuthorization:
                 status === 'approved' ? 'high' : status === 'denied' ? 'low' : null,
-              rationale: rationales[status],
+              rationale:
+                rationales[status] +
+                (prompt.includes('[auto-review-long]')
+                  ? '\n' +
+                    Array.from(
+                      { length: 100 },
+                      (_, index) =>
+                        `审核说明 ${index + 1}：操作涉及向外部站点上传项目文件，需要确认文件内容与接收范围。`,
+                    ).join('\n')
+                  : ''),
             },
           },
         });
         if (status === 'approved') execute(thread, turn, target);
-        else complete(thread, turn, 'interrupted');
+        else {
+          if (prompt.includes('[auto-review-long]')) {
+            const item: ThreadItem = {
+              id: randomUUID(),
+              type: 'agentMessage',
+              phase: 'final_answer',
+              memoryCitation: null,
+              delivery: null,
+              questions: null,
+              text: Array.from(
+                { length: 24 },
+                (_, index) =>
+                  `后续说明 ${index + 1}：操作未执行。可以继续检查本地文件并确认审核原因。`,
+              ).join('\n\n'),
+            };
+            turn.items.push(item);
+            notify({
+              method: 'item/completed',
+              params: {
+                threadId: thread.id,
+                turnId: turn.id,
+                item,
+                completedAtMs: Date.now(),
+              },
+            });
+          }
+          complete(thread, turn, 'interrupted');
+        }
       },
       options.autoReviewDelayMs ?? (prompt.includes('[auto-review-slow]') ? 4000 : 1500),
     ),
@@ -1359,8 +1437,17 @@ function receive(request: ClientRequest): void {
       const reconnect = (['recover', 'fail', 'hold'] as const).find((outcome) =>
         prompt.includes(`[codex-retry-${outcome}]`),
       );
-      if (prompt.includes('[activity-collapse]') || prompt.includes('[activity-stream]'))
-        activityScenario(thread, turn, prompt.includes('[activity-stream]'));
+      if (
+        prompt.includes('[activity-collapse]') ||
+        prompt.includes('[activity-stream]') ||
+        prompt.includes('[activity-mixed]')
+      )
+        activityScenario(
+          thread,
+          turn,
+          prompt.includes('[activity-stream]'),
+          prompt.includes('[activity-mixed]'),
+        );
       else if (reconnect) codexReconnect(thread, turn, reconnect);
       else if (prompt.includes('[codex-thinking]')) thinking(thread, turn);
       else if (reviewStatus) autoReview(thread, turn, reviewStatus, prompt);

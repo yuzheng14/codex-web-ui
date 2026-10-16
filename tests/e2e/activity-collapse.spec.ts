@@ -19,23 +19,27 @@ async function startScenario(page: Page, streaming = false) {
     .getByRole('textbox', { name: '任务内容', exact: true })
     .fill(`${streaming ? '[activity-stream]' : '[activity-collapse]'} 检查长输出与文件变更`);
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
-  await expect(activities(page).first()).toBeVisible();
+  await expect(page.locator('.activity-group').first()).toBeVisible();
   if (!streaming) {
     await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
     await expect(activities(page)).toHaveCount(4);
   }
+  for (const group of await page.locator('.activity-group').all()) await header(group).click();
+  await expect(activities(page).first()).toBeVisible();
 }
 
 async function geometry(activity: Locator) {
   return activity.evaluate((element) => {
     const scroll = element.closest('.conversation-scroll')!;
     const summary = element.querySelector(':scope > summary')!;
+    const groupHeader = element.closest('.activity-group')?.querySelector(':scope > summary');
     return {
       activityTop: element.getBoundingClientRect().top,
       activityBottom: element.getBoundingClientRect().bottom,
       headerTop: summary.getBoundingClientRect().top,
       headerBottom: summary.getBoundingClientRect().bottom,
-      scrollTop: scroll.getBoundingClientRect().top,
+      scrollTop:
+        scroll.getBoundingClientRect().top + (groupHeader?.getBoundingClientRect().height ?? 0),
       scrollBottom: scroll.getBoundingClientRect().bottom,
     };
   });

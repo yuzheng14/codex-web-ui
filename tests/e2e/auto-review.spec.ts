@@ -8,7 +8,8 @@ import { confirmCompatibility, controlRuntime, createThreadButton } from './help
 
 const evidence = join(tmpdir(), 'codex-auto-review-evidence');
 const headers = { Origin: 'http://127.0.0.1:8788' };
-const reviewCard = (page: Page) => page.getByRole('region', { name: '自动审核结果', exact: true });
+const reviewCard = (page: Page) => page.locator('details.auto-review-card');
+const reviewGroup = (page: Page) => page.locator('details.activity-group');
 const authorizationRequest = (request: Request) =>
   request.method() === 'POST' &&
   (/\/api\/actions\//.test(request.url()) ||
@@ -21,7 +22,11 @@ async function startReview(page: Page, prompt: string) {
   await expect(page.getByText('这个会话准备好了')).toBeVisible();
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill(prompt);
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
+  await expect(reviewGroup(page)).toBeVisible();
+  await expect(reviewGroup(page)).not.toHaveAttribute('open');
+  await reviewGroup(page).locator(':scope > summary').click();
   await expect(reviewCard(page)).toBeVisible();
+  await expect(reviewCard(page)).not.toHaveAttribute('open');
   return (await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture')))!;
 }
 async function currentThread(page: Page, threadId: string) {
@@ -75,19 +80,25 @@ for (const viewport of [
       page,
       '[auto-review-denied] [auto-review-slow] 发布本次截图',
     );
-    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.setViewportSize({
+      width: viewport.width,
+      height: viewport.height,
+    });
     const card = reviewCard(page);
     await expect(card.locator('.auto-review-status')).toHaveText('审核中');
-    await expect(card.locator('details')).not.toHaveAttribute('open');
+    await expect(card).not.toHaveAttribute('open');
+    await expect(card.locator('.auto-review-details')).not.toHaveAttribute('open');
     await expect(page.locator('.action-card')).toHaveCount(0);
     await expect(card.getByRole('button')).toHaveCount(0);
     await screenshot(page, `auto-review-in-progress-${viewport.name}`);
     await expect(card.locator('.auto-review-status')).toHaveText('已拒绝');
+    await expect(card).not.toHaveAttribute('open');
+    await card.locator(':scope > summary').click();
     await expect(card.locator('.auto-review-rationale')).toContainText('当前请求未授权发布该文件');
     await expect(card.locator('.auto-review-operation')).toContainText(
       'https://example.com/review-attachments',
     );
-    await expect(card.locator('details')).not.toHaveAttribute('open');
+    await expect(card.locator('.auto-review-details')).not.toHaveAttribute('open');
     await expect(card).toHaveCount(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -100,18 +111,24 @@ for (const viewport of [
     ).toHaveLength(1);
     expect(denied.turns.at(-1)?.items.some((item) => item.type === 'commandExecution')).toBe(false);
     await card.getByText('技术详情', { exact: true }).click();
-    await expect(card.locator('details')).toHaveAttribute('open', '');
-    await expect(card.locator('details')).toContainText('风险评估');
+    await expect(card.locator('.auto-review-details')).toHaveAttribute('open', '');
+    await expect(card.locator('.auto-review-details')).toContainText('风险评估');
     await page.reload();
+    await expect(reviewGroup(page)).not.toHaveAttribute('open');
+    await expect(card).not.toHaveAttribute('open');
+    await reviewGroup(page).locator(':scope > summary').click();
     await expect(card.locator('.auto-review-status')).toHaveText('已拒绝');
-    await expect(card.locator('details')).not.toHaveAttribute('open');
+    await expect(card.locator('.auto-review-details')).not.toHaveAttribute('open');
     await context.setOffline(true);
     await expect(page.locator('.connection-badge')).toHaveText('连接已断开');
     await context.setOffline(false);
     await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
     await expect(card).toHaveCount(1);
+    await expect(reviewGroup(page)).toHaveAttribute('open', '');
+    await expect(card).not.toHaveAttribute('open');
+    await card.locator(':scope > summary').click();
     await expect(card.locator('.auto-review-rationale')).toContainText('当前请求未授权发布该文件');
-    await expect(card.locator('details')).not.toHaveAttribute('open');
+    await expect(card.locator('.auto-review-details')).not.toHaveAttribute('open');
     expect(authorizations).toHaveLength(0);
   });
 }
@@ -129,10 +146,13 @@ test('an approved review retains manually opened details and permits only the fi
   );
   const card = reviewCard(page);
   await expect(card.locator('.auto-review-status')).toHaveText('审核中');
+  await card.locator(':scope > summary').click();
   await card.getByText('技术详情', { exact: true }).click();
-  await expect(card.locator('details')).toHaveAttribute('open', '');
+  await expect(card.locator('.auto-review-details')).toHaveAttribute('open', '');
   await expect(card.locator('.auto-review-status')).toHaveText('已允许');
-  await expect(card.locator('details')).toHaveAttribute('open', '');
+  await expect(reviewGroup(page)).toHaveAttribute('open', '');
+  await expect(card).toHaveAttribute('open', '');
+  await expect(card.locator('.auto-review-details')).toHaveAttribute('open', '');
   await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
   const thread = await currentThread(page, threadId);
   const review = thread.turns[0]!.items.find((item) => item.autoReview)?.autoReview;
@@ -159,8 +179,10 @@ for (const scenario of [
     const threadId = await startReview(page, `[auto-review-${scenario.prompt}] 检查自动审核状态`);
     const card = reviewCard(page);
     await expect(card.locator('.auto-review-status')).toHaveText(scenario.label);
+    await expect(card).not.toHaveAttribute('open');
+    await card.locator(':scope > summary').click();
     await expect(card.locator('.auto-review-rationale')).toContainText(scenario.reason);
-    await expect(card.locator('details')).not.toHaveAttribute('open');
+    await expect(card.locator('.auto-review-details')).not.toHaveAttribute('open');
     await expect(card.getByRole('button')).toHaveCount(0);
     const thread = await currentThread(page, threadId);
     expect(thread.actions).toEqual([]);

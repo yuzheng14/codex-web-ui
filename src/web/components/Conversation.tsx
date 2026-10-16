@@ -7,6 +7,8 @@ import { Icon } from './Icon';
 import { isActive, Status } from './Status';
 import { AutoReviewCard } from './AutoReviewCard';
 import { CollapsibleActivity } from './CollapsibleActivity';
+import { ActivityGroup } from './ActivityGroup';
+import { groupConversationItems } from '../lib/activity-groups';
 
 // Keep renderer identities stable so streamed text preserves table focus and scroll position.
 const markdownComponents: Components = {
@@ -325,9 +327,17 @@ export function Conversation({
                 {turn.id !== latestTurn?.id && turn.reconnect?.status === 'failed' && (
                   <CodexReconnectNotice turn={turn} offline={offline} />
                 )}
-                {turn.items.map((item) => (
-                  <Item key={item.id} item={item} />
-                ))}
+                {groupConversationItems(turn.items).map((group) =>
+                  group.kind === 'message' ? (
+                    <Item key={group.key} item={group.item} />
+                  ) : (
+                    <ActivityGroup key={group.key} items={group.items}>
+                      {group.items.map((item) => (
+                        <Item key={item.id} item={item} />
+                      ))}
+                    </ActivityGroup>
+                  ),
+                )}
                 {turn.diff && (
                   <details className="turn-diff">
                     <summary>
