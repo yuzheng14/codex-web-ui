@@ -1241,6 +1241,24 @@ svg {
 .composer-region {
   padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
+.composer-resume-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0 2px;
+  color: #65776a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.composer-resume-status svg {
+  animation: composer-resume-spin 1.2s linear infinite;
+}
+@keyframes composer-resume-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .composer-box {
   border: 1px solid #d9dfda;
   border-radius: 12px;
@@ -2266,6 +2284,9 @@ dd {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .composer-resume-status svg {
+    animation: none;
+  }
   *,
   *::before,
   *::after {
