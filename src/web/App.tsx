@@ -10,6 +10,7 @@ import { Icon } from './components/Icon';
 import { Button } from './components/ui/button';
 import { blocksTarget } from './lib/operations';
 import { createSlashCommands, type SlashCommandContext } from './lib/slash-commands';
+import { downloadThreadExport } from './lib/thread-export';
 import { CompatibilityNotice } from './components/CompatibilityNotice';
 import { ProjectDialog } from './components/ProjectDialog';
 import {
@@ -180,6 +181,7 @@ export function App() {
     },
     refreshThread: workspace.refreshThread,
     openStatus: () => setDiagnosticsOpen(true),
+    exportThread: downloadThreadExport,
   };
   const slashContextRef = useRef(slashContext);
   slashContextRef.current = slashContext;

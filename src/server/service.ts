@@ -41,6 +41,7 @@ import {
 import { EventHub } from './events.js';
 import { Projection, isActive, isTerminal } from './projection.js';
 import { ProjectRegistry } from './projects.js';
+import { renderThreadExport } from './thread-export.js';
 
 export interface GatewayOptions {
   store: OperationStore;
@@ -415,6 +416,35 @@ export class GatewayService {
     // A completed project can be removed while its metadata request is in flight.
     this.projects.assertOwnership(thread.projectId, thread.cwd);
     return this.threadView(thread);
+  }
+
+  async exportThread(threadId: string) {
+    this.ensureReady();
+    const epoch = this.codex.epoch;
+    const revision = this.projection.revision(threadId);
+    // getThread may reuse a size-limited live projection. Export must read every persisted page.
+    const thread = await this.codex.readThread(threadId);
+    const latest = await this.codex.readThreadMetadata(threadId);
+    this.ensureReady();
+    if (this.codex.epoch !== epoch)
+      throw new AppError('EXPORT_RUNTIME_CHANGED', '读取期间 Codex 已重启，请重新导出。', 409);
+    if (thread.id !== threadId || latest.id !== threadId || thread.historyTruncated)
+      throw new AppError(
+        'EXPORT_HISTORY_INCOMPLETE',
+        '未能取得完整会话历史，未生成导出文件。',
+        409,
+      );
+    const link = this.store.getThreadLink(threadId);
+    // Revalidate ownership after the read; a project may have been removed while it was pending.
+    if (link) this.projects.assertOwnership(link.projectId, thread.cwd);
+    else this.projects.findOwner(thread.cwd);
+    return renderThreadExport(thread, {
+      executionUncertain: Boolean(this.store.activeForThread(threadId)),
+      historyChanged:
+        revision !== this.projection.revision(threadId) ||
+        thread.updatedAt !== latest.updatedAt ||
+        thread.status !== latest.status,
+    });
   }
 
   private async loadThread(threadId: string): Promise<ThreadView> {

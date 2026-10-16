@@ -73,6 +73,7 @@ function context(): SlashCommandContext {
     onResumeAttempt: vi.fn(),
     refreshThread: vi.fn().mockResolvedValue(undefined),
     openStatus: vi.fn(),
+    exportThread: vi.fn().mockResolvedValue({ partial: false }),
   };
 }
 
@@ -100,7 +101,7 @@ describe('slash command parsing and validation', () => {
 
   it('lists commands for a slash and searches names and descriptions', () => {
     const commands = createSlashCommands(context);
-    expect(filterSlashCommands(commands, '/')).toHaveLength(9);
+    expect(filterSlashCommands(commands, '/')).toHaveLength(10);
     expect(filterSlashCommands(commands, '/st').map((entry) => entry.name)).toEqual([
       'stop',
       'status',
@@ -144,6 +145,41 @@ describe('slash command parsing and validation', () => {
 });
 
 describe('slash command availability', () => {
+  it('exports the captured thread through a read-only download, including archived or clipped views', async () => {
+    const state = context();
+    state.system!.capabilities.push('thread/read');
+    state.system!.compatibilityConfirmation = 'required';
+    state.thread!.archived = true;
+    state.thread!.historyTruncated = true;
+    expect(command(state, 'export').unavailableReason).toBeUndefined();
+    expect(await command(state, 'export').run()).toMatchObject({
+      message: expect.stringContaining('Markdown 下载'),
+    });
+    expect(state.exportThread).toHaveBeenCalledWith('thread/one');
+    expect(state.run).not.toHaveBeenCalled();
+    expect(
+      validateSlashCommand(
+        '/export another-thread',
+        createSlashCommands(() => state),
+      ),
+    ).toContain('不接受参数');
+  });
+
+  it('reports partial exports and download failures without claiming a complete or saved file', async () => {
+    const state = context();
+    state.system!.capabilities.push('thread/read');
+    vi.mocked(state.exportThread).mockResolvedValueOnce({ partial: true });
+    expect(await command(state, 'export').run()).toMatchObject({
+      message: expect.stringContaining('未完成'),
+    });
+    vi.mocked(state.exportThread).mockRejectedValueOnce(new Error('历史读取失败'));
+    expect(await command(state, 'export').run()).toEqual({ error: true, message: '历史读取失败' });
+    state.thread = undefined;
+    expect(command(state, 'export').unavailableReason).toContain('正在加载');
+    state.selectedId = undefined;
+    expect(command(state, 'export').unavailableReason).toContain('选择一个会话');
+  });
+
   it.each([
     [
       'offline',

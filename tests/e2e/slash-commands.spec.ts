@@ -92,8 +92,18 @@ test('slash suggestions expose commands, filter by name and description, and exe
   const outgoing = posts(page);
   await input(page).fill('/');
   await expect(menu(page)).toBeVisible();
-  await expect(menu(page).getByRole('option')).toHaveCount(9);
-  for (const command of ['help', 'new', 'fork', 'resume', 'stop', 'status', 'compact', 'review']) {
+  await expect(menu(page).getByRole('option')).toHaveCount(10);
+  for (const command of [
+    'help',
+    'new',
+    'fork',
+    'resume',
+    'stop',
+    'status',
+    'compact',
+    'review',
+    'export',
+  ]) {
     await expect(option(page, command)).toBeVisible();
     await expect(option(page, command)).toContainText('无需参数');
   }
