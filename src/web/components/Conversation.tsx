@@ -145,13 +145,7 @@ function Item({ item }: { item: ItemView }) {
         className={user ? 'message user-message' : 'message assistant-message'}
         aria-label={user ? '你的消息' : 'Codex 的回复'}
       >
-        {!user && (
-          <div className="message-avatar" aria-hidden="true">
-            <Icon name="code" size={17} />
-          </div>
-        )}
         <div className="message-content">
-          {!user && <div className="message-author">Codex</div>}
           {user ? <p className="user-text">{item.text}</p> : <TextContent text={item.text ?? ''} />}
           {user && item.images && (
             <div className="message-images">
