@@ -137,6 +137,17 @@ export function createApp({
     c.header('X-Export-Completeness', exported.partial ? 'partial' : 'saved-history');
     return c.body(exported.markdown);
   });
+  app.get('/api/threads/:threadId/images', async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('Cross-Origin-Resource-Policy', 'same-origin');
+    c.header('Content-Security-Policy', "default-src 'none'; sandbox");
+    const image = await service.getThreadImage(id(c.req.param('threadId')), c.req.query('path'));
+    return c.body(image.bytes, 200, {
+      'Content-Type': image.contentType,
+      'Content-Length': String(image.bytes.length),
+    });
+  });
   app.get('/api/operations/:operationId', (c) =>
     c.json(service.getOperation(id(c.req.param('operationId')))),
   );
