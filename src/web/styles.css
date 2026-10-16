@@ -1017,6 +1017,7 @@ svg {
 }
 .markdown th,
 .markdown td {
+  min-width: 6rem;
   border: 1px solid var(--border);
   padding: 9px 12px;
   vertical-align: top;
@@ -1028,6 +1029,9 @@ svg {
 }
 .markdown th:not([align]) {
   text-align: left;
+}
+.markdown td code {
+  white-space: nowrap;
 }
 .markdown tbody tr:nth-child(even) {
   background: #fafcfb;
