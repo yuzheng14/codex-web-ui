@@ -19,7 +19,7 @@ test('replaces the first prompt with an AI title in both tabs and retains it aft
   const generatedTitle = 'Codex 配置继承与运行设置';
   const other = await context.newPage();
   await other.goto('/');
-  await expect(other.locator('[data-thread-id]')).toHaveCount(0);
+  await expect(other.locator(`[data-thread-id="${id}"]`)).toHaveCount(0);
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill(firstPrompt);
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(title).toHaveText(firstPrompt);

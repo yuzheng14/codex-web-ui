@@ -230,7 +230,7 @@ test('a late fork receipt adds the result without taking over a newly selected c
       });
     else await route.continue();
   });
-  await newThread(page);
+  const source = await newThread(page);
   await finishTurn(page, '迟到回执前的原会话历史');
   let release!: () => void;
   const delayed = new Promise<void>((resolve) => {
@@ -268,7 +268,7 @@ test('a late fork receipt adds the result without taking over a newly selected c
   );
   withhold = false;
   release();
-  await receipt;
+  const result = ((await (await receipt).json()) as Operation).result as { threadId: string };
   await expect
     .poll(() =>
       page.evaluate(
@@ -277,6 +277,7 @@ test('a late fork receipt adds the result without taking over a newly selected c
     )
     .toBe(0);
   await expect(page.locator('.turn')).toHaveCount(1);
-  await expect(page.locator('.thread-link')).toHaveCount(3);
+  for (const id of [source, otherId.threadId, result.threadId])
+    await expect(page.locator(`[data-thread-id="${id}"]`)).toBeVisible();
   expect(await selectedId(page)).toBe(otherId.threadId);
 });
