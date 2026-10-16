@@ -239,3 +239,15 @@ it('retains capability discovery when a newer settings notification wins over th
     settings: { permissionMode: 'auto-review', permissionCapabilities: { autoReview: true } },
   });
 });
+
+it('never enables automatic review from a project override when managed feature requirements prohibit it', async () => {
+  const { adapter, dir, requests } = await fixture({
+    configOverrides: { features: { guardian_approval: true } },
+    requirements: { featureRequirements: { guardian_approval: false } },
+  });
+  expect((await adapter.readRuntimeSettings(dir)).permissionCapabilities?.autoReview).toBe(false);
+  await expect(adapter.createThread(dir, { permissionMode: 'auto-review' })).rejects.toMatchObject({
+    code: 'PERMISSION_MODE_UNAVAILABLE',
+  });
+  expect((await requests()).some((request) => request.method === 'thread/start')).toBe(false);
+});

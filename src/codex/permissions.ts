@@ -89,7 +89,7 @@ export function permissionCapabilities(
 ): PermissionCapabilities {
   return {
     ...(unavailableReason ? { unavailableReason } : {}),
-    autoReview,
+    autoReview: autoReview && requirements?.featureRequirements?.guardian_approval !== false,
     allowedSandboxModes: requirements?.allowedSandboxModes ?? null,
     allowedApprovalPolicies:
       requirements?.allowedApprovalPolicies?.filter(
