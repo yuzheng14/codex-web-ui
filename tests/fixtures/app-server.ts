@@ -258,6 +258,27 @@ function complete(
   if (turn.status !== 'inProgress') return;
   turn.status = status;
   turn.completedAt = Date.now() / 1000;
+  turn.durationMs =
+    turn.startedAt === null ? null : Math.round((turn.completedAt - turn.startedAt) * 1000);
+  // Explicit test prompts exercise historical timing through the real protocol and gateway.
+  const timingScenario = turn.items
+    .flatMap((item) =>
+      item.type === 'userMessage'
+        ? item.content.flatMap((input) => (input.type === 'text' ? input.text : []))
+        : [],
+    )
+    .join(' ')
+    .match(/\[turn-timing:(cross-day|hours|duration-only|time-only|missing)\]/)?.[1];
+  if (timingScenario) {
+    turn.completedAt =
+      Date.parse(timingScenario === 'hours' ? '2026-10-16T06:32:08Z' : '2026-10-14T16:01:15Z') /
+      1000;
+    turn.durationMs = timingScenario === 'hours' ? 3_661_000 : 135_000;
+    turn.startedAt = turn.completedAt - turn.durationMs / 1000;
+    if (timingScenario === 'duration-only' || timingScenario === 'missing') turn.completedAt = null;
+    if (timingScenario === 'time-only' || timingScenario === 'missing') turn.durationMs = null;
+    if (timingScenario === 'missing') turn.startedAt = null;
+  }
   thread.status = { type: 'idle' };
   // Explicit test prompt: retain real terminal history while dropping its notification.
   if (

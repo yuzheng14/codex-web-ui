@@ -902,6 +902,18 @@ svg {
   color: #a7adb2;
   font-size: 10px;
 }
+.turn-completion {
+  margin: 18px 0 0 41px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.turn-completion-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 .message {
   display: flex;
   gap: 13px;

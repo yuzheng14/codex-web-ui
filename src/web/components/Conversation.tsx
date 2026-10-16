@@ -9,6 +9,7 @@ import { AutoReviewCard } from './AutoReviewCard';
 import { CollapsibleActivity } from './CollapsibleActivity';
 import { ActivityGroup } from './ActivityGroup';
 import { groupConversationItems } from '../lib/activity-groups';
+import { TurnCompletion } from './TurnCompletion';
 
 // Keep renderer identities stable so streamed text preserves table focus and scroll position.
 const markdownComponents: Components = {
@@ -351,6 +352,7 @@ export function Conversation({
                 {turn.error && turn.reconnect?.status !== 'failed' && (
                   <div className="error-banner">{turn.error}</div>
                 )}
+                <TurnCompletion turn={turn} />
               </section>
             ))
           )}
