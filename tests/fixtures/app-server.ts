@@ -610,9 +610,14 @@ const model: Model = {
   modelSpecialty: null,
   hidden: false,
   supportedReasoningEfforts: [
+    { reasoningEffort: 'none', description: 'None' },
+    { reasoningEffort: 'minimal', description: 'Minimal' },
     { reasoningEffort: 'low', description: 'Low' },
     { reasoningEffort: 'medium', description: 'Medium' },
     { reasoningEffort: 'high', description: 'High' },
+    { reasoningEffort: 'xhigh', description: 'Extra high' },
+    { reasoningEffort: 'max', description: 'Maximum' },
+    { reasoningEffort: 'ultra', description: 'Ultra' },
   ],
   defaultReasoningEffort: 'medium',
   inputModalities: ['text'],
@@ -791,6 +796,10 @@ function receive(request: ClientRequest): void {
         break;
       }
       applySettings(thread, request.params);
+      notify({
+        method: 'thread/status/changed',
+        params: { threadId: thread.id, status: thread.status },
+      });
       reply(request.id, {
         ...startResponse(thread),
         collaborationMode: null,

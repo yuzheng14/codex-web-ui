@@ -64,6 +64,9 @@ export class GatewayService {
   // Request ordering only: title values always come from app-server.
   private titleReadSequence = 0;
   private readonly titleReads = new Map<string, number>();
+  // A status/title/history update must not discard a lifecycle response's full configuration.
+  private runtimeSettingsSequence = 0;
+  private readonly runtimeSettingsUpdates = new Map<string, number>();
   private readonly inFlightOperations = new Set<string>();
   private readonly pendingThreadCreations = new Map<string, string>();
 
@@ -293,9 +296,17 @@ export class GatewayService {
       this.store.associateProject(input.clientOperationId, projectId);
       this.store.dispatch(input.clientOperationId);
       this.pendingThreadCreations.set(input.clientOperationId, project.canonicalRoot);
+      const epoch = this.codex.epoch;
+      const settingsSequence = this.runtimeSettingsSequence;
       const thread = await this.codex.createThread(project.canonicalRoot, input.settings);
+      if (this.codex.epoch !== epoch || !this.codex.ready)
+        throw new Error('创建请求已发送，但 Codex 实例已变化，请核对历史');
       const normalized = this.normalize(thread, projectId, true);
-      this.projection.thread(normalized, this.projection.get(thread.id) !== undefined);
+      this.projection.thread(
+        normalized,
+        this.projection.get(thread.id) !== undefined,
+        (this.runtimeSettingsUpdates.get(thread.id) ?? 0) > settingsSequence,
+      );
       this.publishThread(thread.id);
       return { result: { threadId: thread.id } };
     });
@@ -327,6 +338,7 @@ export class GatewayService {
       if (!pending) {
         const epoch = this.codex.epoch;
         const revision = this.projection.revision(threadId);
+        const settingsSequence = this.runtimeSettingsSequence;
         const current = this.projection.get(threadId)!;
         delete current.resumeError;
         pending = (async () => {
@@ -337,6 +349,7 @@ export class GatewayService {
             this.projection.thread(
               this.normalize(resumed, thread.projectId, true),
               this.projection.revision(threadId) !== revision,
+              (this.runtimeSettingsUpdates.get(threadId) ?? 0) > settingsSequence,
             );
             this.publishThread(threadId);
           } catch (error) {
@@ -379,6 +392,7 @@ export class GatewayService {
       this.store.associateProject(input.clientOperationId, ownership.project.id);
       this.store.dispatch(input.clientOperationId);
       this.pendingThreadCreations.set(input.clientOperationId, ownership.cwd);
+      const settingsSequence = this.runtimeSettingsSequence;
       const forked = await this.codex.forkThread(threadId, ownership.cwd, input.settings);
       if (forked.id === threadId || this.codex.epoch !== epoch || !this.codex.ready)
         throw new Error('分叉请求已发送，但返回的新会话无法确认，请核对历史');
@@ -393,7 +407,11 @@ export class GatewayService {
         // A malformed result does not prove that upstream failed to create the fork.
         throw new Error('分叉请求已发送，但返回的会话目录无法确认，请核对历史', { cause: error });
       }
-      this.projection.thread(normalized, this.projection.get(forked.id) !== undefined);
+      this.projection.thread(
+        normalized,
+        this.projection.get(forked.id) !== undefined,
+        (this.runtimeSettingsUpdates.get(forked.id) ?? 0) > settingsSequence,
+      );
       this.publishThread(forked.id);
       return { result: { threadId: forked.id, forkedFromId: threadId } };
     });
@@ -992,6 +1010,7 @@ export class GatewayService {
       if (!event.diagnostics.ready || event.diagnostics.codexEpoch !== this.currentEpoch) {
         this.currentEpoch = event.diagnostics.codexEpoch;
         this.titleReads.clear();
+        this.runtimeSettingsUpdates.clear();
         this.resumes.clear();
         this.store.recover();
         this.projection.runtimeReset();
@@ -1043,6 +1062,7 @@ export class GatewayService {
       return;
     }
     if (event.type === 'threadSettings') {
+      this.runtimeSettingsUpdates.set(thread.id, ++this.runtimeSettingsSequence);
       thread.runtimeSettings = event.settings;
       this.projection.touch(thread.id);
     } else if (event.type === 'threadStatus') {

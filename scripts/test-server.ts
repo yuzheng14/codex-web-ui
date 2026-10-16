@@ -13,10 +13,13 @@ import { AppError } from '../src/shared/errors.js';
 class ControlledFixture implements CodexClient {
   private version = 'fixture-unverified-1';
   private unavailable = false;
+  private seedingExternal = false;
   private readonly externalFailures = new Map<string, AppError>();
   private readonly listeners = new Set<(event: CodexEvent) => void>();
   constructor(private readonly inner: CodexClient) {
     inner.onEvent((event) => {
+      // History written by another app-server has no live notifications in this gateway.
+      if (this.seedingExternal && event.type !== 'runtime') return;
       this.publish(
         event.type === 'runtime' ? { type: 'runtime', diagnostics: this.diagnostics() } : event,
       );
@@ -69,21 +72,26 @@ class ControlledFixture implements CodexClient {
   };
   async seedExternal(cwd: string, state: 'free' | 'occupied' | 'error') {
     // Deliberately bypass the gateway's create/resume methods: this history is unmanaged.
-    const thread = await this.inner.createThread(cwd);
-    if (state !== 'free')
-      this.externalFailures.set(
-        thread.id,
-        state === 'occupied'
-          ? new AppError('THREAD_IN_USE', '此会话正被其他进程使用', 409)
-          : new AppError('CODEX_REQUEST_FAILED', '测试历史格式无法恢复', 400),
-      );
-    await this.inner.startTurn(thread.id, cwd, '已保存的会话历史');
-    for (let i = 0; i < 100; i++) {
-      const history = await this.inner.readThread(thread.id);
-      if (history.turns.some((turn) => turn.status === 'completed')) return thread.id;
-      await new Promise((resolve) => setTimeout(resolve, 50));
+    this.seedingExternal = true;
+    try {
+      const thread = await this.inner.createThread(cwd);
+      if (state !== 'free')
+        this.externalFailures.set(
+          thread.id,
+          state === 'occupied'
+            ? new AppError('THREAD_IN_USE', '此会话正被其他进程使用', 409)
+            : new AppError('CODEX_REQUEST_FAILED', '测试历史格式无法恢复', 400),
+        );
+      await this.inner.startTurn(thread.id, cwd, '已保存的会话历史');
+      for (let i = 0; i < 100; i++) {
+        const history = await this.inner.readThread(thread.id);
+        if (history.turns.some((turn) => turn.status === 'completed')) return thread.id;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error('External fixture did not finish');
+    } finally {
+      this.seedingExternal = false;
     }
-    throw new Error('External fixture did not finish');
   }
   releaseExternal(id: string) {
     this.externalFailures.delete(id);
