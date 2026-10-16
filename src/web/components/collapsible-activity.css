@@ -1,0 +1,56 @@
+.collapsible-activity {
+  --activity-sticky-offset: 0px;
+  --activity-surface: #fbfcfb;
+  overflow: clip;
+}
+
+.collapsible-activity.activity-failed {
+  --activity-surface: #fff5f3;
+}
+
+.collapsible-activity > summary {
+  /* Native details slots do not inherit the parent's non-inherited background. */
+  background: var(--activity-surface);
+  border-radius: 6px;
+}
+
+.collapsible-activity[open] > summary {
+  position: sticky;
+  top: var(--activity-sticky-offset);
+  z-index: 1;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+  box-shadow: 0 1px 0 #e8ebea;
+}
+
+.collapsible-activity > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.activity-collapse-hint {
+  display: none;
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.collapsible-activity[open] > summary > .activity-collapse-hint {
+  display: inline;
+}
+
+/* The outer execution group and current inner tool keep separate, usable headers. */
+.collapsible-activity-group {
+  --activity-group-header-height: 44px;
+}
+
+.collapsible-activity-group > summary {
+  height: var(--activity-group-header-height);
+}
+
+.collapsible-activity-group[open] > summary {
+  z-index: 2;
+}
+
+.collapsible-activity-group .collapsible-activity {
+  --activity-sticky-offset: var(--activity-group-header-height);
+}

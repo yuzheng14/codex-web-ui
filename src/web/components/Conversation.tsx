@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Markdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ItemView, ThreadView, TurnView } from '../../shared/types';
@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { isActive, Status } from './Status';
 import { AutoReviewCard } from './AutoReviewCard';
+import { CollapsibleActivity } from './CollapsibleActivity';
 
 // Keep renderer identities stable so streamed text preserves table focus and scroll position.
 const markdownComponents: Components = {
@@ -50,18 +51,22 @@ const activityStatusLabels: Record<string, string> = {
 
 function Activity({ item }: { item: ItemView }) {
   return (
-    <details className={`activity${item.status === 'failed' ? ' activity-failed' : ''}`}>
-      <summary>
-        <Icon name={item.type === 'fileChange' ? 'code' : 'terminal'} size={16} />
-        <span className="activity-description">
-          <span className="activity-label">{activityLabels[item.type] ?? item.type}</span>
-          {item.command && <code className="command-summary">{item.command}</code>}
-        </span>
-        <span className="activity-status">
-          {item.status ? (activityStatusLabels[item.status] ?? item.status) : ''}
-        </span>
-        <Icon name="chevron" size={14} />
-      </summary>
+    <CollapsibleActivity
+      className={`activity${item.status === 'failed' ? ' activity-failed' : ''}`}
+      label={`${activityLabels[item.type] ?? item.type}${item.command ? `：${item.command}` : ''}`}
+      summary={
+        <>
+          <Icon name={item.type === 'fileChange' ? 'code' : 'terminal'} size={16} />
+          <span className="activity-description">
+            <span className="activity-label">{activityLabels[item.type] ?? item.type}</span>
+            {item.command && <code className="command-summary">{item.command}</code>}
+          </span>
+          <span className="activity-status">
+            {item.status ? (activityStatusLabels[item.status] ?? item.status) : ''}
+          </span>
+        </>
+      }
+    >
       <div className="activity-body">
         {item.cwd && <p className="mono subtle">{item.cwd}</p>}
         {item.command && (
@@ -98,7 +103,7 @@ function Activity({ item }: { item: ItemView }) {
           </details>
         )}
       </div>
-    </details>
+    </CollapsibleActivity>
   );
 }
 
@@ -228,6 +233,26 @@ export function Conversation({
     }
     if (stickToBottom.current) endRef.current?.scrollIntoView({ block: 'end' });
   }, [thread]);
+  const updateScrollPosition = useCallback(() => {
+    const box = containerRef.current;
+    if (!box) return;
+    stickToBottom.current = box.scrollHeight - box.scrollTop - box.clientHeight < 100;
+    setShowBottom(!stickToBottom.current);
+  }, []);
+  useEffect(() => {
+    const box = containerRef.current;
+    if (!box) return;
+    const onToggle = (event: Event) => {
+      // Expanding a long card need not scroll, but should stop following new output.
+      if (
+        event.target instanceof HTMLDetailsElement &&
+        event.target.classList.contains('collapsible-activity')
+      )
+        updateScrollPosition();
+    };
+    box.addEventListener('toggle', onToggle, true);
+    return () => box.removeEventListener('toggle', onToggle, true);
+  }, [updateScrollPosition]);
   return (
     <div className="conversation-area">
       {latestTurn?.reconnect && (
@@ -235,16 +260,7 @@ export function Conversation({
           <CodexReconnectNotice turn={latestTurn} offline={offline} />
         </div>
       )}
-      <div
-        className="conversation-scroll"
-        ref={containerRef}
-        onScroll={() => {
-          const box = containerRef.current;
-          if (!box) return;
-          stickToBottom.current = box.scrollHeight - box.scrollTop - box.clientHeight < 100;
-          setShowBottom(!stickToBottom.current);
-        }}
-      >
+      <div className="conversation-scroll" ref={containerRef} onScroll={updateScrollPosition}>
         <div className="conversation-content">
           {thread?.historyTruncated && (
             <p className="truncation">
