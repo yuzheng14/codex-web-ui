@@ -34,7 +34,8 @@ test('completed turn TPS survives refresh, reconnect and navigation, with access
   ]);
   await completion(page).last().locator('.turn-tps').focus();
   await expect(page.getByRole('tooltip')).toContainText('本轮输出 300 tokens');
-  await expect(page.getByRole('tooltip')).toContainText('包含推理 token、工具执行和等待时间');
+  await expect(page.getByRole('tooltip')).toContainText('耗时包含工具调用、审批、等待等时间');
+  await expect(page.getByRole('tooltip')).toContainText('通常低于纯模型生成时的 TPS');
   await page.screenshot({ path: join(evidence, 'tps-desktop.png'), fullPage: true });
   await page.keyboard.press('Escape');
   const original = await completion(page).allTextContents();

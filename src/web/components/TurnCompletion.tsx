@@ -28,7 +28,7 @@ export function TurnCompletion({ turn }: { turn: TurnView }) {
             <TooltipContent>
               {tps === undefined
                 ? '缺少完整的本轮 token 统计或有效耗时，无法计算 TPS。'
-                : `本轮输出 ${turn.outputTokens} tokens ÷ 总耗时（秒）。包含推理 token、工具执行和等待时间，不代表纯模型生成速度。`}
+                : `本轮输出 ${turn.outputTokens} tokens（含推理 token）÷ 整轮耗时（秒）。耗时包含工具调用、审批、等待等时间，因此该值通常低于纯模型生成时的 TPS。`}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
