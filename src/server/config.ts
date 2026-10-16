@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { z } from 'zod';
 import { AppError } from '../shared/errors.js';
+import { DEFAULT_MAX_LINE_BYTES } from '../codex/transport.js';
 const origin = z
   .string()
   .regex(/^https?:\/\/[^/?#\\\s]+\/?$/i, 'Expected an exact HTTP(S) origin')
@@ -50,9 +51,15 @@ export const configSchema = z
         binary: z.string().min(1).default('codex'),
         home: z.string().refine(isAbsolute).optional(),
         requestTimeoutMs: z.number().int().min(100).max(300_000).default(30_000),
+        maxLineBytes: z
+          .number()
+          .int()
+          .min(1024)
+          .max(256 * 1024 * 1024)
+          .default(DEFAULT_MAX_LINE_BYTES),
       })
       .strict()
-      .default({ binary: 'codex', requestTimeoutMs: 30_000 }),
+      .default({ binary: 'codex', requestTimeoutMs: 30_000, maxLineBytes: DEFAULT_MAX_LINE_BYTES }),
     auth: z
       .discriminatedUnion('mode', [
         z.object({ mode: z.literal('local') }).strict(),
