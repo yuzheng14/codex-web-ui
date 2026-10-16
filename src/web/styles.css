@@ -1001,6 +1001,41 @@ svg {
 .markdown img {
   max-width: 100%;
 }
+.markdown-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0 0 12px;
+  outline-offset: -2px;
+}
+.markdown-table-scroll:last-child {
+  margin-bottom: 0;
+}
+.markdown table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+}
+.markdown th,
+.markdown td {
+  min-width: 6rem;
+  border: 1px solid var(--border);
+  padding: 9px 12px;
+  vertical-align: top;
+}
+.markdown th {
+  background: #f0f3f1;
+  color: #354139;
+  font-weight: 600;
+}
+.markdown th:not([align]) {
+  text-align: left;
+}
+.markdown td code {
+  white-space: nowrap;
+}
+.markdown tbody tr:nth-child(even) {
+  background: #fafcfb;
+}
 .auto-review-card {
   min-width: 0;
   margin: 10px 0 10px 40px;
