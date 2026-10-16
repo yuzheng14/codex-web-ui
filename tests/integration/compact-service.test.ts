@@ -54,7 +54,7 @@ it('keeps the execution reservation after the empty acknowledgement until a new 
   compaction(ctx, 'completed');
   expect(ctx.store.activeForThread(ctx.id)).toBeUndefined();
   expect((await ctx.service.getThread(ctx.id)).turns.at(-1)?.items).toEqual([
-    { id: 'compact-item', type: 'contextCompaction' },
+    { id: 'compact-item', type: 'contextCompaction', status: 'completed' },
   ]);
   await ctx.service.startTurn(ctx.id, { clientOperationId: operationId(), text: 'continue' });
   expect(ctx.codex.starts).toBe(2);

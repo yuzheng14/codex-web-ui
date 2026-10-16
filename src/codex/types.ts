@@ -21,6 +21,7 @@ export type CodexEvent =
   | { type: 'threadStatus'; threadId: string; status: RunStatus }
   | { type: 'turn'; threadId: string; turn: TurnView }
   | { type: 'turnError'; threadId: string; turnId: string; message: string; willRetry: boolean }
+  | { type: 'compactionCompleted'; threadId: string; turnId: string }
   | { type: 'turnProgress'; threadId: string; turnId: string }
   | { type: 'item'; threadId: string; turnId: string; item: ItemView }
   | { type: 'autoReview'; threadId: string; turnId: string; review: AutoReviewView }

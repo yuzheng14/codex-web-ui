@@ -649,6 +649,88 @@ function activityScenario(thread: Thread, turn: Turn, streaming: boolean, mixed 
     }, 6000),
   );
 }
+/** Automatic compaction stays inside the current task; no compact RPC is involved. */
+function contextCompaction(thread: Thread, turn: Turn, outcome: 'recover' | 'fail' | 'hold'): void {
+  const item: ThreadItem = { type: 'contextCompaction', id: randomUUID() };
+  turn.items.push(item);
+  notify({
+    method: 'item/started',
+    params: { threadId: thread.id, turnId: turn.id, item, startedAtMs: Date.now() },
+  });
+  if (outcome === 'hold') return;
+  finishes.set(
+    turn.id,
+    setTimeout(() => {
+      if (turn.status !== 'inProgress') return;
+      if (outcome === 'fail') {
+        turn.error = {
+          message: '上下文压缩请求失败：模型服务暂时不可用。',
+          codexErrorInfo: null,
+          additionalDetails: null,
+          misalignment: null,
+        };
+        notify({
+          method: 'error',
+          params: {
+            threadId: thread.id,
+            turnId: turn.id,
+            error: turn.error,
+            willRetry: false,
+          },
+        });
+        complete(thread, turn, 'failed');
+        return;
+      }
+      notify({
+        method: 'item/completed',
+        params: {
+          threadId: thread.id,
+          turnId: turn.id,
+          item,
+          completedAtMs: Date.now(),
+        },
+      });
+      // Some versions also emit this deprecated notification. It must not create a second record.
+      notify({ method: 'thread/compacted', params: { threadId: thread.id, turnId: turn.id } });
+      const reply: ThreadItem = {
+        id: randomUUID(),
+        type: 'agentMessage',
+        text: '已整理上下文，继续分析剩余实现与测试。',
+        phase: 'commentary',
+        memoryCitation: null,
+        delivery: null,
+        questions: null,
+      };
+      turn.items.push(reply);
+      notify({
+        method: 'item/started',
+        params: {
+          threadId: thread.id,
+          turnId: turn.id,
+          item: reply,
+          startedAtMs: Date.now(),
+        },
+      });
+      finishes.set(
+        turn.id,
+        setTimeout(() => {
+          if (turn.status !== 'inProgress') return;
+          notify({
+            method: 'item/completed',
+            params: {
+              threadId: thread.id,
+              turnId: turn.id,
+              item: reply,
+              completedAtMs: Date.now(),
+            },
+          });
+          complete(thread, turn);
+        }, 5000),
+      );
+    }, 4000),
+  );
+}
+
 function codexReconnect(thread: Thread, turn: Turn, outcome: 'recover' | 'fail' | 'hold'): void {
   const cmd = command(randomUUID(), thread.cwd);
   cmd.command = '读取已有任务的后台输出';
@@ -1685,6 +1767,16 @@ function receive(request: ClientRequest): void {
           turn,
           prompt.includes('[activity-stream]'),
           prompt.includes('[activity-mixed]'),
+        );
+      else if (prompt.includes('[context-compact-'))
+        contextCompaction(
+          thread,
+          turn,
+          prompt.includes('[context-compact-fail]')
+            ? 'fail'
+            : prompt.includes('[context-compact-hold]')
+              ? 'hold'
+              : 'recover',
         );
       else if (reconnect) codexReconnect(thread, turn, reconnect);
       else if (prompt.includes('[codex-thinking]')) thinking(thread, turn);

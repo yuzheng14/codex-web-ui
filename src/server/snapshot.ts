@@ -65,10 +65,16 @@ export function compactThreadForTransport(thread: ThreadView, maxBytes: number):
     } else index++;
   }
   for (const turn of result.turns) {
-    while (size > maxBytes && turn.items.length > 0)
+    while (size > maxBytes && turn.items.length > 0) {
+      // A live compaction is small but is the only evidence for the pinned status on reconnect.
+      const removable = turn.items.findIndex(
+        (item) => item.type !== 'contextCompaction' || item.status !== 'inProgress',
+      );
+      if (removable < 0) break;
       mutate(turn.items, () => {
-        turn.items.shift();
+        turn.items.splice(removable, 1);
       });
+    }
     if (size <= maxBytes) return result;
   }
   // Large display-only approval context can be shortened; legal options/questions are preserved.

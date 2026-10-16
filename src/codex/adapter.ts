@@ -885,6 +885,9 @@ export class CodexAdapter implements CodexClient {
         if (event.method === 'turn/completed')
           this.expireActions(event.params.threadId, event.params.turn.id);
         break;
+      case 'thread/compacted':
+        this.emit({ type: 'compactionCompleted', ...event.params });
+        break;
       case 'item/started':
       case 'item/completed':
         if (['agentMessage', 'plan', 'reasoning'].includes(event.params.item.type))

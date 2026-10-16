@@ -64,3 +64,7 @@
 - `tests/e2e/slash-commands.spec.ts`：实际浏览器验证菜单、键盘、命令流程、错误、草稿、普通消息和移动端。
 - `src/server/thread-export.ts`、`src/web/lib/thread-export.ts`：显式字段导出与 HTTP/Blob 下载。
 - `tests/integration/thread-export*.test.ts`、`tests/e2e/slash-export.spec.ts`：全量分页、截断和隐私边界、真实浏览器下载内容与文件名。
+
+### 上下文压缩状态
+
+`/compact` 与自动压缩使用相同的状态展示：收到压缩条目的开始通知后，会话顶部显示「正在压缩上下文…」；完成后在历史中显示「上下文已压缩」。压缩完成不会提前结束整轮任务。失败或中断会结束进行中提示，有明确错误时显示原因。浏览器断线期间标注「上次已知」，服务端状态无法确认时显示未知，不推测进度。

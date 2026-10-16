@@ -1358,6 +1358,11 @@ export class GatewayService {
     }
     const thread = this.projection.get(event.threadId);
     if (!thread) return;
+    if (event.type === 'compactionCompleted') {
+      if (this.projection.compactionCompleted(thread.id, event.turnId))
+        this.publishThread(thread.id);
+      return;
+    }
     if (event.type === 'turnError' || event.type === 'turnProgress') {
       const changed =
         event.type === 'turnError'
@@ -1378,6 +1383,7 @@ export class GatewayService {
       thread.runtimeSettings = event.settings;
       this.projection.touch(thread.id);
     } else if (event.type === 'threadStatus') {
+      if (!isActive(event.status)) this.projection.endThreadCompactions(thread.id);
       // Idle/notLoaded is not proof that an uncertain execution finished.
       if (this.store.activeForThread(thread.id)?.state !== 'unknown') thread.status = event.status;
       this.projection.touch(thread.id);

@@ -11,7 +11,8 @@ export function groupConversationItems(items: readonly ItemView[]): Conversation
     if (
       item.type === 'userMessage' ||
       item.type === 'agentMessage' ||
-      item.type === 'exitedReviewMode'
+      item.type === 'exitedReviewMode' ||
+      item.type === 'contextCompaction'
     ) {
       groups.push({ kind: 'message', key: `message:${item.id}`, item });
       continue;

@@ -776,6 +776,55 @@ svg {
   margin: 0 auto;
   padding: 30px 38px 25px;
 }
+.context-compaction-pinned {
+  flex-shrink: 0;
+  width: min(100%, 872px);
+  margin: 0 auto;
+  padding: 14px 38px 0;
+}
+.context-compaction {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 18px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.context-compaction > div {
+  min-width: 0;
+}
+.context-compaction strong {
+  font-weight: 500;
+}
+.context-compaction p {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+}
+.compaction-icon {
+  display: flex;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.context-compaction-inProgress {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #c9dfdc;
+  border-radius: 10px;
+  background: #f0f7f6;
+  color: #33665f;
+}
+.context-compaction-inProgress .compaction-icon {
+  animation: compaction-pulse 1.8s ease-in-out infinite;
+}
+.context-compaction-failed {
+  color: #a75248;
+}
+@keyframes compaction-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
 .codex-reconnect-pinned {
   flex-shrink: 0;
   width: min(100%, 872px);
@@ -2400,6 +2449,7 @@ dd {
   .conversation-content {
     padding: 25px 20px;
   }
+  .context-compaction-pinned,
   .codex-reconnect-pinned {
     padding: 12px 20px 0;
   }
@@ -2501,6 +2551,9 @@ dd {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .context-compaction-inProgress .compaction-icon {
+    animation: none;
+  }
   .composer-resume-status svg {
     animation: none;
   }
