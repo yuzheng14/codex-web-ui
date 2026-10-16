@@ -1,0 +1,450 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { Operation } from '../../src/shared/types';
+import {
+  createSlashCommands,
+  filterSlashCommands,
+  parseSlashCommand,
+  validateSlashCommand,
+  type SlashCommandContext,
+  type SlashCommandName,
+} from '../../src/web/lib/slash-commands';
+
+function receipt(status: Operation['status'] = 'acknowledged'): Operation {
+  return {
+    clientOperationId: 'operation',
+    kind: 'thread.create',
+    target: 'project',
+    status,
+    result: { threadId: 'created-thread' },
+    createdAt: 1,
+    updatedAt: 2,
+  };
+}
+
+function context(): SlashCommandContext {
+  return {
+    project: {
+      id: 'project/one',
+      name: 'Project',
+      rootPath: '/project',
+      canonicalRoot: '/project',
+      workspaceKey: '/project',
+      available: true,
+    },
+    selectedId: 'thread/one',
+    thread: {
+      id: 'thread/one',
+      projectId: 'project/one',
+      cwd: '/project',
+      source: 'cli',
+      title: 'History',
+      status: 'completed',
+      turns: [{ id: 'turn', threadId: 'thread/one', status: 'completed', items: [] }],
+      managed: false,
+      actions: [],
+    },
+    system: {
+      ready: true,
+      connection: 'ready',
+      codexVersion: '0.162.1',
+      verifiedVersion: '0.162.1',
+      compatibility: 'verified',
+      compatibilityConfirmation: 'not-required',
+      codexEpoch: 'epoch',
+      authenticated: true,
+      authMode: 'local',
+      models: [],
+      capabilities: ['thread/start', 'thread/fork', 'thread/resume', 'turn/interrupt'],
+      demo: true,
+    },
+    connection: 'connected',
+    authRequired: false,
+    settings: { model: 'thread-override' },
+    projectSettings: { model: 'project-default' },
+    busy: [],
+    operations: [],
+    run: vi.fn().mockResolvedValue(receipt()),
+    onResumeAttempt: vi.fn(),
+    refreshThread: vi.fn().mockResolvedValue(undefined),
+    openStatus: vi.fn(),
+  };
+}
+
+function command(state: SlashCommandContext, name: SlashCommandName) {
+  return createSlashCommands(() => state).find((entry) => entry.name === name)!;
+}
+
+function activeThread(state: SlashCommandContext) {
+  state.thread!.managed = true;
+  state.thread!.status = 'running';
+  state.thread!.turns[0]!.status = 'running';
+}
+
+describe('slash command parsing and validation', () => {
+  it('recognizes only a leading single slash, preserving escaped and embedded message text', () => {
+    expect(parseSlashCommand(' \n /HELP \t argument\nsecond line ')).toEqual({
+      name: 'help',
+      arguments: 'argument\nsecond line',
+    });
+    expect(parseSlashCommand('/')).toEqual({ name: '', arguments: '' });
+    expect(parseSlashCommand('/new \n')).toEqual({ name: 'new', arguments: '' });
+    for (const input of ['', 'ordinary /help text', '//help', '  ///help', 'https://example.com'])
+      expect(parseSlashCommand(input)).toBeNull();
+  });
+
+  it('lists commands for a slash and searches names and descriptions', () => {
+    const commands = createSlashCommands(context);
+    expect(filterSlashCommands(commands, '/')).toHaveLength(6);
+    expect(filterSlashCommands(commands, '/st').map((entry) => entry.name)).toEqual([
+      'stop',
+      'status',
+    ]);
+    expect(filterSlashCommands(commands, '/历史').map((entry) => entry.name)).toEqual([
+      'fork',
+      'resume',
+    ]);
+    expect(filterSlashCommands(commands, '/帮助')).toEqual([]);
+    expect(filterSlashCommands(commands, '//help')).toEqual([]);
+  });
+
+  it('ranks exact names then prefixes before description matches, preserving catalog order', () => {
+    const commands = createSlashCommands(context).map((entry) => ({
+      ...entry,
+      description: entry.name === 'help' ? 'new 与 status' : entry.description,
+    }));
+    expect(filterSlashCommands(commands, '/new').map((entry) => entry.name)).toEqual([
+      'new',
+      'help',
+    ]);
+    expect(filterSlashCommands(commands, '/sta').map((entry) => entry.name)).toEqual([
+      'status',
+      'help',
+    ]);
+  });
+
+  it('keeps arguments attached to their exact command and rejects unsupported arguments', () => {
+    const commands = createSlashCommands(context);
+    expect(filterSlashCommands(commands, '/new extra').map((entry) => entry.name)).toEqual(['new']);
+    expect(filterSlashCommands(commands, '/n extra')).toEqual([]);
+    expect(validateSlashCommand('/new extra', commands)).toContain('不接受参数');
+    expect(validateSlashCommand('/resume another-thread', commands)).toContain(
+      '/resume（无需参数）',
+    );
+    expect(validateSlashCommand('/missing', commands)).toContain('未知命令 /missing');
+    expect(validateSlashCommand('/', commands)).toContain('请选择命令');
+    expect(validateSlashCommand('/new   ', commands)).toBeUndefined();
+    expect(validateSlashCommand('//missing', commands)).toBeUndefined();
+  });
+});
+
+describe('slash command availability', () => {
+  it.each([
+    [
+      'offline',
+      (state: SlashCommandContext) => {
+        state.connection = 'disconnected';
+      },
+      '离线',
+    ],
+    [
+      'expired login',
+      (state: SlashCommandContext) => {
+        state.authRequired = true;
+      },
+      '登录已过期',
+    ],
+    [
+      'Codex authentication',
+      (state: SlashCommandContext) => {
+        state.system!.authenticated = false;
+      },
+      '认证',
+    ],
+    [
+      'runtime readiness',
+      (state: SlashCommandContext) => {
+        state.system!.ready = false;
+      },
+      'Codex 尚不可用',
+    ],
+    [
+      'compatibility',
+      (state: SlashCommandContext) => {
+        state.system!.compatibilityConfirmation = 'required';
+      },
+      '兼容性',
+    ],
+    [
+      'project selection',
+      (state: SlashCommandContext) => {
+        state.project = undefined;
+      },
+      '选择一个项目',
+    ],
+    [
+      'project availability',
+      (state: SlashCommandContext) => {
+        state.project!.available = false;
+      },
+      '项目目录不可用',
+    ],
+    [
+      'capability',
+      (state: SlashCommandContext) => {
+        state.system!.capabilities = [];
+      },
+      'thread/start',
+    ],
+    [
+      'busy create',
+      (state: SlashCommandContext) => {
+        state.busy = ['create:project/one'];
+      },
+      '正在新建',
+    ],
+    [
+      'unknown create',
+      (state: SlashCommandContext) => {
+        state.operations = [
+          {
+            clientOperationId: 'pending',
+            kind: 'create',
+            target: 'project/one',
+            status: 'unknown',
+            createdAt: 1,
+          },
+        ];
+      },
+      '尚未确认',
+    ],
+  ])(
+    'blocks new for %s while retaining local help and diagnostics',
+    async (_label, update, message) => {
+      const state = context();
+      update(state);
+      const commands = createSlashCommands(() => state);
+      expect(validateSlashCommand('/new', commands)).toContain(message);
+      expect(await command(state, 'new').run()).toMatchObject({
+        error: true,
+        message: expect.stringContaining(message),
+      });
+      expect(command(state, 'help').unavailableReason).toBeUndefined();
+      expect(command(state, 'status').unavailableReason).toBeUndefined();
+      expect(state.run).not.toHaveBeenCalled();
+    },
+  );
+
+  it('explains missing/loading/empty histories and a missing Fork capability', () => {
+    const state = context();
+    state.thread = undefined;
+    expect(command(state, 'fork').unavailableReason).toContain('加载');
+    state.selectedId = undefined;
+    expect(command(state, 'fork').unavailableReason).toContain('选择一个会话');
+    state.thread = context().thread;
+    state.thread!.turns = [];
+    expect(command(state, 'fork').unavailableReason).toContain('当前会话为空');
+    state.system!.capabilities = ['thread/start'];
+    expect(command(state, 'fork').unavailableReason).toContain('thread/fork');
+  });
+
+  it('allows Fork while the source is running or occupied, but blocks a duplicate Fork', () => {
+    const state = context();
+    activeThread(state);
+    expect(command(state, 'fork').unavailableReason).toBeUndefined();
+    state.thread!.managed = false;
+    state.thread!.resumeError = { code: 'THREAD_IN_USE', message: 'occupied' };
+    state.operations = [
+      {
+        clientOperationId: 'pending',
+        kind: 'send',
+        target: 'thread/one',
+        status: 'unknown',
+        createdAt: 1,
+      },
+    ];
+    expect(command(state, 'fork').unavailableReason).toBeUndefined();
+    state.operations[0]!.kind = 'fork';
+    expect(command(state, 'fork').unavailableReason).toContain('Fork 请求尚未确认');
+    state.operations = [];
+    state.busy = ['fork:thread/one'];
+    expect(command(state, 'fork').unavailableReason).toContain('正在 Fork');
+  });
+
+  it('retries a previous writer conflict but blocks active, uncertain, or already managed resumes', () => {
+    const state = context();
+    state.thread!.resumeError = { code: 'THREAD_IN_USE', message: 'occupied' };
+    expect(command(state, 'resume').unavailableReason).toBeUndefined();
+    state.thread!.status = 'running';
+    state.thread!.turns[0]!.status = 'running';
+    expect(command(state, 'resume').unavailableReason).toBeUndefined();
+    activeThread(state);
+    expect(command(state, 'resume').unavailableReason).toContain('仍在运行');
+    state.thread = context().thread;
+    state.thread!.execution = {
+      operationId: 'old',
+      threadId: 'thread/one',
+      workspaceKey: '/project',
+      codexEpoch: 'old',
+      ended: false,
+    };
+    expect(command(state, 'resume').unavailableReason).toContain('执行占用');
+    state.thread!.execution = undefined;
+    state.thread!.managed = true;
+    expect(command(state, 'resume').unavailableReason).toContain('已恢复');
+    state.operations = [
+      {
+        clientOperationId: 'pending',
+        kind: 'send',
+        target: 'thread/one',
+        status: 'unknown',
+        createdAt: 1,
+      },
+    ];
+    expect(command(state, 'resume').unavailableReason).toContain('尚未确认');
+  });
+
+  it('permits stopping during compatibility confirmation, while respecting ownership and active turns', () => {
+    const state = context();
+    activeThread(state);
+    state.system!.compatibilityConfirmation = 'required';
+    expect(command(state, 'stop').unavailableReason).toBeUndefined();
+    state.thread!.managed = false;
+    state.thread!.resumeError = { code: 'THREAD_IN_USE', message: 'occupied' };
+    expect(command(state, 'stop').unavailableReason).toContain('其他进程占用');
+    state.thread!.managed = true;
+    state.thread!.turns[0]!.status = 'completed';
+    state.thread!.status = 'completed';
+    expect(command(state, 'stop').unavailableReason).toContain('没有可中断');
+    state.thread!.status = 'unknown';
+    expect(command(state, 'stop').unavailableReason).toContain('状态尚未确认');
+  });
+});
+
+describe('slash command execution', () => {
+  it('uses project defaults for new and conversation overrides for Fork, following acknowledged IDs', async () => {
+    const state = context();
+    expect(await command(state, 'new').run()).toMatchObject({
+      draftKey: 'created-thread',
+      message: '已新建会话。',
+    });
+    expect(state.run).toHaveBeenLastCalledWith(
+      'create',
+      'project/one',
+      '/api/projects/project%2Fone/threads',
+      { settings: { model: 'project-default' } },
+    );
+    expect(await command(state, 'fork').run()).toMatchObject({
+      draftKey: 'created-thread',
+      message: '已 Fork 为新会话。',
+    });
+    expect(state.run).toHaveBeenLastCalledWith(
+      'fork',
+      'thread/one',
+      '/api/threads/thread%2Fone/fork',
+      { settings: { model: 'thread-override' } },
+    );
+  });
+
+  it('resumes only the selected history, preserving its saved settings and refreshing its state', async () => {
+    const state = context();
+    expect(await command(state, 'resume').run()).toEqual({ message: '已恢复当前选中的会话。' });
+    expect(state.onResumeAttempt).toHaveBeenCalledOnce();
+    expect(state.run).toHaveBeenCalledWith(
+      'resume',
+      'thread/one',
+      '/api/threads/thread%2Fone/resume',
+    );
+    expect(state.refreshThread).toHaveBeenCalledOnce();
+  });
+
+  it('interrupts the latest active turn and reports acceptance without claiming the task has stopped', async () => {
+    const state = context();
+    activeThread(state);
+    state.thread!.turns.push({
+      id: 'latest',
+      threadId: 'thread/one',
+      status: 'waitingApproval',
+      items: [],
+    });
+    expect(await command(state, 'stop').run()).toEqual({
+      message: '已提交中断请求，请等待任务状态更新。',
+    });
+    expect(state.run).toHaveBeenCalledWith(
+      'interrupt',
+      'thread/one',
+      '/api/threads/thread%2Fone/interrupt',
+      { expectedTurnId: 'latest' },
+    );
+  });
+
+  it.each(['accepted', 'dispatching', 'unknown', 'failed'] as const)(
+    'does not report a %s receipt as success',
+    async (status) => {
+      const state = context();
+      state.run = vi.fn().mockResolvedValue(receipt(status));
+      const result = await command(state, 'new').run();
+      expect(result.error).toBe(true);
+      expect(result.draftKey).toBeUndefined();
+    },
+  );
+
+  it('preserves failures and missing receipts instead of claiming a new thread exists', async () => {
+    const state = context();
+    state.run = vi.fn().mockResolvedValue(undefined);
+    expect(await command(state, 'new').run()).toMatchObject({
+      error: true,
+      message: expect.stringContaining('成功回执'),
+    });
+    state.run = vi.fn().mockResolvedValue({ ...receipt(), result: {} });
+    expect(await command(state, 'new').run()).toMatchObject({
+      error: true,
+      message: expect.stringContaining('新会话标识'),
+    });
+    state.run = vi
+      .fn()
+      .mockResolvedValue({
+        ...receipt('failed'),
+        error: { code: 'THREAD_IN_USE', message: '此会话正被其他进程使用' },
+      });
+    expect(await command(state, 'resume').run()).toEqual({
+      error: true,
+      message: '此会话正被其他进程使用',
+    });
+    state.run = vi.fn().mockRejectedValue(new Error('Network unavailable'));
+    expect(await command(state, 'new').run()).toEqual({
+      error: true,
+      message: 'Network unavailable',
+    });
+  });
+
+  it('revalidates fresh connection and selection state before dispatching a previously offered command', async () => {
+    let state = context();
+    const commands = createSlashCommands(() => state);
+    state = { ...state, connection: 'disconnected' };
+    expect(await commands.find((entry) => entry.name === 'new')!.run()).toMatchObject({
+      error: true,
+      message: expect.stringContaining('离线'),
+    });
+    state = { ...state, connection: 'connected', selectedId: 'different-thread' };
+    expect(await commands.find((entry) => entry.name === 'fork')!.run()).toMatchObject({
+      error: true,
+      message: expect.stringContaining('已切换'),
+    });
+    expect(state.run).not.toHaveBeenCalled();
+  });
+
+  it('keeps help and status local, describing diagnostics accurately without claiming a refresh', async () => {
+    const state = context();
+    state.connection = 'disconnected';
+    const help = await command(state, 'help').run();
+    expect(help.message).toContain('/resume');
+    expect(help.message).toContain('不是 CLI 会话选择器');
+    expect(help.message).toContain('无需参数');
+    expect(await command(state, 'status').run()).toEqual({
+      message: '已打开状态诊断；可在面板中刷新或核对提交。',
+    });
+    expect(state.openStatus).toHaveBeenCalledOnce();
+    expect(state.run).not.toHaveBeenCalled();
+    expect(state.refreshThread).not.toHaveBeenCalled();
+  });
+});

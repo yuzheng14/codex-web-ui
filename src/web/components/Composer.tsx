@@ -5,8 +5,17 @@ import { isActive } from './Status';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { SettingsPanel } from './SettingsPanel';
+import { SlashCommandMenu } from './SlashCommandMenu';
+import {
+  filterSlashCommands,
+  parseSlashCommand,
+  validateSlashCommand,
+  type SlashCommand,
+  type SlashCommandResult,
+} from '../lib/slash-commands';
 
 interface Props {
+  commands: SlashCommand[];
   thread?: ThreadView;
   threadLoading?: boolean;
   draftKey: string;
@@ -38,10 +47,17 @@ export function Composer(props: Props) {
   const composingRef = useRef(false);
   const compositionEndedAtRef = useRef(-Infinity);
   const sendingRef = useRef(new Set<string>());
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const menuId = useId();
+  const [focused, setFocused] = useState(false);
+  const [menu, setMenu] = useState({ key: '', text: '', selectedIndex: 0, dismissed: false });
+  const [feedback, setFeedback] = useState<Record<string, SlashCommandResult>>({});
+  const [commandPending, setCommandPending] = useState<string[]>([]);
   const key = props.thread?.id ?? props.draftKey;
   useEffect(() => {
     composingRef.current = false;
     compositionEndedAtRef.current = -Infinity;
+    setMenu({ key: '', text: '', selectedIndex: 0, dismissed: false });
   }, [key]);
   useEffect(() => {
     // A hover hint must also dismiss when keyboard focus is still in the textarea.
@@ -53,6 +69,65 @@ export function Composer(props: Props) {
   }, []);
   const draft = drafts[key] ?? emptyDraft;
   const { text, images } = draft;
+  const slash = parseSlashCommand(text);
+  const matches = filterSlashCommands(props.commands, text);
+  const currentMenu = menu.key === key && menu.text === text ? menu : undefined;
+  const selectedIndex = Math.min(currentMenu?.selectedIndex ?? 0, Math.max(0, matches.length - 1));
+  const menuOpen = Boolean(slash && focused && !currentMenu?.dismissed);
+  const selectedCommand = menuOpen
+    ? matches[selectedIndex]
+    : props.commands.find((command) => command.name === slash?.name);
+  const executingCommand = commandPending.includes(key);
+  function selectCommand(index: number) {
+    setMenu({ key, text, selectedIndex: index, dismissed: false });
+  }
+  function dismissMenu() {
+    setMenu({ key, text, selectedIndex, dismissed: true });
+  }
+  async function executeCommand(command?: SlashCommand) {
+    if (sendingRef.current.has(key) || composingRef.current) return;
+    const current = draftsRef.current[key] ?? emptyDraft;
+    const parsed = parseSlashCommand(current.text);
+    if (!parsed) return;
+    // Selection completes the name only. Arguments must still be validated and never discarded.
+    const input = command
+      ? `/${command.name}${parsed.arguments ? ` ${parsed.arguments}` : ''}`
+      : current.text;
+    const problem = current.images.length
+      ? 'Slash 命令不能附带图片。请先移除图片，或改为普通消息。'
+      : validateSlashCommand(input, props.commands);
+    if (problem) {
+      setFeedback((previous) => ({ ...previous, [key]: { message: problem, error: true } }));
+      return;
+    }
+    const chosen = props.commands.find((entry) => entry.name === parseSlashCommand(input)?.name);
+    if (!chosen) return;
+    sendingRef.current.add(key);
+    setCommandPending((previous) => [...previous, key]);
+    setFeedback((previous) => ({ ...previous, [key]: { message: `正在执行 /${chosen.name}…` } }));
+    dismissMenu();
+    try {
+      const result = await chosen.run();
+      setFeedback((previous) => ({ ...previous, [key]: result, [result.draftKey ?? key]: result }));
+      if (!result.error) {
+        updateDraft(key, (previous) => ({
+          ...previous,
+          text: previous.text === current.text ? '' : previous.text,
+        }));
+      }
+    } catch (error) {
+      setFeedback((previous) => ({
+        ...previous,
+        [key]: {
+          error: true,
+          message: error instanceof Error ? error.message : '命令执行失败，请重试。',
+        },
+      }));
+    } finally {
+      sendingRef.current.delete(key);
+      setCommandPending((previous) => previous.filter((entry) => entry !== key));
+    }
+  }
   const readingImages = images.some((image) => !image.dataUrl);
   function updateDraft(draftKey: string, update: (draft: MessageDraft) => MessageDraft) {
     const next = {
@@ -124,6 +199,11 @@ export function Composer(props: Props) {
     !props.submitting,
   );
   async function send() {
+    // Every submission path, including the button and a dismissed menu, uses this dispatcher.
+    if (slash) {
+      await executeCommand(menuOpen ? matches[selectedIndex] : undefined);
+      return;
+    }
     if (!canSend || sendingRef.current.has(key)) return;
     const current = draftsRef.current[key] ?? emptyDraft;
     if (!current.text.trim() && !current.images.length) return;
@@ -134,7 +214,7 @@ export function Composer(props: Props) {
     try {
       if (
         await props.onSend(
-          sent,
+          sent.replace(/^(\s*)\/\//, '$1/'),
           active,
           sentImages.length ? sentImages.map((image) => image.dataUrl!) : undefined,
         )
@@ -184,6 +264,23 @@ export function Composer(props: Props) {
         </div>
       )}
       <div className="composer-box">
+        {feedback[key] && (
+          <p className="slash-feedback" role={feedback[key].error ? 'alert' : 'status'}>
+            {feedback[key].message}
+          </p>
+        )}
+        {menuOpen && (
+          <SlashCommandMenu
+            id={menuId}
+            commands={matches}
+            selectedIndex={selectedIndex}
+            onSelect={selectCommand}
+            onExecute={(command) => {
+              textareaRef.current?.focus();
+              void executeCommand(command);
+            }}
+          />
+        )}
         {images.length > 0 && (
           <ul className="composer-images" aria-label="待发送的图片">
             {images.map((image, index) => (
@@ -220,20 +317,36 @@ export function Composer(props: Props) {
           </p>
         )}
         <textarea
+          ref={textareaRef}
           aria-label={active ? '追加要求' : '任务内容'}
+          aria-haspopup="listbox"
+          aria-controls={menuOpen ? menuId : undefined}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            menuOpen && matches[selectedIndex]
+              ? `${menuId}-${matches[selectedIndex].name}`
+              : undefined
+          }
           value={text}
           placeholder={
             !props.thread
-              ? '新建或选择会话后，描述你的任务…'
+              ? '输入 / 查看命令，或新建会话开始任务…'
               : active
                 ? '补充要求或调整方向…'
-                : '描述你想完成的任务，也可以粘贴图片…'
+                : '描述任务、粘贴图片，或输入 / 查看命令…'
           }
           maxLength={100000}
-          onChange={(event) =>
-            updateDraft(key, (previous) => ({ ...previous, text: event.target.value }))
-          }
+          onChange={(event) => {
+            updateDraft(key, (previous) => ({ ...previous, text: event.target.value }));
+            setMenu({ key, text: event.target.value, selectedIndex: 0, dismissed: false });
+            setFeedback((previous) => {
+              const next = { ...previous };
+              delete next[key];
+              return next;
+            });
+          }}
           onPaste={paste}
+          onFocus={() => setFocused(true)}
           onCompositionStart={() => {
             composingRef.current = true;
           }}
@@ -242,22 +355,43 @@ export function Composer(props: Props) {
             compositionEndedAtRef.current = performance.now();
           }}
           onBlur={() => {
+            setFocused(false);
             composingRef.current = false;
             compositionEndedAtRef.current = -Infinity;
           }}
           onKeyDown={(event) => {
-            // A command menu may consume Enter before the composer handles it.
-            if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey) return;
+            if (event.defaultPrevented) return;
             if (
               event.nativeEvent.isComposing ||
               event.nativeEvent.keyCode === 229 ||
               composingRef.current
             )
               return;
-            event.preventDefault();
             // Some IMEs end composition before the confirming Enter keydown.
             // Keyup releases this guard; the time limit also allows mouse commits.
-            if (event.repeat || performance.now() - compositionEndedAtRef.current < 100) return;
+            if (performance.now() - compositionEndedAtRef.current < 100) {
+              if (event.key === 'Enter' && !event.shiftKey) event.preventDefault();
+              return;
+            }
+            if (menuOpen && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey) {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                if (matches.length)
+                  selectCommand(
+                    (selectedIndex + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) %
+                      matches.length,
+                  );
+                return;
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                dismissMenu();
+                return;
+              }
+            }
+            if (event.key !== 'Enter' || event.shiftKey) return;
+            event.preventDefault();
+            if (event.repeat) return;
             void send();
           }}
           onKeyUp={(event) => {
@@ -306,20 +440,43 @@ export function Composer(props: Props) {
           >
             <Button
               size="sm"
-              aria-label={props.submitting ? '正在提交…' : active ? '追加要求' : '发送任务'}
+              aria-label={
+                slash
+                  ? executingCommand
+                    ? '正在执行命令…'
+                    : '执行命令'
+                  : props.submitting
+                    ? '正在提交…'
+                    : active
+                      ? '追加要求'
+                      : '发送任务'
+              }
               aria-describedby={shortcutId}
+              onPointerDown={(event) => {
+                if (slash) event.preventDefault();
+              }}
               onClick={() => {
                 void send();
               }}
-              disabled={!canSend}
+              disabled={
+                slash ? executingCommand || Boolean(selectedCommand?.unavailableReason) : !canSend
+              }
             >
               <Icon name="send" size={14} />
               <span className="composer-action-label">
-                {props.submitting ? '正在提交…' : active ? '追加要求' : '发送任务'}
+                {slash
+                  ? executingCommand
+                    ? '正在执行…'
+                    : '执行命令'
+                  : props.submitting
+                    ? '正在提交…'
+                    : active
+                      ? '追加要求'
+                      : '发送任务'}
               </span>
             </Button>
             <span id={shortcutId} role="tooltip" className="keyboard-hint">
-              Enter 发送 / Shift + Enter 换行
+              {slash ? 'Enter 执行命令 / Esc 关闭菜单' : 'Enter 发送 / Shift + Enter 换行'}
             </span>
           </span>
         </SettingsPanel>
