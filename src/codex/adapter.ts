@@ -2,6 +2,7 @@ import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import { ThreadTitles } from './thread-titles.js';
+import { TurnTokenUsage } from './turn-token-usage.js';
 import { AppError } from '../shared/errors.js';
 import { threadNameError } from '../shared/thread-name.js';
 import { mapAutoReview } from './auto-review.js';
@@ -171,6 +172,7 @@ export class CodexAdapter implements CodexClient {
   private restartTimer?: NodeJS.Timeout;
   private restartAttempt = 0;
   private titles?: ThreadTitles;
+  private readonly tokenUsage = new TurnTokenUsage();
   // Ordering only. Persisted archive state belongs exclusively to Codex.
   private archiveSequence = 0;
   private readonly archives = new Map<string, { archived: boolean; sequence: number }>();
@@ -291,6 +293,7 @@ export class CodexAdapter implements CodexClient {
         if (this.rpc !== rpc) return;
         const wasReady = this.ready;
         this.state.ready = false;
+        this.tokenUsage.clear();
         this.state.connection = 'unavailable';
         this.state.error = error.message;
         this.expireActions();
@@ -676,6 +679,7 @@ export class CodexAdapter implements CodexClient {
     this.validateSettings(settings);
     const titles = this.titles;
     const result = await this.call('thread/start', { cwd, ...threadSettings(settings) });
+    this.tokenUsage.created(result.thread.id);
     titles?.register(result);
     return { ...mapThread(result.thread), runtimeSettings: this.responseRuntimeSettings(result) };
   }
@@ -876,20 +880,40 @@ export class CodexAdapter implements CodexClient {
         });
         break;
       case 'turn/started':
-      case 'turn/completed':
+      case 'turn/completed': {
+        const { threadId, turn } = event.params;
+        if (event.method === 'turn/started') this.tokenUsage.started(threadId, turn.id);
+        const outputTokens =
+          event.method === 'turn/completed'
+            ? this.tokenUsage.completed(threadId, turn.id)
+            : undefined;
         this.emit({
           type: 'turn',
-          threadId: event.params.threadId,
-          turn: mapTurn(event.params.threadId, event.params.turn),
+          threadId,
+          turn: {
+            ...mapTurn(threadId, turn),
+            ...(outputTokens !== undefined ? { outputTokens } : {}),
+          },
         });
         if (event.method === 'turn/completed')
           this.expireActions(event.params.threadId, event.params.turn.id);
         break;
+      }
+      case 'thread/tokenUsage/updated':
+        this.tokenUsage.updated(
+          event.params.threadId,
+          event.params.turnId,
+          event.params.tokenUsage?.total?.outputTokens,
+        );
+        break;
       case 'thread/compacted':
+        this.tokenUsage.compacted(event.params.threadId, event.params.turnId);
         this.emit({ type: 'compactionCompleted', ...event.params });
         break;
       case 'item/started':
       case 'item/completed':
+        if (event.params.item.type === 'contextCompaction')
+          this.tokenUsage.compacted(event.params.threadId, event.params.turnId);
         if (['agentMessage', 'plan', 'reasoning'].includes(event.params.item.type))
           this.emit({
             type: 'turnProgress',

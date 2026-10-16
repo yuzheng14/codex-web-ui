@@ -83,6 +83,8 @@ export interface TurnView {
   completedAt?: number;
   /** Upstream duration for the entire turn, in milliseconds; never measured by the browser. */
   durationMs?: number;
+  /** Output tokens across this turn's model responses; absent if collection was incomplete. */
+  outputTokens?: number;
   items: ItemView[];
   diff?: string;
   error?: string;

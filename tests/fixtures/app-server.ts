@@ -259,6 +259,7 @@ function command(id: string, cwd: string): Extract<ThreadItem, { type: 'commandE
     durationMs: null,
   };
 }
+const outputTotals = new Map<string, number>();
 function complete(
   thread: Thread,
   turn: Turn,
@@ -289,6 +290,43 @@ function complete(
     if (timingScenario === 'duration-only' || timingScenario === 'missing') turn.completedAt = null;
     if (timingScenario === 'time-only' || timingScenario === 'missing') turn.durationMs = null;
     if (timingScenario === 'missing') turn.startedAt = null;
+  }
+  const tpsScenario = turn.items
+    .flatMap((item) =>
+      item.type === 'userMessage'
+        ? item.content.flatMap((input) => (input.type === 'text' ? input.text : []))
+        : [],
+    )
+    .join(' ')
+    .match(/\[turn-tps:(multi|next|missing)\]/)?.[1];
+  if (tpsScenario) {
+    turn.durationMs = 20_000;
+    if (tpsScenario !== 'missing') {
+      for (const delta of tpsScenario === 'multi' ? [400, 0, 800] : [300]) {
+        const total = (outputTotals.get(thread.id) ?? 0) + delta;
+        outputTotals.set(thread.id, total);
+        const usage = {
+          totalTokens: total + 5000,
+          inputTokens: 5000,
+          cachedInputTokens: 0,
+          cacheWriteInputTokens: 0,
+          outputTokens: total,
+          reasoningOutputTokens: 100,
+        };
+        notify({
+          method: 'thread/tokenUsage/updated',
+          params: {
+            threadId: thread.id,
+            turnId: turn.id,
+            tokenUsage: {
+              total: usage,
+              last: { ...usage, outputTokens: delta },
+              modelContextWindow: 200_000,
+            },
+          },
+        });
+      }
+    }
   }
   thread.status = { type: 'idle' };
   // Explicit test prompt: retain real terminal history while dropping its notification.

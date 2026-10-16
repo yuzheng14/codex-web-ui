@@ -39,6 +39,7 @@ import {
   type OperationRow,
 } from './db/operations.js';
 import { EventHub } from './events.js';
+import { TurnUsageStore } from './db/turn-usage.js';
 import { Projection, isActive, isTerminal } from './projection.js';
 import { ProjectRegistry } from './projects.js';
 import { renderThreadExport } from './thread-export.js';
@@ -58,6 +59,7 @@ export class GatewayService {
   readonly events: EventHub;
   readonly projection: Projection;
   private readonly store: OperationStore;
+  private readonly turnUsage: TurnUsageStore;
   private readonly projects: ProjectRegistry;
   private readonly codex: CodexClient;
   private readonly removeListener: () => void;
@@ -83,6 +85,7 @@ export class GatewayService {
 
   constructor(private readonly options: GatewayOptions) {
     this.store = options.store;
+    this.turnUsage = new TurnUsageStore(this.store.database);
     this.projects = options.projects;
     this.codex = options.codex;
     this.events = new EventHub(options.limits?.eventBytes);
@@ -958,6 +961,7 @@ export class GatewayService {
         : (link?.managedEpoch ?? null);
     const result: ThreadView = {
       ...thread,
+      turns: this.turnUsage.restore(thread.id, thread.turns),
       projectId: ownership.project.id,
       cwd: ownership.cwd,
       managed: managedEpoch === this.codex.epoch,
@@ -1388,6 +1392,7 @@ export class GatewayService {
       if (this.store.activeForThread(thread.id)?.state !== 'unknown') thread.status = event.status;
       this.projection.touch(thread.id);
     } else if (event.type === 'turn') {
+      if (isTerminal(event.turn.status)) this.turnUsage.save(thread.id, event.turn);
       this.projection.turn(thread.id, event.turn);
       // Preview changes do not have a dedicated notification. Read the upstream
       // title at turn boundaries, including the first prompt of a new thread.

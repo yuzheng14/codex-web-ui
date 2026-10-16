@@ -1034,6 +1034,10 @@ svg {
 .turn-completion-status {
   white-space: nowrap;
 }
+.turn-tps {
+  white-space: nowrap;
+  cursor: help;
+}
 .turn-completion-status svg {
   margin-right: 5px;
 }

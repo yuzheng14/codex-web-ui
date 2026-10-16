@@ -1,5 +1,13 @@
 import { sql } from 'drizzle-orm';
-import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  check,
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 import type { ApiError } from '../../shared/types.js';
 
 export const operations = sqliteTable(
@@ -71,6 +79,17 @@ export const preferences = sqliteTable('preferences', {
   key: text('key').primaryKey(),
   value: text('value', { mode: 'json' }).$type<unknown>().notNull(),
 });
+
+/** Locally observed turn totals; upstream turn history does not include token usage. */
+export const turnUsage = sqliteTable(
+  'turn_usage',
+  {
+    threadId: text('thread_id').notNull(),
+    turnId: text('turn_id').notNull(),
+    outputTokens: integer('output_tokens').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.threadId, table.turnId] })],
+);
 
 /** Removing a registration retains its identity and all existing thread links. */
 export const projectRegistrations = sqliteTable('project_registrations', {
