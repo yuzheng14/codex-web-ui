@@ -9,6 +9,7 @@ const protectedOperations = new Set([
   'steer',
   'resolve',
   'archive',
+  'compact',
 ]);
 
 /** A dismissal never applies to a different runtime, executable version or verified baseline. */

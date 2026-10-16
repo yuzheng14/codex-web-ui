@@ -68,5 +68,6 @@ export interface CodexClient {
     images?: string[],
   ): Promise<{ turnId: string }>;
   interruptTurn(id: string, turnId: string): Promise<void>;
+  compactThread(id: string): Promise<void>;
   respond(actionId: string, resolution: ActionResolution): Promise<void>;
 }

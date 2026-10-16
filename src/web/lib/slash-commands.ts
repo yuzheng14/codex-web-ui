@@ -5,7 +5,7 @@ import { blocksTarget, type SavedOperation } from './operations';
 import type { ConnectionState } from './realtime';
 import { readableError } from './utils';
 
-export type SlashCommandName = 'help' | 'new' | 'fork' | 'resume' | 'stop' | 'status';
+export type SlashCommandName = 'help' | 'new' | 'fork' | 'resume' | 'stop' | 'status' | 'compact';
 
 export interface SlashCommandResult {
   message: string;
@@ -85,6 +85,7 @@ const definitions: { name: SlashCommandName; description: string }[] = [
   { name: 'resume', description: '恢复当前选中的历史会话（不是 CLI 会话选择器）' },
   { name: 'stop', description: '请求中断当前任务（网页快捷命令）' },
   { name: 'status', description: '打开当前连接、运行状态与提交诊断' },
+  { name: 'compact', description: '压缩当前会话上下文，保留会话继续工作' },
 ];
 
 function unavailableReason(name: SlashCommandName, context: SlashCommandContext) {
@@ -101,6 +102,7 @@ function unavailableReason(name: SlashCommandName, context: SlashCommandContext)
     fork: 'thread/fork',
     resume: 'thread/resume',
     stop: 'turn/interrupt',
+    compact: 'thread/compact/start',
   }[name];
   if (!context.system.capabilities.includes(capability))
     return `当前 Codex 未提供 ${capability} 能力。`;
@@ -120,6 +122,21 @@ function unavailableReason(name: SlashCommandName, context: SlashCommandContext)
   }
   const thread = context.thread;
   if (!thread) return context.selectedId ? '会话正在加载，请稍后重试。' : '请先选择一个会话。';
+  if (name === 'compact') {
+    if (thread.archived) return '请先取消归档后再压缩上下文。';
+    if (!thread.managed) return '请先恢复当前会话，再压缩上下文。';
+    if (!thread.turns.length) return '当前会话为空，无需压缩上下文。';
+    if (busy('compact', thread.id)) return '压缩请求正在提交，请等待回执。';
+    if (isActive(thread.status) || thread.turns.some((turn) => isActive(turn.status)))
+      return '请等待当前任务结束后再压缩上下文。';
+    if (
+      thread.status === 'unknown' ||
+      (thread.execution && !thread.execution.ended) ||
+      unsettled(thread.id)
+    )
+      return '当前会话仍有待核对的执行，请先用 /status 核对提交。';
+    return undefined;
+  }
   if (name === 'fork') {
     if (!thread.turns.length) return '当前会话为空，发送首条消息后才能 Fork 已保存的历史。';
     if (busy('fork', thread.id)) return '正在 Fork 会话，请等待回执。';
@@ -163,6 +180,8 @@ function operationResult(name: SlashCommandName, operation?: Operation): SlashCo
     return { error: true, message: operation.error?.message ?? '操作失败，请查看状态诊断。' };
   if (operation.status !== 'acknowledged')
     return { error: true, message: '提交结果尚未确认，请先用 /status 核对提交，不要重复提交。' };
+  if (name === 'compact')
+    return { message: '已提交上下文压缩请求；进度和结果以会话中的任务状态为准。' };
   if (name === 'new' || name === 'fork') {
     const result = operation.result as
       { threadId?: unknown; id?: unknown; thread?: { id?: unknown } } | undefined;
@@ -223,6 +242,8 @@ export function createSlashCommands(getContext: () => SlashCommandContext): Slas
           context.onResumeAttempt();
           operation = await context.run('resume', thread!.id, `${path}/resume`);
           await context.refreshThread();
+        } else if (name === 'compact') {
+          operation = await context.run('compact', thread!.id, `${path}/compact`);
         } else {
           const turn = thread!.turns.findLast((entry) => isActive(entry.status))!;
           operation = await context.run('interrupt', thread!.id, `${path}/interrupt`, {

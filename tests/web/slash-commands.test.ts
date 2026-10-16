@@ -54,7 +54,13 @@ function context(): SlashCommandContext {
       authenticated: true,
       authMode: 'local',
       models: [],
-      capabilities: ['thread/start', 'thread/fork', 'thread/resume', 'turn/interrupt'],
+      capabilities: [
+        'thread/start',
+        'thread/fork',
+        'thread/resume',
+        'turn/interrupt',
+        'thread/compact/start',
+      ],
       demo: true,
     },
     connection: 'connected',
@@ -94,7 +100,7 @@ describe('slash command parsing and validation', () => {
 
   it('lists commands for a slash and searches names and descriptions', () => {
     const commands = createSlashCommands(context);
-    expect(filterSlashCommands(commands, '/')).toHaveLength(6);
+    expect(filterSlashCommands(commands, '/')).toHaveLength(7);
     expect(filterSlashCommands(commands, '/st').map((entry) => entry.name)).toEqual([
       'stop',
       'status',
@@ -400,12 +406,10 @@ describe('slash command execution', () => {
       error: true,
       message: expect.stringContaining('新会话标识'),
     });
-    state.run = vi
-      .fn()
-      .mockResolvedValue({
-        ...receipt('failed'),
-        error: { code: 'THREAD_IN_USE', message: '此会话正被其他进程使用' },
-      });
+    state.run = vi.fn().mockResolvedValue({
+      ...receipt('failed'),
+      error: { code: 'THREAD_IN_USE', message: '此会话正被其他进程使用' },
+    });
     expect(await command(state, 'resume').run()).toEqual({
       error: true,
       message: '此会话正被其他进程使用',
@@ -446,5 +450,35 @@ describe('slash command execution', () => {
     expect(state.openStatus).toHaveBeenCalledOnce();
     expect(state.run).not.toHaveBeenCalled();
     expect(state.refreshThread).not.toHaveBeenCalled();
+  });
+});
+
+describe('manual context compaction', () => {
+  it('submits a separate operation with no prompt/settings and explains acknowledgement', async () => {
+    const state = context();
+    state.thread!.managed = true;
+    expect(await command(state, 'compact').run()).toEqual({
+      message: '已提交上下文压缩请求；进度和结果以会话中的任务状态为准。',
+    });
+    expect(state.run).toHaveBeenCalledWith(
+      'compact',
+      'thread/one',
+      '/api/threads/thread%2Fone/compact',
+    );
+  });
+  it('blocks unavailable, archived, empty, active and uncertain conversations', () => {
+    const state = context();
+    expect(command(state, 'compact').unavailableReason).toContain('恢复');
+    state.thread!.managed = true;
+    state.thread!.archived = true;
+    expect(command(state, 'compact').unavailableReason).toContain('归档');
+    state.thread!.archived = false;
+    state.thread!.turns = [];
+    expect(command(state, 'compact').unavailableReason).toContain('为空');
+    state.thread!.turns = context().thread!.turns;
+    state.thread!.status = 'running';
+    expect(command(state, 'compact').unavailableReason).toContain('等待当前任务');
+    state.thread!.status = 'unknown';
+    expect(command(state, 'compact').unavailableReason).toContain('核对');
   });
 });

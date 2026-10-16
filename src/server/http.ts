@@ -166,6 +166,13 @@ export function createApp({
     );
     return c.json(op, status(op));
   });
+  app.post('/api/threads/:threadId/compact', async (c) => {
+    const op = await service.compactThread(
+      id(c.req.param('threadId')),
+      await parse(c, schemas.operationSchema),
+    );
+    return c.json(op, status(op));
+  });
   app.post('/api/threads/:threadId/interrupt', async (c) => {
     const op = await service.interrupt(
       id(c.req.param('threadId')),

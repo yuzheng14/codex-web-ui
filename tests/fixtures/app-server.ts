@@ -25,6 +25,8 @@ export interface SimulatorOptions {
   fragmentBytes?: number;
   ackDelayMs?: number;
   turnDelayMs?: number;
+  compactStartDelayMs?: number;
+  compactFailure?: boolean;
   outputBytes?: number;
   crashAfterDispatch?: boolean;
   unsupportedMethod?: string;
@@ -1269,6 +1271,64 @@ function receive(request: ClientRequest): void {
         nextCursor: offset + limit < items.length ? String(offset + limit) : null,
         backwardsCursor: null,
       });
+      break;
+    }
+    case 'thread/compact/start': {
+      const thread = threads.get(request.params.threadId);
+      if (!thread || thread.status.type === 'active') {
+        error(request.id, thread ? 'Thread busy' : 'Thread not found');
+        break;
+      }
+      const turn: Turn = {
+        id: randomUUID(),
+        rootTurnId: null,
+        itemsView: 'full',
+        items: [],
+        status: 'inProgress',
+        error: null,
+        startedAt: Date.now() / 1000,
+        completedAt: null,
+        durationMs: null,
+      };
+      setTimeout(() => reply(request.id, {}), options.ackDelayMs ?? 0);
+      setTimeout(() => {
+        thread.turns.push(turn);
+        thread.status = { type: 'active', activeFlags: [] };
+        notify({ method: 'turn/started', params: { threadId: thread.id, turn } });
+        const item: ThreadItem = { type: 'contextCompaction', id: randomUUID() };
+        turn.items.push(item);
+        notify({
+          method: 'item/started',
+          params: {
+            threadId: thread.id,
+            turnId: turn.id,
+            item,
+            startedAtMs: Date.now(),
+          },
+        });
+        finishes.set(
+          turn.id,
+          setTimeout(() => {
+            if (options.compactFailure)
+              turn.error = {
+                message: 'Compaction failed',
+                codexErrorInfo: null,
+                additionalDetails: null,
+                misalignment: null,
+              };
+            notify({
+              method: 'item/completed',
+              params: {
+                threadId: thread.id,
+                turnId: turn.id,
+                item,
+                completedAtMs: Date.now(),
+              },
+            });
+            complete(thread, turn, options.compactFailure ? 'failed' : 'completed');
+          }, options.turnDelayMs ?? 800),
+        );
+      }, options.compactStartDelayMs ?? 0);
       break;
     }
     case 'turn/start': {

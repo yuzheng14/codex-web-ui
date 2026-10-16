@@ -41,6 +41,7 @@ const activityLabels: Record<string, string> = {
   mcpToolCall: '调用工具',
   webSearch: '搜索网页',
   plan: '执行计划',
+  contextCompaction: '压缩上下文',
 };
 const activityStatusLabels: Record<string, string> = {
   completed: '已完成',
@@ -132,6 +133,26 @@ function Diff({ text }: { text: string }) {
       </code>
     </pre>
   );
+}
+
+function itemsForDisplay(turn: TurnView): ItemView[] {
+  return turn.items.map((item) => {
+    if (item.type !== 'contextCompaction') return item;
+    // Normalize before grouping so the collapsed summary and expanded card agree,
+    // including a turn interrupted before item/completed arrives.
+    const unfinished = !item.status || item.status === 'inProgress' || item.status === 'running';
+    const status = unfinished && !isActive(turn.status) ? turn.status : item.status;
+    return {
+      ...item,
+      status,
+      text:
+        status === 'completed'
+          ? '上下文压缩已结束。'
+          : (status === 'inProgress' || status === 'running') && isActive(turn.status)
+            ? '正在压缩上下文，请等待当前任务结束。'
+            : '本轮包含上下文压缩，请查看本轮任务状态及错误信息。',
+    };
+  });
 }
 
 function Item({ item }: { item: ItemView }) {
@@ -327,7 +348,7 @@ export function Conversation({
                 {turn.id !== latestTurn?.id && turn.reconnect?.status === 'failed' && (
                   <CodexReconnectNotice turn={turn} offline={offline} />
                 )}
-                {groupConversationItems(turn.items).map((group) =>
+                {groupConversationItems(itemsForDisplay(turn)).map((group) =>
                   group.kind === 'message' ? (
                     <Item key={group.key} item={group.item} />
                   ) : (
