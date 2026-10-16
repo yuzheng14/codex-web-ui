@@ -35,7 +35,11 @@ test('archives the selected conversation, reloads its history, restores the same
   await expect(row(page, id)).toContainText('Codex 配置继承与运行设置');
   await page.getByRole('textbox', { name: '任务内容' }).fill('取消归档后保留的草稿');
   await row(page, id).locator('summary').click();
-  await page.screenshot({ path: test.info().outputPath('archive-menu.png'), fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('archive-menu.png'),
+    fullPage: true,
+    animations: 'disabled',
+  });
   await row(page, id).getByRole('button', { name: '归档会话', exact: true }).click();
   await expect(page.locator('.archive-notice')).toContainText('此会话已归档');
   await expect(page.getByRole('button', { name: '已归档会话', exact: true })).toHaveAttribute(
@@ -45,7 +49,11 @@ test('archives the selected conversation, reloads its history, restores the same
   await expect(row(page, id).locator('.thread-link')).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('button', { name: '发送任务', exact: true })).toBeDisabled();
   expect((await (await request.get('/api/projects/fixture/threads')).json()).data).toEqual([]);
-  await page.screenshot({ path: test.info().outputPath('archived.png'), fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('archived.png'),
+    fullPage: true,
+    animations: 'disabled',
+  });
   await page.locator('.archive-notice').getByRole('button', { name: '取消归档' }).click();
   await expect(page.getByRole('textbox', { name: '任务内容' })).toHaveValue('取消归档后保留的草稿');
   await archive(page, id);
@@ -71,7 +79,11 @@ test('archives the selected conversation, reloads its history, restores the same
   expect(thread.archived).toBe(false);
   expect(thread.turns).toHaveLength(2);
   expect(await selectedId(page)).toBe(id);
-  await page.screenshot({ path: test.info().outputPath('restored.png'), fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('restored.png'),
+    fullPage: true,
+    animations: 'disabled',
+  });
 });
 
 test('keeps running approvals actionable and synchronizes archive changes across tabs', async ({
@@ -169,6 +181,10 @@ test('archived unmanaged history is viewable on mobile without automatically res
   await expect(page.locator('.archive-notice')).toBeVisible();
   await expect(page.locator('.conversation-content')).toContainText('已保存的会话历史');
   await expect(page.getByText('正在恢复会话…', { exact: true })).toHaveCount(0);
-  await page.screenshot({ path: test.info().outputPath('archived-mobile.png'), fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('archived-mobile.png'),
+    fullPage: true,
+    animations: 'disabled',
+  });
   expect(resumes).toBe(0);
 });
