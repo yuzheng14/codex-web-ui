@@ -42,6 +42,7 @@ export function useWorkspace() {
   const [projectId, setActiveProjectId] = useState(preferredProject);
   const projectsRef = useRef<Project[]>([]);
   const projectStore = useRef(new ProjectThreadsStore());
+  const [archiveView, setArchiveView] = useState(false);
   const [projectThreads, setProjectThreads] = useState(projectStore.current.snapshot);
   const [thread, setThread] = useState<ThreadView>();
   const [selectedId, setSelectedId] = useState<string>();
@@ -105,7 +106,7 @@ export function useWorkspace() {
       const read = projectStore.current.beginRead(id, Boolean(cursor));
       setProjectThreads(projectStore.current.snapshot);
       try {
-        const page = await api.threads(id, cursor);
+        const page = await api.threads(id, cursor, projectStore.current.archived);
         if (projectStore.current.finishRead(read, page))
           setProjectThreads(projectStore.current.snapshot);
       } catch (problem) {
@@ -125,6 +126,15 @@ export function useWorkspace() {
       ),
     [loadProjectThreads],
   );
+  const changeArchiveView = useCallback(
+    (archived: boolean) => {
+      if (!projectStore.current.setArchived(archived)) return;
+      setArchiveView(archived);
+      setProjectThreads(projectStore.current.snapshot);
+      void refreshProjectsThreads();
+    },
+    [refreshProjectsThreads],
+  );
   const updateSummary = useCallback((summary: ThreadSummary, cursor: Cursor) => {
     if (!projectsRef.current.some((project) => project.id === summary.projectId)) return;
     if (projectStore.current.applySummary(summary, cursor))
@@ -133,7 +143,10 @@ export function useWorkspace() {
   const updateThread = useCallback(
     (next: ThreadView) => {
       if (!projectsRef.current.some((project) => project.id === next.projectId)) return;
-      if (next.id === selectedRef.current && next.projectId === projectRef.current) setThread(next);
+      if (next.id === selectedRef.current && next.projectId === projectRef.current) {
+        setThread(next);
+        changeArchiveView(Boolean(next.archived));
+      }
       const scope = `thread:${next.id}`;
       const draft = settingsRef.current[scope];
       if (draft && next.runtimeSettings) {
@@ -164,7 +177,7 @@ export function useWorkspace() {
         ]);
       }
     },
-    [track],
+    [track, changeArchiveView],
   );
   const activateProject = useCallback((id: string) => {
     // Change ownership synchronously, before any callbacks can issue project-scoped requests.
@@ -643,6 +656,43 @@ export function useWorkspace() {
     setProjectId: (id: string) => {
       cancelResultNavigation();
       selectProject(id);
+    },
+    archiveView,
+    setArchiveView: (archived: boolean) => {
+      if (archived === projectStore.current.archived) return;
+      cancelResultNavigation();
+      selectedRef.current = undefined;
+      setSelectedId(undefined);
+      setThread(undefined);
+      streamRef.current?.select(undefined);
+      delete selectionsRef.current[projectRef.current];
+      try {
+        localStorage.removeItem(`codex-web.selected:${projectRef.current}`);
+      } catch {
+        /* Optional preference. */
+      }
+      changeArchiveView(archived);
+    },
+    archiveThread: async (id: string, archived: boolean) => {
+      const key = `archive:${id}`;
+      if (busyRef.current.has(key)) return;
+      busyRef.current.add(key);
+      setBusy([...busyRef.current]);
+      setError(undefined);
+      setErrorDetails(undefined);
+      try {
+        const result = await api.archiveThread(id, archived);
+        updateSummary(result.summary, result.cursor);
+        // Read the authoritative state, including updates from another browser while saving.
+        await refreshThread();
+      } catch (problem) {
+        report(problem);
+        // A lost response can follow a committed write. Refresh without retrying the mutation.
+        await Promise.all([refreshThread(), refreshProjectsThreads()]);
+      } finally {
+        busyRef.current.delete(key);
+        setBusy([...busyRef.current]);
+      }
     },
     projectThreads,
     threads: projectThreads[projectId]?.data ?? [],

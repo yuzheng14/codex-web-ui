@@ -49,6 +49,7 @@ it('upgrades the parallel-thread database without losing executions, links or pr
     expect(store.getThreadLink('first')).toMatchObject({
       projectId: 'configured',
       cwd: '/old/project',
+      archived: false,
     });
     const registry = new ProjectRegistry(
       [{ id: 'configured', name: 'Existing project', path: project }],

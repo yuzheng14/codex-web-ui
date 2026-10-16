@@ -60,6 +60,7 @@ export const executionMarkers = sqliteTable(
 
 export const threadLinks = sqliteTable('thread_links', {
   threadId: text('thread_id').primaryKey(),
+  archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
   projectId: text('project_id').notNull(),
   cwd: text('cwd').notNull(),
   source: text('source').notNull(),

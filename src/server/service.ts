@@ -23,6 +23,7 @@ import type {
   StartTurnInput,
   SteerInput,
   SystemInfo,
+  ThreadArchiveResult,
   ThreadPage,
   ThreadSummaryPage,
   ThreadView,
@@ -191,8 +192,19 @@ export class GatewayService {
     return this.codex.readRuntimeSettings(project.canonicalRoot);
   }
 
-  async listThreads(projectId: string, cursor?: string): Promise<ThreadPage> {
+  async listThreads(projectId: string, cursor?: string, archived = false): Promise<ThreadPage> {
     const project = this.projects.get(projectId);
+    if (archived) {
+      const links = this.store.archivedThreadLinks(projectId, cursor);
+      const data = await Promise.all(
+        links.slice(0, 30).map((link) => this.getThread(link.threadId)),
+      );
+      this.projects.get(projectId);
+      return {
+        data: data.filter((thread) => thread.archived),
+        nextCursor: links.length > 30 ? links[29]!.threadId : null,
+      };
+    }
     const titleReads = new Map(
       this.projection
         .values()
@@ -231,14 +243,36 @@ export class GatewayService {
         if (!data.some((entry) => entry.id === thread.id)) data.unshift(this.threadView(thread));
       }
     }
-    return { data, nextCursor: page.nextCursor };
+    return { data: data.filter((thread) => !thread.archived), nextCursor: page.nextCursor };
   }
 
-  async listThreadSummaries(projectId: string, cursor?: string): Promise<ThreadSummaryPage> {
+  async listThreadSummaries(
+    projectId: string,
+    cursor?: string,
+    archived = false,
+  ): Promise<ThreadSummaryPage> {
     // The list can race with live updates. Browsers retain updates newer than this boundary.
     const boundary = this.events.cursor();
-    const page = await this.listThreads(projectId, cursor);
+    const page = await this.listThreads(projectId, cursor, archived);
     return { data: page.data.map(toThreadSummary), nextCursor: page.nextCursor, cursor: boundary };
+  }
+
+  async setThreadArchived(threadId: string, archived: boolean): Promise<ThreadArchiveResult> {
+    // Only visibility is changed. No resume, interrupt, unsubscribe or upstream archive RPC.
+    await this.loadThread(threadId);
+    const thread = this.projection.get(threadId)!;
+    this.projects.assertOwnership(thread.projectId, thread.cwd);
+    try {
+      this.store.setThreadArchived(threadId, archived);
+    } catch {
+      throw new AppError('ARCHIVE_SAVE_FAILED', '无法保存会话归档状态，请重试', 500);
+    }
+    // Publish only after the synchronous durable write succeeds.
+    this.publishThread(threadId);
+    return {
+      summary: toThreadSummary(this.threadView(thread)),
+      cursor: this.events.cursor(),
+    };
   }
 
   async getThread(threadId: string): Promise<ThreadView> {
@@ -933,8 +967,9 @@ export class GatewayService {
   private publishThread(threadId: string): void {
     const thread = this.projection.get(threadId);
     if (!thread) return;
-    this.events.publish('thread', this.threadView(thread), threadId);
-    const summary = toThreadSummary(thread);
+    const view = this.threadView(thread);
+    this.events.publish('thread', view, threadId);
+    const summary = toThreadSummary(view);
     const encoded = JSON.stringify(summary);
     if (this.summaries.get(threadId) === encoded) return;
     try {
@@ -948,6 +983,7 @@ export class GatewayService {
 
   private threadView(thread: ThreadView): ThreadView {
     const result = structuredClone(thread);
+    result.archived = this.store.getThreadLink(thread.id)?.archived ?? false;
     const marker = this.store.activeForThread(thread.id);
     delete result.execution;
     if (marker)

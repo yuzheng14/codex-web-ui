@@ -85,6 +85,8 @@ export interface TurnView {
   reconnect?: { status: 'retrying' | 'failed'; message: string };
 }
 export interface ThreadView {
+  /** Web UI visibility only; archiving never stops the upstream task. */
+  archived?: boolean;
   id: string;
   runtimeSettings?: RuntimeSettings;
   forkedFromId?: string;
@@ -104,7 +106,15 @@ export interface ThreadView {
 }
 export type ThreadSummary = Pick<
   ThreadView,
-  'id' | 'forkedFromId' | 'projectId' | 'source' | 'title' | 'status' | 'managed' | 'updatedAt'
+  | 'id'
+  | 'forkedFromId'
+  | 'projectId'
+  | 'source'
+  | 'title'
+  | 'status'
+  | 'managed'
+  | 'updatedAt'
+  | 'archived'
 > & {
   pendingActionCount: number;
   lastTurnStatus?: RunStatus;
@@ -241,6 +251,10 @@ export interface Operation {
 export interface ThreadPage {
   data: ThreadView[];
   nextCursor: string | null;
+}
+export interface ThreadArchiveResult {
+  summary: ThreadSummary;
+  cursor: Cursor;
 }
 export interface ThreadSummaryPage {
   data: ThreadSummary[];

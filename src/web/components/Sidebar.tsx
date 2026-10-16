@@ -12,6 +12,10 @@ interface ProjectThreads {
   error?: string;
 }
 interface Props {
+  archiveView: boolean;
+  onArchiveView: (archived: boolean) => void;
+  onArchive: (id: string, archived: boolean) => void;
+  archiving: (id: string) => boolean;
   projects: Project[];
   projectsLoaded: boolean;
   projectId: string;
@@ -38,11 +42,17 @@ function ThreadLink({
   selected,
   offline,
   onSelect,
+  onArchive,
+  archiving,
+  canArchive,
 }: {
   thread: ThreadSummary;
   selected: boolean;
   offline: boolean;
   onSelect: () => void;
+  onArchive: () => void;
+  archiving: boolean;
+  canArchive: boolean;
 }) {
   const lastResult = thread.lastTurnStatus;
   const status =
@@ -52,28 +62,63 @@ function ThreadLink({
       ? lastResult
       : thread.status;
   return (
-    <button
-      className={cn('thread-link', selected && 'thread-selected')}
-      data-thread-id={thread.id}
-      onClick={onSelect}
-      aria-current={selected ? 'page' : undefined}
-    >
-      <Icon name={thread.forkedFromId ? 'fork' : 'chat'} size={16} />
-      <span className="thread-link-content">
-        <span className="thread-title">{thread.title || '未命名会话'}</span>
-        <span className="thread-meta">
-          {thread.source === 'cli' ? 'CLI' : thread.source === 'appServer' ? 'Web' : thread.source}
-          {thread.forkedFromId ? ' · Fork' : ''}
-          {thread.updatedAt ? ` · ${formatTime(thread.updatedAt)}` : ''}
+    <div className="thread-row">
+      <button
+        className={cn('thread-link', selected && 'thread-selected')}
+        data-thread-id={thread.id}
+        onClick={onSelect}
+        aria-current={selected ? 'page' : undefined}
+      >
+        <Icon name={thread.forkedFromId ? 'fork' : 'chat'} size={16} />
+        <span className="thread-link-content">
+          <span className="thread-title">{thread.title || '未命名会话'}</span>
+          <span className="thread-meta">
+            {thread.source === 'cli'
+              ? 'CLI'
+              : thread.source === 'appServer'
+                ? 'Web'
+                : thread.source}
+            {thread.forkedFromId ? ' · Fork' : ''}
+            {thread.updatedAt ? ` · ${formatTime(thread.updatedAt)}` : ''}
+          </span>
+          <span className="thread-progress">
+            <Status status={status} offline={offline} />
+            {thread.pendingActionCount > 0 && (
+              <span className="thread-pending-count">{thread.pendingActionCount} 项待处理</span>
+            )}
+          </span>
         </span>
-        <span className="thread-progress">
-          <Status status={status} offline={offline} />
-          {thread.pendingActionCount > 0 && (
-            <span className="thread-pending-count">{thread.pendingActionCount} 项待处理</span>
-          )}
-        </span>
-      </span>
-    </button>
+      </button>
+      <details
+        className="thread-menu"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.currentTarget.open = false;
+            event.currentTarget.querySelector('summary')?.focus();
+          }
+        }}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+        }}
+      >
+        <summary aria-label={`会话操作 ${thread.title || '未命名会话'}`} title="会话操作">
+          <Icon name="more" size={16} />
+        </summary>
+        <div className="thread-menu-content">
+          <button
+            disabled={!canArchive || archiving}
+            onClick={(event) => {
+              event.currentTarget.closest('details')?.removeAttribute('open');
+              onArchive();
+            }}
+          >
+            <Icon name="archive" size={14} />
+            {archiving ? '正在保存…' : thread.archived ? '取消归档' : '归档会话'}
+          </button>
+          <p>归档保留历史，正在执行的任务会继续运行。</p>
+        </div>
+      </details>
+    </div>
   );
 }
 
@@ -125,6 +170,25 @@ export function Sidebar(props: Props) {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
+        </div>
+        <div className="archive-switch" aria-label="会话列表范围">
+          <Button
+            variant={props.archiveView ? 'ghost' : 'secondary'}
+            size="sm"
+            aria-pressed={!props.archiveView}
+            onClick={() => props.onArchiveView(false)}
+          >
+            会话
+          </Button>
+          <Button
+            variant={props.archiveView ? 'secondary' : 'ghost'}
+            size="sm"
+            aria-pressed={props.archiveView}
+            onClick={() => props.onArchiveView(true)}
+          >
+            <Icon name="archive" size={14} />
+            已归档会话
+          </Button>
         </div>
         <div className="section-label">
           <span>{query ? '搜索结果' : `全部项目 · ${props.projects.length}`}</span>
@@ -211,6 +275,9 @@ export function Sidebar(props: Props) {
                       thread={entry}
                       selected={entry.id === props.selectedId}
                       offline={props.offline}
+                      onArchive={() => props.onArchive(entry.id, !entry.archived)}
+                      archiving={props.archiving(entry.id)}
+                      canArchive={props.canManageProjects && !props.offline}
                       onSelect={() => {
                         props.onThread(entry.id, project.id);
                         props.onClose();
@@ -235,7 +302,11 @@ export function Sidebar(props: Props) {
                     !state?.error &&
                     threads.length === 0 && (
                       <p className="sidebar-empty">
-                        {query ? '已加载会话中没有匹配结果。' : '暂无会话。创建一个，开始工作。'}
+                        {query
+                          ? '已加载会话中没有匹配结果。'
+                          : props.archiveView
+                            ? '暂无已归档会话。'
+                            : '暂无会话。创建一个，开始工作。'}
                       </p>
                     )}
                   {state?.loading && (

@@ -29,6 +29,21 @@ export class ProjectThreadsStore {
   private readonly sequences = new Map<string, number>();
   private readonly versions = new Map<string, SummaryVersion>();
   private revision = 0;
+  archived = false;
+
+  setArchived(archived: boolean) {
+    if (this.archived === archived) return false;
+    this.archived = archived;
+    for (const projectId of this.sequences.keys())
+      this.sequences.set(projectId, this.sequences.get(projectId)! + 1);
+    this.value = {};
+    this.versions.clear();
+    return true;
+  }
+
+  private includes(summary: ThreadSummary) {
+    return Boolean(summary.archived) === this.archived;
+  }
 
   get snapshot() {
     return this.value;
@@ -77,7 +92,8 @@ export class ProjectThreadsStore {
         const current = previous.data.find((thread) => thread.id === entry.id);
         if (current) data.set(entry.id, current);
       } else {
-        data.set(entry.id, entry);
+        if (this.includes(entry)) data.set(entry.id, entry);
+        else data.delete(entry.id);
         this.versions.set(entry.id, { cursor: page.cursor, revision: this.revision });
       }
     }
@@ -108,7 +124,10 @@ export class ProjectThreadsStore {
     const previous = this.get(summary.projectId);
     this.set(summary.projectId, {
       ...previous,
-      data: sort([summary, ...previous.data.filter((entry) => entry.id !== summary.id)]),
+      data: sort([
+        ...(this.includes(summary) ? [summary] : []),
+        ...previous.data.filter((entry) => entry.id !== summary.id),
+      ]),
     });
     return true;
   }

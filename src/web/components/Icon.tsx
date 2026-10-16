@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react';
 
 const paths = {
+  archive: 'M3 3h18v5H3ZM5 8v13h14V8M10 12h4',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
   plus: 'M12 5v14M5 12h14',
   fork: 'M6 3v12a4 4 0 0 0 4 4h8M6 7h8a4 4 0 0 0 4-4M15 16l3 3-3 3M15 4l3-3 3 3',
   send: 'm5 12 14-7-7 14-1-7-6-0Z M11 13l8-8',

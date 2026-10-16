@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, eq, isNull, or } from 'drizzle-orm';
+import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import type { AppDatabase } from './index.js';
 import { executionMarkers, operations, threadLinks } from './schema.js';
 import type { ApiError } from '../../shared/types.js';
@@ -298,12 +298,36 @@ export class OperationStore {
     });
   }
 
-  linkThread(link: Omit<ThreadLink, 'updatedAt'>): void {
+  linkThread(link: Omit<ThreadLink, 'updatedAt' | 'archived'>): void {
     this.database
       .insert(threadLinks)
       .values({ ...link, updatedAt: Date.now() })
       .onConflictDoUpdate({ target: threadLinks.threadId, set: { ...link, updatedAt: Date.now() } })
       .run();
+  }
+
+  setThreadArchived(threadId: string, archived: boolean): void {
+    this.database
+      .update(threadLinks)
+      .set({ archived })
+      .where(eq(threadLinks.threadId, threadId))
+      .run();
+  }
+
+  archivedThreadLinks(projectId: string, cursor?: string) {
+    return this.database
+      .select()
+      .from(threadLinks)
+      .where(
+        and(
+          eq(threadLinks.projectId, projectId),
+          eq(threadLinks.archived, true),
+          cursor === undefined ? undefined : gt(threadLinks.threadId, cursor),
+        ),
+      )
+      .orderBy(threadLinks.threadId)
+      .limit(31)
+      .all();
   }
 
   getThreadLink(threadId: string): ThreadLink | undefined {

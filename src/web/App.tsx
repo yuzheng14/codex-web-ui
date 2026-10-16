@@ -75,6 +75,7 @@ export function App() {
   const resumeBlocked = Boolean(
     thread &&
     (!canOperate ||
+      thread.archived ||
       unsettledFor(thread.id) ||
       busyFor('resume') ||
       (thread.execution && !thread.execution.ended)),
@@ -164,6 +165,12 @@ export function App() {
   return (
     <div className="app-shell">
       <Sidebar
+        archiveView={workspace.archiveView}
+        onArchiveView={workspace.setArchiveView}
+        onArchive={(id, archived) => {
+          void workspace.archiveThread(id, archived);
+        }}
+        archiving={(id) => busyFor('archive', id)}
         projects={workspace.projects}
         projectsLoaded={workspace.projectsLoaded}
         projectId={workspace.projectId}
@@ -352,6 +359,25 @@ export function App() {
             </Button>
           </div>
         )}
+        {thread?.archived && (
+          <div className="archive-notice" role="status">
+            <Icon name="archive" size={18} />
+            <div>
+              <strong>此会话已归档</strong>
+              <p>历史已保留；正在执行的任务不会中断。取消归档后可继续对话。</p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={offline || workspace.authRequired || busyFor('archive')}
+              onClick={() => {
+                void workspace.archiveThread(thread.id, false);
+              }}
+            >
+              {busyFor('archive') ? '正在保存…' : '取消归档'}
+            </Button>
+          </div>
+        )}
         <Conversation
           thread={thread}
           offline={offline}
@@ -424,7 +450,7 @@ export function App() {
             settings={workspace.settings}
             models={system?.models ?? []}
             onSettings={workspace.setSettings}
-            disabled={!canOperate || Boolean(waitingForConfirmation)}
+            disabled={!canOperate || Boolean(waitingForConfirmation) || Boolean(thread?.archived)}
             canInterrupt={canControl && Boolean(thread?.managed && activeTurn)}
             submitting={busyFor('send') || busyFor('steer')}
             interrupting={busyFor('interrupt')}

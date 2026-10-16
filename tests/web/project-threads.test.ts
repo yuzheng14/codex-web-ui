@@ -127,3 +127,32 @@ describe('multi-project conversation overviews', () => {
     expect(store.snapshot.b?.data[0]).not.toHaveProperty('actions');
   });
 });
+
+it('removes archived summaries and rejects stale reads that would restore them', () => {
+  const store = new ProjectThreadsStore();
+  store.applySummary(summary('one'), cursor(10));
+  const pending = store.beginRead('a');
+  store.applySummary({ ...summary('one'), archived: true }, cursor(12));
+  store.finishRead(pending, page([summary('one')], 11));
+  expect(store.snapshot.a?.data).toEqual([]);
+  store.applySummary({ ...summary('one'), archived: false }, cursor(13));
+  expect(store.snapshot.a?.data).toHaveLength(1);
+});
+
+it('invalidates in-flight pages when switching archive views and keeps live restores out of archived pages', () => {
+  const store = new ProjectThreadsStore();
+  const old = store.beginRead('a');
+  store.setArchived(true);
+  const current = store.beginRead('a');
+  expect(store.finishRead(old, page([summary('old')], 10))).toBe(false);
+  store.finishRead(current, page([{ ...summary('one'), archived: true }], 11, 'next'));
+  const more = store.beginRead('a', true);
+  store.applySummary({ ...summary('one'), archived: false }, cursor(13));
+  store.finishRead(more, page([{ ...summary('one'), archived: true }], 12));
+  expect(store.snapshot.a?.data).toEqual([]);
+  store.setArchived(false);
+  const active = store.beginRead('a');
+  expect(store.failRead(more, 'late error')).toBe(false);
+  store.finishRead(active, page([summary('one')], 14));
+  expect(store.snapshot.a?.data).toHaveLength(1);
+});

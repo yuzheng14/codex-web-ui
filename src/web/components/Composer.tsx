@@ -112,7 +112,7 @@ export function Composer(props: Props) {
     });
   }
   const active = Boolean(props.thread?.managed && isActive(props.thread.status));
-  const external = props.thread && !props.thread.managed;
+  const external = props.thread && !props.thread.managed && !props.thread.archived;
   const resumeError = external ? props.thread?.resumeError : undefined;
   const occupied = resumeError?.code === 'THREAD_IN_USE';
   const canSend = Boolean(
@@ -222,12 +222,15 @@ export function Composer(props: Props) {
         <textarea
           aria-label={active ? '追加要求' : '任务内容'}
           value={text}
+          readOnly={Boolean(props.thread?.archived)}
           placeholder={
-            !props.thread
-              ? '新建或选择会话后，描述你的任务…'
-              : active
-                ? '补充要求或调整方向…'
-                : '描述你想完成的任务，也可以粘贴图片…'
+            props.thread?.archived
+              ? '取消归档后可继续对话…'
+              : !props.thread
+                ? '新建或选择会话后，描述你的任务…'
+                : active
+                  ? '补充要求或调整方向…'
+                  : '描述你想完成的任务，也可以粘贴图片…'
           }
           maxLength={100000}
           onChange={(event) =>
