@@ -631,6 +631,49 @@ function activityRetryScenario(thread: Thread, turn: Turn, failTurn: boolean): v
   );
 }
 
+/** A long response lets browser tests read earlier output while later deltas arrive. */
+function stickyPromptReply(thread: Thread, turn: Turn, streaming: boolean): void {
+  const item: Extract<ThreadItem, { type: 'agentMessage' }> = {
+    id: randomUUID(),
+    type: 'agentMessage',
+    text: Array.from(
+      { length: 48 },
+      (_, index) =>
+        `### 检查项 ${index + 1}\n\n核对当前轮次的用户要求，并在阅读回复和执行过程时保留上下文。确认布局稳定、内容可读，以及窄屏上的交互可用。`,
+    ).join('\n\n'),
+    phase: 'final_answer',
+    memoryCitation: null,
+    delivery: null,
+    questions: null,
+  };
+  turn.items.push(item);
+  notify({
+    method: 'item/started',
+    params: { threadId: thread.id, turnId: turn.id, item, startedAtMs: Date.now() },
+  });
+  const finish = () => {
+    notify({
+      method: 'item/completed',
+      params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
+    });
+    complete(thread, turn);
+  };
+  if (!streaming) return finish();
+  let update = 0;
+  const append = () => {
+    if (turn.status !== 'inProgress') return;
+    const delta = `\n\n流式补充 ${++update}：继续验证页面保持当前阅读位置。`;
+    item.text += delta;
+    notify({
+      method: 'item/agentMessage/delta',
+      params: { threadId: thread.id, turnId: turn.id, itemId: item.id, delta },
+    });
+    if (update < 2) finishes.set(turn.id, setTimeout(append, 2000));
+    else finish();
+  };
+  finishes.set(turn.id, setTimeout(append, 2000));
+}
+
 /** Real protocol events for long, independent activities and streamed rerenders. */
 function activityScenario(thread: Thread, turn: Turn, streaming: boolean, mixed = false): void {
   const finishedItem = (item: ThreadItem) => {
@@ -1955,7 +1998,9 @@ function receive(request: ClientRequest): void {
       const reconnect = (['recover', 'fail', 'hold'] as const).find((outcome) =>
         prompt.includes(`[codex-retry-${outcome}]`),
       );
-      if (
+      if (prompt.includes('[sticky-prompt]') || prompt.includes('[sticky-prompt-stream]'))
+        stickyPromptReply(thread, turn, prompt.includes('[sticky-prompt-stream]'));
+      else if (
         prompt.includes('[activity-collapse]') ||
         prompt.includes('[activity-stream]') ||
         prompt.includes('[activity-mixed]')

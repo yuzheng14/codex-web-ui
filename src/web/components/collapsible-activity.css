@@ -1,5 +1,5 @@
 .collapsible-activity {
-  --activity-sticky-offset: 0px;
+  --activity-sticky-offset: var(--conversation-sticky-offset, 0px);
   --activity-surface: #fbfcfb;
   overflow: clip;
 }
@@ -52,5 +52,7 @@
 }
 
 .collapsible-activity-group .collapsible-activity {
-  --activity-sticky-offset: var(--activity-group-header-height);
+  --activity-sticky-offset: calc(
+    var(--conversation-sticky-offset, 0px) + var(--activity-group-header-height)
+  );
 }
