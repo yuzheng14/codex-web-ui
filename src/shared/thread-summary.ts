@@ -4,6 +4,7 @@ import type { ThreadSummary, ThreadView } from './types.js';
 export function toThreadSummary(thread: ThreadView): ThreadSummary {
   return {
     id: thread.id,
+    ...(thread.archived === undefined ? {} : { archived: thread.archived }),
     ...(thread.forkedFromId === undefined ? {} : { forkedFromId: thread.forkedFromId }),
     projectId: thread.projectId,
     source: thread.source,

@@ -25,6 +25,10 @@ import type { InitializeResponse } from './generated/InitializeResponse.js';
 import type { GetAccountResponse } from './generated/v2/GetAccountResponse.js';
 import type { ModelListResponse } from './generated/v2/ModelListResponse.js';
 import type { ConfigReadResponse } from './generated/v2/ConfigReadResponse.js';
+import type { Thread } from './generated/v2/Thread.js';
+import type { ThreadArchiveResponse } from './generated/v2/ThreadArchiveResponse.js';
+import type { ThreadUnarchiveResponse } from './generated/v2/ThreadUnarchiveResponse.js';
+import type { ThreadLoadedListResponse } from './generated/v2/ThreadLoadedListResponse.js';
 import type { ThreadListResponse } from './generated/v2/ThreadListResponse.js';
 import type { ThreadReadResponse } from './generated/v2/ThreadReadResponse.js';
 import type { ThreadStartResponse } from './generated/v2/ThreadStartResponse.js';
@@ -77,6 +81,9 @@ const CAPABILITIES = [
   'thread/read',
   'thread/list',
   'thread/resume',
+  'thread/archive',
+  'thread/loaded/list',
+  'thread/unarchive',
   'thread/turns/list',
   'thread/items/list',
   'turn/start',
@@ -96,6 +103,9 @@ type Responses = {
   'thread/start': ThreadStartResponse;
   'thread/fork': ThreadForkResponse;
   'thread/resume': ThreadResumeResponse;
+  'thread/loaded/list': ThreadLoadedListResponse;
+  'thread/archive': ThreadArchiveResponse;
+  'thread/unarchive': ThreadUnarchiveResponse;
   'thread/turns/list': ThreadTurnsListResponse;
   'thread/items/list': ThreadItemsListResponse;
   'turn/start': TurnStartResponse;
@@ -146,6 +156,9 @@ export class CodexAdapter implements CodexClient {
   private child?: ChildProcessWithoutNullStreams;
   private rpc?: RpcTransport;
   private titles?: ThreadTitles;
+  // Ordering only. Persisted archive state belongs exclusively to Codex.
+  private archiveSequence = 0;
+  private readonly archives = new Map<string, { archived: boolean; sequence: number }>();
   private listeners = new Set<(event: CodexEvent) => void>();
   private actions = new Map<string, ActionContext>();
   private actionIds = new Map<RpcId, string>();
@@ -187,6 +200,7 @@ export class CodexAdapter implements CodexClient {
     if (this.child) throw new CodexError('CODEX_BUSY', 'Codex app-server is already started');
     this.epoch = randomUUID();
     this.disabled.clear();
+    this.archives.clear();
     this.state = {
       ...this.state,
       codexEpoch: this.epoch,
@@ -406,28 +420,139 @@ export class CodexAdapter implements CodexClient {
     )
       throw new AppError('VALIDATION_ERROR', '所选推理强度不受当前模型支持');
   }
-  async listThreads(_cwd: string, cursor?: string): Promise<ThreadPage> {
-    // Upstream cwd matches exact stored strings, so it would omit symlink aliases
-    // and owned subdirectories. The service filters each page using realpath ownership.
-    const page = await this.call('thread/list', {
+  async listThreads(_cwd: string, cursor?: string, archived = false): Promise<ThreadPage> {
+    const sequence = ++this.archiveSequence;
+    // Gateway resolves real paths, so aliases of the same cwd remain discoverable.
+    const result = await this.call('thread/list', {
       cursor,
       limit: 30,
+      archived,
       sourceKinds: ['cli', 'appServer', 'vscode'],
       sortKey: 'updated_at',
       sortDirection: 'desc',
     });
-    return { data: page.data.map(mapThread), nextCursor: page.nextCursor };
+    return {
+      data: result.data.map((thread) => ({
+        ...mapThread(thread),
+        archived: this.observeArchive(thread.id, archived, sequence),
+      })),
+      nextCursor: result.nextCursor,
+    };
+  }
+
+  private observeArchive(id: string, archived: boolean, sequence: number): boolean {
+    const current = this.archives.get(id);
+    if (current && current.sequence > sequence) return current.archived;
+    this.archives.set(id, { archived, sequence });
+    return archived;
+  }
+
+  private archiveChanged(id: string, archived: boolean): void {
+    this.observeArchive(id, archived, ++this.archiveSequence);
+    this.emit({ type: 'threadArchive', threadId: id, archived });
+  }
+
+  /** thread/read has no archive field. Query the native index, including paginated history,
+   * instead of guessing from the unstable rollout path or maintaining a second database. */
+  private async storedThread(thread: Thread, sequence: number): Promise<ThreadView> {
+    let cursor: string | null = null;
+    const seen = new Set<string>();
+    let archived = false;
+    do {
+      const page: ThreadListResponse = await this.call('thread/list', {
+        archived: true,
+        cwd: thread.cwd,
+        cursor,
+        limit: 100,
+        sourceKinds: [
+          'cli',
+          'vscode',
+          'exec',
+          'appServer',
+          'subAgent',
+          'subAgentReview',
+          'subAgentCompact',
+          'subAgentThreadSpawn',
+          'subAgentOther',
+          'unknown',
+        ],
+      });
+      if (page.data.some((entry) => entry.id === thread.id)) {
+        archived = true;
+        break;
+      }
+      cursor = page.nextCursor;
+      if (cursor && (seen.has(cursor) || seen.size >= 1000))
+        throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid archive pagination');
+      if (cursor) seen.add(cursor);
+    } while (cursor);
+    return { ...mapThread(thread), archived: this.observeArchive(thread.id, archived, sequence) };
+  }
+
+  /** Native archive also shuts down spawned descendants, even already-archived ones. */
+  private async assertArchiveIdle(rootId: string): Promise<void> {
+    const threads = new Map<string, Thread>();
+    const read = async (id: string): Promise<Thread> => {
+      let thread = threads.get(id);
+      if (!thread) {
+        thread = (await this.call('thread/read', { threadId: id, includeTurns: false })).thread;
+        threads.set(id, thread);
+      }
+      return thread;
+    };
+    let cursor: string | null = null;
+    const seen = new Set<string>();
+    do {
+      const page: ThreadLoadedListResponse = await this.call('thread/loaded/list', {
+        cursor,
+        limit: 100,
+      });
+      for (const id of page.data) {
+        let thread = await read(id);
+        if (thread.status.type !== 'active') continue;
+        const ancestors = new Set<string>();
+        for (;;) {
+          if (thread.id === rootId)
+            throw new AppError('THREAD_BUSY', '会话或其子任务仍在运行，结束后才能归档', 409);
+          if (!thread.parentThreadId) break;
+          if (ancestors.has(thread.id))
+            throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid thread ancestry');
+          ancestors.add(thread.id);
+          thread = await read(thread.parentThreadId);
+        }
+      }
+      cursor = page.nextCursor;
+      if (cursor && (seen.has(cursor) || seen.size >= 1000))
+        throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid loaded thread pagination');
+      if (cursor) seen.add(cursor);
+    } while (cursor);
+  }
+
+  async archiveThread(id: string): Promise<void> {
+    await this.assertArchiveIdle(id);
+    await this.call('thread/archive', { threadId: id });
+    this.archiveChanged(id, true);
+  }
+
+  async unarchiveThread(id: string): Promise<ThreadView> {
+    const { thread } = await this.call('thread/unarchive', { threadId: id });
+    this.archiveChanged(id, false);
+    return { ...mapThread(thread), archived: false };
   }
   async readThreadMetadata(id: string): Promise<ThreadView> {
-    return mapThread(
+    const sequence = ++this.archiveSequence;
+    return this.storedThread(
       (await this.call('thread/read', { threadId: id, includeTurns: false })).thread,
+      sequence,
     );
   }
   async readThread(id: string): Promise<ThreadView> {
+    const sequence = ++this.archiveSequence;
     const { thread } = await this.call('thread/read', { threadId: id, includeTurns: false });
     if (thread.historyMode !== 'paginated')
-      return mapThread(
+      return this.storedThread(
         (await this.call('thread/read', { threadId: id, includeTurns: true })).thread,
+        sequence,
       );
     let cursor: string | null = null;
     const seen = new Set<string>();
@@ -467,7 +592,7 @@ export class CodexAdapter implements CodexClient {
         throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid turn pagination');
       if (cursor) seen.add(cursor);
     } while (cursor);
-    return mapThread(thread);
+    return this.storedThread(thread, sequence);
   }
   async createThread(cwd: string, settings?: Settings): Promise<ThreadView> {
     this.validateSettings(settings);
@@ -632,6 +757,12 @@ export class CodexAdapter implements CodexClient {
         break;
       case 'thread/started':
         this.emit({ type: 'thread', thread: mapThread(event.params.thread) });
+        break;
+      case 'thread/archived':
+        this.archiveChanged(event.params.threadId, true);
+        break;
+      case 'thread/unarchived':
+        this.archiveChanged(event.params.threadId, false);
         break;
       case 'thread/name/updated':
         this.emit({

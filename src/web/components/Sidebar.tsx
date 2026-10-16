@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { Project, ThreadSummary } from '../../shared/types';
 import { formatTime, cn } from '../lib/utils';
 import { Button } from './ui/button';
@@ -12,6 +12,10 @@ interface ProjectThreads {
   error?: string;
 }
 interface Props {
+  archiveView: boolean;
+  onArchiveView: (archived: boolean) => void;
+  onArchive: (id: string, archived: boolean) => void;
+  archiveDisabledReason: (thread: ThreadSummary) => string | undefined;
   projects: Project[];
   projectsLoaded: boolean;
   projectId: string;
@@ -38,12 +42,28 @@ function ThreadLink({
   selected,
   offline,
   onSelect,
+  onArchive,
+  archiveDisabledReason,
 }: {
   thread: ThreadSummary;
   selected: boolean;
   offline: boolean;
   onSelect: () => void;
+  onArchive: () => void;
+  archiveDisabledReason?: string;
 }) {
+  const tooltipId = useId();
+  const [tooltipDismissed, setTooltipDismissed] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  useEffect(() => {
+    if (!hovered) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setTooltipDismissed(true);
+    };
+    document.addEventListener('keydown', dismiss);
+    return () => document.removeEventListener('keydown', dismiss);
+  }, [hovered]);
+  const archiveLabel = thread.archived ? '取消归档' : '归档会话';
   const lastResult = thread.lastTurnStatus;
   const status =
     thread.status === 'idle' &&
@@ -52,28 +72,63 @@ function ThreadLink({
       ? lastResult
       : thread.status;
   return (
-    <button
-      className={cn('thread-link', selected && 'thread-selected')}
-      data-thread-id={thread.id}
-      onClick={onSelect}
-      aria-current={selected ? 'page' : undefined}
-    >
-      <Icon name={thread.forkedFromId ? 'fork' : 'chat'} size={16} />
-      <span className="thread-link-content">
-        <span className="thread-title">{thread.title || '未命名会话'}</span>
-        <span className="thread-meta">
-          {thread.source === 'cli' ? 'CLI' : thread.source === 'appServer' ? 'Web' : thread.source}
-          {thread.forkedFromId ? ' · Fork' : ''}
-          {thread.updatedAt ? ` · ${formatTime(thread.updatedAt)}` : ''}
+    <div className="thread-row">
+      <button
+        className={cn('thread-link', selected && 'thread-selected')}
+        data-thread-id={thread.id}
+        onClick={onSelect}
+        aria-current={selected ? 'page' : undefined}
+      >
+        <Icon name={thread.forkedFromId ? 'fork' : 'chat'} size={16} />
+        <span className="thread-link-content">
+          <span className="thread-title">{thread.title || '未命名会话'}</span>
+          <span className="thread-meta">
+            {thread.source === 'cli'
+              ? 'CLI'
+              : thread.source === 'appServer'
+                ? 'Web'
+                : thread.source}
+            {thread.forkedFromId ? ' · Fork' : ''}
+            {thread.updatedAt ? ` · ${formatTime(thread.updatedAt)}` : ''}
+          </span>
+          <span className="thread-progress">
+            <Status status={status} offline={offline} />
+            {thread.pendingActionCount > 0 && (
+              <span className="thread-pending-count">{thread.pendingActionCount} 项待处理</span>
+            )}
+          </span>
         </span>
-        <span className="thread-progress">
-          <Status status={status} offline={offline} />
-          {thread.pendingActionCount > 0 && (
-            <span className="thread-pending-count">{thread.pendingActionCount} 项待处理</span>
-          )}
+      </button>
+      <span
+        className="thread-archive"
+        onMouseEnter={() => {
+          setHovered(true);
+          setTooltipDismissed(false);
+        }}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setTooltipDismissed(false)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setTooltipDismissed(true);
+        }}
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={archiveLabel}
+          aria-describedby={tooltipId}
+          aria-disabled={Boolean(archiveDisabledReason)}
+          onClick={() => {
+            setTooltipDismissed(true);
+            if (!archiveDisabledReason) onArchive();
+          }}
+        >
+          <Icon name={thread.archived ? 'unarchive' : 'archive'} size={15} />
+        </Button>
+        <span id={tooltipId} role="tooltip" className="keyboard-hint" hidden={tooltipDismissed}>
+          {archiveDisabledReason ?? archiveLabel}
         </span>
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -125,6 +180,25 @@ export function Sidebar(props: Props) {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
+        </div>
+        <div className="archive-switch" aria-label="会话列表范围">
+          <Button
+            variant={props.archiveView ? 'ghost' : 'secondary'}
+            size="sm"
+            aria-pressed={!props.archiveView}
+            onClick={() => props.onArchiveView(false)}
+          >
+            会话
+          </Button>
+          <Button
+            variant={props.archiveView ? 'secondary' : 'ghost'}
+            size="sm"
+            aria-pressed={props.archiveView}
+            onClick={() => props.onArchiveView(true)}
+          >
+            <Icon name="archive" size={14} />
+            已归档会话
+          </Button>
         </div>
         <div className="section-label">
           <span>{query ? '搜索结果' : `全部项目 · ${props.projects.length}`}</span>
@@ -211,6 +285,8 @@ export function Sidebar(props: Props) {
                       thread={entry}
                       selected={entry.id === props.selectedId}
                       offline={props.offline}
+                      onArchive={() => props.onArchive(entry.id, !entry.archived)}
+                      archiveDisabledReason={props.archiveDisabledReason(entry)}
                       onSelect={() => {
                         props.onThread(entry.id, project.id);
                         props.onClose();
@@ -235,7 +311,11 @@ export function Sidebar(props: Props) {
                     !state?.error &&
                     threads.length === 0 && (
                       <p className="sidebar-empty">
-                        {query ? '已加载会话中没有匹配结果。' : '暂无会话。创建一个，开始工作。'}
+                        {query
+                          ? '已加载会话中没有匹配结果。'
+                          : props.archiveView
+                            ? '暂无已归档会话。'
+                            : '暂无会话。创建一个，开始工作。'}
                       </p>
                     )}
                   {state?.loading && (

@@ -85,6 +85,8 @@ export interface TurnView {
   reconnect?: { status: 'retrying' | 'failed'; message: string };
 }
 export interface ThreadView {
+  /** Native Codex archive state, read from its index and lifecycle notifications. */
+  archived?: boolean;
   id: string;
   runtimeSettings?: RuntimeSettings;
   forkedFromId?: string;
@@ -104,7 +106,15 @@ export interface ThreadView {
 }
 export type ThreadSummary = Pick<
   ThreadView,
-  'id' | 'forkedFromId' | 'projectId' | 'source' | 'title' | 'status' | 'managed' | 'updatedAt'
+  | 'id'
+  | 'forkedFromId'
+  | 'projectId'
+  | 'source'
+  | 'title'
+  | 'status'
+  | 'managed'
+  | 'updatedAt'
+  | 'archived'
 > & {
   pendingActionCount: number;
   lastTurnStatus?: RunStatus;
@@ -179,6 +189,9 @@ export type ActionResolution =
   | { answers: Record<string, string[]> };
 export interface OperationInput {
   clientOperationId: string;
+}
+export interface ArchiveThreadInput extends OperationInput {
+  archived: boolean;
 }
 export interface ConfirmCompatibilityInput extends OperationInput {
   codexEpoch: string;

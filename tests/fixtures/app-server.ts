@@ -30,6 +30,7 @@ export interface SimulatorOptions {
   unsupportedMethod?: string;
   logPath?: string;
   paginated?: boolean;
+  activeArchiveDescendant?: boolean;
   historyPageSize?: number;
   historyItemSummaries?: boolean;
   forkHistoryReadError?: boolean;
@@ -74,6 +75,7 @@ const options = JSON.parse(
   optionsIndex < 0 ? '{}' : (process.argv[optionsIndex + 1] ?? '{}'),
 ) as SimulatorOptions;
 const threads = new Map<string, Thread>();
+const archived = new Set<string>();
 const policies = new Map<
   string,
   Pick<ThreadStartResponse, 'sandbox' | 'approvalPolicy' | 'approvalsReviewer'>
@@ -826,6 +828,12 @@ function receive(request: ClientRequest): void {
       thread.modelProvider = request.params.modelProvider ?? thread.modelProvider;
       applySettings(thread, request.params);
       threads.set(thread.id, thread);
+      if (options.activeArchiveDescendant && !thread.ephemeral) {
+        const child = makeThread(thread.cwd);
+        child.parentThreadId = thread.id;
+        child.status = { type: 'active', activeFlags: [] };
+        threads.set(child.id, child);
+      }
       const started = () =>
         notify({ method: 'thread/started', params: { thread: { ...thread, turns: [] } } });
       if (options.threadStartedDelayMs) setTimeout(started, options.threadStartedDelayMs);
@@ -833,10 +841,19 @@ function receive(request: ClientRequest): void {
       reply(request.id, startResponse(thread));
       break;
     }
+    case 'thread/loaded/list':
+      reply(request.id, {
+        data: [...threads.values()]
+          .filter((thread) => thread.status.type !== 'notLoaded')
+          .map((thread) => thread.id),
+        nextCursor: null,
+      });
+      break;
     case 'thread/list':
       reply(request.id, {
         data: [...threads.values()]
           .filter((thread) => !thread.ephemeral)
+          .filter((thread) => archived.has(thread.id) === Boolean(request.params.archived))
           .filter((thread) => !request.params.cwd || thread.cwd === request.params.cwd)
           .map((thread) => ({ ...thread, turns: [] })),
         nextCursor: null,
@@ -863,6 +880,31 @@ function receive(request: ClientRequest): void {
         threads.delete(thread.id);
         notify({ method: 'thread/closed', params: { threadId: thread.id } });
       }
+      break;
+    }
+    case 'thread/archive':
+    case 'thread/unarchive': {
+      const thread = threads.get(request.params.threadId);
+      if (!thread) {
+        error(request.id, 'Thread not found');
+        break;
+      }
+      const archive = request.method === 'thread/archive';
+      if (archive) {
+        for (const turn of thread.turns)
+          if (turn.status === 'inProgress') complete(thread, turn, 'interrupted');
+        archived.add(thread.id);
+        thread.status = { type: 'notLoaded' };
+        notify({
+          method: 'thread/status/changed',
+          params: { threadId: thread.id, status: thread.status },
+        });
+      } else archived.delete(thread.id);
+      reply(request.id, archive ? {} : { thread });
+      notify({
+        method: archive ? 'thread/archived' : 'thread/unarchived',
+        params: { threadId: thread.id },
+      });
       break;
     }
     case 'thread/read': {
@@ -925,6 +967,7 @@ function receive(request: ClientRequest): void {
         break;
       }
       applySettings(thread, request.params);
+      if (thread.status.type === 'notLoaded') thread.status = { type: 'idle' };
       notify({
         method: 'thread/status/changed',
         params: { threadId: thread.id, status: thread.status },

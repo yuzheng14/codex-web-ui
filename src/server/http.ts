@@ -102,6 +102,7 @@ export function createApp({
         c.req.query('cursor') === undefined
           ? undefined
           : schemas.cursorSchema.parse(c.req.query('cursor')),
+        schemas.archivedQuerySchema.parse(c.req.query('archived')),
       ),
     ),
   );
@@ -112,9 +113,18 @@ export function createApp({
         c.req.query('cursor') === undefined
           ? undefined
           : schemas.cursorSchema.parse(c.req.query('cursor')),
+        schemas.archivedQuerySchema.parse(c.req.query('archived')),
       ),
     ),
   );
+  app.post('/api/threads/:threadId/archive', async (c) => {
+    return c.json(
+      await service.setThreadArchived(
+        id(c.req.param('threadId')),
+        await parse(c, schemas.archiveThreadSchema),
+      ),
+    );
+  });
   app.get('/api/threads/:threadId', async (c) =>
     c.json(await service.getThread(id(c.req.param('threadId')))),
   );

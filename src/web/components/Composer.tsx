@@ -187,7 +187,7 @@ export function Composer(props: Props) {
     });
   }
   const active = Boolean(props.thread?.managed && isActive(props.thread.status));
-  const external = props.thread && !props.thread.managed;
+  const external = props.thread && !props.thread.managed && !props.thread.archived;
   const resumeError = external ? props.thread?.resumeError : undefined;
   const occupied = resumeError?.code === 'THREAD_IN_USE';
   const canSend = Boolean(
@@ -328,12 +328,15 @@ export function Composer(props: Props) {
               : undefined
           }
           value={text}
+          readOnly={Boolean(props.thread?.archived)}
           placeholder={
-            !props.thread
-              ? '输入 / 查看命令，或新建会话开始任务…'
-              : active
-                ? '补充要求或调整方向…'
-                : '描述任务、粘贴图片，或输入 / 查看命令…'
+            props.thread?.archived
+              ? '取消归档后可继续对话…'
+              : !props.thread
+                ? '输入 / 查看命令，或新建会话开始任务…'
+                : active
+                  ? '补充要求或调整方向…'
+                  : '描述任务、粘贴图片，或输入 / 查看命令…'
           }
           maxLength={100000}
           onChange={(event) => {

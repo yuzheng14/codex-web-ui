@@ -62,9 +62,9 @@ export const api = {
     request<Project>(`/api/projects/${encodeURIComponent(id)}/rename`, { name }),
   removeProject: (id: string) =>
     request<{ removed: true }>(`/api/projects/${encodeURIComponent(id)}/remove`, {}),
-  threads: (projectId: string, cursor?: string) =>
+  threads: (projectId: string, cursor?: string, archived = false) =>
     request<ThreadSummaryPage>(
-      `/api/projects/${encodeURIComponent(projectId)}/threads${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
+      `/api/projects/${encodeURIComponent(projectId)}/threads${archived ? '?archived=true' : ''}${cursor ? `${archived ? '&' : '?'}cursor=${encodeURIComponent(cursor)}` : ''}`,
     ),
   thread: (threadId: string) => request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}`),
   operation: (id: string) => request<Operation>(`/api/operations/${encodeURIComponent(id)}`),

@@ -83,9 +83,13 @@ test('Enter submits a task and steers the same active thread and turn', async ({
   const steerButton = page.getByRole('button', { name: '追加要求', exact: true });
   await expect(steerButton).toHaveAccessibleDescription('Enter 发送 / Shift + Enter 换行');
   await steerButton.hover();
-  await expect(page.getByRole('tooltip')).toHaveText('Enter 发送 / Shift + Enter 换行');
+  await expect(page.locator('.composer-submit').getByRole('tooltip')).toHaveText(
+    'Enter 发送 / Shift + Enter 换行',
+  );
   await page.mouse.move(0, 0);
-  await expect(page.getByRole('tooltip', { includeHidden: true })).toBeHidden();
+  await expect(
+    page.locator('.composer-submit').getByRole('tooltip', { includeHidden: true }),
+  ).toBeHidden();
   const steered = page.waitForRequest(isSubmission);
   await steer.press('Enter');
   const steerRequest = await steered;
@@ -312,7 +316,7 @@ for (const viewport of [
     await newThread(page);
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     if (viewport.name === 'mobile') await expect(page.locator('.sidebar')).not.toBeInViewport();
-    const tooltip = page.getByRole('tooltip', { includeHidden: true });
+    const tooltip = page.locator('.composer-submit').getByRole('tooltip', { includeHidden: true });
     await expect(tooltip).toHaveCount(1);
     await expect(tooltip).toContainText('Enter 发送');
     await expect(tooltip).toContainText('Shift + Enter 换行');

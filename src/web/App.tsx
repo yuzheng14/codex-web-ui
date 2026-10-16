@@ -76,6 +76,7 @@ export function App() {
   const resumeBlocked = Boolean(
     thread &&
     (!canOperate ||
+      thread.archived ||
       unsettledFor(thread.id) ||
       busyFor('resume') ||
       (thread.execution && !thread.execution.ended)),
@@ -90,7 +91,7 @@ export function App() {
     );
   }, [thread, resumeBlocked, system?.codexEpoch, run, refreshThread]);
   useEffect(() => {
-    if (!system?.ready) resumeAttempt.current = undefined;
+    if (!system?.ready || thread?.archived) resumeAttempt.current = undefined;
     if (!thread || thread.managed || resumeBlocked) return;
     const key = `${system?.codexEpoch}:${thread.id}`;
     if (resumeAttempt.current !== key) resumeThread();
@@ -187,6 +188,28 @@ export function App() {
   return (
     <div className="app-shell">
       <Sidebar
+        archiveView={workspace.archiveView}
+        onArchiveView={workspace.setArchiveView}
+        onArchive={(id, archived) => {
+          void workspace.archiveThread(id, archived);
+        }}
+        archiveDisabledReason={(entry) => {
+          if (busyFor('archive', entry.id)) return '正在保存…';
+          if (unsettledFor(entry.id)) return '请先核对会话操作的结果';
+          if (!canControl) return '连接恢复后可操作';
+          if (compatibilityConfirmationRequired(system)) return '请先确认 Codex 版本兼容性';
+          if (
+            !system?.capabilities.includes(entry.archived ? 'thread/unarchive' : 'thread/archive')
+          )
+            return '当前 Codex 不支持此操作';
+          if (!workspace.projects.find((project) => project.id === entry.projectId)?.available)
+            return '项目目录不可用';
+          if (!entry.archived && (isActive(entry.status) || entry.pendingActionCount > 0))
+            return '任务结束并处理完待办后可归档';
+          if (!entry.archived && entry.managed && entry.status === 'unknown')
+            return '会话状态待核对，暂时无法归档';
+          return undefined;
+        }}
         projects={workspace.projects}
         projectsLoaded={workspace.projectsLoaded}
         projectId={workspace.projectId}
@@ -375,6 +398,30 @@ export function App() {
             </Button>
           </div>
         )}
+        {thread?.archived && (
+          <div className="archive-notice" role="status">
+            <Icon name="archive" size={18} />
+            <div>
+              <strong>此会话已归档</strong>
+              <p>历史已保留。取消归档后可继续对话。</p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={
+                !canOperate ||
+                unsettledFor(thread.id) ||
+                busyFor('archive') ||
+                !system?.capabilities.includes('thread/unarchive')
+              }
+              onClick={() => {
+                void workspace.archiveThread(thread.id, false);
+              }}
+            >
+              {busyFor('archive') ? '正在保存…' : '取消归档'}
+            </Button>
+          </div>
+        )}
         <Conversation
           thread={thread}
           offline={offline}
@@ -448,7 +495,7 @@ export function App() {
             settings={workspace.settings}
             models={system?.models ?? []}
             onSettings={workspace.setSettings}
-            disabled={!canOperate || Boolean(waitingForConfirmation)}
+            disabled={!canOperate || Boolean(waitingForConfirmation) || Boolean(thread?.archived)}
             canInterrupt={canControl && Boolean(thread?.managed && activeTurn)}
             submitting={busyFor('send') || busyFor('steer')}
             interrupting={busyFor('interrupt')}

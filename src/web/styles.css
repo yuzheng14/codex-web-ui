@@ -2428,3 +2428,82 @@ dd {
     scroll-behavior: auto !important;
   }
 }
+
+.archive-switch {
+  display: flex;
+  gap: 4px;
+  padding: 0 18px 12px;
+}
+.thread-row {
+  position: relative;
+  display: flex;
+  align-items: start;
+}
+.thread-row .thread-link {
+  flex: 1;
+  min-width: 0;
+  padding-right: 32px;
+}
+.thread-archive {
+  position: absolute;
+  right: 6px;
+  top: 8px;
+  z-index: 1;
+}
+.thread-archive > button {
+  width: 28px;
+  height: 28px;
+  color: var(--muted);
+  opacity: 0.5;
+}
+.thread-row:hover .thread-archive > button,
+.thread-archive:focus-within > button {
+  opacity: 1;
+}
+.thread-archive > button[aria-disabled='true'] {
+  cursor: default;
+}
+.thread-archive .keyboard-hint {
+  top: calc(100% + 4px);
+  bottom: auto;
+  max-width: 220px;
+  width: max-content;
+  white-space: normal;
+}
+.thread-archive:hover .keyboard-hint,
+.thread-archive:focus-within .keyboard-hint {
+  visibility: visible;
+}
+@media (pointer: coarse) {
+  .thread-archive > button {
+    width: 36px;
+    height: 36px;
+    opacity: 0.75;
+  }
+}
+.archive-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 24px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+}
+.archive-notice div {
+  flex: 1;
+  min-width: 0;
+}
+.archive-notice p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 700px) {
+  .archive-notice {
+    margin-inline: 12px;
+    flex-wrap: wrap;
+  }
+}

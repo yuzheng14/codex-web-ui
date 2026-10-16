@@ -216,6 +216,7 @@ describe('project conversation overview', () => {
       data: [
         {
           id: 'first-thread',
+          archived: false,
           forkedFromId: 'parent',
           projectId: 'first',
           source: 'appServer',

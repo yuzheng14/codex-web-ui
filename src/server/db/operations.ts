@@ -108,7 +108,11 @@ export class OperationStore {
       )
       .all()
       .filter((operation) => {
-        if (!['thread.create', 'thread.resume', 'thread.fork'].includes(operation.kind))
+        if (
+          !['thread.create', 'thread.resume', 'thread.fork', 'thread.archive'].includes(
+            operation.kind,
+          )
+        )
           return false;
         const owner =
           operation.projectId ??

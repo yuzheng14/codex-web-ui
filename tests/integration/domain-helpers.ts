@@ -45,6 +45,8 @@ export class DomainCodex implements CodexClient {
   compatibility: CodexDiagnostics['compatibility'] = 'verified';
   readonly listeners = new Set<(event: CodexEvent) => void>();
   readonly threads = new Map<string, ThreadView>();
+  archives = 0;
+  unarchives = 0;
   starts = 0;
   creates = 0;
   steers = 0;
@@ -85,8 +87,24 @@ export class DomainCodex implements CodexClient {
   emit(event: CodexEvent) {
     for (const listener of this.listeners) listener(event);
   }
-  async listThreads(_cwd: string, _cursor?: string): Promise<ThreadPage> {
-    return { data: structuredClone([...this.threads.values()]), nextCursor: null };
+  async listThreads(_cwd: string, _cursor?: string, archived = false): Promise<ThreadPage> {
+    return {
+      data: structuredClone(
+        [...this.threads.values()].filter((thread) => Boolean(thread.archived) === archived),
+      ),
+      nextCursor: null,
+    };
+  }
+  async archiveThread(id: string) {
+    this.archives++;
+    this.threads.get(id)!.archived = true;
+    this.emit({ type: 'threadArchive', threadId: id, archived: true });
+  }
+  async unarchiveThread(id: string) {
+    this.unarchives++;
+    this.threads.get(id)!.archived = false;
+    this.emit({ type: 'threadArchive', threadId: id, archived: false });
+    return this.readThread(id);
   }
   async readRuntimeSettings(_cwd: string) {
     return { model: 'test-model', reasoningEffort: 'medium' };
