@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import type { ServerMessage, ThreadView } from '../../src/shared/types.js';
-import { deferred, harness, operationId } from './domain-helpers.js';
+import type { RuntimeSettings, ServerMessage, ThreadView } from '../../src/shared/types.js';
+import { deferred, harness, operationId, threadView } from './domain-helpers.js';
 
 const resources: ReturnType<typeof harness>[] = [];
 afterEach(() => {
@@ -54,3 +54,123 @@ it('keeps loaded permission settings through metadata reads and drops them on ru
     reasoningEffort: 'high',
   });
 });
+
+const confirmedSettings: RuntimeSettings = {
+  model: 'model-a',
+  reasoningEffort: 'ultra',
+  sandbox: 'workspace-write',
+  approvalPolicy: 'on-request',
+  approvalReviewer: 'auto_review',
+  networkAccess: false,
+};
+
+it.each(['create', 'resume', 'fork'] as const)(
+  '%s retains the confirmed configuration when unrelated notifications arrive before the receipt',
+  async (operation) => {
+    const ctx = harness();
+    resources.push(ctx);
+    const source = threadView('saved-thread', ctx.project);
+    source.runtimeSettings = { model: 'saved-model', reasoningEffort: 'high' };
+    ctx.codex.threads.set(source.id, source);
+    await ctx.service.getThread(source.id);
+    const id = operation === 'resume' ? source.id : `${operation}-thread`;
+    const incoming = { ...structuredClone(source), id };
+    const receipt = { ...incoming, runtimeSettings: confirmedSettings };
+    const respond = async () => {
+      // Another browser can read history before a create/fork response is received.
+      ctx.codex.threads.set(id, incoming);
+      await ctx.service.getThread(id);
+      ctx.codex.emit({ type: 'threadStatus', threadId: id, status: 'running' });
+      ctx.codex.emit({ type: 'threadName', threadId: id, name: 'Live title' });
+      return structuredClone(receipt);
+    };
+    vi.spyOn(ctx.codex, `${operation}Thread`).mockImplementation(respond);
+    if (operation === 'create')
+      await ctx.service.createThread('project', { clientOperationId: operationId() });
+    else if (operation === 'resume')
+      await ctx.service.resumeThread(source.id, { clientOperationId: operationId() });
+    else await ctx.service.forkThread(source.id, { clientOperationId: operationId() });
+    expect(ctx.service.projection.get(id)).toMatchObject({
+      managed: true,
+      status: 'running',
+      title: 'Live title',
+      runtimeSettings: confirmedSettings,
+    });
+  },
+);
+
+it('treats a repeated settings notification as newer than a pending resume receipt', async () => {
+  const ctx = harness();
+  resources.push(ctx);
+  const source = threadView('saved-thread', ctx.project);
+  source.runtimeSettings = confirmedSettings;
+  ctx.codex.threads.set(source.id, source);
+  await ctx.service.getThread(source.id);
+  vi.spyOn(ctx.codex, 'resumeThread').mockImplementation(async () => {
+    ctx.codex.emit({
+      type: 'threadSettings',
+      threadId: source.id,
+      settings: structuredClone(confirmedSettings),
+    });
+    return {
+      ...source,
+      runtimeSettings: {
+        ...confirmedSettings,
+        sandbox: 'danger-full-access',
+        approvalPolicy: 'never',
+      },
+    };
+  });
+  await ctx.service.resumeThread(source.id, { clientOperationId: operationId() });
+  expect(ctx.service.projection.get(source.id)?.runtimeSettings).toEqual(confirmedSettings);
+});
+
+it('does not mark a delayed create receipt managed after its runtime has reset', async () => {
+  const ctx = harness();
+  resources.push(ctx);
+  vi.spyOn(ctx.codex, 'createThread').mockImplementation(async () => {
+    ctx.codex.reset();
+    return {
+      ...threadView('old-runtime-thread', ctx.project),
+      runtimeSettings: confirmedSettings,
+    };
+  });
+  await expect(
+    ctx.service.createThread('project', { clientOperationId: operationId() }),
+  ).rejects.toMatchObject({ code: 'RESULT_UNKNOWN' });
+  expect(ctx.service.projection.get('old-runtime-thread')).toBeUndefined();
+});
+
+it.each(['create', 'resume', 'fork'] as const)(
+  '%s does not replace a newer configuration notification, including explicit null values',
+  async (operation) => {
+    const ctx = harness();
+    resources.push(ctx);
+    const source = threadView('saved-thread', ctx.project);
+    source.runtimeSettings = confirmedSettings;
+    ctx.codex.threads.set(source.id, source);
+    await ctx.service.getThread(source.id);
+    const id = operation === 'resume' ? source.id : `${operation}-thread`;
+    const incoming = { ...structuredClone(source), id };
+    const latest: RuntimeSettings = {
+      model: null,
+      reasoningEffort: null,
+      sandbox: null,
+      approvalPolicy: null,
+      approvalReviewer: null,
+      networkAccess: null,
+    };
+    vi.spyOn(ctx.codex, `${operation}Thread`).mockImplementation(async () => {
+      ctx.codex.threads.set(id, incoming);
+      await ctx.service.getThread(id);
+      ctx.codex.emit({ type: 'threadSettings', threadId: id, settings: latest });
+      return structuredClone(incoming);
+    });
+    if (operation === 'create')
+      await ctx.service.createThread('project', { clientOperationId: operationId() });
+    else if (operation === 'resume')
+      await ctx.service.resumeThread(source.id, { clientOperationId: operationId() });
+    else await ctx.service.forkThread(source.id, { clientOperationId: operationId() });
+    expect(ctx.service.projection.get(id)?.runtimeSettings).toEqual(latest);
+  },
+);

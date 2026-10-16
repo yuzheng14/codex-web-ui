@@ -138,6 +138,7 @@ test('retries unavailable defaults and preserves unknown or custom values withou
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
   await expect(effort.locator('option:checked')).toHaveText('未报告');
   await expect(effort).toBeDisabled();
+  await expect(page.locator('.reasoning-gauge text')).toHaveText('?');
   await page.getByRole('button', { name: '权限与审批设置' }).click();
   await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
     'external-sandbox',
@@ -147,6 +148,77 @@ test('retries unavailable defaults and preserves unknown or custom values withou
   );
   await expect(page.locator('.settings-observed')).toContainText('当前网络权限：允许');
   await expect(page.locator('.settings-pending')).toHaveCount(0);
+});
+
+test('all reported effort levels have distinct gauges, including xhigh, max and ultra', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await confirmCompatibility(page);
+  await createThreadButton(page).click();
+  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
+  const gauge = page.locator('.reasoning-gauge');
+  let previousProgress = -1;
+  let previousArc: string | null = null;
+  let previousNeedle: string | null = null;
+  for (const value of ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']) {
+    await effort.selectOption(value);
+    await expect(effort).toHaveAttribute('title', `推理强度：${value}`);
+    await expect(effort.locator('option:checked')).toHaveText(value);
+    await expect(gauge.locator('text')).toHaveCount(0);
+    const progress = Number(await gauge.getAttribute('data-progress'));
+    const arc = await gauge.locator('path[stroke-dasharray]').getAttribute('stroke-dasharray');
+    const needle = await gauge.locator('path').last().getAttribute('d');
+    expect(progress).toBeGreaterThan(previousProgress);
+    expect(arc).not.toBe(previousArc);
+    expect(needle).not.toBe(previousNeedle);
+    previousProgress = progress;
+    previousArc = arc;
+    previousNeedle = needle;
+
+    if (['xhigh', 'max', 'ultra'].includes(value)) {
+      await page.getByRole('textbox', { name: '任务内容' }).fill(`确认推理强度：${value}`);
+      await page.getByRole('button', { name: '发送任务', exact: true }).click();
+      await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
+      await expect(page.locator('.settings-pending')).toHaveCount(0);
+      await expect(effort).toBeEnabled();
+      await expect(effort).toHaveValue(value);
+      await page
+        .locator('.composer-box')
+        .screenshot({ path: `/tmp/codex-fix-effort-${value}.png` });
+    }
+  }
+  await page.reload();
+  await expect(effort).toHaveValue('ultra');
+  await expect(gauge.locator('text')).toHaveCount(0);
+});
+
+test('idle history reports complete permissions immediately after resume', async ({
+  page,
+  request,
+}) => {
+  const { externalThreadId: id } = await controlRuntime(request, { external: 'free' });
+  await page.addInitScript((id) => {
+    localStorage.setItem('codex-web.project', 'fixture');
+    localStorage.setItem('codex-web.selected:fixture', id!);
+  }, id);
+  await page.goto('/');
+  await confirmCompatibility(page);
+  const policy = page.getByRole('button', { name: '权限与审批设置' });
+  await expect(policy).toContainText('按需审批');
+  await policy.click();
+  await expect(page.locator('.settings-heading')).toContainText('会话当前配置');
+  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
+    'read-only',
+  );
+  await expect(page.getByRole('combobox', { name: '审批策略', exact: true })).toHaveValue(
+    'on-request',
+  );
+  await expect(page.locator('.settings-observed')).toContainText('当前网络权限：受限');
+  await expect(page.locator('.settings-observed')).toContainText('审批执行方：user');
+  await expect(page.locator('.settings-panel')).not.toContainText('未报告');
+  await page.locator('.composer-box').screenshot({ path: '/tmp/codex-fix-permissions.png' });
 });
 
 test('restored saved settings stay distinct from edits until the next task confirms them', async ({
@@ -165,10 +237,10 @@ test('restored saved settings stay distinct from edits until the next task confi
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
   await expect(effort).toHaveValue('medium');
   await page.getByRole('button', { name: '权限与审批设置' }).click();
-  // Seeding this fixture emits a settings notification, so its actual policy is already known.
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
-    'read-only',
-  );
+  // An occupied history has not resumed, so its saved model does not imply known permissions.
+  await expect(
+    page.getByRole('combobox', { name: '权限范围', exact: true }).locator('option:checked'),
+  ).toHaveText('未报告');
   await expect(page.locator('.settings-heading')).toContainText('会话保存配置');
   await effort.selectOption('high');
   await expect(page.locator('.settings-pending')).toContainText('恢复后发送或 Fork 时生效');

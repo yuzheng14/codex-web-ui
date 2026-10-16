@@ -37,7 +37,11 @@ export class Projection {
     this.revisions.set(threadId, this.revision(threadId) + 1);
   }
 
-  thread(incoming: ThreadView, preserveCurrent = false): ThreadView {
+  thread(
+    incoming: ThreadView,
+    preserveCurrent = false,
+    preserveRuntimeSettings = preserveCurrent,
+  ): ThreadView {
     const current = this.threads.get(incoming.id);
     if (!current) {
       const thread = structuredClone(incoming);
@@ -58,9 +62,9 @@ export class Projection {
         current.runtimeSettings = { ...oldRuntimeSettings, ...incoming.runtimeSettings };
       if (preserveCurrent) {
         current.status = oldStatus;
-        current.runtimeSettings = oldRuntimeSettings;
         current.title = oldTitle;
       }
+      if (preserveRuntimeSettings) current.runtimeSettings = oldRuntimeSettings;
       for (const turn of incoming.turns) this.turn(incoming.id, turn, preserveCurrent);
     }
     this.touch(incoming.id);

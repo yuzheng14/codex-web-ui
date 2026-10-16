@@ -1,16 +1,9 @@
-const levels: Record<string, number> = {
-  none: 0,
-  minimal: 0.15,
-  low: 0.3,
-  medium: 0.5,
-  high: 0.75,
-  xhigh: 1,
-  max: 1,
-};
+const levels = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
 
 /** An ordinal indicator only; the select still exposes the exact server-provided value. */
 export function ReasoningGauge({ effort }: { effort: string }) {
-  const progress = levels[effort];
+  const level = levels.indexOf(effort);
+  const progress = level < 0 ? undefined : level / (levels.length - 1);
   const angle = Math.PI * (1 + (progress ?? 0));
   return (
     <svg
