@@ -61,6 +61,8 @@ export interface CodexClient {
     settings?: Settings,
     images?: string[],
   ): Promise<TurnView>;
+  /** Native inline review of the current checkout's uncommitted changes. */
+  startReview(id: string): Promise<TurnView>;
   steerTurn(
     id: string,
     turnId: string,

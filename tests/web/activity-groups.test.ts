@@ -65,6 +65,20 @@ describe('conversation activity grouping', () => {
     expect(initial).toEqual([{ kind: 'activity', key: 'activity:first', items: [first] }]);
   });
 
+  it('keeps code review conclusions visible between activity groups', () => {
+    const input = [
+      item('started', 'enteredReviewMode'),
+      item('inspection'),
+      { ...item('result', 'exitedReviewMode'), text: 'Review complete' },
+      item('followup'),
+    ];
+    expect(groupConversationItems(input)).toEqual([
+      { kind: 'activity', key: 'activity:started', items: input.slice(0, 2) },
+      { kind: 'message', key: 'message:result', item: input[2] },
+      { kind: 'activity', key: 'activity:followup', items: input.slice(3) },
+    ]);
+  });
+
   it('does not share groups between turns or mutate its input', () => {
     const first = Object.freeze(item('one'));
     const input = Object.freeze([first]);

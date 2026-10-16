@@ -141,6 +141,9 @@ export function mapItem(item: ThreadItem): ItemView {
       return { id: item.id, type: item.type, text: item.text };
     case 'contextCompaction':
       return { id: item.id, type: item.type };
+    case 'enteredReviewMode':
+    case 'exitedReviewMode':
+      return { id: item.id, type: item.type, text: item.review };
     case 'commandExecution':
       return {
         id: item.id,

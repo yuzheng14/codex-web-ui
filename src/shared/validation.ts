@@ -18,6 +18,7 @@ export const settingsSchema = z
   })
   .strict();
 export const operationSchema = z.object({ clientOperationId: z.string().uuid() }).strict();
+export const startReviewSchema = operationSchema;
 export const confirmCompatibilitySchema = operationSchema.extend({
   codexEpoch: idSchema,
   codexVersion: z.string().min(1).max(200),

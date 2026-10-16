@@ -57,6 +57,8 @@ export interface SimulatorOptions {
   malformed?: boolean;
   hugeLineBytes?: number;
   malformedTurnReceipt?: boolean;
+  reviewFailure?: string;
+  reviewWrongThread?: boolean;
   nonblockingQuestions?: boolean;
   threadNames?: string[];
   titleOutput?: string;
@@ -286,6 +288,26 @@ function complete(
   }
 }
 function execute(thread: Thread, turn: Turn, cmd = command(randomUUID(), thread.cwd)): void {
+  if (turn.items.some((item) => item.type === 'enteredReviewMode')) {
+    finishes.set(
+      turn.id,
+      setTimeout(() => {
+        if (turn.status !== 'inProgress') return;
+        const result: ThreadItem = {
+          id: randomUUID(),
+          type: 'exitedReviewMode',
+          review: '## 代码审查结果\n\n模拟审查已完成：未提交改动中未发现需要修复的问题。',
+        };
+        turn.items.push(result);
+        notify({
+          method: 'item/completed',
+          params: { threadId: thread.id, turnId: turn.id, item: result, completedAtMs: Date.now() },
+        });
+        complete(thread, turn);
+      }, options.turnDelayMs ?? 150),
+    );
+    return;
+  }
   turn.items.push(cmd);
   notify({
     method: 'item/started',
@@ -1329,6 +1351,53 @@ function receive(request: ClientRequest): void {
           }, options.turnDelayMs ?? 800),
         );
       }, options.compactStartDelayMs ?? 0);
+      break;
+    }
+    case 'review/start': {
+      const thread = threads.get(request.params.threadId);
+      if (!thread || thread.status.type === 'active') {
+        error(request.id, thread ? 'Thread busy' : 'Thread not found');
+        break;
+      }
+      if (options.reviewFailure) {
+        error(request.id, options.reviewFailure);
+        break;
+      }
+      if (options.crashAfterDispatch) process.exit(17);
+      const item: ThreadItem = {
+        id: randomUUID(),
+        type: 'enteredReviewMode',
+        review: '未提交改动',
+      };
+      const turn: Turn = {
+        id: randomUUID(),
+        rootTurnId: null,
+        items: [item],
+        itemsView: 'full',
+        status: 'inProgress',
+        error: null,
+        startedAt: Date.now() / 1000,
+        completedAt: null,
+        durationMs: null,
+      };
+      thread.turns.push(turn);
+      thread.status = { type: 'active', activeFlags: [] };
+      notify({ method: 'turn/started', params: { threadId: thread.id, turn } });
+      notify({
+        method: 'item/completed',
+        params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
+      });
+      const receipt = structuredClone(turn);
+      setTimeout(
+        () =>
+          reply(request.id, {
+            turn: options.malformedTurnReceipt ? { ...receipt, status: 'invalid' } : receipt,
+            reviewThreadId: options.reviewWrongThread ? 'unexpected-thread' : thread.id,
+          }),
+        options.ackDelayMs ?? 0,
+      );
+      if (options.approval) approval(thread, turn, options.approval);
+      else execute(thread, turn);
       break;
     }
     case 'turn/start': {

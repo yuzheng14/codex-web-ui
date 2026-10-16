@@ -100,6 +100,7 @@ class ControlledFixture implements CodexClient {
     this.externalFailures.delete(id);
   }
   startTurn: CodexClient['startTurn'] = (...args) => this.inner.startTurn(...args);
+  startReview: CodexClient['startReview'] = (...args) => this.inner.startReview(...args);
   steerTurn: CodexClient['steerTurn'] = (...args) => this.inner.steerTurn(...args);
   interruptTurn: CodexClient['interruptTurn'] = (...args) => this.inner.interruptTurn(...args);
   compactThread: CodexClient['compactThread'] = (...args) => this.inner.compactThread(...args);

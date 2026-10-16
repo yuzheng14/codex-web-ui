@@ -42,6 +42,8 @@ const activityLabels: Record<string, string> = {
   webSearch: '搜索网页',
   plan: '执行计划',
   contextCompaction: '压缩上下文',
+  enteredReviewMode: '开始代码审查',
+  exitedReviewMode: '代码审查结果',
 };
 const activityStatusLabels: Record<string, string> = {
   completed: '已完成',
@@ -159,7 +161,11 @@ function Item({ item }: { item: ItemView }) {
   if (item.type === 'autoApprovalReview' && item.autoReview) {
     return <AutoReviewCard review={item.autoReview} />;
   }
-  if (item.type === 'userMessage' || item.type === 'agentMessage') {
+  if (
+    item.type === 'userMessage' ||
+    item.type === 'agentMessage' ||
+    item.type === 'exitedReviewMode'
+  ) {
     const user = item.type === 'userMessage';
     return (
       <article

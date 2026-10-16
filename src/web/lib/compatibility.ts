@@ -10,6 +10,7 @@ const protectedOperations = new Set([
   'resolve',
   'archive',
   'compact',
+  'review',
 ]);
 
 /** A dismissal never applies to a different runtime, executable version or verified baseline. */
