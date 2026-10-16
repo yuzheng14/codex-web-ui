@@ -14,7 +14,7 @@ async function start(page: Page, outcome: string, history = '') {
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(notice(page)).toHaveAttribute('data-state', 'inProgress');
   await expect(notice(page)).toHaveCount(1);
-  await expect(page.locator('details.activity-group')).toHaveCount(0);
+  await expect(page.locator('.turn').last().locator('details.activity-group')).toHaveCount(0);
   return (await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture')))!;
 }
 async function screenshot(page: Page, name: string) {
