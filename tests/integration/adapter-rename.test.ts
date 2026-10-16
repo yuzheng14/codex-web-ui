@@ -76,6 +76,10 @@ it('cancels pending title generation and never overwrites a manual name on later
       (await requests()).filter((entry) => entry.method === 'thread/unsubscribe'),
     ).toHaveLength(1),
   );
+  // Cancelling the title task does not mean the original user turn has completed.
+  await vi.waitFor(async () =>
+    expect((await adapter.readThread(thread.id)).turns.at(-1)?.status).toBe('completed'),
+  );
   await adapter.startTurn(thread.id, thread.cwd, 'Another message');
   expect((await adapter.readThreadMetadata(thread.id)).title).toBe('用户明确名称');
   expect(

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspace } from './hooks/useWorkspace';
 import { Sidebar } from './components/Sidebar';
 import { Conversation } from './components/Conversation';
+import { ThreadTitle } from './components/ThreadTitle';
 import { Composer } from './components/Composer';
 import { ActionCard } from './components/ActionCard';
 import { ConnectionBadge, Diagnostics } from './components/Diagnostics';
@@ -186,6 +187,7 @@ export function App() {
   const slashContextRef = useRef(slashContext);
   slashContextRef.current = slashContext;
   const slashCommands = createSlashCommands(() => slashContextRef.current);
+  const renameCommand = slashCommands.find((command) => command.name === 'rename')!;
 
   return (
     <div className="app-shell">
@@ -271,7 +273,15 @@ export function App() {
                 <Icon name="chevron" size={12} />
                 <span>{thread ? '会话' : '概览'}</span>
               </div>
-              <h1>{thread?.title || (thread ? '新会话' : '开始你的下一项任务')}</h1>
+              {thread ? (
+                <ThreadTitle
+                  key={`${thread.projectId}:${thread.id}`}
+                  title={thread.title || '新会话'}
+                  rename={renameCommand}
+                />
+              ) : (
+                <h1>开始你的下一项任务</h1>
+              )}
             </div>
           </div>
           <div className="topbar-status">

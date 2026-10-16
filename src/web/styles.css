@@ -543,12 +543,14 @@ svg {
 }
 .topbar-title {
   display: flex;
+  flex: 1;
   align-items: center;
   min-width: 0;
   gap: 10px;
 }
 .topbar-title > div {
   min-width: 0;
+  flex: 1;
 }
 .breadcrumb {
   display: flex;
@@ -575,6 +577,77 @@ svg {
   align-items: center;
   gap: 17px;
   font-size: 11px;
+}
+.thread-title-editor {
+  min-width: 0;
+  max-width: 480px;
+}
+.thread-title-editor .thread-title-hint {
+  display: block;
+}
+.thread-title-editor h1:not(.sr-only) {
+  overflow: visible;
+}
+.thread-title-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 3px 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.thread-title-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thread-title-trigger svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.thread-title-trigger:hover,
+.thread-title-trigger:focus-visible {
+  color: var(--accent);
+}
+.thread-title-trigger[aria-disabled='true'] {
+  cursor: default;
+  color: inherit;
+}
+.thread-title-fields {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.thread-title-fields input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+}
+.thread-title-fields .button {
+  flex-shrink: 0;
+}
+.thread-title-help,
+.thread-title-error {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.thread-title-help {
+  color: var(--muted);
+}
+.thread-title-error {
+  color: var(--destructive);
 }
 .thread-actions {
   display: flex;
@@ -2373,6 +2446,17 @@ dd {
   .topbar h1 {
     font-size: 13px;
     max-width: calc(100vw - 220px);
+  }
+  .topbar:has(.thread-title-editing) .topbar-title {
+    flex-basis: 100%;
+  }
+  .thread-title-fields input {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  .thread-title-fields .button {
+    width: 44px;
+    height: 44px;
   }
   .topbar-status {
     margin-left: auto;
