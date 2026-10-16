@@ -153,7 +153,12 @@ export function Composer(props: Props) {
   }
   return (
     <div className="composer-region">
-      {external && props.resuming && <p role="status">正在恢复会话…</p>}
+      {external && props.resuming && (
+        <p className="composer-resume-status" role="status">
+          <Icon name="refresh" size={14} />
+          正在恢复会话…
+        </p>
+      )}
       {external && props.resumeAttempted && !props.resuming && !resumeError && props.canResume && (
         <Button size="sm" variant="secondary" onClick={props.onResume}>
           重试恢复
