@@ -51,10 +51,14 @@ export class Projection {
     } else {
       const oldTurns = current.turns;
       const oldStatus = current.status;
+      const oldRuntimeSettings = current.runtimeSettings;
       const oldTitle = current.title;
       Object.assign(current, incoming, { turns: oldTurns, actions: current.actions });
+      if (oldRuntimeSettings && incoming.runtimeSettings)
+        current.runtimeSettings = { ...oldRuntimeSettings, ...incoming.runtimeSettings };
       if (preserveCurrent) {
         current.status = oldStatus;
+        current.runtimeSettings = oldRuntimeSettings;
         current.title = oldTitle;
       }
       for (const turn of incoming.turns) this.turn(incoming.id, turn, preserveCurrent);
@@ -237,6 +241,10 @@ export class Projection {
     for (const thread of this.threads.values()) {
       thread.managed = false;
       delete thread.resumeError;
+      if (thread.runtimeSettings) {
+        const { model, reasoningEffort } = thread.runtimeSettings;
+        thread.runtimeSettings = { model, reasoningEffort };
+      }
       if (isActive(thread.status)) thread.status = 'unknown';
       for (const turn of thread.turns) {
         if (isActive(turn.status)) turn.status = 'unknown';

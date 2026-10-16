@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CodexAdapter, type AdapterEvent } from '../../src/codex/adapter.js';
-import { mapItem } from '../../src/codex/mapping.js';
+import { mapItem, permissionSettings } from '../../src/codex/mapping.js';
 import type { ThreadItem } from '../../src/codex/generated/v2/ThreadItem.js';
 import type { SimulatorOptions } from '../fixtures/app-server.js';
 const adapters: CodexAdapter[] = [];
@@ -111,6 +111,34 @@ describe('verified protocol adapter with a real subprocess', () => {
     expect(hidden).toMatchObject({ images: [], imageCount: 2 });
     await adapter.interruptTurn(thread.id, turn.id);
   });
+  it('preserves custom permission identities and their separately reported network access', () => {
+    expect(
+      permissionSettings(
+        { type: 'externalSandbox', networkAccess: 'enabled' },
+        {
+          granular: {
+            sandbox_approval: true,
+            rules: false,
+            skill_approval: true,
+            request_permissions: true,
+            mcp_elicitations: false,
+          },
+        },
+        'auto_review',
+      ),
+    ).toEqual({
+      sandbox: 'external-sandbox',
+      approvalPolicy: 'granular',
+      approvalReviewer: 'auto_review',
+      networkAccess: true,
+    });
+    expect(permissionSettings()).toEqual({
+      sandbox: null,
+      approvalPolicy: null,
+      approvalReviewer: null,
+      networkAccess: null,
+    });
+  });
   it.each([false, true])(
     'reads title metadata without fetching history (paginated: %s) and maps name updates',
     async (paginated) => {
@@ -154,6 +182,73 @@ describe('verified protocol adapter with a real subprocess', () => {
         { threadId: thread.id, includeTurns: false },
         { threadId: thread.id, includeTurns: false },
       ]);
+    },
+  );
+  it('reads project-scoped defaults without exposing the rest of the config', async () => {
+    const { adapter, requests } = await fixture({
+      configModel: 'custom-model',
+      configEffort: 'high',
+    });
+    expect(await adapter.readRuntimeSettings('/tmp/project')).toEqual({
+      model: 'custom-model',
+      reasoningEffort: 'high',
+      sandbox: 'read-only',
+      approvalPolicy: 'on-request',
+      approvalReviewer: 'user',
+    });
+    expect((await requests()).find((entry) => entry.method === 'config/read')?.params).toEqual({
+      cwd: '/tmp/project',
+      includeLayers: false,
+    });
+  });
+  it('preserves unknown defaults and keeps a missing config API from disabling execution', async () => {
+    const { adapter } = await fixture({ configModel: null, configEffort: null });
+    expect(await adapter.readRuntimeSettings('/tmp')).toMatchObject({
+      model: null,
+      reasoningEffort: null,
+    });
+    const unsupported = (await fixture({ unsupportedMethod: 'config/read' })).adapter;
+    await expect(unsupported.readRuntimeSettings('/tmp')).rejects.toMatchObject({
+      code: 'PROTOCOL_INCOMPATIBLE',
+    });
+    expect(unsupported.ready).toBe(true);
+    expect((await unsupported.createThread('/tmp')).runtimeSettings?.model).toBe('simulated-model');
+  });
+  it.each([false, true])(
+    'reports confirmed settings across create, turn, read, resume and fork (paginated: %s)',
+    async (paginated) => {
+      const { adapter, events } = await fixture({ paginated });
+      const thread = await adapter.createThread('/tmp', { reasoningEffort: 'low' });
+      expect(thread.runtimeSettings).toMatchObject({
+        model: 'simulated-model',
+        reasoningEffort: 'low',
+        sandbox: 'read-only',
+        approvalPolicy: 'on-request',
+        networkAccess: false,
+        approvalReviewer: 'user',
+      });
+      await adapter.startTurn(thread.id, '/tmp', 'settings', { reasoningEffort: 'high' });
+      await waitFor(() => events.find((event) => event.type === 'threadSettings'));
+      expect(events).toContainEqual({
+        type: 'threadSettings',
+        threadId: thread.id,
+        settings: {
+          model: 'simulated-model',
+          reasoningEffort: 'high',
+          sandbox: 'read-only',
+          approvalPolicy: 'on-request',
+          networkAccess: false,
+          approvalReviewer: 'user',
+        },
+      });
+      expect((await adapter.readThread(thread.id)).runtimeSettings?.reasoningEffort).toBe('high');
+      expect((await adapter.resumeThread(thread.id, '/tmp')).runtimeSettings?.reasoningEffort).toBe(
+        'high',
+      );
+      expect(
+        (await adapter.forkThread(thread.id, '/tmp', { reasoningEffort: 'low' })).runtimeSettings
+          ?.reasoningEffort,
+      ).toBe('low');
     },
   );
   it('handshakes before business operations, maps deltas/tool output, paginates history and explicitly includes CLI sources', async () => {

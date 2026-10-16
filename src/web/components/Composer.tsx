@@ -8,8 +8,11 @@ import { SettingsPanel } from './SettingsPanel';
 
 interface Props {
   thread?: ThreadView;
+  threadLoading?: boolean;
   draftKey: string;
   projectName?: string;
+  projectId?: string;
+  runtimeKey?: string;
   settings: Settings;
   models: ModelInfo[];
   onSettings: (settings: Settings) => void;
@@ -175,7 +178,6 @@ export function Composer(props: Props) {
           </Button>
         </div>
       )}
-      <SettingsPanel settings={props.settings} models={props.models} onChange={props.onSettings} />
       <div className="composer-box">
         {images.length > 0 && (
           <ul className="composer-images" aria-label="待发送的图片">
@@ -258,46 +260,64 @@ export function Composer(props: Props) {
           }}
           rows={3}
         />
-        <div className="composer-actions">
-          <span className="composer-target">
-            <Icon name="folder" size={14} />
-            {props.projectName ?? '未选择项目'}
-          </span>
-          <div>
-            {active && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={props.onInterrupt}
-                disabled={!props.canInterrupt || props.interrupting}
-              >
-                <Icon name="stop" size={13} />
-                {props.interrupting ? '请求中…' : '中断'}
-              </Button>
-            )}
-            <span
-              className="composer-submit"
-              data-tooltip-dismissed={shortcutDismissed || undefined}
-              onMouseEnter={() => setShortcutDismissed(false)}
-              onFocus={() => setShortcutDismissed(false)}
+        <SettingsPanel
+          settings={props.settings}
+          projectName={props.projectName}
+          models={props.models}
+          onChange={props.onSettings}
+          thread={props.thread}
+          projectId={props.projectId}
+          runtimeKey={props.runtimeKey}
+          threadLoading={props.threadLoading}
+          disabled={
+            props.disabled ||
+            Boolean(props.threadLoading) ||
+            active ||
+            props.submitting ||
+            props.resuming ||
+            props.forking
+          }
+        >
+          {active && (
+            <Button
+              aria-label={props.interrupting ? '请求中…' : '中断'}
+              title="中断"
+              variant="secondary"
+              size="sm"
+              onClick={props.onInterrupt}
+              disabled={!props.canInterrupt || props.interrupting}
             >
-              <Button
-                size="sm"
-                aria-describedby={shortcutId}
-                onClick={() => {
-                  void send();
-                }}
-                disabled={!canSend}
-              >
-                <Icon name="send" size={14} />
-                {props.submitting ? '正在提交…' : active ? '追加要求' : '发送任务'}
-              </Button>
-              <span id={shortcutId} role="tooltip" className="keyboard-hint">
-                Enter 发送 / Shift + Enter 换行
+              <Icon name="stop" size={13} />
+              <span className="composer-action-label">
+                {props.interrupting ? '请求中…' : '中断'}
               </span>
+            </Button>
+          )}
+          <span
+            className="composer-submit"
+            data-tooltip-dismissed={shortcutDismissed || undefined}
+            onMouseEnter={() => setShortcutDismissed(false)}
+            onFocus={() => setShortcutDismissed(false)}
+          >
+            <Button
+              size="sm"
+              aria-label={props.submitting ? '正在提交…' : active ? '追加要求' : '发送任务'}
+              aria-describedby={shortcutId}
+              onClick={() => {
+                void send();
+              }}
+              disabled={!canSend}
+            >
+              <Icon name="send" size={14} />
+              <span className="composer-action-label">
+                {props.submitting ? '正在提交…' : active ? '追加要求' : '发送任务'}
+              </span>
+            </Button>
+            <span id={shortcutId} role="tooltip" className="keyboard-hint">
+              Enter 发送 / Shift + Enter 换行
             </span>
-          </div>
-        </div>
+          </span>
+        </SettingsPanel>
       </div>
       <p className="composer-note">
         {active

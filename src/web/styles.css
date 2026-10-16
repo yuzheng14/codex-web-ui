@@ -1323,25 +1323,49 @@ svg {
   object-fit: contain;
   border-radius: 8px;
 }
+.composer-box {
+  container-type: inline-size;
+}
 .composer-actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   justify-content: space-between;
   align-items: center;
   padding: 7px 12px 12px;
 }
-.composer-actions > div {
+.composer-context,
+.composer-send-controls {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: 7px;
+}
+.composer-context {
+  flex: 0 1 auto;
+}
+.composer-send-controls {
+  flex: 0 1 auto;
+  margin-left: auto;
+}
+.composer-send-controls > :not(.settings-model) {
+  flex-shrink: 0;
 }
 .composer-target {
   display: flex;
   align-items: center;
   gap: 6px;
   color: #8d9b90;
-  font-size: 10px;
+  font-size: 11px;
   min-width: 0;
+}
+.composer-target svg {
+  flex-shrink: 0;
+}
+.composer-target > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
 }
 .composer-submit {
   position: relative;
@@ -1386,43 +1410,101 @@ svg {
   margin: 0;
 }
 .settings-panel {
-  padding: 0 3px 10px;
-  color: #89978d;
-  font-size: 10px;
+  color: #65776a;
+  font-size: 12px;
 }
-.settings-panel > summary {
+.settings-choice {
+  display: flex;
+  position: relative;
+  align-items: center;
+  min-width: 0;
+  min-height: 32px;
+  border-radius: 16px;
+  background: #f5f8f5;
+}
+.settings-model {
+  max-width: 220px;
+}
+.settings-model select {
+  width: 100%;
+  padding: 6px 5px 6px 10px;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  color: #314b38;
+  font: inherit;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+.settings-effort {
+  width: 34px;
+  justify-content: center;
+}
+.settings-effort select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.settings-choice:focus-within {
+  outline: 2px solid #6b9674;
+  outline-offset: 2px;
+}
+.settings-choice select:focus-visible {
+  outline: none;
+}
+.settings-choice:has(select:disabled) {
+  opacity: 0.6;
+}
+.settings-choice select:disabled {
+  cursor: default;
+}
+.settings-policy {
   display: flex;
   align-items: center;
-  gap: 10px;
-  list-style: none;
-  width: fit-content;
+  flex-shrink: 0;
+  gap: 5px;
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 5px 7px;
+  border-radius: 16px;
+  color: #637669;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
 }
-.settings-panel > summary::before {
-  content: '⚙';
-  font-size: 13px;
-}
-.settings-panel > summary span {
-  color: #a9b0aa;
-}
-.settings-panel > summary::after {
-  content: '⌄';
-  color: #a2b0a6;
+.settings-policy:hover,
+.settings-policy[aria-expanded='true'] {
+  background: #edf3ee;
 }
 .settings-fields {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
   background: #f8faf8;
-  border: 1px solid #e9eeea;
+  border: 1px solid #e3e9e4;
   padding: 14px;
-  border-radius: 8px;
-  margin-top: 10px;
+  border-radius: 10px;
+  margin: 0 12px 8px;
+}
+.settings-heading {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+}
+.settings-heading span {
+  color: #748479;
 }
 .settings-fields label {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  color: #6b7c6f;
   font-size: 11px;
   min-width: 0;
 }
@@ -1432,14 +1514,97 @@ svg {
   border-radius: 5px;
   background: #fff;
   font-size: 11px;
-  color: #65776a;
+  color: #415e49;
   width: 100%;
 }
-.settings-note {
+.settings-note,
+.settings-observed {
   grid-column: 1 / -1;
   margin: 0;
   font-size: 10px;
-  color: #a0aaa3;
+  line-height: 1.6;
+  color: #6b7c6f;
+  overflow-wrap: anywhere;
+}
+.settings-observed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+.settings-pending,
+.settings-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 4px 14px 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  color: #85682c;
+}
+.settings-pending button,
+.settings-error button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+@container (max-width: 600px) {
+  .composer-actions {
+    gap: 8px;
+  }
+  .settings-model {
+    max-width: 160px;
+  }
+  .composer-action-label {
+    display: none;
+  }
+  .composer-send-controls .button {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+  }
+}
+@container (max-width: 430px) {
+  .settings-policy > span,
+  .settings-policy > svg:last-child {
+    display: none;
+  }
+  .settings-policy {
+    width: 30px;
+    padding: 6px;
+    justify-content: center;
+  }
+  .composer-context,
+  .composer-send-controls {
+    gap: 5px;
+  }
+  .composer-target > span {
+    max-width: 62px;
+  }
+  .settings-model {
+    max-width: 125px;
+  }
+  .settings-fields {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+}
+@container (max-width: 330px) {
+  .composer-target > span {
+    display: none;
+  }
+  .composer-target {
+    flex-shrink: 0;
+    padding: 4px;
+  }
+  .settings-model {
+    max-width: 110px;
+  }
 }
 .pending-actions {
   max-height: 38vh;
@@ -2060,9 +2225,6 @@ dd {
   }
   .composer-actions {
     padding: 5px 9px 9px;
-  }
-  .composer-actions .button {
-    padding: 6px 9px;
   }
   .composer-note {
     font-size: 8px;

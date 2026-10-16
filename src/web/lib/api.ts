@@ -1,5 +1,6 @@
 import type {
   ApiError,
+  RuntimeSettings,
   Operation,
   Project,
   SystemInfo,
@@ -53,6 +54,8 @@ export async function request<T>(path: string, body?: object, signal?: AbortSign
 
 export const api = {
   system: () => request<SystemInfo>('/api/system'),
+  runtimeSettings: (projectId: string) =>
+    request<RuntimeSettings>(`/api/projects/${encodeURIComponent(projectId)}/runtime-settings`),
   projects: () => request<{ data: Project[] }>('/api/projects'),
   addProject: (input: { path: string; name?: string }) => request<Project>('/api/projects', input),
   renameProject: (id: string, name: string) =>

@@ -5,6 +5,8 @@ import { appendFileSync } from 'node:fs';
 import type { ClientRequest } from '../../src/codex/generated/ClientRequest.js';
 import type { ServerNotification } from '../../src/codex/generated/ServerNotification.js';
 import type { ServerRequest } from '../../src/codex/generated/ServerRequest.js';
+import type { ReasoningEffort } from '../../src/codex/generated/ReasoningEffort.js';
+import type { ThreadStartParams } from '../../src/codex/generated/v2/ThreadStartParams.js';
 import type { Thread } from '../../src/codex/generated/v2/Thread.js';
 import type { Turn } from '../../src/codex/generated/v2/Turn.js';
 import type { ThreadItem } from '../../src/codex/generated/v2/ThreadItem.js';
@@ -18,6 +20,8 @@ import type { JsonValue } from '../../src/codex/generated/serde_json/JsonValue.j
 import type { GuardianApprovalReviewStatus } from '../../src/codex/generated/v2/GuardianApprovalReviewStatus.js';
 
 export interface SimulatorOptions {
+  configModel?: string | null;
+  configEffort?: ReasoningEffort | null;
   fragmentBytes?: number;
   ackDelayMs?: number;
   turnDelayMs?: number;
@@ -70,6 +74,10 @@ const options = JSON.parse(
   optionsIndex < 0 ? '{}' : (process.argv[optionsIndex + 1] ?? '{}'),
 ) as SimulatorOptions;
 const threads = new Map<string, Thread>();
+const policies = new Map<
+  string,
+  Pick<ThreadStartResponse, 'sandbox' | 'approvalPolicy' | 'approvalsReviewer'>
+>();
 const finishes = new Map<string, NodeJS.Timeout>();
 type ServerReply = { id: RequestId; result?: unknown; error?: unknown };
 const callbacks = new Map<RequestId, (response: ServerReply) => void>();
@@ -115,7 +123,7 @@ function makeThread(cwd: string): Thread {
     historyMode: options.paginated ? 'paginated' : 'legacy',
     modelProvider: options.modelProvider ?? 'openai',
     model: 'simulated-model',
-    reasoningEffort: 'medium',
+    reasoningEffort: cwd.endsWith('other-project') ? 'high' : 'medium',
     createdAt: Date.now() / 1000,
     updatedAt: Date.now() / 1000,
     recencyAt: null,
@@ -133,6 +141,15 @@ function makeThread(cwd: string): Thread {
     turns: [],
   };
 }
+function policy(thread: Thread) {
+  return (
+    policies.get(thread.id) ?? {
+      approvalPolicy: 'on-request' as const,
+      approvalsReviewer: 'user' as const,
+      sandbox: { type: 'readOnly' as const, networkAccess: false },
+    }
+  );
+}
 function startResponse(
   thread: Thread,
 ): ThreadStartResponse & { activePermissionProfile?: { id: string } } {
@@ -144,10 +161,8 @@ function startResponse(
     disabledPluginIds: [],
     cwd: thread.cwd,
     instructionSources: [],
-    approvalPolicy: 'on-request',
-    approvalsReviewer: 'user',
-    sandbox: { type: 'readOnly', networkAccess: false },
-    reasoningEffort: 'medium',
+    ...policy(thread),
+    reasoningEffort: thread.reasoningEffort,
     ...(options.activePermissionProfile
       ? {
           activePermissionProfile: {
@@ -158,6 +173,60 @@ function startResponse(
         }
       : {}),
   };
+}
+function applySettings(
+  thread: Thread,
+  settings: Pick<ThreadStartParams, 'model' | 'config' | 'sandbox' | 'approvalPolicy'>,
+) {
+  if (settings.model) thread.model = settings.model;
+  const effort = settings.config?.model_reasoning_effort;
+  if (typeof effort === 'string') thread.reasoningEffort = effort as ReasoningEffort;
+  const current = policy(thread);
+  if (settings.approvalPolicy) current.approvalPolicy = settings.approvalPolicy;
+  if (settings.sandbox)
+    current.sandbox =
+      settings.sandbox === 'danger-full-access'
+        ? { type: 'dangerFullAccess' }
+        : settings.sandbox === 'read-only'
+          ? { type: 'readOnly', networkAccess: false }
+          : {
+              type: 'workspaceWrite',
+              writableRoots: [thread.cwd],
+              networkAccess: false,
+              excludeTmpdirEnvVar: false,
+              excludeSlashTmp: false,
+            };
+  policies.set(thread.id, current);
+}
+function notifySettings(thread: Thread) {
+  notify({
+    method: 'thread/settings/updated',
+    params: {
+      threadId: thread.id,
+      threadSettings: {
+        disabledPluginIds: [],
+        cwd: thread.cwd,
+        approvalPolicy: policy(thread).approvalPolicy,
+        approvalsReviewer: policy(thread).approvalsReviewer,
+        sandboxPolicy: policy(thread).sandbox,
+        activePermissionProfile: null,
+        model: thread.model!,
+        modelProvider: thread.modelProvider,
+        serviceTier: null,
+        effort: thread.reasoningEffort,
+        summary: null,
+        personality: null,
+        collaborationMode: {
+          mode: 'default',
+          settings: {
+            model: thread.model!,
+            reasoning_effort: thread.reasoningEffort,
+            developer_instructions: null,
+          },
+        },
+      },
+    },
+  });
 }
 function command(id: string, cwd: string): Extract<ThreadItem, { type: 'commandExecution' }> {
   return {
@@ -586,6 +655,27 @@ function receive(request: ClientRequest): void {
         requiresOpenaiAuth: false,
       });
       break;
+    case 'config/read':
+      reply(request.id, {
+        config: {
+          mcp_servers: { 'fixture.tools': { command: 'unused', enabled: true } },
+          model: options.configModel === undefined ? 'simulated-model' : options.configModel,
+          model_reasoning_effort:
+            options.configEffort === undefined
+              ? request.params.cwd?.endsWith('other-project')
+                ? 'high'
+                : 'medium'
+              : options.configEffort,
+          sandbox_mode: 'read-only',
+          approval_policy: 'on-request',
+          approvals_reviewer: 'user',
+          developer_instructions: 'private instructions',
+          api_key: 'private-test-key',
+        },
+        origins: {},
+        layers: null,
+      });
+      break;
     case 'model/list':
       reply(request.id, {
         data: (options.models ?? [model.model]).map((name) => ({
@@ -596,18 +686,11 @@ function receive(request: ClientRequest): void {
         nextCursor: null,
       });
       break;
-    case 'config/read':
-      reply(request.id, {
-        config: { mcp_servers: { 'fixture.tools': { command: 'unused', enabled: true } } },
-        origins: {},
-        layers: null,
-      });
-      break;
     case 'thread/start': {
       const thread = makeThread(request.params.cwd ?? process.cwd());
       thread.ephemeral = request.params.ephemeral ?? false;
-      thread.model = request.params.model ?? thread.model;
       thread.modelProvider = request.params.modelProvider ?? thread.modelProvider;
+      applySettings(thread, request.params);
       threads.set(thread.id, thread);
       const started = () =>
         notify({ method: 'thread/started', params: { thread: { ...thread, turns: [] } } });
@@ -682,6 +765,7 @@ function receive(request: ClientRequest): void {
           turn.completedAt = Date.now() / 1000;
         }
       }
+      applySettings(thread, request.params);
       threads.set(thread.id, thread);
       notify({ method: 'thread/started', params: { thread: { ...thread, turns: [] } } });
       reply(request.id, {
@@ -706,6 +790,7 @@ function receive(request: ClientRequest): void {
         );
         break;
       }
+      applySettings(thread, request.params);
       reply(request.id, {
         ...startResponse(thread),
         collaborationMode: null,
@@ -769,6 +854,13 @@ function receive(request: ClientRequest): void {
         process.stdout.write('x'.repeat(options.hugeLineBytes));
         break;
       }
+      if (request.params.model) thread.model = request.params.model;
+      if (request.params.effort) thread.reasoningEffort = request.params.effort;
+      const current = policy(thread);
+      if (request.params.sandboxPolicy) current.sandbox = request.params.sandboxPolicy;
+      if (request.params.approvalPolicy) current.approvalPolicy = request.params.approvalPolicy;
+      policies.set(thread.id, current);
+      notifySettings(thread);
       const input: ThreadItem = {
         id: randomUUID(),
         type: 'userMessage',
