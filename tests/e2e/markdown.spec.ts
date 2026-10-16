@@ -72,13 +72,15 @@ test('GFM tables render during streaming and preserve cells, formatting and alig
   });
 });
 
-test('320px and 390px tables scroll locally with the keyboard without widening the page', async ({
-  page,
-}) => {
-  await start(page);
-  await expect(turnStatus(page)).toHaveText('已完成');
-  const region = reply(page).getByRole('region', { name: '表格', exact: true });
-  for (const width of [320, 390]) {
+// Each viewport gets a fresh page so an in-flight native keyboard scroll cannot
+// be interrupted by resetting scrollLeft and resizing for the next assertion.
+for (const width of [320, 390]) {
+  test(`${width}px tables scroll locally with the keyboard without widening the page`, async ({
+    page,
+  }) => {
+    await start(page);
+    await expect(turnStatus(page)).toHaveText('已完成');
+    const region = reply(page).getByRole('region', { name: '表格', exact: true });
     await page.setViewportSize({ width, height: 844 });
     await region.scrollIntoViewIfNeeded();
     await expect(region).toHaveAttribute('tabindex', '0');
@@ -94,22 +96,20 @@ test('320px and 390px tables scroll locally with the keyboard without widening t
         .locator('.conversation-scroll')
         .evaluate((element) => element.scrollWidth <= element.clientWidth),
     ).toBe(true);
-    await region.evaluate((element) => {
-      element.scrollLeft = 0;
-    });
+    if (width === 390) {
+      await page.screenshot({
+        path: '/tmp/codex-markdown-mobile.png',
+        fullPage: true,
+        animations: 'disabled',
+      });
+    }
     await region.focus();
+    await expect(region).toBeFocused();
+    expect(await region.evaluate((element) => element.scrollLeft)).toBe(0);
     await region.press('ArrowRight');
     await expect.poll(() => region.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
-    await region.evaluate((element) => {
-      element.scrollLeft = 0;
-    });
-  }
-  await page.screenshot({
-    path: '/tmp/codex-markdown-mobile.png',
-    fullPage: true,
-    animations: 'disabled',
   });
-});
+}
 
 test('GFM keeps task lists, strikethrough and code fences while retaining HTML and URL safety', async ({
   page,
