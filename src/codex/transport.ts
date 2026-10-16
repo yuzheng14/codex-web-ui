@@ -5,14 +5,16 @@ import type { Readable, Writable } from 'node:stream';
 export type RpcId = string | number;
 export type RpcNotification = { method: string; params?: unknown };
 export type RpcServerRequest = RpcNotification & { id: RpcId };
+export const DEFAULT_MAX_LINE_BYTES = 64 * 1024 * 1024;
 export class CodexError extends AppError {
   constructor(
     code: string,
     message: string,
     public readonly uncertain = false,
     public readonly rpcCode?: number,
+    diagnostics?: Record<string, unknown>,
   ) {
-    super(code, message, 503, { uncertain, rpcCode });
+    super(code, message, 503, { uncertain, rpcCode, ...diagnostics });
     this.name = 'CodexError';
   }
 }
@@ -24,7 +26,7 @@ export class JsonLineReader {
   private readonly decoder = new TextDecoder('utf-8', { fatal: true });
   constructor(
     private readonly consume: (value: unknown) => void,
-    private readonly maxBytes = 8 * 1024 * 1024,
+    private readonly maxBytes = DEFAULT_MAX_LINE_BYTES,
   ) {}
   push(chunk: Buffer): void {
     let start = 0;
@@ -33,12 +35,18 @@ export class JsonLineReader {
       const end = newline < 0 ? chunk.length : newline;
       const part = chunk.subarray(start, end);
       this.size += part.length;
-      if (this.size > this.maxBytes)
+      if (this.size > this.maxBytes) {
+        const receivedBytes = this.size;
+        this.parts = [];
+        this.size = 0;
         throw new CodexError(
           'PROTOCOL_ERROR',
-          'Codex JSONL message exceeds the configured limit',
+          `Codex JSONL message exceeds the configured limit (received at least ${receivedBytes} bytes; limit ${this.maxBytes} bytes)`,
           true,
+          undefined,
+          { receivedBytes, maxLineBytes: this.maxBytes },
         );
+      }
       if (part.length) this.parts.push(part);
       if (newline < 0) break;
       this.flush();
@@ -63,6 +71,7 @@ export class JsonLineReader {
 }
 
 type Pending = {
+  method: string;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timer: NodeJS.Timeout;
@@ -96,6 +105,7 @@ export class RpcTransport extends EventEmitter {
       }
     });
     output.on('end', () => {
+      if (this.failure) return;
       try {
         this.reader.finish();
       } catch (error) {
@@ -130,7 +140,7 @@ export class RpcTransport extends EventEmitter {
           ),
         );
       }, this.options.timeoutMs ?? 30_000);
-      this.pending.set(id, { resolve: (result) => resolve(result as T), reject, timer });
+      this.pending.set(id, { method, resolve: (result) => resolve(result as T), reject, timer });
       void this.write({ id, method, params }).catch((error: unknown) => {
         const pending = this.pending.get(id);
         if (!pending) return;
@@ -151,6 +161,10 @@ export class RpcTransport extends EventEmitter {
   }
   fail(error: CodexError): void {
     if (this.failure) return;
+    error = new CodexError(error.code, error.message, error.uncertain, error.rpcCode, {
+      ...(isRecord(error.details) ? error.details : {}),
+      pendingRequests: [...this.pending].map(([id, pending]) => ({ id, method: pending.method })),
+    });
     this.failure = error;
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);

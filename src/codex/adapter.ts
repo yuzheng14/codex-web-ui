@@ -155,6 +155,11 @@ export class CodexAdapter implements CodexClient {
   epoch = randomUUID();
   private child?: ChildProcessWithoutNullStreams;
   private rpc?: RpcTransport;
+  private stopped = true;
+  private starting?: Promise<void>;
+  private recovering?: Promise<void>;
+  private restartTimer?: NodeJS.Timeout;
+  private restartAttempt = 0;
   private titles?: ThreadTitles;
   // Ordering only. Persisted archive state belongs exclusively to Codex.
   private archiveSequence = 0;
@@ -197,6 +202,16 @@ export class CodexAdapter implements CodexClient {
   }
 
   async start(): Promise<void> {
+    if (this.starting) return this.starting;
+    this.stopped = false;
+    this.starting = this.startProcess();
+    try {
+      await this.starting;
+    } finally {
+      this.starting = undefined;
+    }
+  }
+  private async startProcess(): Promise<void> {
     if (this.child) throw new CodexError('CODEX_BUSY', 'Codex app-server is already started');
     this.epoch = randomUUID();
     this.disabled.clear();
@@ -264,6 +279,7 @@ export class CodexAdapter implements CodexClient {
       });
       rpc.on('failure', (error: CodexError) => {
         if (this.rpc !== rpc) return;
+        const wasReady = this.ready;
         this.state.ready = false;
         this.state.connection = 'unavailable';
         this.state.error = error.message;
@@ -275,6 +291,14 @@ export class CodexAdapter implements CodexClient {
         }, 2500);
         kill.unref();
         child.once('exit', () => clearTimeout(kill));
+        if (wasReady && !this.stopped) {
+          // Only metadata is logged: never RPC params, results, or session contents.
+          console.error('Codex transport failed', {
+            code: error.code,
+            ...(error.details as object),
+          });
+          this.scheduleRestart();
+        }
       });
       const initialized = await this.call(
         'initialize',
@@ -351,11 +375,40 @@ export class CodexAdapter implements CodexClient {
       this.state.connection = 'unavailable';
       this.state.error = failure.message;
       this.publishRuntime();
-      await this.stop();
+      await this.stopProcess();
       throw failure;
     }
   }
   async stop(): Promise<void> {
+    this.stopped = true;
+    clearTimeout(this.restartTimer);
+    this.restartTimer = undefined;
+    await this.starting?.catch(() => {});
+    await this.recovering;
+    await this.stopProcess();
+  }
+  private scheduleRestart(): void {
+    if (this.stopped || this.restartTimer) return;
+    const delay = Math.min(1000 * 2 ** Math.min(this.restartAttempt++, 5), 30_000);
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = undefined;
+      this.recovering = (async () => {
+        await this.stopProcess();
+        if (this.stopped) return;
+        try {
+          await this.start();
+          this.restartAttempt = 0;
+        } catch {
+          this.scheduleRestart();
+        }
+      })();
+      void this.recovering.finally(() => {
+        this.recovering = undefined;
+      });
+    }, delay);
+    this.restartTimer.unref();
+  }
+  private async stopProcess(): Promise<void> {
     const child = this.child;
     this.state.ready = false;
     this.state.connection = 'unavailable';
@@ -563,7 +616,7 @@ export class CodexAdapter implements CodexClient {
         cursor,
         limit: 100,
         sortDirection: 'asc',
-        itemsView: 'full',
+        itemsView: 'summary',
       });
       for (const turn of page.data) {
         if (turn.itemsView !== 'full') {
@@ -575,7 +628,7 @@ export class CodexAdapter implements CodexClient {
               threadId: id,
               turnId: turn.id,
               cursor: itemCursor,
-              limit: 100,
+              limit: 20,
               sortDirection: 'asc',
             });
             turn.items.push(...items.data.map((entry) => entry.item));
@@ -634,6 +687,7 @@ export class CodexAdapter implements CodexClient {
         threadId: id,
         cwd,
         ...threadSettings(settings),
+        excludeTurns: true,
       });
     } catch (error) {
       // Verified with two 0.162.1 processes, for both legacy and paginated histories.
@@ -647,9 +701,7 @@ export class CodexAdapter implements CodexClient {
       throw error;
     }
     titles?.register(result);
-    const thread = result.thread;
-    const view =
-      thread.historyMode === 'paginated' ? await this.readThread(thread.id) : mapThread(thread);
+    const view = await this.readThread(result.thread.id);
     return { ...view, runtimeSettings: this.responseRuntimeSettings(result) };
   }
   async forkThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {

@@ -51,6 +51,25 @@ describe('Codex JSONL and bidirectional RPC', () => {
       'Invalid UTF-8',
     );
   });
+  it('reports the byte limit and pending method/ID without request or response contents', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const rpc = new RpcTransport(input, output, { maxLineBytes: 32 });
+    const pending = rpc.request('thread/items/list', { secret: 'private request' }, 7);
+    output.write('{"id":7,"result":"private response');
+    await expect(pending).rejects.toMatchObject({
+      code: 'PROTOCOL_ERROR',
+      uncertain: true,
+      details: {
+        receivedBytes: 34,
+        maxLineBytes: 32,
+        pendingRequests: [{ id: 7, method: 'thread/items/list' }],
+      },
+    });
+    await pending.catch((error) => expect(JSON.stringify(error)).not.toContain('private'));
+    input.destroy();
+    output.destroy();
+  });
   it('reports RPC timeout as uncertain, without resending or treating it as cancellation', async () => {
     const input = new PassThrough();
     const output = new PassThrough();

@@ -2,7 +2,11 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CodexAdapter, type AdapterEvent } from '../../src/codex/adapter.js';
+import {
+  CodexAdapter,
+  type AdapterEvent,
+  type CodexAdapterOptions,
+} from '../../src/codex/adapter.js';
 import { mapItem, permissionSettings } from '../../src/codex/mapping.js';
 import type { ThreadItem } from '../../src/codex/generated/v2/ThreadItem.js';
 import type { SimulatorOptions } from '../fixtures/app-server.js';
@@ -12,7 +16,11 @@ afterEach(async () => {
   await Promise.all(adapters.splice(0).map((adapter) => adapter.stop()));
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
-async function fixture(options: SimulatorOptions = {}, timeout = 5000) {
+async function fixture(
+  options: SimulatorOptions = {},
+  timeout = 5000,
+  overrides: Partial<CodexAdapterOptions> = {},
+) {
   const dir = await mkdtemp(join(tmpdir(), 'codex-adapter-'));
   dirs.push(dir);
   const adapter = new CodexAdapter({
@@ -25,6 +33,7 @@ async function fixture(options: SimulatorOptions = {}, timeout = 5000) {
       JSON.stringify({ ...options, logPath: join(dir, 'requests.jsonl') }),
     ],
     requestTimeoutMs: timeout,
+    ...overrides,
   });
   adapters.push(adapter);
   const events: AdapterEvent[] = [];
@@ -64,6 +73,82 @@ async function waitFor<T>(get: () => T | undefined): Promise<T> {
 }
 
 describe('verified protocol adapter with a real subprocess', () => {
+  it.each([
+    [9, 142],
+    [1, 1279],
+  ])(
+    'loads and resumes oversized history (%i turns, %i items each) within the old 8 MiB limit',
+    async (turns, itemsPerTurn) => {
+      const { adapter, requests } = await fixture(
+        {
+          paginated: true,
+          history: { turns, itemsPerTurn, itemBytes: 7000 },
+        },
+        5000,
+        { maxLineBytes: 8 * 1024 * 1024 },
+      );
+      const thread = await adapter.createThread('/tmp');
+      const history = await adapter.readThread(thread.id);
+      expect(history.turns).toHaveLength(turns);
+      for (const turn of history.turns) {
+        expect(turn.items).toHaveLength(itemsPerTurn);
+        expect(turn.items.every((item) => item.output?.length === 7000)).toBe(true);
+      }
+      expect((await adapter.resumeThread(thread.id, thread.cwd)).turns).toEqual(history.turns);
+      expect(adapter.ready).toBe(true);
+      const calls = await requests();
+      expect(
+        calls
+          .filter((call) => call.method === 'thread/turns/list')
+          .every((call) => call.params.itemsView === 'summary'),
+      ).toBe(true);
+      expect(
+        calls
+          .filter((call) => call.method === 'thread/items/list')
+          .every((call) => call.params.limit === 20),
+      ).toBe(true);
+      expect(calls.find((call) => call.method === 'thread/resume')?.params.excludeTurns).toBe(true);
+    },
+  );
+  it('retains legacy history above 8 MiB with the new bounded default', async () => {
+    const { adapter } = await fixture({
+      history: { turns: 1, itemsPerTurn: 1, itemBytes: 9 * 1024 * 1024 },
+    });
+    const thread = await adapter.createThread('/tmp');
+    expect(
+      (await adapter.resumeThread(thread.id, thread.cwd)).turns[0]?.items[0]?.output?.length,
+    ).toBe(9 * 1024 * 1024);
+    expect(adapter.ready).toBe(true);
+  });
+  it('recovers from an oversized frame with a new epoch without replaying a turn', async () => {
+    const { adapter, requests } = await fixture({ hugeLineBytes: 4096 }, 5000, {
+      maxLineBytes: 2048,
+    });
+    const thread = await adapter.createThread('/tmp');
+    const epoch = adapter.epoch;
+    await expect(adapter.startTurn(thread.id, thread.cwd, 'private prompt')).rejects.toMatchObject({
+      code: 'PROTOCOL_ERROR',
+      uncertain: true,
+      details: {
+        maxLineBytes: 2048,
+        pendingRequests: [expect.objectContaining({ method: 'turn/start' })],
+      },
+    });
+    await waitFor(() => (adapter.ready && adapter.epoch !== epoch ? true : undefined));
+    expect(await adapter.createThread('/tmp')).toHaveProperty('id');
+    expect((await requests()).filter((call) => call.method === 'turn/start')).toHaveLength(1);
+  });
+  it('cancels a scheduled restart when stopped explicitly', async () => {
+    const { adapter, requests } = await fixture({ crashAfterDispatch: true });
+    const thread = await adapter.createThread('/tmp');
+    await expect(adapter.startTurn(thread.id, thread.cwd, 'crash')).rejects.toMatchObject({
+      uncertain: true,
+    });
+    await adapter.stop();
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(adapter.ready).toBe(false);
+    expect((await requests()).filter((call) => call.method === 'initialize')).toHaveLength(1);
+  });
   it.each([false, true])(
     'uses native archive/list/unarchive for paginated=%s without relying on rollout paths',
     async (paginated) => {

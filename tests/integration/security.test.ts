@@ -17,6 +17,17 @@ afterEach(async () => {
   for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true });
 });
 describe('local configuration and browser boundary', () => {
+  it('configures the Codex frame limit independently of projection limits', () => {
+    expect(local().codex.maxLineBytes).toBe(64 * 1024 * 1024);
+    expect(local({ codex: { maxLineBytes: 128 * 1024 * 1024 } }).codex.maxLineBytes).toBe(
+      128 * 1024 * 1024,
+    );
+    for (const maxLineBytes of [0, 1023, 1.5, 256 * 1024 * 1024 + 1]) {
+      expect(() => local({ codex: { maxLineBytes } })).toThrow(
+        expect.objectContaining({ code: 'INVALID_CONFIG' }),
+      );
+    }
+  });
   it('resolves data relative to config and supports documented pnpm separator', () => {
     expect(local().dataDir).toBe('/tmp/.local/codex-web');
     expect(cliOptions(['--', '--config', '/tmp/settings.json']).configPath).toBe(

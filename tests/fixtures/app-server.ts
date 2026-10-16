@@ -33,6 +33,7 @@ export interface SimulatorOptions {
   activeArchiveDescendant?: boolean;
   historyPageSize?: number;
   historyItemSummaries?: boolean;
+  history?: { turns: number; itemsPerTurn: number; itemBytes: number };
   forkHistoryReadError?: boolean;
   malformedForkReceipt?: boolean;
   resumeFailure?: { code: number; message: string };
@@ -839,6 +840,23 @@ function receive(request: ClientRequest): void {
       if (options.threadStartedDelayMs) setTimeout(started, options.threadStartedDelayMs);
       else started();
       reply(request.id, startResponse(thread));
+      if (options.history && !thread.ephemeral) {
+        thread.turns = Array.from({ length: options.history.turns }, () => ({
+          id: randomUUID(),
+          rootTurnId: null,
+          itemsView: 'full',
+          status: 'completed',
+          error: null,
+          startedAt: null,
+          completedAt: null,
+          durationMs: null,
+          items: Array.from({ length: options.history!.itemsPerTurn }, () => ({
+            ...command(randomUUID(), thread.cwd),
+            status: 'completed' as const,
+            aggregatedOutput: 'x'.repeat(options.history!.itemBytes),
+          })),
+        }));
+      }
       break;
     }
     case 'thread/loaded/list':
@@ -974,6 +992,7 @@ function receive(request: ClientRequest): void {
       });
       reply(request.id, {
         ...startResponse(thread),
+        thread: { ...thread, turns: request.params.excludeTurns ? [] : thread.turns },
         collaborationMode: null,
         turnsBackwardsCursor: null,
         itemsBackwardsCursor: null,
@@ -983,12 +1002,14 @@ function receive(request: ClientRequest): void {
     case 'thread/turns/list': {
       const turns = threads.get(request.params.threadId)?.turns ?? [];
       const offset = Number(request.params.cursor ?? 0);
-      const limit = options.historyPageSize ?? turns.length;
+      const limit = Math.min(options.historyPageSize ?? 100, request.params.limit ?? 100);
       reply(request.id, {
         data: turns
           .slice(offset, offset + limit)
           .map((turn) =>
-            options.historyItemSummaries ? { ...turn, items: [], itemsView: 'summary' } : turn,
+            options.historyItemSummaries || request.params.itemsView !== 'full'
+              ? { ...turn, items: [], itemsView: request.params.itemsView ?? 'summary' }
+              : turn,
           ),
         nextCursor: offset + limit < turns.length ? String(offset + limit) : null,
         backwardsCursor: null,
@@ -1001,7 +1022,7 @@ function receive(request: ClientRequest): void {
         ?.turns.find((entry) => entry.id === request.params.turnId);
       const items = turn?.items ?? [];
       const offset = Number(request.params.cursor ?? 0);
-      const limit = options.historyPageSize ?? items.length;
+      const limit = Math.min(options.historyPageSize ?? 100, request.params.limit ?? 100);
       reply(request.id, {
         data: items.slice(offset, offset + limit).map((item) => ({
           turnId: request.params.turnId,
