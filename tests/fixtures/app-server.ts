@@ -30,6 +30,7 @@ export interface SimulatorOptions {
   guardianApproval?: boolean;
   rejectPermissions?: boolean;
   ignorePermissions?: boolean;
+  settingsOnFeatureRead?: boolean;
   configModel?: string | null;
   configEffort?: ReasoningEffort | null;
   fragmentBytes?: number;
@@ -185,18 +186,20 @@ function startResponse(
     instructionSources: [],
     ...policy(thread),
     reasoningEffort: thread.reasoningEffort,
-    ...(profiles.has(thread.id)
-      ? { activePermissionProfile: profiles.get(thread.id) }
-      : options.activePermissionProfile
-        ? {
-            activePermissionProfile: {
-              id: thread.ephemeral
-                ? (options.temporaryPermissionProfile ?? options.activePermissionProfile)
-                : options.activePermissionProfile,
-              extends: null,
-            },
-          }
-        : { activePermissionProfile: { id: ':read-only', extends: null } }),
+    ...(thread.ephemeral && options.temporaryPermissionProfile
+      ? { activePermissionProfile: { id: options.temporaryPermissionProfile, extends: null } }
+      : profiles.has(thread.id)
+        ? { activePermissionProfile: profiles.get(thread.id) }
+        : options.activePermissionProfile
+          ? {
+              activePermissionProfile: {
+                id: thread.ephemeral
+                  ? (options.temporaryPermissionProfile ?? options.activePermissionProfile)
+                  : options.activePermissionProfile,
+                extends: null,
+              },
+            }
+          : { activePermissionProfile: { id: ':read-only', extends: null } }),
   };
 }
 function applySettings(
@@ -1210,6 +1213,10 @@ function receive(request: ClientRequest): void {
       reply(request.id, { requirements: options.requirements ?? null });
       break;
     case 'experimentalFeature/list':
+      if (options.settingsOnFeatureRead && request.params.threadId) {
+        const thread = threads.get(request.params.threadId);
+        if (thread) notifySettings(thread);
+      }
       reply(request.id, {
         data: [
           {
@@ -1374,6 +1381,9 @@ function receive(request: ClientRequest): void {
         name: source.name,
         turns: structuredClone(source.turns),
       };
+      policies.set(thread.id, structuredClone(policy(source)));
+      const inheritedProfile = profiles.get(source.id);
+      if (inheritedProfile) profiles.set(thread.id, structuredClone(inheritedProfile));
       for (const turn of thread.turns) {
         if (turn.status === 'inProgress') {
           turn.status = 'interrupted';
@@ -1752,7 +1762,11 @@ function receive(request: ClientRequest): void {
         );
       else if (reconnect) codexReconnect(thread, turn, reconnect);
       else if (prompt.includes('[codex-thinking]')) thinking(thread, turn);
-      else if (reviewStatus) autoReview(thread, turn, reviewStatus, prompt);
+      else if (prompt.includes('[mode-approval]') && policy(thread).approvalPolicy !== 'never') {
+        if (policy(thread).approvalsReviewer === 'auto_review')
+          autoReview(thread, turn, 'approved', prompt);
+        else approval(thread, turn, 'command');
+      } else if (reviewStatus) autoReview(thread, turn, reviewStatus, prompt);
       else if (kind) approval(thread, turn, kind);
       else if (
         prompt.includes('[local-images]') ||

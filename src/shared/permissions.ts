@@ -56,14 +56,21 @@ export function permissionModeUnavailable(
     !capabilities.allowedApprovalPolicies.includes(preset.approvalPolicy)
   )
     return '受管要求不允许此审批策略';
-  if (
-    capabilities.allowedReviewers &&
-    !capabilities.allowedReviewers.includes(preset.approvalReviewer)
-  )
+  return permissionReviewerUnavailable(preset.approvalReviewer, capabilities, model);
+}
+
+export function permissionReviewerUnavailable(
+  reviewer: 'user' | 'auto_review',
+  capabilities?: PermissionCapabilities,
+  model?: string | null,
+): string | undefined {
+  if (!capabilities) return '尚未读取审核方的可用条件';
+  if (capabilities.unavailableReason) return capabilities.unavailableReason;
+  if (capabilities.allowedReviewers && !capabilities.allowedReviewers.includes(reviewer))
     return '受管要求不允许此审核方';
-  if (mode === 'auto-review' && !capabilities.autoReview)
+  if (reviewer === 'auto_review' && !capabilities.autoReview)
     return '当前 Codex 未启用自动审核（guardian_approval）';
-  if (model && capabilities.autoReviewRequiredModels.includes(model) && mode !== 'auto-review')
+  if (model && capabilities.autoReviewRequiredModels.includes(model) && reviewer !== 'auto_review')
     return '受管要求规定此模型必须使用自动审核';
   return undefined;
 }

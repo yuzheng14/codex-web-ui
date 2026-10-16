@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { ThreadTitles } from './thread-titles.js';
 import { AppError } from '../shared/errors.js';
 import { threadNameError } from '../shared/thread-name.js';
-import { permissionModeUnavailable } from '../shared/permissions.js';
+import { permissionModeUnavailable, permissionReviewerUnavailable } from '../shared/permissions.js';
 import {
   permissionCapabilities,
   type PermissionRequirements,
@@ -786,18 +786,24 @@ export class CodexAdapter implements CodexClient {
     settings?: Settings,
     threadId?: string,
   ): Promise<void> {
-    if (!settings?.permissionMode) return;
+    if (!settings?.permissionMode && settings?.approvalReviewer === undefined) return;
     const epoch = this.epoch;
-    const capabilities = threadId
-      ? await this.readPermissionCapabilities(threadId)
-      : (await this.readRuntimeSettings(cwd)).permissionCapabilities;
+    const defaults =
+      !threadId || !this.permissionState.has(threadId)
+        ? await this.readRuntimeSettings(cwd)
+        : undefined;
+    const capabilities = defaults
+      ? defaults.permissionCapabilities
+      : await this.readPermissionCapabilities(threadId);
     if (epoch !== this.epoch)
       throw new AppError('CODEX_UNAVAILABLE', 'Codex 运行实例已变化，请重试');
-    const reason = permissionModeUnavailable(
-      settings.permissionMode,
-      capabilities,
-      settings.model ?? (threadId ? this.permissionState.get(threadId)?.model : undefined),
-    );
+    const model =
+      settings.model ??
+      (threadId ? this.permissionState.get(threadId)?.model : undefined) ??
+      defaults?.model;
+    const reason = settings.permissionMode
+      ? permissionModeUnavailable(settings.permissionMode, capabilities, model)
+      : permissionReviewerUnavailable(settings.approvalReviewer!, capabilities, model);
     if (reason) throw new AppError('PERMISSION_MODE_UNAVAILABLE', reason);
   }
   private async responseRuntimeSettings(result: ThreadStartResponse): Promise<RuntimeSettings> {
@@ -815,12 +821,15 @@ export class CodexAdapter implements CodexClient {
       permissionCapabilities: await this.readPermissionCapabilities(result.thread.id),
     };
     const latest = this.permissionState.get(result.thread.id);
-    this.permissionState.set(
-      result.thread.id,
+    const confirmed =
       latest && latest !== previous
         ? { ...latest, permissionCapabilities: settings.permissionCapabilities }
-        : settings,
-    );
+        : settings;
+    this.permissionState.set(result.thread.id, confirmed);
+    // The service correctly keeps a newer settings notification over a lifecycle response.
+    // Publish availability alongside that newer state so the delayed capability read is not lost.
+    if (confirmed !== settings)
+      this.emit({ type: 'threadSettings', threadId: result.thread.id, settings: confirmed });
     return settings;
   }
   async resumeThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {

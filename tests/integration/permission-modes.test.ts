@@ -106,6 +106,10 @@ it('sends complete selections through create, turn, resume and fork, and reports
     sandbox: 'workspace-write',
     permissionProfile: { id: ':workspace' },
   });
+  expect(
+    (await adapter.forkThread(thread.id, dir, { model: 'simulated-model' })).runtimeSettings
+      ?.permissionMode,
+  ).toBe('auto-review');
   for (const mode of ['ask', 'auto-review', 'full-access', 'read-only'] as const) {
     const turn = await adapter.startTurn(thread.id, dir, 'fixture permission switch', {
       permissionMode: mode,
@@ -192,4 +196,46 @@ it('propagates upstream rejection without publishing the requested mode as effec
   expect((await adapter.resumeThread(thread.id, dir)).runtimeSettings?.permissionMode).toBe(
     'read-only',
   );
+});
+
+it('leaves permissions inherited when capability discovery is unavailable', async () => {
+  const { adapter, dir, requests } = await fixture({
+    unsupportedMethod: 'configRequirements/read',
+  });
+  const current = await adapter.readRuntimeSettings(dir);
+  expect(current.permissionCapabilities?.unavailableReason).toContain('无法核实');
+  await expect(adapter.createThread(dir, { permissionMode: 'auto-review' })).rejects.toMatchObject({
+    code: 'PERMISSION_MODE_UNAVAILABLE',
+  });
+  expect((await adapter.createThread(dir)).runtimeSettings?.permissionMode).toBe('read-only');
+  expect(
+    (await requests()).find((entry) => entry.method === 'thread/start')?.params,
+  ).not.toHaveProperty('permissions');
+});
+
+it('enforces managed reviewer and model constraints for an explicit new-session choice', async () => {
+  const { adapter, dir } = await fixture({
+    requirements: {
+      autoReview: { requiredOnModels: ['simulated-model'], ignoreRules: null },
+      allowedApprovalsReviewers: ['auto_review'],
+    },
+  });
+  await expect(adapter.createThread(dir, { permissionMode: 'ask' })).rejects.toMatchObject({
+    code: 'PERMISSION_MODE_UNAVAILABLE',
+  });
+  expect(
+    (await adapter.createThread(dir, { permissionMode: 'auto-review' })).runtimeSettings
+      ?.permissionMode,
+  ).toBe('auto-review');
+});
+
+it('retains capability discovery when a newer settings notification wins over the lifecycle result', async () => {
+  const { adapter, dir, events } = await fixture({ settingsOnFeatureRead: true });
+  const created = await adapter.createThread(dir, { permissionMode: 'auto-review' });
+  const latest = events
+    .filter((event) => event.type === 'threadSettings' && event.threadId === created.id)
+    .at(-1);
+  expect(latest).toMatchObject({
+    settings: { permissionMode: 'auto-review', permissionCapabilities: { autoReview: true } },
+  });
 });
