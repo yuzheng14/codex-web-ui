@@ -910,9 +910,10 @@ svg {
   overflow-wrap: anywhere;
 }
 .turn-completion-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  white-space: nowrap;
+}
+.turn-completion-status svg {
+  margin-right: 5px;
 }
 .message {
   display: flex;
