@@ -345,6 +345,135 @@ function execute(thread: Thread, turn: Turn, cmd = command(randomUUID(), thread.
     setTimeout(() => complete(thread, turn), options.turnDelayMs ?? 100),
   );
 }
+function codexReconnect(thread: Thread, turn: Turn, outcome: 'recover' | 'fail' | 'hold'): void {
+  const cmd = command(randomUUID(), thread.cwd);
+  cmd.command = '读取已有任务的后台输出';
+  turn.items.push(cmd);
+  notify({
+    method: 'item/started',
+    params: { threadId: thread.id, turnId: turn.id, item: cmd, startedAtMs: Date.now() },
+  });
+  const retry = (attempt: number) =>
+    notify({
+      method: 'error',
+      params: {
+        threadId: thread.id,
+        turnId: turn.id,
+        willRetry: true,
+        error: {
+          message: `Reconnecting... ${attempt}/5 (stream disconnected before completion)`,
+          codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: null } },
+          additionalDetails: null,
+          misalignment: null,
+        },
+      },
+    });
+  const later = (delay: number, work: () => void) =>
+    setTimeout(() => {
+      // An interrupted turn must never be revived by a queued simulator notification.
+      if (turn.status === 'inProgress') work();
+    }, delay);
+  retry(1);
+  later(600, () => {
+    cmd.aggregatedOutput = '重连期间到达的后台工具输出';
+    notify({
+      method: 'item/commandExecution/outputDelta',
+      params: {
+        threadId: thread.id,
+        turnId: turn.id,
+        itemId: cmd.id,
+        delta: cmd.aggregatedOutput,
+      },
+    });
+  });
+  later(900, () => {
+    cmd.status = 'completed';
+    cmd.exitCode = 0;
+    notify({
+      method: 'item/completed',
+      params: { threadId: thread.id, turnId: turn.id, item: cmd, completedAtMs: Date.now() },
+    });
+  });
+  later(1400, () => retry(2));
+  if (outcome === 'hold') return;
+  finishes.set(
+    turn.id,
+    later(4000, () => {
+      if (outcome === 'fail') {
+        turn.error = {
+          message: 'stream disconnected before completion: exceeded retry limit',
+          codexErrorInfo: { responseTooManyFailedAttempts: { httpStatusCode: 503 } },
+          additionalDetails: null,
+          misalignment: null,
+        };
+        notify({
+          method: 'error',
+          params: {
+            threadId: thread.id,
+            turnId: turn.id,
+            willRetry: false,
+            error: turn.error,
+          },
+        });
+        complete(thread, turn, 'failed');
+        return;
+      }
+      const item: ThreadItem = {
+        id: randomUUID(),
+        type: 'agentMessage',
+        text: '',
+        phase: 'final_answer',
+        memoryCitation: null,
+        delivery: null,
+        questions: null,
+      };
+      turn.items.push(item);
+      notify({
+        method: 'item/started',
+        params: { threadId: thread.id, turnId: turn.id, item, startedAtMs: Date.now() },
+      });
+      notify({
+        method: 'item/agentMessage/delta',
+        params: {
+          threadId: thread.id,
+          turnId: turn.id,
+          itemId: item.id,
+          delta: '连接已恢复，继续处理任务。',
+        },
+      });
+      item.text = '连接已恢复，继续处理任务。';
+      finishes.set(
+        turn.id,
+        later(3000, () => {
+          notify({
+            method: 'item/completed',
+            params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
+          });
+          complete(thread, turn);
+        }),
+      );
+    }),
+  );
+}
+function thinking(thread: Thread, turn: Turn): void {
+  const item: ThreadItem = {
+    id: randomUUID(),
+    type: 'reasoning',
+    summary: ['正在分析任务，暂时没有新的输出。'],
+    content: [],
+  };
+  turn.items.push(item);
+  notify({
+    method: 'item/started',
+    params: { threadId: thread.id, turnId: turn.id, item, startedAtMs: Date.now() },
+  });
+  finishes.set(
+    turn.id,
+    setTimeout(() => {
+      if (turn.status === 'inProgress') execute(thread, turn);
+    }, 3000),
+  );
+}
 function autoReview(
   thread: Thread,
   turn: Turn,
@@ -1005,7 +1134,12 @@ function receive(request: ClientRequest): void {
                 : prompt.includes('[auto-review-unknown]')
                   ? 'unfinished'
                   : undefined);
-      if (reviewStatus) autoReview(thread, turn, reviewStatus, prompt);
+      const reconnect = (['recover', 'fail', 'hold'] as const).find((outcome) =>
+        prompt.includes(`[codex-retry-${outcome}]`),
+      );
+      if (reconnect) codexReconnect(thread, turn, reconnect);
+      else if (prompt.includes('[codex-thinking]')) thinking(thread, turn);
+      else if (reviewStatus) autoReview(thread, turn, reviewStatus, prompt);
       else if (kind) approval(thread, turn, kind);
       else execute(thread, turn);
       break;

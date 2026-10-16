@@ -659,6 +659,12 @@ export class CodexAdapter implements CodexClient {
         break;
       case 'item/started':
       case 'item/completed':
+        if (['agentMessage', 'plan', 'reasoning'].includes(event.params.item.type))
+          this.emit({
+            type: 'turnProgress',
+            threadId: event.params.threadId,
+            turnId: event.params.turnId,
+          });
         this.emit({
           type: 'item',
           threadId: event.params.threadId,
@@ -672,6 +678,14 @@ export class CodexAdapter implements CodexClient {
       case 'item/reasoning/textDelta':
       case 'item/commandExecution/outputDelta':
       case 'item/fileChange/outputDelta':
+        // Background tool output can continue while the model stream is retrying.
+        // Only model content proves that this turn's upstream stream resumed.
+        if (!event.method.includes('outputDelta'))
+          this.emit({
+            type: 'turnProgress',
+            threadId: event.params.threadId,
+            turnId: event.params.turnId,
+          });
         this.emit({
           type: 'delta',
           threadId: event.params.threadId,
@@ -680,6 +694,14 @@ export class CodexAdapter implements CodexClient {
           field: event.method.includes('outputDelta') ? 'output' : 'text',
           delta: event.params.delta,
           itemType: event.method.split('/')[1]!,
+        });
+        break;
+      case 'item/reasoning/summaryPartAdded':
+      case 'rawResponse/completed':
+        this.emit({
+          type: 'turnProgress',
+          threadId: event.params.threadId,
+          turnId: event.params.turnId,
         });
         break;
       case 'turn/diff/updated':
@@ -713,10 +735,14 @@ export class CodexAdapter implements CodexClient {
         break;
       }
       case 'error':
-        if (!event.params.willRetry) {
-          this.state.error = event.params.error.message;
-          this.publishRuntime();
-        }
+        // Upstream retries/failures belong to a turn, not to the app-server process.
+        this.emit({
+          type: 'turnError',
+          threadId: event.params.threadId,
+          turnId: event.params.turnId,
+          message: event.params.error.message,
+          willRetry: event.params.willRetry,
+        });
         break;
       default: // Unknown noninteractive notifications cannot authorize any action.
         if (!isRecord(p)) break;

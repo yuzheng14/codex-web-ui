@@ -759,11 +759,14 @@ svg {
 }
 .conversation-area {
   position: relative;
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 100px;
 }
 .conversation-scroll {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-behavior: auto;
@@ -772,6 +775,55 @@ svg {
   width: min(100%, 872px);
   margin: 0 auto;
   padding: 30px 38px 25px;
+}
+.codex-reconnect-pinned {
+  flex-shrink: 0;
+  width: min(100%, 872px);
+  margin: 0 auto;
+  padding: 14px 38px 0;
+}
+.codex-reconnect {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #eadbb0;
+  border-radius: 8px;
+  background: #fff9e9;
+  color: #79601f;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.codex-reconnect > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.codex-reconnect-content {
+  min-width: 0;
+}
+.codex-reconnect strong {
+  font-weight: 600;
+}
+.codex-reconnect p {
+  margin: 4px 0 0;
+}
+.codex-reconnect details {
+  margin-top: 5px;
+  font-size: 11px;
+}
+.codex-reconnect-message {
+  max-height: 100px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.codex-reconnect-failed {
+  border-color: #efd6d3;
+  background: #fff5f3;
+  color: #a75248;
+}
+.turn > .codex-reconnect {
+  margin-bottom: 24px;
 }
 .empty-state {
   margin: max(4vh, 30px) auto 30px;
@@ -2182,6 +2234,9 @@ dd {
   }
   .conversation-content {
     padding: 25px 20px;
+  }
+  .codex-reconnect-pinned {
+    padding: 12px 20px 0;
   }
   .bottom-region {
     padding: 0 16px;

@@ -50,6 +50,7 @@ export class Projection {
       this.threads.set(thread.id, thread);
       for (const turn of thread.turns) {
         this.flushAutoReviews(thread.id, turn.id);
+        this.finishReconnect(turn);
         if (isTerminal(turn.status)) this.finishAutoReviews(turn);
       }
     } else {
@@ -88,8 +89,41 @@ export class Projection {
     if (!preserveCurrent) thread.status = incoming.status;
     this.flushAutoReviews(threadId, incoming.id);
     const updated = thread.turns.find((turn) => turn.id === incoming.id)!;
+    this.finishReconnect(updated);
     if (isTerminal(updated.status)) this.finishAutoReviews(updated);
     this.touch(threadId);
+  }
+
+  turnError(threadId: string, turnId: string, message: string, willRetry: boolean): boolean {
+    const turn = this.threads.get(threadId)?.turns.find((entry) => entry.id === turnId);
+    if (!turn || !isActive(turn.status)) return false;
+    // Keep display-only diagnostics bounded, without changing the execution reservation.
+    const detail = message.slice(0, 4096);
+    if (willRetry) turn.reconnect = { status: 'retrying', message: detail };
+    else {
+      turn.error = detail;
+      if (turn.reconnect) turn.reconnect = { status: 'failed', message: detail };
+    }
+    this.touch(threadId);
+    return true;
+  }
+
+  turnProgress(threadId: string, turnId: string): boolean {
+    const turn = this.threads.get(threadId)?.turns.find((entry) => entry.id === turnId);
+    if (!turn || !isActive(turn.status) || turn.reconnect?.status !== 'retrying') return false;
+    delete turn.reconnect;
+    this.touch(threadId);
+    return true;
+  }
+
+  private finishReconnect(turn: TurnView): void {
+    if (!turn.reconnect || !isTerminal(turn.status)) return;
+    if (turn.status === 'failed') {
+      turn.reconnect = {
+        status: 'failed',
+        message: (turn.error ?? turn.reconnect.message).slice(0, 4096),
+      };
+    } else delete turn.reconnect;
   }
 
   autoReview(threadId: string, turnId: string, review: AutoReviewView): boolean {
@@ -251,6 +285,7 @@ export class Projection {
       }
       if (isActive(thread.status)) thread.status = 'unknown';
       for (const turn of thread.turns) {
+        if (turn.reconnect?.status === 'retrying') delete turn.reconnect;
         if (isActive(turn.status)) turn.status = 'unknown';
         this.finishAutoReviews(turn);
       }

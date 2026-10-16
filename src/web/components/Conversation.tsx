@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
-import type { ItemView, ThreadView } from '../../shared/types';
+import type { ItemView, ThreadView, TurnView } from '../../shared/types';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
-import { Status } from './Status';
+import { isActive, Status } from './Status';
 import { AutoReviewCard } from './AutoReviewCard';
 
 function TextContent({ text }: { text: string }) {
@@ -160,6 +160,39 @@ function Item({ item }: { item: ItemView }) {
   return <Activity item={item} />;
 }
 
+function CodexReconnectNotice({ turn, offline }: { turn: TurnView; offline: boolean }) {
+  if (!turn.reconnect) return null;
+  const retrying = turn.reconnect.status === 'retrying';
+  return (
+    <div
+      className={`codex-reconnect codex-reconnect-${turn.reconnect.status}`}
+      data-testid="codex-reconnect-status"
+      data-state={turn.reconnect.status}
+      role={retrying ? 'status' : 'alert'}
+      aria-label="Codex 连接状态"
+    >
+      <Icon name={retrying ? 'refresh' : 'alert'} size={18} />
+      <div className="codex-reconnect-content">
+        <strong>
+          {offline && '上次已知：'}
+          {retrying ? 'Codex Reconnecting…' : 'Codex 重新连接失败'}
+        </strong>
+        <p>
+          {retrying
+            ? '正在重新连接模型服务，Codex 会自动重试。恢复后将继续当前任务。'
+            : isActive(turn.status)
+              ? 'Codex 已停止重试。请检查运行 Codex 的服务器网络与模型服务；若本轮仍未结束，可点击下方“中断”，结束后重新发送要求以继续。'
+              : 'Codex 已停止重试。请检查运行 Codex 的服务器网络与模型服务，然后重新发送要求以继续。'}
+        </p>
+        <details>
+          <summary>连接详情</summary>
+          <p className="codex-reconnect-message">{turn.reconnect.message}</p>
+        </details>
+      </div>
+    </div>
+  );
+}
+
 export function Conversation({
   thread,
   offline,
@@ -180,6 +213,7 @@ export function Conversation({
   const stickToBottom = useRef(true);
   const [showBottom, setShowBottom] = useState(false);
   const previousThread = useRef(thread?.id);
+  const latestTurn = thread?.turns.at(-1);
   useEffect(() => {
     if (previousThread.current !== thread?.id) {
       previousThread.current = thread?.id;
@@ -190,6 +224,11 @@ export function Conversation({
   }, [thread]);
   return (
     <div className="conversation-area">
+      {latestTurn?.reconnect && (
+        <div className="codex-reconnect-pinned">
+          <CodexReconnectNotice turn={latestTurn} offline={offline} />
+        </div>
+      )}
       <div
         className="conversation-scroll"
         ref={containerRef}
@@ -261,6 +300,9 @@ export function Conversation({
                   <span>第 {index + 1} 轮</span>
                   <Status status={turn.status} offline={offline} />
                 </div>
+                {turn.id !== latestTurn?.id && turn.reconnect?.status === 'failed' && (
+                  <CodexReconnectNotice turn={turn} offline={offline} />
+                )}
                 {turn.items.map((item) => (
                   <Item key={item.id} item={item} />
                 ))}
@@ -274,7 +316,9 @@ export function Conversation({
                     <Diff text={turn.diff} />
                   </details>
                 )}
-                {turn.error && <div className="error-banner">{turn.error}</div>}
+                {turn.error && turn.reconnect?.status !== 'failed' && (
+                  <div className="error-banner">{turn.error}</div>
+                )}
               </section>
             ))
           )}
