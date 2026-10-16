@@ -7,6 +7,7 @@ import { AutoReviewCard } from './AutoReviewCard';
 import { CollapsibleActivity } from './CollapsibleActivity';
 import { ActivityGroup } from './ActivityGroup';
 import { groupConversationItems } from '../lib/activity-groups';
+import { ContextCompaction } from './ContextCompaction';
 import { TurnCompletion } from './TurnCompletion';
 
 import { MarkdownContent as TextContent } from './MarkdownContent';
@@ -19,7 +20,6 @@ const activityLabels: Record<string, string> = {
   mcpToolCall: '调用工具',
   webSearch: '搜索网页',
   plan: '执行计划',
-  contextCompaction: '压缩上下文',
   enteredReviewMode: '开始代码审查',
   exitedReviewMode: '代码审查结果',
 };
@@ -115,27 +115,10 @@ function Diff({ text }: { text: string }) {
   );
 }
 
-function itemsForDisplay(turn: TurnView): ItemView[] {
-  return turn.items.map((item) => {
-    if (item.type !== 'contextCompaction') return item;
-    // Normalize before grouping so the collapsed summary and expanded card agree,
-    // including a turn interrupted before item/completed arrives.
-    const unfinished = !item.status || item.status === 'inProgress' || item.status === 'running';
-    const status = unfinished && !isActive(turn.status) ? turn.status : item.status;
-    return {
-      ...item,
-      status,
-      text:
-        status === 'completed'
-          ? '上下文压缩已结束。'
-          : (status === 'inProgress' || status === 'running') && isActive(turn.status)
-            ? '正在压缩上下文，请等待当前任务结束。'
-            : '本轮包含上下文压缩，请查看本轮任务状态及错误信息。',
-    };
-  });
-}
-
 function Item({ item }: { item: ItemView }) {
+  if (item.type === 'contextCompaction') {
+    return item.status === 'inProgress' ? null : <ContextCompaction item={item} />;
+  }
   if (item.type === 'autoApprovalReview' && item.autoReview) {
     return <AutoReviewCard review={item.autoReview} />;
   }
@@ -237,6 +220,12 @@ function ConversationContent({
   const [showBottom, setShowBottom] = useState(false);
   const previousThread = useRef(thread?.id);
   const latestTurn = thread?.turns.at(-1);
+  const activeCompaction =
+    latestTurn && isActive(latestTurn.status)
+      ? latestTurn.items.findLast(
+          (item) => item.type === 'contextCompaction' && item.status === 'inProgress',
+        )
+      : undefined;
   useEffect(() => {
     if (previousThread.current !== thread?.id) {
       previousThread.current = thread?.id;
@@ -270,6 +259,11 @@ function ConversationContent({
       {latestTurn?.reconnect && (
         <div className="codex-reconnect-pinned">
           <CodexReconnectNotice turn={latestTurn} offline={offline} />
+        </div>
+      )}
+      {activeCompaction && (
+        <div className="context-compaction-pinned">
+          <ContextCompaction item={activeCompaction} offline={offline} />
         </div>
       )}
       <div className="conversation-scroll" ref={containerRef} onScroll={updateScrollPosition}>
@@ -337,7 +331,7 @@ function ConversationContent({
                 {turn.id !== latestTurn?.id && turn.reconnect?.status === 'failed' && (
                   <CodexReconnectNotice turn={turn} offline={offline} />
                 )}
-                {groupConversationItems(itemsForDisplay(turn)).map((group) =>
+                {groupConversationItems(turn.items).map((group) =>
                   group.kind === 'message' ? (
                     <Item key={group.key} item={group.item} />
                   ) : (
@@ -358,9 +352,11 @@ function ConversationContent({
                     <Diff text={turn.diff} />
                   </details>
                 )}
-                {turn.error && turn.reconnect?.status !== 'failed' && (
-                  <div className="error-banner">{turn.error}</div>
-                )}
+                {turn.error &&
+                  turn.reconnect?.status !== 'failed' &&
+                  !turn.items.some(
+                    (item) => item.type === 'contextCompaction' && item.error === turn.error,
+                  ) && <div className="error-banner">{turn.error}</div>}
                 <TurnCompletion turn={turn} />
               </section>
             ))

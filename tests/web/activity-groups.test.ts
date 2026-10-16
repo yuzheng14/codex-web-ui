@@ -79,6 +79,19 @@ describe('conversation activity grouping', () => {
     ]);
   });
 
+  it('keeps compaction records outside tool groups and preserves their boundaries', () => {
+    const input = [
+      item('before'),
+      item('compact', 'contextCompaction', 'completed'),
+      item('after'),
+    ];
+    expect(groupConversationItems(input)).toEqual([
+      { kind: 'activity', key: 'activity:before', items: [input[0]] },
+      { kind: 'message', key: 'message:compact', item: input[1] },
+      { kind: 'activity', key: 'activity:after', items: [input[2]] },
+    ]);
+  });
+
   it('does not share groups between turns or mutate its input', () => {
     const first = Object.freeze(item('one'));
     const input = Object.freeze([first]);

@@ -146,6 +146,7 @@ export function mapItem(item: ThreadItem): ItemView {
     case 'plan':
       return { id: item.id, type: item.type, text: item.text };
     case 'contextCompaction':
+      // Lifecycle is carried by notifications, not the persisted item body.
       return { id: item.id, type: item.type };
     case 'enteredReviewMode':
     case 'exitedReviewMode':

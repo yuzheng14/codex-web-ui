@@ -1,3 +1,4 @@
+import { endCompactions, mergeCompaction, settleCompactions } from './compaction.js';
 import type {
   AutoReviewView,
   ItemView,
@@ -51,6 +52,7 @@ export class Projection {
       for (const turn of thread.turns) {
         this.flushAutoReviews(thread.id, turn.id);
         this.finishReconnect(turn);
+        settleCompactions(turn);
         if (isTerminal(turn.status)) this.finishAutoReviews(turn);
       }
     } else {
@@ -90,6 +92,7 @@ export class Projection {
     this.flushAutoReviews(threadId, incoming.id);
     const updated = thread.turns.find((turn) => turn.id === incoming.id)!;
     this.finishReconnect(updated);
+    settleCompactions(updated);
     if (isTerminal(updated.status)) this.finishAutoReviews(updated);
     this.touch(threadId);
   }
@@ -102,10 +105,23 @@ export class Projection {
     if (willRetry) turn.reconnect = { status: 'retrying', message: detail };
     else {
       turn.error = detail;
+      endCompactions(turn, 'failed', detail);
       if (turn.reconnect) turn.reconnect = { status: 'failed', message: detail };
     }
     this.touch(threadId);
     return true;
+  }
+
+  compactionCompleted(threadId: string, turnId: string): boolean {
+    const turn = this.threads.get(threadId)?.turns.find((entry) => entry.id === turnId);
+    if (!turn || !endCompactions(turn, 'completed')) return false;
+    this.touch(threadId);
+    return true;
+  }
+
+  endThreadCompactions(threadId: string): void {
+    for (const turn of this.threads.get(threadId)?.turns ?? []) endCompactions(turn, 'unknown');
+    this.touch(threadId);
   }
 
   turnProgress(threadId: string, turnId: string): boolean {
@@ -206,7 +222,9 @@ export class Projection {
     if (!turn) return;
     const index = turn.items.findIndex((entry) => entry.id === item.id);
     if (index < 0) turn.items.push(this.limit(item));
-    else if (!preserveCurrent) turn.items[index] = this.limit(item);
+    else if (!preserveCurrent)
+      turn.items[index] = this.limit(mergeCompaction(item, turn.items[index]));
+    settleCompactions(turn);
     this.touch(threadId);
   }
 
@@ -287,6 +305,7 @@ export class Projection {
       for (const turn of thread.turns) {
         if (turn.reconnect?.status === 'retrying') delete turn.reconnect;
         if (isActive(turn.status)) turn.status = 'unknown';
+        endCompactions(turn, 'unknown');
         this.finishAutoReviews(turn);
       }
       this.touch(thread.id);

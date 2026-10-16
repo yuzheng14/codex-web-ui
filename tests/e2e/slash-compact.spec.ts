@@ -23,16 +23,12 @@ test('compact uses its own task and the same conversation remains usable', async
   await input.press('Enter');
   await expect(page.locator('.slash-feedback')).toContainText('已提交上下文压缩请求');
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
-  const activities = page.locator('.turn').last().locator('details.activity-group');
-  await expect(activities).not.toHaveAttribute('open');
-  await expect(activities.locator(':scope > summary')).toContainText('已完成 1');
-  await activities.locator(':scope > summary').click();
-  await expect(page.getByText('压缩上下文', { exact: true })).toBeVisible();
+  await expect(page.getByText('上下文已压缩', { exact: true })).toBeVisible();
+  await expect(page.locator('.turn').last().locator('details.activity-group')).toHaveCount(0);
   expect(outgoing.filter((url) => url.endsWith('/compact'))).toHaveLength(1);
   expect(outgoing.filter((url) => url.endsWith('/turns'))).toHaveLength(0);
   await expect(page.locator('.user-message')).not.toContainText('/compact');
-  await page.getByText('压缩上下文', { exact: true }).click();
-  await page.getByText('上下文压缩已结束。', { exact: true }).scrollIntoViewIfNeeded();
+  await page.getByText('上下文已压缩', { exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: '/tmp/slash-compact-result.png', fullPage: true });
   await input.fill('/compact');
   await page.screenshot({
