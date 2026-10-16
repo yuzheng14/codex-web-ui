@@ -13,6 +13,7 @@ import {
   type SlashCommand,
   type SlashCommandResult,
 } from '../lib/slash-commands';
+import { ControlHint } from './ControlHint';
 
 interface Props {
   commands: SlashCommand[];
@@ -42,7 +43,6 @@ interface Props {
 export function Composer(props: Props) {
   const [drafts, setDrafts] = useState<Record<string, MessageDraft>>({});
   const draftsRef = useRef(drafts);
-  const [shortcutDismissed, setShortcutDismissed] = useState(false);
   const shortcutId = useId();
   const composingRef = useRef(false);
   const compositionEndedAtRef = useRef(-Infinity);
@@ -59,14 +59,6 @@ export function Composer(props: Props) {
     compositionEndedAtRef.current = -Infinity;
     setMenu({ key: '', text: '', selectedIndex: 0, dismissed: false });
   }, [key]);
-  useEffect(() => {
-    // A hover hint must also dismiss when keyboard focus is still in the textarea.
-    const dismissShortcut = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setShortcutDismissed(true);
-    };
-    document.addEventListener('keydown', dismissShortcut);
-    return () => document.removeEventListener('keydown', dismissShortcut);
-  }, []);
   const draft = drafts[key] ?? emptyDraft;
   const { text, images } = draft;
   const slash = parseSlashCommand(text);
@@ -363,7 +355,9 @@ export function Composer(props: Props) {
             compositionEndedAtRef.current = -Infinity;
           }}
           onKeyDown={(event) => {
-            if (event.defaultPrevented) return;
+            // A hovered Tooltip consumes Escape during document capture. The
+            // focused editor must still close its own Slash menu on that key.
+            if (event.defaultPrevented && !(menuOpen && event.key === 'Escape')) return;
             if (
               event.nativeEvent.isComposing ||
               event.nativeEvent.keyCode === 229 ||
@@ -435,11 +429,10 @@ export function Composer(props: Props) {
               </span>
             </Button>
           )}
-          <span
+          <ControlHint
+            id={shortcutId}
             className="composer-submit"
-            data-tooltip-dismissed={shortcutDismissed || undefined}
-            onMouseEnter={() => setShortcutDismissed(false)}
-            onFocus={() => setShortcutDismissed(false)}
+            content={slash ? 'Enter 执行命令 / Esc 关闭菜单' : 'Enter 发送 / Shift + Enter 换行'}
           >
             <Button
               size="sm"
@@ -478,10 +471,7 @@ export function Composer(props: Props) {
                       : '发送任务'}
               </span>
             </Button>
-            <span id={shortcutId} role="tooltip" className="keyboard-hint">
-              {slash ? 'Enter 执行命令 / Esc 关闭菜单' : 'Enter 发送 / Shift + Enter 换行'}
-            </span>
-          </span>
+          </ControlHint>
         </SettingsPanel>
       </div>
       <p className="composer-note">

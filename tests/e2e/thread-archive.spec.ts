@@ -35,12 +35,26 @@ test('archives the selected conversation, reloads its history, restores the same
   await expect(row(page, id)).toContainText('Codex 配置继承与运行设置');
   await page.getByRole('textbox', { name: '任务内容' }).fill('取消归档后保留的草稿');
   const action = row(page, id).getByRole('button', { name: '归档会话', exact: true });
+  const hint = row(page, id).getByRole('tooltip', { includeHidden: true });
+  await expect(hint).toHaveCount(1);
+  await expect(hint).toBeHidden();
   await action.hover();
-  await expect(row(page, id).getByRole('tooltip')).toBeVisible();
+  await expect(hint).toBeVisible();
+  await expect(hint).toHaveText('归档会话');
+  const actionBox = (await action.boundingBox())!;
+  const hintBox = (await hint.boundingBox())!;
+  expect(hintBox.y).toBeGreaterThanOrEqual(actionBox.y + actionBox.height);
+  expect(hintBox.y).toBeLessThanOrEqual(actionBox.y + actionBox.height + 8);
+  expect(Math.abs(hintBox.x + hintBox.width - actionBox.x - actionBox.width)).toBeLessThan(1);
+  await page.getByRole('textbox', { name: '任务内容' }).hover();
+  await expect(hint).toBeHidden();
+  await action.hover();
+  await expect(hint).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(row(page, id).getByRole('tooltip')).toBeHidden();
+  await expect(hint).toBeHidden();
   await action.focus();
-  await expect(row(page, id).getByRole('tooltip')).toHaveText('归档会话');
+  await expect(hint).toBeVisible();
+  await expect(hint).toHaveText('归档会话');
   await page.screenshot({
     path: test.info().outputPath('archive-icon.png'),
     fullPage: true,

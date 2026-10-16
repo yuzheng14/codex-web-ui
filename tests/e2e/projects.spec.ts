@@ -12,6 +12,13 @@ const currentProject = (page: Page) =>
 const selected = (page: Page, projectId: string) =>
   page.evaluate((id) => localStorage.getItem(`codex-web.selected:${id}`), projectId);
 
+async function chooseSetting(page: Page, label: string, option: string) {
+  const trigger = page.getByRole('combobox', { name: label, exact: true });
+  await trigger.click();
+  await page.getByRole('option', { name: option, exact: true }).click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+}
+
 async function submit(request: APIRequestContext, path: string, body: object = {}) {
   const response = await request.post(path, {
     headers,
@@ -234,23 +241,21 @@ test('project overview drafts and execution settings remain independent before a
   const input = page.getByRole('textbox', { name: '任务内容', exact: true });
   await input.fill('项目 A 概览草稿');
   await page.getByRole('button', { name: '权限与审批设置', exact: true }).click();
-  await page
-    .getByRole('combobox', { name: '权限范围', exact: true })
-    .selectOption('workspace-write');
+  await chooseSetting(page, '权限范围', '项目内写入');
   await projectGroup(page, '另一个项目')
     .getByRole('button', { name: '另一个项目', exact: true })
     .click();
   await expect(input).toHaveValue('');
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
+  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+    'data-value',
     'read-only',
   );
   await input.fill('项目 B 概览草稿');
-  await page
-    .getByRole('combobox', { name: '权限范围', exact: true })
-    .selectOption('workspace-write');
+  await chooseSetting(page, '权限范围', '项目内写入');
   await projectGroup(page).getByRole('button', { name: '测试项目', exact: true }).click();
   await expect(input).toHaveValue('项目 A 概览草稿');
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
+  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+    'data-value',
     'workspace-write',
   );
   const creation = page.waitForRequest(

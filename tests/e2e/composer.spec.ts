@@ -11,6 +11,8 @@ import {
 const headers = { Origin: 'http://127.0.0.1:8788' };
 const taskInput = (page: Page) => page.getByRole('textbox', { name: '任务内容', exact: true });
 const sendButton = (page: Page) => page.getByRole('button', { name: '发送任务', exact: true });
+const sendTooltip = (page: Page) =>
+  page.getByRole('tooltip').filter({ hasText: 'Enter 发送 / Shift + Enter 换行' });
 const isSubmission = (request: Request) =>
   request.method() === 'POST' && /\/api\/threads\/[^/]+\/(turns|steer)$/.test(request.url());
 function submissions(page: Page) {
@@ -83,13 +85,9 @@ test('Enter submits a task and steers the same active thread and turn', async ({
   const steerButton = page.getByRole('button', { name: '追加要求', exact: true });
   await expect(steerButton).toHaveAccessibleDescription('Enter 发送 / Shift + Enter 换行');
   await steerButton.hover();
-  await expect(page.locator('.composer-submit').getByRole('tooltip')).toHaveText(
-    'Enter 发送 / Shift + Enter 换行',
-  );
-  await page.mouse.move(0, 0);
-  await expect(
-    page.locator('.composer-submit').getByRole('tooltip', { includeHidden: true }),
-  ).toBeHidden();
+  await expect(sendTooltip(page)).toHaveText('Enter 发送 / Shift + Enter 换行');
+  await page.mouse.move(0, 0, { steps: 5 });
+  await expect(sendTooltip(page)).toHaveCount(0);
   const steered = page.waitForRequest(isSubmission);
   await steer.press('Enter');
   const steerRequest = await steered;
@@ -316,11 +314,8 @@ for (const viewport of [
     await newThread(page);
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     if (viewport.name === 'mobile') await expect(page.locator('.sidebar')).not.toBeInViewport();
-    const tooltip = page.locator('.composer-submit').getByRole('tooltip', { includeHidden: true });
-    await expect(tooltip).toHaveCount(1);
-    await expect(tooltip).toContainText('Enter 发送');
-    await expect(tooltip).toContainText('Shift + Enter 换行');
-    await expect(tooltip).toBeHidden();
+    const tooltip = sendTooltip(page);
+    await expect(tooltip).toHaveCount(0);
     await taskInput(page).fill('点击发送按钮提交任务\n也可以使用 Shift + Enter 换行');
     await expect(sendButton(page)).toBeVisible();
     await expect(sendButton(page)).toHaveAccessibleDescription('Enter 发送 / Shift + Enter 换行');
@@ -335,6 +330,10 @@ for (const viewport of [
     if (viewport.name === 'desktop') {
       await sendButton(page).hover();
       await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText('Enter 发送 / Shift + Enter 换行');
+      await page
+        .locator('.composer-box')
+        .screenshot({ path: '/tmp/codex-shadcn-send-tooltip.png' });
       await page.screenshot({
         path: '/tmp/issue-26-tooltip.png',
         fullPage: true,
@@ -344,13 +343,13 @@ for (const viewport of [
       // the hint when its keyboard event originates outside the button wrapper.
       await expect(taskInput(page)).toBeFocused();
       await page.keyboard.press('Escape');
-      await expect(tooltip).toBeHidden();
+      await expect(tooltip).toHaveCount(0);
       await expect(taskInput(page)).toBeFocused();
-      await page.mouse.move(0, 0);
+      await page.mouse.move(0, 0, { steps: 5 });
       await sendButton(page).hover();
       await expect(tooltip).toBeVisible();
-      await page.mouse.move(0, 0);
-      await expect(tooltip).toBeHidden();
+      await page.mouse.move(0, 0, { steps: 5 });
+      await expect(tooltip).toHaveCount(0);
       await taskInput(page).focus();
       await taskInput(page).press('Tab');
       const policy = page.getByRole('button', { name: '权限与审批设置', exact: true });
@@ -365,7 +364,7 @@ for (const viewport of [
       await expect(sendButton(page)).toBeFocused();
       await expect(tooltip).toBeVisible();
       await sendButton(page).press('Escape');
-      await expect(tooltip).toBeHidden();
+      await expect(tooltip).toHaveCount(0);
       await expect(sendButton(page)).toBeFocused();
       await sendButton(page).press('Shift+Tab');
       await expect(effort).toBeFocused();
@@ -373,7 +372,7 @@ for (const viewport of [
       await expect(tooltip).toBeVisible();
       await sendButton(page).press('Shift+Tab');
       await expect(effort).toBeFocused();
-      await expect(tooltip).toBeHidden();
+      await expect(tooltip).toHaveCount(0);
     }
     await sendButton(page).click();
     await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
