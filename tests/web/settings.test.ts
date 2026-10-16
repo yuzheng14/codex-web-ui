@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest';
-import { chooseModel, pendingSettings } from '../../src/web/lib/settings';
+import {
+  chooseModel,
+  choosePermissionMode,
+  pendingSettings,
+  permissionLabel,
+} from '../../src/web/lib/settings';
 import type { ModelInfo } from '../../src/shared/types';
 const model: ModelInfo = {
   id: 'model-b',
@@ -16,6 +21,60 @@ it('proposes a supported effort on model switch without claiming it is already a
     model: 'model-b',
     reasoningEffort: 'low',
   });
+});
+it('keeps an entire mode pending until the complete reported mode matches', () => {
+  const current = {
+    model: 'model-a',
+    reasoningEffort: 'high',
+    sandbox: 'workspace-write' as const,
+    approvalPolicy: 'on-request' as const,
+    approvalReviewer: 'auto_review',
+    permissionMode: 'custom' as const,
+  };
+  expect(pendingSettings({ permissionMode: 'auto-review' }, current)).toEqual({
+    permissionMode: 'auto-review',
+  });
+  expect(
+    pendingSettings(
+      { permissionMode: 'auto-review' },
+      { ...current, permissionMode: 'auto-review' },
+    ),
+  ).toEqual({});
+  expect(
+    choosePermissionMode(
+      {
+        model: 'model-b',
+        sandbox: 'read-only',
+        approvalPolicy: 'never',
+        approvalReviewer: 'auto_review',
+      },
+      current,
+      'ask',
+    ),
+  ).toEqual({ model: 'model-b', permissionMode: 'ask' });
+  expect(chooseModel({ permissionMode: 'auto-review' }, current, model).permissionMode).toBe(
+    'auto-review',
+  );
+});
+it('uses explicit unknown and custom labels without guessing a preset from a legacy pair', () => {
+  expect(permissionLabel(undefined, '读取中…')).toBe('读取中…');
+  expect(permissionLabel({ model: null, reasoningEffort: null })).toBe('未报告');
+  expect(
+    permissionLabel({
+      model: null,
+      reasoningEffort: null,
+      sandbox: 'workspace-write',
+      approvalPolicy: 'on-request',
+    }),
+  ).toBe('无法判断模式');
+  expect(
+    permissionLabel({
+      model: null,
+      reasoningEffort: null,
+      permissionMode: 'custom',
+      permissionProfile: { id: 'company', extends: ':workspace' },
+    }),
+  ).toBe('自定义 · company');
 });
 it('drops acknowledged edits but keeps newer edits and never sends observed custom policies', () => {
   expect(

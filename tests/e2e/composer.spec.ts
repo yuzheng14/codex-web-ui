@@ -6,9 +6,10 @@ import {
   confirmCompatibility,
   controlRuntime,
   createThreadButton,
+  testOrigin,
 } from './helpers';
 
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
 const taskInput = (page: Page) => page.getByRole('textbox', { name: '任务内容', exact: true });
 const sendButton = (page: Page) => page.getByRole('button', { name: '发送任务', exact: true });
 const sendTooltip = (page: Page) =>
@@ -352,11 +353,14 @@ for (const viewport of [
       await expect(tooltip).toHaveCount(0);
       await taskInput(page).focus();
       await taskInput(page).press('Tab');
-      const policy = page.getByRole('button', { name: '权限与审批设置', exact: true });
+      const policy = page.getByRole('combobox', { name: '权限模式', exact: true });
       const model = page.getByRole('combobox', { name: '模型', exact: true });
       const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
       await expect(policy).toBeFocused();
       await policy.press('Tab');
+      const details = page.getByRole('button', { name: '权限详情', exact: true });
+      await expect(details).toBeFocused();
+      await details.press('Tab');
       await expect(model).toBeFocused();
       await model.press('Tab');
       await expect(effort).toBeFocused();

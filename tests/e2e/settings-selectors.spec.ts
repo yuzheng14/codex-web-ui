@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { SystemInfo, ThreadView } from '../../src/shared/types';
+import type { SystemInfo } from '../../src/shared/types';
 import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
 
 const effortControl = (page: Page) => page.getByRole('combobox', { name: '推理强度', exact: true });
@@ -12,13 +12,6 @@ async function newThread(page: Page) {
   await confirmCompatibility(page);
   await createThreadButton(page).click();
   await expect(page.getByText('这个会话准备好了')).toBeVisible();
-}
-
-async function chooseSetting(page: Page, label: string, option: string) {
-  const trigger = page.getByRole('combobox', { name: label, exact: true });
-  await trigger.click();
-  await page.getByRole('option', { name: option, exact: true }).click();
-  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
 }
 
 test.beforeEach(async ({ request }) => {
@@ -289,102 +282,6 @@ test('model and effort menus fit a 320px viewport with long model names', async 
   await expect(effort).toHaveAttribute('data-value', 'ultra');
   await expect(menu).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-});
-
-test('advanced menus preserve external sandbox and granular approval values as disabled options', async ({
-  page,
-}) => {
-  await page.route('**/api/projects/fixture/runtime-settings', async (route) => {
-    const response = await route.fetch();
-    await route.fulfill({
-      response,
-      json: {
-        ...(await response.json()),
-        sandbox: 'external-sandbox',
-        approvalPolicy: 'granular',
-        networkAccess: true,
-        approvalReviewer: 'auto_review',
-      },
-    });
-  });
-  await page.goto('/');
-  await confirmCompatibility(page);
-  await page.getByRole('button', { name: '权限与审批设置', exact: true }).click();
-  const sandbox = page.getByRole('combobox', { name: '权限范围', exact: true });
-  const approval = page.getByRole('combobox', { name: '审批策略', exact: true });
-  await expect(sandbox).toHaveAttribute('data-value', 'external-sandbox');
-  await expect(sandbox).toContainText('外部沙箱');
-  await expect(approval).toHaveAttribute('data-value', 'granular');
-  await expect(approval).toContainText('自定义审批规则');
-  await sandbox.click();
-  await expect(page.getByRole('option', { name: '外部沙箱', exact: true })).toBeDisabled();
-  await expect(page.getByRole('option', { name: '只读', exact: true })).toBeEnabled();
-  await page.keyboard.press('Escape');
-  await approval.click();
-  await expect(page.getByRole('option', { name: '自定义审批规则', exact: true })).toBeDisabled();
-  await expect(page.getByRole('option', { name: '由 Codex 请求审批', exact: true })).toBeEnabled();
-  await page.keyboard.press('Escape');
-  await expect(sandbox).toHaveAttribute('data-value', 'external-sandbox');
-  await expect(approval).toHaveAttribute('data-value', 'granular');
-  await expect(page.locator('.settings-pending')).toHaveCount(0);
-});
-
-test('permission and approval selections remain proposals until the next task confirms them', async ({
-  page,
-  request,
-}) => {
-  await newThread(page);
-  const threadId = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
-  await page.getByRole('button', { name: '权限与审批设置', exact: true }).click();
-  const sandbox = page.getByRole('combobox', { name: '权限范围', exact: true });
-  const approval = page.getByRole('combobox', { name: '审批策略', exact: true });
-  await expect(sandbox).toHaveAttribute('data-value', 'read-only');
-  await expect(approval).toHaveAttribute('data-value', 'on-request');
-  await sandbox.click();
-  await expect(page.getByRole('option', { name: '只读', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
-  await page.screenshot({ path: '/tmp/codex-shadcn-permission-menu.png', fullPage: true });
-  await page.getByRole('option', { name: '项目内写入', exact: true }).click();
-  await expect(sandbox).toHaveAttribute('aria-expanded', 'false');
-  await approval.click();
-  await expect(page.getByRole('listbox', { name: '审批策略', exact: true })).toBeVisible();
-  await page.screenshot({ path: '/tmp/codex-shadcn-approval-menu.png', fullPage: true });
-  await page.keyboard.press('Escape');
-  await chooseSetting(page, '审批策略', '不请求审批');
-  await expect(sandbox).toHaveAttribute('data-value', 'workspace-write');
-  await expect(approval).toHaveAttribute('data-value', 'never');
-  await expect(page.locator('.settings-pending')).toContainText('下次任务生效');
-  await expect(page.locator('.settings-note')).toContainText(
-    '当前权限：只读；审批：由 Codex 请求审批',
-  );
-  const before = (await (await request.get(`/api/threads/${threadId}`)).json()) as ThreadView;
-  expect(before.runtimeSettings).toMatchObject({
-    sandbox: 'read-only',
-    approvalPolicy: 'on-request',
-  });
-  expect(before.turns).toHaveLength(0);
-
-  const submission = page.waitForRequest(
-    (request) =>
-      request.method() === 'POST' && request.url().endsWith(`/threads/${threadId}/turns`),
-  );
-  await page.getByRole('textbox', { name: '任务内容', exact: true }).fill('应用权限与审批选择');
-  await page.getByRole('button', { name: '发送任务', exact: true }).click();
-  expect((await submission).postDataJSON().settings).toEqual({
-    sandbox: 'workspace-write',
-    approvalPolicy: 'never',
-  });
-  await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
-  await expect(page.locator('.settings-pending')).toHaveCount(0);
-  await expect(sandbox).toHaveAttribute('data-value', 'workspace-write');
-  await expect(approval).toHaveAttribute('data-value', 'never');
-  const after = (await (await request.get(`/api/threads/${threadId}`)).json()) as ThreadView;
-  expect(after.runtimeSettings).toMatchObject({
-    sandbox: 'workspace-write',
-    approvalPolicy: 'never',
-  });
 });
 
 test('Escape closes Slash commands and hovered tooltips together without executing or losing the draft', async ({

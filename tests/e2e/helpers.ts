@@ -1,5 +1,6 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
 import type { SystemInfo } from '../../src/shared/types';
+export const testOrigin = `http://127.0.0.1:${process.env.E2E_PORT ?? 8788}`;
 export const compatibilityDialog = (page: Page) =>
   page.getByRole('dialog', { name: 'Codex 版本兼容性未经验证' });
 export const projectGroup = (page: Page, name = '测试项目') =>
@@ -16,7 +17,10 @@ export async function controlRuntime(
     releaseThreadId?: string;
   },
 ): Promise<SystemInfo & { externalThreadId?: string }> {
-  const response = await request.post('http://127.0.0.1:8789/runtime', { data: input });
+  const response = await request.post(
+    `http://127.0.0.1:${Number(process.env.E2E_PORT ?? 8788) + 1}/runtime`,
+    { data: input },
+  );
   expect(response.ok()).toBe(true);
   return (await response.json()) as SystemInfo;
 }

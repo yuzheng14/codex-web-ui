@@ -1789,6 +1789,89 @@ svg {
 .settings-policy[aria-expanded='true'] {
   background: #edf3ee;
 }
+.settings-policy {
+  min-width: 0;
+  max-width: 190px;
+  flex-shrink: 0;
+}
+.permission-mode-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.permission-pending-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ac7d2e;
+  flex-shrink: 0;
+}
+.settings-details-toggle {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: #748479;
+  background: transparent;
+  cursor: pointer;
+}
+.settings-details-toggle:hover,
+.settings-details-toggle[aria-expanded='true'] {
+  background: #edf3ee;
+  color: #415e49;
+}
+.permission-mode-menu {
+  width: min(350px, calc(100vw - 24px));
+  max-height: min(440px, var(--radix-select-content-available-height));
+}
+.permission-mode-menu .select-item {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.permission-mode-menu .select-item-description {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #6b7c6f;
+}
+.permission-mode-menu strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.permission-description > span {
+  display: block;
+}
+.permission-mode-menu .permission-unavailable {
+  color: #85682c;
+}
+.permission-mode-menu .select-item[data-disabled] {
+  opacity: 0.7;
+}
+.permission-values {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px 20px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.permission-values > div {
+  min-width: 0;
+}
+.permission-values dt {
+  color: #748479;
+}
+.permission-values dd {
+  margin: 2px 0 0;
+  color: #415e49;
+  overflow-wrap: anywhere;
+}
 .settings-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1883,9 +1966,17 @@ svg {
     display: none;
   }
   .settings-policy {
-    width: 30px;
+    width: 44px;
+    min-height: 44px;
     padding: 6px;
     justify-content: center;
+  }
+  .settings-details-toggle {
+    width: 44px;
+    min-height: 44px;
+  }
+  .permission-values {
+    grid-template-columns: minmax(0, 1fr);
   }
   .composer-context,
   .composer-send-controls {

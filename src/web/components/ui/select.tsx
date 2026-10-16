@@ -1,6 +1,7 @@
 // shadcn/ui Select (MIT), adapted to this project's CSS and per-component Radix imports.
 // https://github.com/shadcn-ui/ui/blob/main/apps/v4/registry/new-york-v4/ui/select.tsx
 import type * as React from 'react';
+import { useId } from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -63,15 +64,23 @@ function SelectLabel({ className, ...props }: React.ComponentProps<typeof Select
 function SelectItem({
   className,
   children,
+  description,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) {
+}: React.ComponentProps<typeof SelectPrimitive.Item> & { description?: React.ReactNode }) {
+  const descriptionId = useId();
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn('select-item', className)}
+      aria-describedby={description ? descriptionId : undefined}
       {...props}
     >
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      {description && (
+        <span className="select-item-description" id={descriptionId}>
+          {description}
+        </span>
+      )}
       <span className="select-item-indicator">
         <SelectPrimitive.ItemIndicator>
           <CheckIcon size={14} />

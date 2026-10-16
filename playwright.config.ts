@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+const origin = `http://127.0.0.1:${process.env.E2E_PORT ?? 8788}`;
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -9,14 +10,14 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:8788',
+    baseURL: origin,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
     command: 'node --import tsx scripts/test-server.ts',
-    url: 'http://127.0.0.1:8788/api/health',
+    url: `${origin}/api/health`,
     reuseExistingServer: false,
     timeout: 30_000,
   },
