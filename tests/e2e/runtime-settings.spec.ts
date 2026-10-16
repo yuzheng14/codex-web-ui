@@ -1,5 +1,12 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { confirmCompatibility, controlRuntime, createThreadButton, projectGroup } from './helpers';
+
+async function chooseEffort(page: Page, value: string) {
+  const trigger = page.getByRole('combobox', { name: '推理强度', exact: true });
+  await trigger.click();
+  await page.getByRole('option', { name: value, exact: true }).click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+}
 
 test.beforeEach(async ({ request }) => {
   await controlRuntime(request, { reset: true });
@@ -12,13 +19,13 @@ test('direct selectors show reported settings, keep proposals distinct and follo
   await confirmCompatibility(page);
   const model = page.getByRole('combobox', { name: '模型', exact: true });
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
-  await expect(model).toHaveValue('simulated-model');
-  await expect(effort).toHaveValue('medium');
+  await expect(model).toHaveAttribute('data-value', 'simulated-model');
+  await expect(effort).toHaveAttribute('data-value', 'medium');
   await createThreadButton(page).click();
   await expect(page.getByText('这个会话准备好了')).toBeVisible();
-  await expect(effort).toHaveValue('medium');
+  await expect(effort).toHaveAttribute('data-value', 'medium');
   await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-direct.png' });
-  await effort.selectOption('high');
+  await chooseEffort(page, 'high');
   await expect(page.locator('.settings-pending')).toContainText(
     '下次任务生效 · 当前 simulated-model / medium',
   );
@@ -27,19 +34,21 @@ test('direct selectors show reported settings, keep proposals distinct and follo
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(effort).toBeDisabled();
   await expect(page.getByText('模拟任务已完成。', { exact: true })).toBeVisible();
-  await expect(effort).toHaveValue('high');
+  await expect(effort).toHaveAttribute('data-value', 'high');
   await expect(page.locator('.settings-pending')).toHaveCount(0);
   await expect(effort).toBeEnabled();
-  await effort.selectOption('low');
+  await chooseEffort(page, 'low');
   await page.getByRole('button', { name: '撤销修改' }).click();
-  await expect(effort).toHaveValue('high');
+  await expect(effort).toHaveAttribute('data-value', 'high');
   await page.reload();
-  await expect(effort).toHaveValue('high');
+  await expect(effort).toHaveAttribute('data-value', 'high');
   await page.getByRole('button', { name: '权限与审批设置' }).click();
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
+  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+    'data-value',
     'read-only',
   );
-  await expect(page.getByRole('combobox', { name: '审批策略', exact: true })).toHaveValue(
+  await expect(page.getByRole('combobox', { name: '审批策略', exact: true })).toHaveAttribute(
+    'data-value',
     'on-request',
   );
   await expect(page.locator('.settings-observed')).toContainText('当前网络权限：受限');
@@ -67,12 +76,12 @@ test('isolates unsent edits by session and sends only explicit edits', async ({ 
   await expect(page.getByText('这个会话准备好了')).toBeVisible();
   const first = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
-  await effort.selectOption('high');
+  await chooseEffort(page, 'high');
   await createThreadButton(page).click();
-  await expect(effort).toHaveValue('medium');
+  await expect(effort).toHaveAttribute('data-value', 'medium');
   await expect(page.locator('.settings-pending')).toHaveCount(0);
   await page.locator(`[data-thread-id="${first}"]`).click();
-  await expect(effort).toHaveValue('high');
+  await expect(effort).toHaveAttribute('data-value', 'high');
   const sending = page.waitForRequest(
     (request) => request.method() === 'POST' && request.url().endsWith('/turns'),
   );
@@ -98,11 +107,11 @@ test('keeps project defaults isolated when a previous project responds late', as
     .getByRole('button', { name: '另一个项目', exact: true })
     .click();
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
-  await expect(effort).toHaveValue('high');
+  await expect(effort).toHaveAttribute('data-value', 'high');
   const oldResponse = page.waitForResponse('**/api/projects/fixture/runtime-settings');
   release();
   await oldResponse;
-  await expect(effort).toHaveValue('high');
+  await expect(effort).toHaveAttribute('data-value', 'high');
 });
 
 test('retries unavailable defaults and preserves unknown or custom values without inventing defaults', async ({
@@ -132,18 +141,21 @@ test('retries unavailable defaults and preserves unknown or custom values withou
   await expect(page.locator('.settings-error')).toContainText('无法读取默认配置');
   failed = false;
   await page.getByRole('button', { name: '重试', exact: true }).click();
-  await expect(page.getByRole('combobox', { name: '模型', exact: true })).toHaveValue(
+  await expect(page.getByRole('combobox', { name: '模型', exact: true })).toHaveAttribute(
+    'data-value',
     'private-custom-model',
   );
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
-  await expect(effort.locator('option:checked')).toHaveText('未报告');
+  await expect(effort).toHaveAccessibleDescription('推理强度：未报告');
   await expect(effort).toBeDisabled();
   await expect(page.locator('.reasoning-gauge text')).toHaveText('?');
   await page.getByRole('button', { name: '权限与审批设置' }).click();
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
+  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+    'data-value',
     'external-sandbox',
   );
-  await expect(page.getByRole('combobox', { name: '审批策略', exact: true })).toHaveValue(
+  await expect(page.getByRole('combobox', { name: '审批策略', exact: true })).toHaveAttribute(
+    'data-value',
     'granular',
   );
   await expect(page.locator('.settings-observed')).toContainText('当前网络权限：允许');
@@ -163,9 +175,9 @@ test('all reported effort levels have distinct gauges, including xhigh, max and 
   let previousArc: string | null = null;
   let previousNeedle: string | null = null;
   for (const value of ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']) {
-    await effort.selectOption(value);
-    await expect(effort).toHaveAttribute('title', `推理强度：${value}`);
-    await expect(effort.locator('option:checked')).toHaveText(value);
+    await chooseEffort(page, value);
+    await expect(effort).toHaveAccessibleDescription(new RegExp(`^推理强度：${value}`));
+    await expect(effort).toHaveAttribute('data-value', value);
     await expect(gauge.locator('text')).toHaveCount(0);
     const progress = Number(await gauge.getAttribute('data-progress'));
     const arc = await gauge.locator('path[stroke-dasharray]').getAttribute('stroke-dasharray');
@@ -183,14 +195,14 @@ test('all reported effort levels have distinct gauges, including xhigh, max and 
       await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
       await expect(page.locator('.settings-pending')).toHaveCount(0);
       await expect(effort).toBeEnabled();
-      await expect(effort).toHaveValue(value);
+      await expect(effort).toHaveAttribute('data-value', value);
       await page
         .locator('.composer-box')
         .screenshot({ path: `/tmp/codex-fix-effort-${value}.png` });
     }
   }
   await page.reload();
-  await expect(effort).toHaveValue('ultra');
+  await expect(effort).toHaveAttribute('data-value', 'ultra');
   await expect(gauge.locator('text')).toHaveCount(0);
 });
 
@@ -209,10 +221,12 @@ test('idle history reports complete permissions immediately after resume', async
   await expect(policy).toContainText('按需审批');
   await policy.click();
   await expect(page.locator('.settings-heading')).toContainText('会话当前配置');
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
+  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+    'data-value',
     'read-only',
   );
-  await expect(page.getByRole('combobox', { name: '审批策略', exact: true })).toHaveValue(
+  await expect(page.getByRole('combobox', { name: '审批策略', exact: true })).toHaveAttribute(
+    'data-value',
     'on-request',
   );
   await expect(page.locator('.settings-observed')).toContainText('当前网络权限：受限');
@@ -235,14 +249,14 @@ test('restored saved settings stay distinct from edits until the next task confi
   const notice = page.locator('.session-resume-notice');
   await expect(notice).toContainText('此会话正被其他进程使用');
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
-  await expect(effort).toHaveValue('medium');
+  await expect(effort).toHaveAttribute('data-value', 'medium');
   await page.getByRole('button', { name: '权限与审批设置' }).click();
   // An occupied history has not resumed, so its saved model does not imply known permissions.
-  await expect(
-    page.getByRole('combobox', { name: '权限范围', exact: true }).locator('option:checked'),
-  ).toHaveText('未报告');
+  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toContainText(
+    '未报告',
+  );
   await expect(page.locator('.settings-heading')).toContainText('会话保存配置');
-  await effort.selectOption('high');
+  await chooseEffort(page, 'high');
   await expect(page.locator('.settings-pending')).toContainText('恢复后发送或 Fork 时生效');
   await controlRuntime(request, { releaseThreadId: id });
   const resuming = page.waitForRequest(
@@ -254,14 +268,15 @@ test('restored saved settings stay distinct from edits until the next task confi
   await expect(page.locator('.settings-pending')).toContainText(
     '下次任务生效 · 当前 simulated-model / medium',
   );
-  await expect(effort).toHaveValue('high');
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveValue(
+  await expect(effort).toHaveAttribute('data-value', 'high');
+  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+    'data-value',
     'read-only',
   );
   await page.getByRole('textbox', { name: '任务内容' }).fill('恢复后应用选择');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
-  await expect(effort).toHaveValue('high');
+  await expect(effort).toHaveAttribute('data-value', 'high');
   await expect(page.locator('.settings-pending')).toHaveCount(0);
 });
 
@@ -286,7 +301,10 @@ test('one-row controls stay grouped on desktop and narrow screens, with distinct
   const model = row.getByRole('combobox', { name: '模型', exact: true });
   const effort = row.getByRole('combobox', { name: '推理强度', exact: true });
   const send = row.getByRole('button', { name: '发送任务', exact: true });
-  await expect(model).toHaveValue('private-model-with-a-very-long-provider-and-version-name');
+  await expect(model).toHaveAttribute(
+    'data-value',
+    'private-model-with-a-very-long-provider-and-version-name',
+  );
   for (const width of [1280, 390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     const elements = [page.locator('.composer-target'), policy, model, effort, send];
@@ -307,13 +325,13 @@ test('one-row controls stay grouped on desktop and narrow screens, with distinct
   await createThreadButton(page).click();
   await expect(page.getByText('这个会话准备好了')).toBeVisible();
   const gauge = page.locator('.reasoning-gauge');
-  await effort.selectOption('low');
+  await chooseEffort(page, 'low');
   const low = Number(await gauge.getAttribute('data-progress'));
-  await expect(effort).toHaveAttribute('title', '推理强度：low');
+  await expect(effort).toHaveAccessibleDescription(/^推理强度：low/);
   await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-low.png' });
-  await effort.selectOption('high');
+  await chooseEffort(page, 'high');
   expect(Number(await gauge.getAttribute('data-progress'))).toBeGreaterThan(low);
-  await expect(effort).toHaveAttribute('title', '推理强度：high');
+  await expect(effort).toHaveAccessibleDescription(/^推理强度：high/);
   await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-high.png' });
   await page
     .getByRole('textbox', { name: '任务内容', exact: true })

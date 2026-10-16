@@ -1,9 +1,11 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import type { ModelInfo, Settings, ThreadView } from '../../shared/types';
 import { useRuntimeDefaults } from '../hooks/useRuntimeDefaults';
 import { chooseModel, pendingSettings } from '../lib/settings';
 import { Icon } from './Icon';
 import { ReasoningGauge } from './ReasoningGauge';
+import { ControlHint } from './ControlHint';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const sandboxLabels: Record<string, string> = {
   'read-only': '只读',
@@ -48,7 +50,16 @@ export function SettingsPanel({
   onChange: (settings: Settings) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [effortMenuOpen, setEffortMenuOpen] = useState(false);
+  const [permissionMenu, setPermissionMenu] = useState<'sandbox' | 'approval' | null>(null);
   const advancedId = useId();
+  const effortHintId = useId();
+  useEffect(() => {
+    setModelMenuOpen(false);
+    setEffortMenuOpen(false);
+    setPermissionMenu(null);
+  }, [disabled, thread?.id, projectId]);
   const defaults = useRuntimeDefaults(thread || threadLoading ? undefined : projectId, runtimeKey);
   const current = thread ? thread.runtimeSettings : defaults.value;
   const unknown = threadLoading || (defaults.loading && !thread) ? '读取中…' : '未报告';
@@ -57,7 +68,8 @@ export function SettingsPanel({
   const sandbox = settings.sandbox ?? current?.sandbox ?? '';
   const approval = settings.approvalPolicy ?? current?.approvalPolicy ?? '';
   const selectedModel = models.find((entry) => entry.id === model);
-  const pending = Object.keys(pendingSettings(settings, current)).length > 0;
+  const changes = pendingSettings(settings, current);
+  const pending = Object.keys(changes).length > 0;
   const source = thread ? (thread.managed ? '会话当前配置' : '会话保存配置') : '新会话默认配置';
   const policyLabel = approvalShortLabels[approval] ?? `审批${unknown}`;
   function update(key: keyof Settings, value: string) {
@@ -96,51 +108,57 @@ export function SettingsPanel({
           </div>
           <label>
             权限范围
-            <select
+            <Select
               value={sandbox}
               disabled={disabled}
-              onChange={(event) => update('sandbox', event.target.value)}
+              open={permissionMenu === 'sandbox'}
+              onOpenChange={(open) => setPermissionMenu(open ? 'sandbox' : null)}
+              onValueChange={(value) => update('sandbox', value)}
             >
-              {!sandbox && (
-                <option value="" disabled>
-                  {unknown}
-                </option>
-              )}
-              {sandbox === 'external-sandbox' && (
-                <option value={sandbox} disabled>
-                  {sandboxLabels[sandbox]}
-                </option>
-              )}
-              {['read-only', 'workspace-write', 'danger-full-access'].map((entry) => (
-                <option key={entry} value={entry}>
-                  {sandboxLabels[entry]}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label="权限范围" data-value={sandbox}>
+                <SelectValue placeholder={unknown}>{sandboxLabels[sandbox] ?? unknown}</SelectValue>
+              </SelectTrigger>
+              <SelectContent aria-label="权限范围">
+                {sandbox === 'external-sandbox' && (
+                  <SelectItem value={sandbox} disabled>
+                    {sandboxLabels[sandbox]}
+                  </SelectItem>
+                )}
+                {['read-only', 'workspace-write', 'danger-full-access'].map((entry) => (
+                  <SelectItem key={entry} value={entry}>
+                    {sandboxLabels[entry]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           <label>
             审批策略
-            <select
+            <Select
               value={approval}
               disabled={disabled}
-              onChange={(event) => update('approvalPolicy', event.target.value)}
+              open={permissionMenu === 'approval'}
+              onOpenChange={(open) => setPermissionMenu(open ? 'approval' : null)}
+              onValueChange={(value) => update('approvalPolicy', value)}
             >
-              {!approval && (
-                <option value="" disabled>
-                  {unknown}
-                </option>
-              )}
-              {approval === 'granular' && (
-                <option value={approval} disabled>
-                  {approvalLabels[approval]}
-                </option>
-              )}
-              {['untrusted', 'on-request', 'never'].map((entry) => (
-                <option key={entry} value={entry}>
-                  {approvalLabels[entry]}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label="审批策略" data-value={approval}>
+                <SelectValue placeholder={unknown}>
+                  {approvalLabels[approval] ?? unknown}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent aria-label="审批策略">
+                {approval === 'granular' && (
+                  <SelectItem value={approval} disabled>
+                    {approvalLabels[approval]}
+                  </SelectItem>
+                )}
+                {['untrusted', 'on-request', 'never'].map((entry) => (
+                  <SelectItem key={entry} value={entry}>
+                    {approvalLabels[entry]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           <p className="settings-observed">
             当前网络权限：
@@ -177,52 +195,83 @@ export function SettingsPanel({
           </button>
         </div>
         <div className="composer-send-controls">
-          <label className="settings-choice settings-model" title={`模型：${model || unknown}`}>
-            <select
+          <Select
+            value={model}
+            disabled={disabled || !models.length}
+            open={modelMenuOpen}
+            onOpenChange={setModelMenuOpen}
+            onValueChange={(value) => {
+              const selected = models.find((entry) => entry.id === value);
+              if (selected) onChange(chooseModel(settings, current, selected));
+            }}
+          >
+            <SelectTrigger
+              className="settings-choice settings-model"
               aria-label="模型"
-              value={model}
-              disabled={disabled || !models.length}
-              onChange={(event) => {
-                const selected = models.find((entry) => entry.id === event.target.value);
-                if (selected) onChange(chooseModel(settings, current, selected));
-              }}
+              title={`模型：${model || unknown}`}
+              data-value={model}
             >
-              {!selectedModel && (
-                <option value={model} disabled>
-                  {model || unknown}
-                </option>
+              <span className="settings-model-value">
+                <SelectValue placeholder={unknown}>{model || unknown}</SelectValue>
+              </span>
+            </SelectTrigger>
+            <SelectContent side="top" aria-label="模型">
+              {model && !selectedModel && (
+                <SelectItem value={model} disabled>
+                  {model}
+                </SelectItem>
               )}
               {models.map((entry) => (
-                <option key={entry.id} value={entry.id}>
+                <SelectItem key={entry.id} value={entry.id}>
                   {entry.id}
-                </option>
+                </SelectItem>
               ))}
-            </select>
-          </label>
-          <label
-            className="settings-choice settings-effort"
-            title={`推理强度：${effort || unknown}`}
+            </SelectContent>
+          </Select>
+          <Select
+            value={effort}
+            disabled={disabled || !selectedModel?.reasoningEfforts.length}
+            open={effortMenuOpen}
+            onOpenChange={setEffortMenuOpen}
+            onValueChange={(value) => update('reasoningEffort', value)}
           >
-            <ReasoningGauge effort={effort} />
-            <select
-              title={`推理强度：${effort || unknown}`}
-              aria-label="推理强度"
-              value={effort}
-              disabled={disabled || !selectedModel?.reasoningEfforts.length}
-              onChange={(event) => update('reasoningEffort', event.target.value)}
+            <ControlHint
+              id={effortHintId}
+              suppressed={effortMenuOpen}
+              content={
+                <>
+                  <span>推理强度：{effort || unknown}</span>
+                  {changes.reasoningEffort !== undefined && (
+                    <span>待应用 · 当前 {current?.reasoningEffort ?? unknown}</span>
+                  )}
+                </>
+              }
             >
-              {!selectedModel?.reasoningEfforts.includes(effort) && (
-                <option value={effort} disabled>
-                  {effort || unknown}
-                </option>
+              <SelectTrigger
+                className="settings-choice settings-effort"
+                aria-label="推理强度"
+                aria-describedby={effortHintId}
+                data-value={effort}
+              >
+                <ReasoningGauge effort={effort} />
+                <span className="sr-only">
+                  <SelectValue placeholder={unknown}>{effort || unknown}</SelectValue>
+                </span>
+              </SelectTrigger>
+            </ControlHint>
+            <SelectContent side="top" aria-label="推理强度">
+              {effort && !selectedModel?.reasoningEfforts.includes(effort) && (
+                <SelectItem value={effort} disabled>
+                  {effort}
+                </SelectItem>
               )}
               {selectedModel?.reasoningEfforts.map((entry) => (
-                <option key={entry} value={entry}>
+                <SelectItem key={entry} value={entry}>
                   {entry}
-                </option>
+                </SelectItem>
               ))}
-            </select>
-          </label>
+            </SelectContent>
+          </Select>
           {children}
         </div>
       </div>
