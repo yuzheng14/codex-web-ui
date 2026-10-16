@@ -64,6 +64,45 @@ async function waitFor<T>(get: () => T | undefined): Promise<T> {
 }
 
 describe('verified protocol adapter with a real subprocess', () => {
+  it.each([false, true])(
+    'uses native archive/list/unarchive for paginated=%s without relying on rollout paths',
+    async (paginated) => {
+      const { adapter, events, requests } = await fixture({ paginated });
+      const thread = await adapter.createThread('/tmp');
+      await adapter.archiveThread(thread.id);
+      expect((await adapter.listThreads('/tmp')).data).toEqual([]);
+      expect((await adapter.listThreads('/tmp', undefined, true)).data).toMatchObject([
+        { id: thread.id, archived: true },
+      ]);
+      expect(await adapter.readThread(thread.id)).toMatchObject({ archived: true });
+      expect(await adapter.readThreadMetadata(thread.id)).toMatchObject({ archived: true });
+      expect(events).toContainEqual({ type: 'threadArchive', threadId: thread.id, archived: true });
+      expect(await adapter.unarchiveThread(thread.id)).toMatchObject({
+        id: thread.id,
+        archived: false,
+      });
+      expect(await adapter.readThread(thread.id)).toMatchObject({ archived: false });
+      const calls = await requests();
+      expect(calls.filter((entry) => entry.method === 'thread/archive')).toHaveLength(1);
+      expect(calls.filter((entry) => entry.method === 'thread/unarchive')).toHaveLength(1);
+    },
+  );
+
+  it('does not send archive for an idle parent with an active spawned descendant', async () => {
+    const { adapter, requests } = await fixture({ activeArchiveDescendant: true });
+    const thread = await adapter.createThread('/tmp');
+    await expect(adapter.archiveThread(thread.id)).rejects.toMatchObject({ code: 'THREAD_BUSY' });
+    expect((await requests()).some((entry) => entry.method === 'thread/archive')).toBe(false);
+  });
+
+  it('reports unsupported native archive and removes its capability without a local fallback', async () => {
+    const { adapter } = await fixture({ unsupportedMethod: 'thread/archive' });
+    const thread = await adapter.createThread('/tmp');
+    await expect(adapter.archiveThread(thread.id)).rejects.toBeDefined();
+    expect(adapter.diagnostics().capabilities).not.toContain('thread/archive');
+    expect(await adapter.readThread(thread.id)).toMatchObject({ archived: false });
+  });
+
   it.each([
     [-32600, 'thread {threadId} already has an active writer', 'THREAD_IN_USE'],
     [-32600, 'thread another-thread already has an active writer', 'CODEX_REQUEST_FAILED'],
@@ -171,7 +210,7 @@ describe('verified protocol adapter with a real subprocess', () => {
       const historyRequests = (await requests()).filter(
         (request) =>
           request.method.startsWith('thread/') &&
-          !['thread/start', 'thread/read'].includes(request.method),
+          !['thread/start', 'thread/read', 'thread/list'].includes(request.method),
       );
       expect(historyRequests).toEqual([]);
       expect(
@@ -269,7 +308,9 @@ describe('verified protocol adapter with a real subprocess', () => {
       true,
     );
     await adapter.listThreads('/tmp');
-    const list = (await requests()).find((entry) => entry.method === 'thread/list');
+    const list = (await requests()).find(
+      (entry) => entry.method === 'thread/list' && !entry.params.archived,
+    );
     const methods = (await requests()).map((entry) => entry.method);
     expect(methods.slice(0, 4)).toEqual([
       'initialize',
@@ -288,7 +329,9 @@ describe('verified protocol adapter with a real subprocess', () => {
     const nested = await adapter.createThread('/tmp/project/nested');
     const page = await adapter.listThreads('/tmp/project', 'opaque-cursor');
     expect(page.data.map((thread) => thread.id)).toEqual([alias.id, nested.id]);
-    const request = (await requests()).find((entry) => entry.method === 'thread/list');
+    const request = (await requests()).find(
+      (entry) => entry.method === 'thread/list' && !entry.params.archived,
+    );
     expect(request?.params).toMatchObject({
       cursor: 'opaque-cursor',
       sourceKinds: ['cli', 'appServer', 'vscode'],

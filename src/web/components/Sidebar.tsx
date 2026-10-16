@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { Project, ThreadSummary } from '../../shared/types';
 import { formatTime, cn } from '../lib/utils';
 import { Button } from './ui/button';
@@ -15,7 +15,7 @@ interface Props {
   archiveView: boolean;
   onArchiveView: (archived: boolean) => void;
   onArchive: (id: string, archived: boolean) => void;
-  archiving: (id: string) => boolean;
+  archiveDisabledReason: (thread: ThreadSummary) => string | undefined;
   projects: Project[];
   projectsLoaded: boolean;
   projectId: string;
@@ -43,17 +43,27 @@ function ThreadLink({
   offline,
   onSelect,
   onArchive,
-  archiving,
-  canArchive,
+  archiveDisabledReason,
 }: {
   thread: ThreadSummary;
   selected: boolean;
   offline: boolean;
   onSelect: () => void;
   onArchive: () => void;
-  archiving: boolean;
-  canArchive: boolean;
+  archiveDisabledReason?: string;
 }) {
+  const tooltipId = useId();
+  const [tooltipDismissed, setTooltipDismissed] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  useEffect(() => {
+    if (!hovered) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setTooltipDismissed(true);
+    };
+    document.addEventListener('keydown', dismiss);
+    return () => document.removeEventListener('keydown', dismiss);
+  }, [hovered]);
+  const archiveLabel = thread.archived ? '取消归档' : '归档会话';
   const lastResult = thread.lastTurnStatus;
   const status =
     thread.status === 'idle' &&
@@ -89,35 +99,35 @@ function ThreadLink({
           </span>
         </span>
       </button>
-      <details
-        className="thread-menu"
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.currentTarget.open = false;
-            event.currentTarget.querySelector('summary')?.focus();
-          }
+      <span
+        className="thread-archive"
+        onMouseEnter={() => {
+          setHovered(true);
+          setTooltipDismissed(false);
         }}
-        onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setTooltipDismissed(false)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setTooltipDismissed(true);
         }}
       >
-        <summary aria-label={`会话操作 ${thread.title || '未命名会话'}`} title="会话操作">
-          <Icon name="more" size={16} />
-        </summary>
-        <div className="thread-menu-content">
-          <button
-            disabled={!canArchive || archiving}
-            onClick={(event) => {
-              event.currentTarget.closest('details')?.removeAttribute('open');
-              onArchive();
-            }}
-          >
-            <Icon name="archive" size={14} />
-            {archiving ? '正在保存…' : thread.archived ? '取消归档' : '归档会话'}
-          </button>
-          <p>归档保留历史，正在执行的任务会继续运行。</p>
-        </div>
-      </details>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={archiveLabel}
+          aria-describedby={tooltipId}
+          aria-disabled={Boolean(archiveDisabledReason)}
+          onClick={() => {
+            setTooltipDismissed(true);
+            if (!archiveDisabledReason) onArchive();
+          }}
+        >
+          <Icon name={thread.archived ? 'unarchive' : 'archive'} size={15} />
+        </Button>
+        <span id={tooltipId} role="tooltip" className="keyboard-hint" hidden={tooltipDismissed}>
+          {archiveDisabledReason ?? archiveLabel}
+        </span>
+      </span>
     </div>
   );
 }
@@ -276,8 +286,7 @@ export function Sidebar(props: Props) {
                       selected={entry.id === props.selectedId}
                       offline={props.offline}
                       onArchive={() => props.onArchive(entry.id, !entry.archived)}
-                      archiving={props.archiving(entry.id)}
-                      canArchive={props.canManageProjects && !props.offline}
+                      archiveDisabledReason={props.archiveDisabledReason(entry)}
                       onSelect={() => {
                         props.onThread(entry.id, project.id);
                         props.onClose();

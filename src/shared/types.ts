@@ -85,7 +85,7 @@ export interface TurnView {
   reconnect?: { status: 'retrying' | 'failed'; message: string };
 }
 export interface ThreadView {
-  /** Web UI visibility only; archiving never stops the upstream task. */
+  /** Native Codex archive state, read from its index and lifecycle notifications. */
   archived?: boolean;
   id: string;
   runtimeSettings?: RuntimeSettings;
@@ -190,6 +190,9 @@ export type ActionResolution =
 export interface OperationInput {
   clientOperationId: string;
 }
+export interface ArchiveThreadInput extends OperationInput {
+  archived: boolean;
+}
 export interface ConfirmCompatibilityInput extends OperationInput {
   codexEpoch: string;
   codexVersion: string;
@@ -251,10 +254,6 @@ export interface Operation {
 export interface ThreadPage {
   data: ThreadView[];
   nextCursor: string | null;
-}
-export interface ThreadArchiveResult {
-  summary: ThreadSummary;
-  cursor: Cursor;
 }
 export interface ThreadSummaryPage {
   data: ThreadSummary[];

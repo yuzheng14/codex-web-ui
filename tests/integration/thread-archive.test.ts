@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { harness, operationId, threadView, deferred } from './domain-helpers.js';
 import { GatewayService } from '../../src/server/service.js';
@@ -8,7 +8,9 @@ import { openDatabase } from '../../src/server/db/index.js';
 import { migrateDatabase } from '../../src/server/db/migrate.js';
 import { createApp } from '../../src/server/http.js';
 import { parseConfig } from '../../src/server/config.js';
-import type { ServerMessage, ThreadPage } from '../../src/shared/types.js';
+import { AppError } from '../../src/shared/errors.js';
+import { CodexError } from '../../src/codex/transport.js';
+import type { ServerMessage, ThreadPage, ThreadView } from '../../src/shared/types.js';
 
 const resources: ReturnType<typeof harness>[] = [];
 function setup() {
@@ -24,44 +26,76 @@ async function create(service: GatewayService) {
   const result = await service.createThread('project', { clientOperationId: operationId() });
   return (result.result as { threadId: string }).threadId;
 }
+const archiveInput = (archived = true) => ({ clientOperationId: operationId(), archived });
 
-it('archives an active thread without touching execution, identity, history or approval controls', async () => {
+it('uses native archive and restore, preserves history and resumes the same identity', async () => {
   const { service, codex, store } = setup();
   const id = await create(service);
   await service.startTurn(id, { clientOperationId: operationId(), text: 'keep this history' });
-  const before = await service.getThread(id);
-  const marker = store.activeForThread(id);
+  codex.complete(id, 'turn-1');
   const events: ServerMessage[] = [];
   service.subscribeOverview((event) => events.push(event));
-  const details: ServerMessage[] = [];
-  await service.subscribe(id, undefined, (event) => details.push(event));
-  await service.setThreadArchived(id, true);
-  expect(await service.getThread(id)).toEqual({ ...before, archived: true });
-  expect(store.activeForThread(id)).toEqual(marker);
+  const input = archiveInput();
+  const receipt = await service.setThreadArchived(id, input);
+  expect(receipt).toMatchObject({
+    status: 'acknowledged',
+    result: { threadId: id, archived: true },
+  });
+  expect(await service.setThreadArchived(id, input)).toEqual(receipt);
+  expect(codex.archives).toBe(1);
+  expect(store.getThreadLink(id)?.managedEpoch).toBeNull();
   expect((await service.listThreads('project')).data).toEqual([]);
   expect((await service.listThreadSummaries('project', undefined, true)).data).toMatchObject([
-    { id, archived: true, status: 'running' },
+    { id, archived: true, managed: false },
   ]);
-  expect(events.at(-1)).toMatchObject({ kind: 'threadSummary', payload: { id, archived: true } });
-  expect(details.at(-1)).toMatchObject({ kind: 'thread', payload: { id, archived: true } });
-  expect(codex.interrupts).toBe(0);
-  expect(codex.resumes).toBe(0);
-  codex.complete(id, 'turn-1');
-  expect(events.at(-1)).toMatchObject({ payload: { archived: true, status: 'completed' } });
-  await service.setThreadArchived(id, false);
-  await service.setThreadArchived(id, false);
-  expect((await service.listThreads('project')).data[0]).toMatchObject({ id, archived: false });
-  expect((await service.listThreads('project', undefined, true)).data).toEqual([]);
-  await service.startTurn(id, { clientOperationId: operationId(), text: 'continue same identity' });
+  expect(events).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'threadSummary',
+        payload: expect.objectContaining({ id, archived: true }),
+      }),
+    ]),
+  );
+  await expect(
+    service.resumeThread(id, { clientOperationId: operationId() }),
+  ).rejects.toMatchObject({ code: 'THREAD_ARCHIVED' });
+  await expect(
+    service.startTurn(id, { clientOperationId: operationId(), text: 'blocked' }),
+  ).rejects.toMatchObject({ code: 'THREAD_ARCHIVED' });
+  await service.setThreadArchived(id, archiveInput(false));
+  await service.setThreadArchived(id, archiveInput(false));
+  expect(codex.unarchives).toBe(1);
+  await service.resumeThread(id, { clientOperationId: operationId() });
+  await service.startTurn(id, { clientOperationId: operationId(), text: 'continue' });
   expect((await service.getThread(id)).turns).toHaveLength(2);
 });
 
-it('persists through a reopened database and service, and metadata refresh never clears the archive', async () => {
-  const { service, codex, projects, filename, db } = setup();
-  const id = await create(service);
-  await service.startTurn(id, { clientOperationId: operationId(), text: 'saved' });
-  codex.complete(id, 'turn-1');
-  await service.setThreadArchived(id, true);
+it.each(['running', 'waitingApproval', 'waitingInput'] as const)(
+  'rejects %s tasks before native archive, preserving execution and controls',
+  async (status) => {
+    const { service, codex, store } = setup();
+    const id = await create(service);
+    await service.startTurn(id, { clientOperationId: operationId(), text: 'still running' });
+    codex.emit({ type: 'threadStatus', threadId: id, status });
+    const marker = store.activeForThread(id);
+    await expect(service.setThreadArchived(id, archiveInput())).rejects.toMatchObject({
+      code: 'THREAD_BUSY',
+    });
+    expect(codex.archives).toBe(0);
+    expect(codex.interrupts).toBe(0);
+    expect(store.activeForThread(id)).toEqual(marker);
+    expect((await service.getThread(id)).archived).toBe(false);
+  },
+);
+
+it('discovers native archived history without a local link and after reopening the database', async () => {
+  const { service, codex, projects, project, filename, db, store } = setup();
+  const id = 'archived-in-cli';
+  codex.threads.set(id, { ...threadView(id, project), archived: true });
+  expect(store.getThreadLink(id)).toBeUndefined();
+  expect((await service.listThreads('project', undefined, true)).data).toMatchObject([
+    { id, archived: true },
+  ]);
   await service.shutdown();
   db.close();
   codex.reset();
@@ -74,64 +108,97 @@ it('persists through a reopened database and service, and metadata refresh never
       store: new OperationStore(reopened.database),
     });
     expect((await recovered.listThreads('project')).data).toEqual([]);
-    const archived = await recovered.listThreads('project', undefined, true);
-    expect(archived.data[0]).toMatchObject({
-      id,
-      archived: true,
-      turns: [{ items: [{ text: 'saved' }] }],
-    });
-    await recovered.setThreadArchived(id, false);
-    expect(new OperationStore(reopened.database).getThreadLink(id)?.archived).toBe(false);
+    expect(await recovered.getThread(id)).toMatchObject({ id, archived: true });
+    await recovered.setThreadArchived(id, archiveInput(false));
+    expect((await recovered.listThreads('project')).data).toMatchObject([{ id, archived: false }]);
     await recovered.shutdown();
   } finally {
     reopened.close();
   }
 });
 
-it('lists archived sessions independently of the upstream first page, with stable pagination', async () => {
+it('forwards the archived filter and opaque pagination cursor to Codex', async () => {
   const { service, codex, project } = setup();
-  for (let i = 0; i < 32; i++) {
-    const id = `archived-${String(i).padStart(2, '0')}`;
-    codex.threads.set(id, threadView(id, project));
-    await service.setThreadArchived(id, true);
-  }
-  const list = vi.spyOn(codex, 'listThreads').mockResolvedValue({ data: [], nextCursor: null });
-  const first = await service.listThreadSummaries('project', undefined, true);
-  const second = await service.listThreadSummaries('project', first.nextCursor!, true);
-  expect(first.data).toHaveLength(30);
-  expect(second.data).toHaveLength(2);
-  expect(second.nextCursor).toBeNull();
-  expect(new Set([...first.data, ...second.data].map((thread) => thread.id)).size).toBe(32);
-  expect(list).not.toHaveBeenCalled();
+  const list = vi.spyOn(codex, 'listThreads').mockResolvedValue({
+    data: [{ ...threadView('native-archive', project), archived: true }],
+    nextCursor: 'native-next-page',
+  });
+  const page = await service.listThreadSummaries('project', 'native-cursor', true);
+  expect(list).toHaveBeenCalledWith(realpathSync(project), 'native-cursor', true);
+  expect(page.nextCursor).toBe('native-next-page');
+  expect(page.data).toMatchObject([{ id: 'native-archive', archived: true }]);
 });
 
-it('does not publish or change persisted visibility when saving fails', async () => {
-  const { service, store } = setup();
+it('does not invent a saved archive when native archive fails', async () => {
+  const { service, codex } = setup();
   const id = await create(service);
-  const listener = vi.fn();
-  service.subscribeOverview(listener);
-  vi.spyOn(store, 'setThreadArchived').mockImplementation(() => {
-    throw new Error('disk full');
+  vi.spyOn(codex, 'archiveThread').mockRejectedValue(
+    new AppError('CODEX_REQUEST_FAILED', 'cannot archive', 400),
+  );
+  await expect(service.setThreadArchived(id, archiveInput())).rejects.toMatchObject({
+    code: 'CODEX_REQUEST_FAILED',
   });
-  await expect(service.setThreadArchived(id, true)).rejects.toMatchObject({
-    code: 'ARCHIVE_SAVE_FAILED',
-  });
-  expect((await service.getThread(id)).archived).toBe(false);
-  expect(listener).not.toHaveBeenCalled();
+  expect(await service.getThread(id)).toMatchObject({ archived: false, managed: false });
 });
 
-it('uses the current archive state after an older upstream list read completes', async () => {
+it('retains unknown native receipts and never replays them, even after the archive is visible', async () => {
+  const { service, codex } = setup();
+  const id = await create(service);
+  const original = codex.archiveThread.bind(codex);
+  const call = vi.spyOn(codex, 'archiveThread').mockImplementation(async (id) => {
+    await original(id);
+    throw new CodexError('CODEX_TIMEOUT', 'lost reply', true);
+  });
+  const input = archiveInput();
+  await expect(service.setThreadArchived(id, input)).rejects.toMatchObject({
+    code: 'RESULT_UNKNOWN',
+  });
+  expect(await service.getThread(id)).toMatchObject({ archived: true });
+  expect(await service.setThreadArchived(id, input)).toMatchObject({ status: 'unknown' });
+  expect(call).toHaveBeenCalledTimes(1);
+  await expect(service.setThreadArchived(id, archiveInput(false))).rejects.toMatchObject({
+    code: 'THREAD_BUSY',
+  });
+  await expect(
+    service.resumeThread(id, { clientOperationId: operationId() }),
+  ).rejects.toMatchObject({ code: 'THREAD_BUSY' });
+  await service.reconcileOperation(input.clientOperationId, {
+    clientOperationId: operationId(),
+    confirmEnded: true,
+  });
+  await service.setThreadArchived(id, archiveInput(false));
+});
+
+it('blocks starting and resuming while native archive is being checked', async () => {
+  const { service, codex, project } = setup();
+  const id = await create(service);
+  const gate = deferred<ThreadView>();
+  const read = vi.spyOn(codex, 'readThreadMetadata').mockReturnValueOnce(gate.promise);
+  const archive = service.setThreadArchived(id, archiveInput());
+  await vi.waitFor(() => expect(read).toHaveBeenCalled());
+  await expect(
+    service.startTurn(id, { clientOperationId: operationId(), text: 'race' }),
+  ).rejects.toMatchObject({ code: 'THREAD_BUSY' });
+  await expect(
+    service.resumeThread(id, { clientOperationId: operationId() }),
+  ).rejects.toMatchObject({ code: 'THREAD_BUSY' });
+  gate.resolve(threadView(id, project));
+  await archive;
+  expect(codex.starts).toBe(0);
+});
+
+it('keeps native archive notifications newer than an older upstream list', async () => {
   const { service, codex, project } = setup();
   const id = await create(service);
   const gate = deferred<ThreadPage>();
   vi.spyOn(codex, 'listThreads').mockReturnValue(gate.promise);
   const read = service.listThreads('project');
-  await service.setThreadArchived(id, true);
+  await service.setThreadArchived(id, archiveInput());
   gate.resolve({ data: [threadView(id, project)], nextCursor: 'next' });
   expect(await read).toEqual({ data: [], nextCursor: 'next' });
 });
 
-it('validates the HTTP boundary and rejects foreign origins and out-of-project history', async () => {
+it('validates HTTP input, origins and project ownership before native dispatch', async () => {
   const { service, codex, directory, project } = setup();
   const config = parseConfig(
     {
@@ -148,10 +215,15 @@ it('validates the HTTP boundary and rejects foreign origins and out-of-project h
       headers: { 'Content-Type': 'application/json', Origin: origin! },
       body: JSON.stringify(body),
     });
-  for (const body of [{}, { archived: 'true' }, { archived: true, cwd: '/tmp' }])
+  for (const body of [
+    {},
+    { archived: true },
+    { ...archiveInput(), archived: 'true' },
+    { ...archiveInput(), cwd: '/tmp' },
+  ])
     expect((await post(body)).status).toBe(400);
-  expect((await post({ archived: true }, 'https://foreign.invalid')).status).toBe(403);
-  expect((await post({ archived: true })).status).toBe(200);
+  expect((await post(archiveInput(), 'https://foreign.invalid')).status).toBe(403);
+  expect((await post(archiveInput())).status).toBe(200);
   const list = await app.request(
     'http://127.0.0.1:8787/api/projects/project/threads?archived=true',
   );
@@ -162,7 +234,48 @@ it('validates the HTTP boundary and rejects foreign origins and out-of-project h
   const outside = join(directory, 'outside');
   mkdirSync(outside);
   codex.threads.set('outside', threadView('outside', outside));
-  await expect(service.setThreadArchived('outside', true)).rejects.toMatchObject({
+  await expect(service.setThreadArchived('outside', archiveInput())).rejects.toMatchObject({
     code: 'PROJECT_OWNERSHIP',
   });
+  expect(codex.archives).toBe(1);
+});
+
+it('publishes an early native unarchive notification only after the lifecycle request finishes', async () => {
+  const { service, codex } = setup();
+  const id = await create(service);
+  await service.setThreadArchived(id, archiveInput());
+  const events: ServerMessage[] = [];
+  service.subscribeOverview((event) => events.push(event));
+  const gate = deferred<ThreadView>();
+  vi.spyOn(codex, 'unarchiveThread').mockImplementation(async () => {
+    codex.threads.get(id)!.archived = false;
+    codex.emit({ type: 'threadArchive', threadId: id, archived: false });
+    return gate.promise;
+  });
+  const unarchive = service.setThreadArchived(id, archiveInput(false));
+  await vi.waitFor(() => expect(codex.unarchiveThread).toHaveBeenCalled());
+  expect(events).toEqual([]);
+  gate.resolve(await codex.readThread(id));
+  await unarchive;
+  expect(events).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'threadSummary',
+        payload: expect.objectContaining({ id, archived: false }),
+      }),
+    ]),
+  );
+});
+
+it('archives a new empty session without requesting its unmaterialized turn history', async () => {
+  const { service, codex } = setup();
+  const id = await create(service);
+  const history = vi
+    .spyOn(codex, 'readThread')
+    .mockRejectedValue(new AppError('CODEX_REQUEST_FAILED', 'not materialized'));
+  expect(await service.setThreadArchived(id, archiveInput())).toMatchObject({
+    status: 'acknowledged',
+  });
+  expect(history).not.toHaveBeenCalled();
+  expect(codex.archives).toBe(1);
 });

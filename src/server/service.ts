@@ -7,6 +7,7 @@ import {
 } from '../shared/elicitation.js';
 import { toThreadSummary } from '../shared/thread-summary.js';
 import type {
+  ArchiveThreadInput,
   ConfirmCompatibilityInput,
   CreateProjectInput,
   CreateThreadInput,
@@ -23,7 +24,6 @@ import type {
   StartTurnInput,
   SteerInput,
   SystemInfo,
-  ThreadArchiveResult,
   ThreadPage,
   ThreadSummaryPage,
   ThreadView,
@@ -58,6 +58,7 @@ export class GatewayService {
   private accepting = true;
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
+  private readonly archiveChanges = new Set<string>();
   private readonly reads = new Map<string, Promise<ThreadView>>();
   private readonly resumes = new Map<string, Promise<void>>();
   private readonly executionReads = new Map<string, Promise<void>>();
@@ -194,24 +195,13 @@ export class GatewayService {
 
   async listThreads(projectId: string, cursor?: string, archived = false): Promise<ThreadPage> {
     const project = this.projects.get(projectId);
-    if (archived) {
-      const links = this.store.archivedThreadLinks(projectId, cursor);
-      const data = await Promise.all(
-        links.slice(0, 30).map((link) => this.getThread(link.threadId)),
-      );
-      this.projects.get(projectId);
-      return {
-        data: data.filter((thread) => thread.archived),
-        nextCursor: links.length > 30 ? links[29]!.threadId : null,
-      };
-    }
     const titleReads = new Map(
       this.projection
         .values()
         .filter((thread) => thread.projectId === projectId)
         .map((thread) => [thread.id, this.beginTitleRead(thread.id)]),
     );
-    const page = await this.codex.listThreads(project.canonicalRoot, cursor);
+    const page = await this.codex.listThreads(project.canonicalRoot, cursor, archived);
     this.projects.get(projectId);
     const data: ThreadView[] = [];
     for (const thread of page.data) {
@@ -219,8 +209,11 @@ export class GatewayService {
         const normalized = this.normalize(thread, projectId);
         const cached = this.projection.get(thread.id);
         const titleRead = titleReads.get(thread.id);
-        if (cached && titleRead !== undefined)
+        if (cached && titleRead !== undefined) {
+          if (this.titleReads.get(thread.id) === titleRead)
+            this.updateArchiveState(thread.id, Boolean(normalized.archived));
           this.updateThreadTitle(thread.id, normalized.title, titleRead);
+        }
         data.push(this.threadView(cached ?? normalized));
       } catch (error) {
         if (
@@ -230,7 +223,7 @@ export class GatewayService {
           throw error;
       }
     }
-    if (cursor === undefined) {
+    if (!archived && cursor === undefined) {
       // A new/active managed thread may not be indexed in upstream history yet.
       // Always make recent owned sessions discoverable after reopening a browser.
       const managed = this.projection
@@ -243,7 +236,10 @@ export class GatewayService {
         if (!data.some((entry) => entry.id === thread.id)) data.unshift(this.threadView(thread));
       }
     }
-    return { data: data.filter((thread) => !thread.archived), nextCursor: page.nextCursor };
+    return {
+      data: data.filter((thread) => Boolean(thread.archived) === archived),
+      nextCursor: page.nextCursor,
+    };
   }
 
   async listThreadSummaries(
@@ -257,22 +253,98 @@ export class GatewayService {
     return { data: page.data.map(toThreadSummary), nextCursor: page.nextCursor, cursor: boundary };
   }
 
-  async setThreadArchived(threadId: string, archived: boolean): Promise<ThreadArchiveResult> {
-    // Only visibility is changed. No resume, interrupt, unsubscribe or upstream archive RPC.
-    await this.loadThread(threadId);
-    const thread = this.projection.get(threadId)!;
-    this.projects.assertOwnership(thread.projectId, thread.cwd);
-    try {
-      this.store.setThreadArchived(threadId, archived);
-    } catch {
-      throw new AppError('ARCHIVE_SAVE_FAILED', '无法保存会话归档状态，请重试', 500);
+  async setThreadArchived(threadId: string, input: ArchiveThreadInput): Promise<Operation> {
+    return this.perform('thread.archive', threadId, input, async () => {
+      const thread = await this.loadThread(threadId);
+      this.ensureReady();
+      this.ensureCompatibilityConfirmed();
+      this.ensureArchiveAvailable(thread, input.clientOperationId);
+      this.store.associateProject(input.clientOperationId, thread.projectId);
+      this.archiveChanges.add(threadId);
+      try {
+        // Native archive unloads the session. Read fresh metadata before dispatch and
+        // keep start/resume out of this window so an active task cannot slip through.
+        const actual = await this.codex.readThreadMetadata(threadId);
+        this.projects.assertOwnership(thread.projectId, actual.cwd);
+        const current = this.projection.get(threadId)!;
+        if (
+          input.archived &&
+          (this.resumes.has(threadId) ||
+            this.store.activeForThread(threadId) ||
+            (current.managed && current.status === 'unknown') ||
+            [actual, current].some(
+              (entry) =>
+                isActive(entry.status) ||
+                entry.turns.some((turn) => isActive(turn.status) || turn.status === 'unknown') ||
+                entry.actions.some((action) => ['pending', 'responding'].includes(action.status)),
+            ))
+        )
+          throw new AppError('THREAD_BUSY', '任务结束并处理完待办后才能归档会话', 409);
+        this.ensureReady();
+        this.ensureCompatibilityConfirmed();
+        this.store.dispatch(input.clientOperationId);
+        if (Boolean(actual.archived) !== input.archived) {
+          try {
+            if (input.archived) await this.codex.archiveThread(threadId);
+            else await this.codex.unarchiveThread(threadId);
+          } catch (error) {
+            // Archive can unload before failing. Re-read its native state and release
+            // stale local ownership even on a definite rejection; never replay the RPC.
+            try {
+              const refreshed = await this.codex.readThreadMetadata(threadId);
+              this.updateArchiveState(threadId, Boolean(refreshed.archived));
+            } catch {
+              // Preserve the original failure/uncertainty when the read also fails.
+            } finally {
+              this.releaseThreadOwnership(threadId);
+              this.publishThread(threadId);
+            }
+            throw error;
+          }
+        }
+        this.beginTitleRead(threadId); // Invalidate older list/metadata reads.
+        this.updateArchiveState(threadId, input.archived);
+        this.publishThread(threadId);
+        return { result: { threadId, archived: input.archived } };
+      } finally {
+        this.archiveChanges.delete(threadId);
+      }
+    });
+  }
+
+  private ensureArchiveAvailable(thread: ThreadView, operationId?: string): void {
+    const pending = this.store
+      .pendingProjectOperations(thread.projectId)
+      .find(
+        (entry) =>
+          entry.kind === 'thread.archive' &&
+          entry.target === thread.id &&
+          entry.clientOperationId !== operationId,
+      );
+    if (this.archiveChanges.has(thread.id) || pending)
+      throw new AppError('THREAD_BUSY', '会话归档操作正在处理或结果待核对，请刷新状态', 409);
+  }
+
+  private releaseThreadOwnership(threadId: string): void {
+    const link = this.store.getThreadLink(threadId);
+    if (link) this.store.linkThread({ ...link, managedEpoch: null });
+    const thread = this.projection.get(threadId);
+    if (thread) {
+      thread.managed = false;
+      delete thread.resumeError;
+      this.projection.touch(threadId);
     }
-    // Publish only after the synchronous durable write succeeds.
-    this.publishThread(threadId);
-    return {
-      summary: toThreadSummary(this.threadView(thread)),
-      cursor: this.events.cursor(),
-    };
+  }
+
+  private updateArchiveState(threadId: string, archived: boolean): void {
+    const thread = this.projection.get(threadId);
+    if (!thread || Boolean(thread.archived) === archived) return;
+    thread.archived = archived;
+    if (archived) this.releaseThreadOwnership(threadId);
+    this.projection.touch(threadId);
+    // A notification may precede the RPC receipt. Other tabs must not resume an
+    // unarchived thread until this gateway's lifecycle lock has been released.
+    if (!this.archiveChanges.has(threadId)) this.publishThread(threadId);
   }
 
   async getThread(threadId: string): Promise<ThreadView> {
@@ -350,6 +422,8 @@ export class GatewayService {
     return this.perform('thread.resume', threadId, input, async () => {
       const thread = await this.loadThread(threadId);
       this.ensureReady();
+      this.ensureArchiveAvailable(thread);
+      if (thread.archived) throw new AppError('THREAD_ARCHIVED', '请先取消归档后再恢复会话', 409);
       this.projects.assertOwnership(thread.projectId, thread.cwd);
       this.store.associateProject(input.clientOperationId, thread.projectId);
       const link = this.store.getThreadLink(threadId);
@@ -697,7 +771,11 @@ export class GatewayService {
         : this.projects.findOwner(thread.cwd);
     if (projectId && ownership.project.id !== projectId)
       throw new AppError('PROJECT_OWNERSHIP', '会话属于其他项目，不能改变项目归属', 403);
-    const managedEpoch = managed ? this.codex.epoch : (link?.managedEpoch ?? null);
+    const managedEpoch = thread.archived
+      ? null
+      : managed
+        ? this.codex.epoch
+        : (link?.managedEpoch ?? null);
     const result: ThreadView = {
       ...thread,
       projectId: ownership.project.id,
@@ -855,6 +933,8 @@ export class GatewayService {
 
   private ensureManaged(thread: ThreadView): void {
     this.ensureReady();
+    this.ensureArchiveAvailable(thread);
+    if (thread.archived) throw new AppError('THREAD_ARCHIVED', '请先取消归档后再继续对话', 409);
     if (!thread.managed || this.store.getThreadLink(thread.id)?.managedEpoch !== this.codex.epoch)
       throw new AppError('THREAD_NOT_RESUMED', '会话尚未恢复，请重试恢复后继续', 409);
   }
@@ -983,7 +1063,7 @@ export class GatewayService {
 
   private threadView(thread: ThreadView): ThreadView {
     const result = structuredClone(thread);
-    result.archived = this.store.getThreadLink(thread.id)?.archived ?? false;
+    result.archived = thread.archived ?? false;
     const marker = this.store.activeForThread(thread.id);
     delete result.execution;
     if (marker)
@@ -1033,6 +1113,8 @@ export class GatewayService {
         this.projection.touch(threadId);
         this.publishThread(threadId);
       }
+      if (this.titleReads.get(threadId) === sequence)
+        this.updateArchiveState(threadId, Boolean(thread.archived));
       this.updateThreadTitle(threadId, thread.title, sequence);
     } catch {
       // Metadata refresh must not break live execution when upstream is unavailable.
@@ -1069,6 +1151,11 @@ export class GatewayService {
       } catch {
         /* Events outside registered projects are not exposed. */
       }
+      return;
+    }
+    if (event.type === 'threadArchive') {
+      this.beginTitleRead(event.threadId);
+      this.updateArchiveState(event.threadId, event.archived);
       return;
     }
     if (event.type === 'action') {

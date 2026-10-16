@@ -674,25 +674,8 @@ export function useWorkspace() {
       changeArchiveView(archived);
     },
     archiveThread: async (id: string, archived: boolean) => {
-      const key = `archive:${id}`;
-      if (busyRef.current.has(key)) return;
-      busyRef.current.add(key);
-      setBusy([...busyRef.current]);
-      setError(undefined);
-      setErrorDetails(undefined);
-      try {
-        const result = await api.archiveThread(id, archived);
-        updateSummary(result.summary, result.cursor);
-        // Read the authoritative state, including updates from another browser while saving.
-        await refreshThread();
-      } catch (problem) {
-        report(problem);
-        // A lost response can follow a committed write. Refresh without retrying the mutation.
-        await Promise.all([refreshThread(), refreshProjectsThreads()]);
-      } finally {
-        busyRef.current.delete(key);
-        setBusy([...busyRef.current]);
-      }
+      await run('archive', id, `/api/threads/${encodeURIComponent(id)}/archive`, { archived });
+      await Promise.all([refreshThread(), refreshProjectsThreads()]);
     },
     projectThreads,
     threads: projectThreads[projectId]?.data ?? [],

@@ -1,1 +1,0 @@
-ALTER TABLE `thread_links` ADD `archived` integer DEFAULT false NOT NULL;

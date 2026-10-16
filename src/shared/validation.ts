@@ -88,7 +88,7 @@ export const socketMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('unsubscribe') }).strict(),
 ]);
 
-export const archiveThreadSchema = z.object({ archived: z.boolean() }).strict();
+export const archiveThreadSchema = operationSchema.extend({ archived: z.boolean() });
 export const archivedQuerySchema = z
   .enum(['true', 'false'])
   .optional()

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
 
@@ -6,7 +7,6 @@ const selectedId = (page: Page) =>
 const row = (page: Page, id: string) =>
   page.locator('.thread-row').filter({ has: page.locator(`[data-thread-id="${id}"]`) });
 async function archive(page: Page, id: string, restore = false) {
-  await row(page, id).locator('summary').click();
   await row(page, id)
     .getByRole('button', { name: restore ? '取消归档' : '归档会话', exact: true })
     .click();
@@ -34,9 +34,15 @@ test('archives the selected conversation, reloads its history, restores the same
   await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
   await expect(row(page, id)).toContainText('Codex 配置继承与运行设置');
   await page.getByRole('textbox', { name: '任务内容' }).fill('取消归档后保留的草稿');
-  await row(page, id).locator('summary').click();
+  const action = row(page, id).getByRole('button', { name: '归档会话', exact: true });
+  await action.hover();
+  await expect(row(page, id).getByRole('tooltip')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(row(page, id).getByRole('tooltip')).toBeHidden();
+  await action.focus();
+  await expect(row(page, id).getByRole('tooltip')).toHaveText('归档会话');
   await page.screenshot({
-    path: test.info().outputPath('archive-menu.png'),
+    path: test.info().outputPath('archive-icon.png'),
     fullPage: true,
     animations: 'disabled',
   });
@@ -86,26 +92,34 @@ test('archives the selected conversation, reloads its history, restores the same
   });
 });
 
-test('keeps running approvals actionable and synchronizes archive changes across tabs', async ({
+test('disables archive for running approvals and synchronizes completed archive changes across tabs', async ({
   page,
   context,
 }) => {
-  const id = await create(page, '[approval] 归档后仍等待批准');
+  const id = await create(page, '[approval] 等待批准后才能归档');
   await expect(page.locator('.action-card')).toBeVisible();
   const other = await context.newPage();
   await other.goto('/');
   await expect(other.locator('.action-card')).toBeVisible();
-  await archive(page, id);
-  for (const tab of [page, other]) {
-    await expect(tab.locator('.archive-notice')).toBeVisible();
-    await expect(tab.locator('.action-card')).toBeVisible();
-    await expect(tab.getByRole('button', { name: '中断', exact: true })).toBeEnabled();
-  }
+  const action = row(page, id).getByRole('button', { name: '归档会话', exact: true });
+  await expect(action).toBeDisabled();
+  await action.focus();
+  await expect(row(page, id).getByRole('tooltip')).toHaveText('任务结束并处理完待办后可归档');
+  await page.screenshot({
+    path: test.info().outputPath('archive-active.png'),
+    fullPage: true,
+    animations: 'disabled',
+  });
+  await page.keyboard.press('Escape');
+  await expect(row(page, id).getByRole('tooltip')).toBeHidden();
   await page.locator('.action-card').getByRole('button', { name: '允许本次', exact: true }).click();
   await expect(other.locator('.turn-heading .status')).toHaveText('已完成');
+  await archive(page, id);
+  for (const tab of [page, other]) await expect(tab.locator('.archive-notice')).toBeVisible();
   await other.locator('.archive-notice').getByRole('button', { name: '取消归档' }).click();
   await expect(page.locator('.archive-notice')).toHaveCount(0);
-  await expect(row(page, id)).toBeVisible();
+  await page.getByRole('textbox', { name: '任务内容' }).fill('恢复后继续');
+  await expect(page.getByRole('button', { name: '发送任务', exact: true })).toBeEnabled();
 });
 
 test('failed archive and restore writes keep the saved state and show an actionable error', async ({
@@ -117,13 +131,13 @@ test('failed archive and restore writes keep the saved state and show an actiona
   const reject = () =>
     page.route(path, (route) =>
       route.fulfill({
-        status: 500,
-        json: { error: { code: 'ARCHIVE_SAVE_FAILED', message: '无法保存会话归档状态，请重试' } },
+        status: 400,
+        json: { error: { code: 'CODEX_REQUEST_FAILED', message: 'Codex 无法归档此会话，请重试' } },
       }),
     );
   await reject();
   await archive(page, id);
-  await expect(page.locator('.error-banner.dismissible')).toContainText('无法保存会话归档状态');
+  await expect(page.locator('.error-banner.dismissible')).toContainText('Codex 无法归档此会话');
   await expect(row(page, id)).toBeVisible();
   await expect(page.locator('.archive-notice')).toHaveCount(0);
   await page.unroute(path);
@@ -131,7 +145,7 @@ test('failed archive and restore writes keep the saved state and show an actiona
   await expect(page.locator('.archive-notice')).toBeVisible();
   await reject();
   await page.locator('.archive-notice').getByRole('button', { name: '取消归档' }).click();
-  await expect(page.locator('.error-banner.dismissible')).toContainText('无法保存会话归档状态');
+  await expect(page.locator('.error-banner.dismissible')).toContainText('Codex 无法归档此会话');
   await expect(page.locator('.archive-notice')).toBeVisible();
   await expect(row(page, id)).toBeVisible();
 });
@@ -163,9 +177,11 @@ test('archived unmanaged history is viewable on mobile without automatically res
   request,
 }) => {
   const { externalThreadId: id } = await controlRuntime(request, { external: 'free' });
+  await page.goto('/');
+  await confirmCompatibility(page);
   const result = await request.post(`/api/threads/${id}/archive`, {
     headers: { Origin: 'http://127.0.0.1:8788' },
-    data: { archived: true },
+    data: { archived: true, clientOperationId: randomUUID() },
   });
   expect(result.ok()).toBe(true);
   let resumes = 0;
@@ -174,7 +190,6 @@ test('archived unmanaged history is viewable on mobile without automatically res
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await confirmCompatibility(page);
   await page.getByRole('button', { name: '打开项目与会话' }).click();
   await page.getByRole('button', { name: '已归档会话', exact: true }).click();
   await row(page, id!).locator('.thread-link').click();

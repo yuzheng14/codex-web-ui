@@ -118,8 +118,12 @@ export function createApp({
     ),
   );
   app.post('/api/threads/:threadId/archive', async (c) => {
-    const { archived } = await parse(c, schemas.archiveThreadSchema);
-    return c.json(await service.setThreadArchived(id(c.req.param('threadId')), archived));
+    return c.json(
+      await service.setThreadArchived(
+        id(c.req.param('threadId')),
+        await parse(c, schemas.archiveThreadSchema),
+      ),
+    );
   });
   app.get('/api/threads/:threadId', async (c) =>
     c.json(await service.getThread(id(c.req.param('threadId')))),

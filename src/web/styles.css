@@ -2444,63 +2444,42 @@ dd {
   min-width: 0;
   padding-right: 32px;
 }
-.thread-menu {
+.thread-archive {
   position: absolute;
-  right: 5px;
-  top: 10px;
-  z-index: 2;
+  right: 6px;
+  top: 8px;
+  z-index: 1;
 }
-.thread-menu[open] {
-  z-index: 3;
-}
-.thread-menu summary {
-  display: flex;
-  padding: 5px;
-  border-radius: 5px;
-  cursor: pointer;
-  list-style: none;
+.thread-archive > button {
+  width: 28px;
+  height: 28px;
   color: var(--muted);
+  opacity: 0.5;
 }
-.thread-menu summary::-webkit-details-marker {
-  display: none;
+.thread-row:hover .thread-archive > button,
+.thread-archive:focus-within > button {
+  opacity: 1;
 }
-.thread-menu summary:hover,
-.thread-menu[open] summary {
-  background: #edf0f3;
-  color: #252b32;
+.thread-archive > button[aria-disabled='true'] {
+  cursor: default;
 }
-.thread-menu-content {
-  position: absolute;
-  top: 30px;
-  right: 0;
-  width: 210px;
-  padding: 8px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 5px 16px #0002;
+.thread-archive .keyboard-hint {
+  top: calc(100% + 4px);
+  bottom: auto;
+  max-width: 220px;
+  width: max-content;
+  white-space: normal;
 }
-.thread-menu-content button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px;
-  background: transparent;
-  border: 0;
-  border-radius: 4px;
-  text-align: left;
-  color: inherit;
-  cursor: pointer;
+.thread-archive:hover .keyboard-hint,
+.thread-archive:focus-within .keyboard-hint {
+  visibility: visible;
 }
-.thread-menu-content button:hover {
-  background: #edf0f3;
-}
-.thread-menu-content p {
-  margin: 6px 8px;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.6;
+@media (pointer: coarse) {
+  .thread-archive > button {
+    width: 36px;
+    height: 36px;
+    opacity: 0.75;
+  }
 }
 .archive-notice {
   display: flex;

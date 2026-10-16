@@ -4,7 +4,6 @@ import type {
   Operation,
   Project,
   SystemInfo,
-  ThreadArchiveResult,
   ThreadSummaryPage,
   ThreadView,
 } from '../../shared/types';
@@ -67,10 +66,6 @@ export const api = {
     request<ThreadSummaryPage>(
       `/api/projects/${encodeURIComponent(projectId)}/threads${archived ? '?archived=true' : ''}${cursor ? `${archived ? '&' : '?'}cursor=${encodeURIComponent(cursor)}` : ''}`,
     ),
-  archiveThread: (threadId: string, archived: boolean) =>
-    request<ThreadArchiveResult>(`/api/threads/${encodeURIComponent(threadId)}/archive`, {
-      archived,
-    }),
   thread: (threadId: string) => request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}`),
   operation: (id: string) => request<Operation>(`/api/operations/${encodeURIComponent(id)}`),
   submit: (path: string, body: object) => request<Operation>(path, body),

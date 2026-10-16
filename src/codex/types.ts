@@ -17,6 +17,7 @@ export type CodexEvent =
   | { type: 'thread'; thread: ThreadView }
   | { type: 'threadSettings'; threadId: string; settings: RuntimeSettings }
   | { type: 'threadName'; threadId: string; name?: string }
+  | { type: 'threadArchive'; threadId: string; archived: boolean }
   | { type: 'threadStatus'; threadId: string; status: RunStatus }
   | { type: 'turn'; threadId: string; turn: TurnView }
   | { type: 'turnError'; threadId: string; turnId: string; message: string; willRetry: boolean }
@@ -45,7 +46,9 @@ export interface CodexClient {
   diagnostics(): CodexDiagnostics;
   readRuntimeSettings(cwd: string): Promise<RuntimeSettings>;
   onEvent(listener: (event: CodexEvent) => void): () => void;
-  listThreads(cwd: string, cursor?: string): Promise<ThreadPage>;
+  listThreads(cwd: string, cursor?: string, archived?: boolean): Promise<ThreadPage>;
+  archiveThread(id: string): Promise<void>;
+  unarchiveThread(id: string): Promise<ThreadView>;
   readThread(id: string): Promise<ThreadView>;
   readThreadMetadata(id: string): Promise<ThreadView>;
   createThread(cwd: string, settings?: Settings): Promise<ThreadView>;
