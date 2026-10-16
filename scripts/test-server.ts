@@ -58,6 +58,7 @@ class ControlledFixture implements CodexClient {
     return this.inner.stop();
   }
   archiveThread: CodexClient['archiveThread'] = (...args) => this.inner.archiveThread(...args);
+  renameThread: CodexClient['renameThread'] = (...args) => this.inner.renameThread(...args);
   unarchiveThread: CodexClient['unarchiveThread'] = (...args) =>
     this.inner.unarchiveThread(...args);
   listThreads: CodexClient['listThreads'] = (...args) => this.inner.listThreads(...args);

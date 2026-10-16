@@ -99,7 +99,7 @@ export function Composer(props: Props) {
     setFeedback((previous) => ({ ...previous, [key]: { message: `正在执行 /${chosen.name}…` } }));
     dismissMenu();
     try {
-      const result = await chosen.run();
+      const result = await chosen.run(parseSlashCommand(input)?.arguments);
       setFeedback((previous) => ({ ...previous, [key]: result, [result.draftKey ?? key]: result }));
       if (!result.error) {
         updateDraft(key, (previous) => ({

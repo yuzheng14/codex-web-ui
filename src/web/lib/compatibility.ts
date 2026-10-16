@@ -5,6 +5,7 @@ const protectedOperations = new Set([
   'create',
   'fork',
   'resume',
+  'rename',
   'send',
   'steer',
   'resolve',

@@ -102,6 +102,10 @@ export class DomainCodex implements CodexClient {
     this.threads.get(id)!.archived = true;
     this.emit({ type: 'threadArchive', threadId: id, archived: true });
   }
+  async renameThread(id: string, name: string) {
+    this.threads.get(id)!.title = name;
+    this.emit({ type: 'threadName', threadId: id, name });
+  }
   async unarchiveThread(id: string) {
     this.unarchives++;
     this.threads.get(id)!.archived = false;

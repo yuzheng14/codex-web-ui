@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import { ThreadTitles } from './thread-titles.js';
 import { AppError } from '../shared/errors.js';
+import { threadNameError } from '../shared/thread-name.js';
 import { mapAutoReview } from './auto-review.js';
 import {
   normalizeElicitationRequest,
@@ -27,6 +28,7 @@ import type { ModelListResponse } from './generated/v2/ModelListResponse.js';
 import type { ConfigReadResponse } from './generated/v2/ConfigReadResponse.js';
 import type { Thread } from './generated/v2/Thread.js';
 import type { ThreadArchiveResponse } from './generated/v2/ThreadArchiveResponse.js';
+import type { ThreadSetNameResponse } from './generated/v2/ThreadSetNameResponse.js';
 import type { ThreadUnarchiveResponse } from './generated/v2/ThreadUnarchiveResponse.js';
 import type { ThreadLoadedListResponse } from './generated/v2/ThreadLoadedListResponse.js';
 import type { ThreadListResponse } from './generated/v2/ThreadListResponse.js';
@@ -78,6 +80,7 @@ export { CodexError } from './transport.js';
 
 export const VERIFIED_CODEX_VERSION = '0.162.1';
 const CAPABILITIES = [
+  'thread/name/set',
   'thread/start',
   'thread/fork',
   'thread/read',
@@ -98,6 +101,7 @@ const CAPABILITIES = [
   'account/read',
 ];
 type Responses = {
+  'thread/name/set': ThreadSetNameResponse;
   initialize: InitializeResponse;
   'account/read': GetAccountResponse;
   'model/list': ModelListResponse;
@@ -585,6 +589,21 @@ export class CodexAdapter implements CodexClient {
         throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid loaded thread pagination');
       if (cursor) seen.add(cursor);
     } while (cursor);
+  }
+
+  async renameThread(id: string, name: string): Promise<void> {
+    const problem = threadNameError(name);
+    if (problem) throw new AppError('VALIDATION_ERROR', problem);
+    const epoch = this.epoch;
+    // A generated name may already be on the wire. Finish it before the explicit write.
+    await this.titles?.prepareManualName(id);
+    if (this.epoch !== epoch || !this.ready)
+      throw new CodexError(
+        'CODEX_UNAVAILABLE',
+        '重命名等待期间 Codex 实例已变化，请核对名称',
+        true,
+      );
+    await this.call('thread/name/set', { threadId: id, name: name.trim() });
   }
 
   async archiveThread(id: string): Promise<void> {

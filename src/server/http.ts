@@ -152,6 +152,13 @@ export function createApp({
     );
     return c.json(op, status(op));
   });
+  app.post('/api/threads/:threadId/rename', async (c) => {
+    const op = await service.renameThread(
+      id(c.req.param('threadId')),
+      await parse(c, schemas.renameThreadSchema),
+    );
+    return c.json(op, status(op));
+  });
   app.post('/api/threads/:threadId/turns', async (c) => {
     const op = await service.startTurn(
       id(c.req.param('threadId')),

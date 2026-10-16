@@ -203,6 +203,9 @@ export interface CreateThreadInput extends OperationInput {
   settings?: Settings;
 }
 export type ForkThreadInput = CreateThreadInput;
+export interface RenameThreadInput extends OperationInput {
+  name: string;
+}
 export interface ResumeThreadInput extends CreateThreadInput {
   /** Kept for older clients; writer ownership is now checked by Codex, not this flag. */
   confirmExternalStopped?: boolean;
