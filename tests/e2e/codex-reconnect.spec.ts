@@ -67,7 +67,7 @@ test('normal thinking, quiet waiting and tool output never claim Codex is reconn
   await page.waitForTimeout(1600);
   await expect(notice(page)).toHaveCount(0);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
-  await expect(page.locator('.command-summary')).toContainText('printf');
+  await expect(page.locator('.activity .command-summary')).toContainText('printf');
   await expect(turnStatus(page)).toHaveText('已完成');
   await expect(notice(page)).toHaveCount(0);
 });
