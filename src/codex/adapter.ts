@@ -4,6 +4,12 @@ import { promisify } from 'node:util';
 import { ThreadTitles } from './thread-titles.js';
 import { AppError } from '../shared/errors.js';
 import { threadNameError } from '../shared/thread-name.js';
+import { permissionModeUnavailable } from '../shared/permissions.js';
+import {
+  permissionCapabilities,
+  type PermissionRequirements,
+  type ProfileProvenance,
+} from './permissions.js';
 import { mapAutoReview } from './auto-review.js';
 import {
   normalizeElicitationRequest,
@@ -12,6 +18,7 @@ import {
 } from '../shared/elicitation.js';
 import type {
   ActionResolution,
+  PermissionCapabilities,
   RuntimeSettings,
   PendingAction,
   Settings,
@@ -26,6 +33,8 @@ import type { InitializeResponse } from './generated/InitializeResponse.js';
 import type { GetAccountResponse } from './generated/v2/GetAccountResponse.js';
 import type { ModelListResponse } from './generated/v2/ModelListResponse.js';
 import type { ConfigReadResponse } from './generated/v2/ConfigReadResponse.js';
+import type { ConfigRequirementsReadResponse } from './generated/v2/ConfigRequirementsReadResponse.js';
+import type { ExperimentalFeatureListResponse } from './generated/v2/ExperimentalFeatureListResponse.js';
 import type { Thread } from './generated/v2/Thread.js';
 import type { ThreadArchiveResponse } from './generated/v2/ThreadArchiveResponse.js';
 import type { ThreadSetNameResponse } from './generated/v2/ThreadSetNameResponse.js';
@@ -98,6 +107,8 @@ const CAPABILITIES = [
   'turn/interrupt',
   'model/list',
   'config/read',
+  'configRequirements/read',
+  'experimentalFeature/list',
   'account/read',
 ];
 type Responses = {
@@ -106,6 +117,8 @@ type Responses = {
   'account/read': GetAccountResponse;
   'model/list': ModelListResponse;
   'config/read': ConfigReadResponse;
+  'configRequirements/read': ConfigRequirementsReadResponse;
+  'experimentalFeature/list': ExperimentalFeatureListResponse;
   'thread/list': ThreadListResponse;
   'thread/read': ThreadReadResponse;
   'thread/start': ThreadStartResponse;
@@ -179,6 +192,7 @@ export class CodexAdapter implements CodexClient {
   private actionIds = new Map<RpcId, string>();
   private stderrTail = Buffer.alloc(0);
   private disabled = new Set<string>();
+  private permissionState = new Map<string, RuntimeSettings>();
   private state: CodexDiagnostics = {
     ready: false,
     connection: 'starting',
@@ -247,6 +261,7 @@ export class CodexAdapter implements CodexClient {
       });
       const version = stdout.trim().replace(/^codex-cli\s+/, '');
       this.state.codexVersion = version;
+      this.permissionState.clear();
       this.state.compatibility = version === VERIFIED_CODEX_VERSION ? 'verified' : 'unverified';
       const child = spawn(
         this.options.binary,
@@ -674,10 +689,14 @@ export class CodexAdapter implements CodexClient {
   }
   async createThread(cwd: string, settings?: Settings): Promise<ThreadView> {
     this.validateSettings(settings);
+    await this.validatePermissionSettings(cwd, settings);
     const titles = this.titles;
     const result = await this.call('thread/start', { cwd, ...threadSettings(settings) });
     titles?.register(result);
-    return { ...mapThread(result.thread), runtimeSettings: this.responseRuntimeSettings(result) };
+    return {
+      ...mapThread(result.thread),
+      runtimeSettings: await this.responseRuntimeSettings(result),
+    };
   }
   async readRuntimeSettings(cwd: string): Promise<RuntimeSettings> {
     const { config } = await this.call('config/read', { cwd, includeLayers: false });
@@ -694,17 +713,119 @@ export class CodexAdapter implements CodexClient {
             ? 'granular'
             : null,
       approvalReviewer: config.approvals_reviewer ?? null,
+      networkAccess:
+        config.sandbox_mode === 'workspace-write'
+          ? (config.sandbox_workspace_write?.network_access ?? null)
+          : null,
+      permissionMode:
+        typeof config.default_permissions === 'string' &&
+        ![':workspace', ':read-only', ':danger-full-access'].includes(config.default_permissions)
+          ? 'custom'
+          : null,
+      permissionProfile:
+        typeof config.default_permissions === 'string'
+          ? { id: config.default_permissions, extends: null }
+          : null,
+      writableRoots: config.sandbox_workspace_write?.writable_roots ?? null,
+      excludeTmpdirEnvVar: config.sandbox_workspace_write?.exclude_tmpdir_env_var ?? null,
+      excludeSlashTmp: config.sandbox_workspace_write?.exclude_slash_tmp ?? null,
+      permissionCapabilities: await this.readPermissionCapabilities(undefined, config),
     };
   }
-  private responseRuntimeSettings(result: ThreadStartResponse): RuntimeSettings {
-    return {
+  private async readPermissionCapabilities(
+    threadId?: string,
+    config?: ConfigReadResponse['config'],
+  ): Promise<PermissionCapabilities> {
+    if (this.state.codexVersion !== VERIFIED_CODEX_VERSION)
+      return permissionCapabilities(
+        null,
+        false,
+        `权限模式仅核验过 Codex ${VERIFIED_CODEX_VERSION}；当前版本 ${this.state.codexVersion ?? '未知'}`,
+      );
+    try {
+      const [requirements, first] = await Promise.all([
+        this.call('configRequirements/read', undefined),
+        this.call('experimentalFeature/list', { limit: 200, ...(threadId ? { threadId } : {}) }),
+      ]);
+      if (!Object.hasOwn(requirements, 'requirements') || !Array.isArray(first.data))
+        throw new Error('Permission capability response is incomplete');
+      const features = [...first.data];
+      let cursor = first.nextCursor;
+      const seen = new Set<string>();
+      while (cursor) {
+        if (seen.has(cursor) || seen.size >= 100) throw new Error('Invalid feature pagination');
+        seen.add(cursor);
+        const page = await this.call('experimentalFeature/list', {
+          limit: 200,
+          cursor,
+          ...(threadId ? { threadId } : {}),
+        });
+        features.push(...page.data);
+        cursor = page.nextCursor;
+      }
+      const configFeatures = config?.features;
+      const explicit = isRecord(configFeatures) ? configFeatures.guardian_approval : undefined;
+      const autoReview =
+        typeof explicit === 'boolean'
+          ? explicit
+          : features.find((entry) => entry.name === 'guardian_approval')?.enabled === true;
+      return permissionCapabilities(
+        requirements.requirements as PermissionRequirements | null,
+        autoReview,
+      );
+    } catch {
+      return permissionCapabilities(
+        null,
+        false,
+        '无法核实当前 Codex 的功能和受管要求，请重试或检查版本支持',
+      );
+    }
+  }
+  private async validatePermissionSettings(
+    cwd: string,
+    settings?: Settings,
+    threadId?: string,
+  ): Promise<void> {
+    if (!settings?.permissionMode) return;
+    const epoch = this.epoch;
+    const capabilities = threadId
+      ? await this.readPermissionCapabilities(threadId)
+      : (await this.readRuntimeSettings(cwd)).permissionCapabilities;
+    if (epoch !== this.epoch)
+      throw new AppError('CODEX_UNAVAILABLE', 'Codex 运行实例已变化，请重试');
+    const reason = permissionModeUnavailable(
+      settings.permissionMode,
+      capabilities,
+      settings.model ?? (threadId ? this.permissionState.get(threadId)?.model : undefined),
+    );
+    if (reason) throw new AppError('PERMISSION_MODE_UNAVAILABLE', reason);
+  }
+  private async responseRuntimeSettings(result: ThreadStartResponse): Promise<RuntimeSettings> {
+    const previous = this.permissionState.get(result.thread.id);
+    const settings: RuntimeSettings = {
       model: result.model ?? result.thread.model ?? null,
       reasoningEffort: result.reasoningEffort ?? null,
-      ...permissionSettings(result.sandbox, result.approvalPolicy, result.approvalsReviewer),
+      ...permissionSettings(
+        result.sandbox,
+        result.approvalPolicy,
+        result.approvalsReviewer,
+        (result as ThreadStartResponse & ProfileProvenance).activePermissionProfile,
+        result.cwd,
+      ),
+      permissionCapabilities: await this.readPermissionCapabilities(result.thread.id),
     };
+    const latest = this.permissionState.get(result.thread.id);
+    this.permissionState.set(
+      result.thread.id,
+      latest && latest !== previous
+        ? { ...latest, permissionCapabilities: settings.permissionCapabilities }
+        : settings,
+    );
+    return settings;
   }
   async resumeThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
     this.validateSettings(settings);
+    await this.validatePermissionSettings(cwd, settings, id);
     const titles = this.titles;
     let result: ThreadResumeResponse;
     try {
@@ -727,10 +848,11 @@ export class CodexAdapter implements CodexClient {
     }
     titles?.register(result);
     const view = await this.readThread(result.thread.id);
-    return { ...view, runtimeSettings: this.responseRuntimeSettings(result) };
+    return { ...view, runtimeSettings: await this.responseRuntimeSettings(result) };
   }
   async forkThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
     this.validateSettings(settings);
+    await this.validatePermissionSettings(cwd, settings, id);
     const titles = this.titles;
     const result = await this.call('thread/fork', {
       threadId: id,
@@ -752,7 +874,7 @@ export class CodexAdapter implements CodexClient {
       if (thread.id !== forkedId)
         throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex returned a different fork thread ID');
       titles?.register(result);
-      return { ...thread, runtimeSettings: this.responseRuntimeSettings(result) };
+      return { ...thread, runtimeSettings: await this.responseRuntimeSettings(result) };
     } catch (error) {
       const failure = asCodexError(error);
       // The mutating RPC already succeeded. A read failure cannot make a retry safe.
@@ -774,6 +896,7 @@ export class CodexAdapter implements CodexClient {
     images?: string[],
   ): Promise<TurnView> {
     this.validateSettings(settings);
+    await this.validatePermissionSettings(cwd, settings, id);
     const turn = mapTurn(
       id,
       (
@@ -829,19 +952,27 @@ export class CodexAdapter implements CodexClient {
     const p = event.params;
     switch (event.method) {
       case 'thread/settings/updated':
-        this.emit({
-          type: 'threadSettings',
-          threadId: event.params.threadId,
-          settings: {
+        {
+          const observed: RuntimeSettings = {
             model: event.params.threadSettings.model ?? null,
             reasoningEffort: event.params.threadSettings.effort ?? null,
             ...permissionSettings(
               event.params.threadSettings.sandboxPolicy,
               event.params.threadSettings.approvalPolicy,
               event.params.threadSettings.approvalsReviewer,
+              event.params.threadSettings.activePermissionProfile,
+              event.params.threadSettings.cwd,
             ),
-          },
-        });
+            permissionCapabilities: this.permissionState.get(event.params.threadId)
+              ?.permissionCapabilities,
+          };
+          this.permissionState.set(event.params.threadId, observed);
+          this.emit({
+            type: 'threadSettings',
+            threadId: event.params.threadId,
+            settings: observed,
+          });
+        }
         break;
       case 'item/autoApprovalReview/started':
       case 'item/autoApprovalReview/completed':

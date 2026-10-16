@@ -14,10 +14,20 @@ export const settingsSchema = z
   .object({
     model: z.string().min(1).max(200).optional(),
     reasoningEffort: z.string().min(1).max(40).optional(),
+    permissionMode: z.enum(['ask', 'auto-review', 'full-access', 'read-only']).optional(),
     approvalPolicy: z.enum(['untrusted', 'on-request', 'never']).optional(),
+    approvalReviewer: z.enum(['user', 'auto_review']).optional(),
     sandbox: z.enum(['read-only', 'workspace-write', 'danger-full-access']).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (settings) =>
+      settings.permissionMode === undefined ||
+      (settings.sandbox === undefined &&
+        settings.approvalPolicy === undefined &&
+        settings.approvalReviewer === undefined),
+    '权限模式不能与独立的权限、审批策略或审核方同时设置',
+  );
 export const operationSchema = z.object({ clientOperationId: z.string().uuid() }).strict();
 export const startReviewSchema = operationSchema;
 export const confirmCompatibilitySchema = operationSchema.extend({

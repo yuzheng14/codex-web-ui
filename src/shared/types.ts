@@ -11,8 +11,21 @@ export type RunStatus =
 export interface Settings {
   model?: string;
   reasoningEffort?: string;
+  /** Atomic user selection. Omitted permissions always inherit Codex's actual config. */
+  permissionMode?: PermissionMode;
   approvalPolicy?: 'untrusted' | 'on-request' | 'never';
+  approvalReviewer?: 'user' | 'auto_review';
   sandbox?: 'read-only' | 'workspace-write' | 'danger-full-access';
+}
+export type PermissionMode = 'ask' | 'auto-review' | 'full-access' | 'read-only';
+export interface PermissionCapabilities {
+  unavailableReason?: string;
+  autoReview: boolean;
+  allowedSandboxModes: string[] | null;
+  allowedApprovalPolicies: string[] | null;
+  allowedReviewers: string[] | null;
+  allowedProfiles: string[] | null;
+  autoReviewRequiredModels: string[];
 }
 /** Values reported by Codex; null means unset or unavailable, never a guessed default. */
 export interface RuntimeSettings {
@@ -22,6 +35,12 @@ export interface RuntimeSettings {
   approvalPolicy?: Settings['approvalPolicy'] | 'granular' | null;
   approvalReviewer?: string | null;
   networkAccess?: boolean | null;
+  permissionMode?: PermissionMode | 'custom' | null;
+  permissionProfile?: { id: string; extends: string | null } | null;
+  writableRoots?: string[] | null;
+  excludeTmpdirEnvVar?: boolean | null;
+  excludeSlashTmp?: boolean | null;
+  permissionCapabilities?: PermissionCapabilities;
 }
 export interface Project {
   id: string;

@@ -250,13 +250,13 @@ describe('verified protocol adapter with a real subprocess', () => {
         },
         'auto_review',
       ),
-    ).toEqual({
+    ).toMatchObject({
       sandbox: 'external-sandbox',
       approvalPolicy: 'granular',
       approvalReviewer: 'auto_review',
       networkAccess: true,
     });
-    expect(permissionSettings()).toEqual({
+    expect(permissionSettings()).toMatchObject({
       sandbox: null,
       approvalPolicy: null,
       approvalReviewer: null,
@@ -313,7 +313,7 @@ describe('verified protocol adapter with a real subprocess', () => {
       configModel: 'custom-model',
       configEffort: 'high',
     });
-    expect(await adapter.readRuntimeSettings('/tmp/project')).toEqual({
+    expect(await adapter.readRuntimeSettings('/tmp/project')).toMatchObject({
       model: 'custom-model',
       reasoningEffort: 'high',
       sandbox: 'read-only',
@@ -353,7 +353,7 @@ describe('verified protocol adapter with a real subprocess', () => {
       });
       await adapter.startTurn(thread.id, '/tmp', 'settings', { reasoningEffort: 'high' });
       await waitFor(() => events.find((event) => event.type === 'threadSettings'));
-      expect(events).toContainEqual({
+      expect(events.findLast((event) => event.type === 'threadSettings')).toMatchObject({
         type: 'threadSettings',
         threadId: thread.id,
         settings: {

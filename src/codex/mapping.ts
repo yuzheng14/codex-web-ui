@@ -1,13 +1,7 @@
-import type {
-  ItemView,
-  RunStatus,
-  RuntimeSettings,
-  Settings,
-  ThreadView,
-  TurnView,
-} from '../shared/types.js';
-import type { AskForApproval } from './generated/v2/AskForApproval.js';
-import type { SandboxPolicy } from './generated/v2/SandboxPolicy.js';
+import type { ItemView, RunStatus, Settings, ThreadView, TurnView } from '../shared/types.js';
+import { permissionModes } from '../shared/permissions.js';
+import type { PermissionSelection } from './permissions.js';
+export { permissionSettings } from './permissions.js';
 import type { Thread } from './generated/v2/Thread.js';
 import type { ThreadItem } from './generated/v2/ThreadItem.js';
 import type { ThreadStatus } from './generated/v2/ThreadStatus.js';
@@ -24,34 +18,6 @@ export function taskInput(text: string, images: string[] = []): UserInput[] {
     ...(text ? [{ type: 'text' as const, text, text_elements: [] }] : []),
     ...images.map((url) => ({ type: 'image' as const, url })),
   ];
-}
-
-/** Display-only summary: never round-trip a custom policy into a basic preset. */
-export function permissionSettings(
-  sandbox?: SandboxPolicy,
-  approvalPolicy?: AskForApproval | null,
-  reviewer?: string | null,
-): Pick<RuntimeSettings, 'sandbox' | 'approvalPolicy' | 'approvalReviewer' | 'networkAccess'> {
-  return {
-    sandbox: sandbox
-      ? ({
-          dangerFullAccess: 'danger-full-access',
-          readOnly: 'read-only',
-          workspaceWrite: 'workspace-write',
-          externalSandbox: 'external-sandbox',
-        }[sandbox.type] as RuntimeSettings['sandbox'])
-      : null,
-    approvalPolicy:
-      typeof approvalPolicy === 'string' ? approvalPolicy : approvalPolicy ? 'granular' : null,
-    approvalReviewer: reviewer ?? null,
-    networkAccess: !sandbox
-      ? null
-      : sandbox.type === 'dangerFullAccess'
-        ? true
-        : sandbox.type === 'externalSandbox'
-          ? sandbox.networkAccess === 'enabled'
-          : sandbox.networkAccess,
-  };
 }
 
 export function threadStatus(status: ThreadStatus): RunStatus {
@@ -184,11 +150,26 @@ export function mapItem(item: ThreadItem): ItemView {
 }
 export function threadSettings(
   settings: Settings = {},
-): Pick<ThreadStartParams, 'model' | 'approvalPolicy' | 'sandbox' | 'config'> {
+): Pick<
+  ThreadStartParams,
+  'model' | 'approvalPolicy' | 'approvalsReviewer' | 'sandbox' | 'config'
+> &
+  PermissionSelection {
+  const preset = settings.permissionMode && permissionModes[settings.permissionMode];
   return {
     ...(settings.model === undefined ? {} : { model: settings.model }),
     ...(settings.approvalPolicy === undefined ? {} : { approvalPolicy: settings.approvalPolicy }),
+    ...(settings.approvalReviewer === undefined
+      ? {}
+      : { approvalsReviewer: settings.approvalReviewer }),
     ...(settings.sandbox === undefined ? {} : { sandbox: settings.sandbox }),
+    ...(preset
+      ? {
+          permissions: preset.profile,
+          approvalPolicy: preset.approvalPolicy,
+          approvalsReviewer: preset.approvalReviewer,
+        }
+      : {}),
     ...(settings.reasoningEffort === undefined
       ? {}
       : { config: { model_reasoning_effort: settings.reasoningEffort } }),
@@ -197,7 +178,12 @@ export function threadSettings(
 export function turnSettings(
   cwd: string,
   settings: Settings = {},
-): Pick<TurnStartParams, 'model' | 'approvalPolicy' | 'sandboxPolicy' | 'effort'> {
+): Pick<
+  TurnStartParams,
+  'model' | 'approvalPolicy' | 'approvalsReviewer' | 'sandboxPolicy' | 'effort'
+> &
+  PermissionSelection {
+  const preset = settings.permissionMode && permissionModes[settings.permissionMode];
   const sandboxPolicy: TurnStartParams['sandboxPolicy'] =
     settings.sandbox === 'read-only'
       ? { type: 'readOnly', networkAccess: false }
@@ -215,7 +201,17 @@ export function turnSettings(
   return {
     ...(settings.model === undefined ? {} : { model: settings.model }),
     ...(settings.approvalPolicy === undefined ? {} : { approvalPolicy: settings.approvalPolicy }),
+    ...(settings.approvalReviewer === undefined
+      ? {}
+      : { approvalsReviewer: settings.approvalReviewer }),
     ...(sandboxPolicy === undefined ? {} : { sandboxPolicy }),
+    ...(preset
+      ? {
+          permissions: preset.profile,
+          approvalPolicy: preset.approvalPolicy,
+          approvalsReviewer: preset.approvalReviewer,
+        }
+      : {}),
     ...(settings.reasoningEffort === undefined
       ? {}
       : { effort: settings.reasoningEffort as ReasoningEffort }),
