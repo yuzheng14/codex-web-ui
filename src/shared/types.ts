@@ -212,6 +212,7 @@ export interface TaskMessage {
   images?: string[];
 }
 export interface StartTurnInput extends CreateThreadInput, TaskMessage {}
+export type StartReviewInput = OperationInput;
 export interface SteerInput extends OperationInput, TaskMessage {
   expectedTurnId: string;
 }

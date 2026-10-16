@@ -5,7 +5,8 @@ import { blocksTarget, type SavedOperation } from './operations';
 import type { ConnectionState } from './realtime';
 import { readableError } from './utils';
 
-export type SlashCommandName = 'help' | 'new' | 'fork' | 'resume' | 'stop' | 'status' | 'compact';
+export type SlashCommandName =
+  'help' | 'new' | 'fork' | 'resume' | 'stop' | 'status' | 'compact' | 'review';
 
 export interface SlashCommandResult {
   message: string;
@@ -83,6 +84,7 @@ const definitions: { name: SlashCommandName; description: string }[] = [
   { name: 'new', description: '在当前项目新建会话' },
   { name: 'fork', description: '复制当前会话已保存的历史为新会话' },
   { name: 'resume', description: '恢复当前选中的历史会话（不是 CLI 会话选择器）' },
+  { name: 'review', description: '审查当前项目的未提交改动（使用会话当前配置）' },
   { name: 'stop', description: '请求中断当前任务（网页快捷命令）' },
   { name: 'status', description: '打开当前连接、运行状态与提交诊断' },
   { name: 'compact', description: '压缩当前会话上下文，保留会话继续工作' },
@@ -101,6 +103,7 @@ function unavailableReason(name: SlashCommandName, context: SlashCommandContext)
     new: 'thread/start',
     fork: 'thread/fork',
     resume: 'thread/resume',
+    review: 'review/start',
     stop: 'turn/interrupt',
     compact: 'thread/compact/start',
   }[name];
@@ -135,6 +138,18 @@ function unavailableReason(name: SlashCommandName, context: SlashCommandContext)
       unsettled(thread.id)
     )
       return '当前会话仍有待核对的执行，请先用 /status 核对提交。';
+    return undefined;
+  }
+  if (name === 'review') {
+    if (thread.archived) return '会话已归档，请先取消归档。';
+    if (!thread.managed) return '会话尚未恢复，请先恢复后开始代码审查。';
+    if (busy('review', thread.id)) return '正在提交代码审查，请等待回执。';
+    if (unsettled(thread.id) || thread.status === 'unknown')
+      return '当前会话有尚未确认的请求，请先用 /status 核对提交。';
+    if (isActive(thread.status) || thread.turns.some((turn) => isActive(turn.status)))
+      return '当前会话仍在运行，请等待任务结束后开始代码审查。';
+    if (thread.execution && !thread.execution.ended)
+      return '当前会话仍有执行占用，请先用 /status 核对旧任务。';
     return undefined;
   }
   if (name === 'fork') {
@@ -194,7 +209,12 @@ function operationResult(name: SlashCommandName, operation?: Operation): SlashCo
     return { message: name === 'new' ? '已新建会话。' : '已 Fork 为新会话。', draftKey: id };
   }
   return {
-    message: name === 'stop' ? '已提交中断请求，请等待任务状态更新。' : '已恢复当前选中的会话。',
+    message:
+      name === 'review'
+        ? '已提交代码审查，请在当前会话查看进度和结果。'
+        : name === 'stop'
+          ? '已提交中断请求，请等待任务状态更新。'
+          : '已恢复当前选中的会话。',
   };
 }
 
@@ -238,6 +258,8 @@ export function createSlashCommands(getContext: () => SlashCommandContext): Slas
           operation = await context.run('fork', thread!.id, `${path}/fork`, {
             settings: context.settings,
           });
+        } else if (name === 'review') {
+          operation = await context.run('review', thread!.id, `${path}/review`);
         } else if (name === 'resume') {
           context.onResumeAttempt();
           operation = await context.run('resume', thread!.id, `${path}/resume`);

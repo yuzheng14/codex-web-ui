@@ -8,7 +8,11 @@ export type ConversationItemGroup =
 export function groupConversationItems(items: readonly ItemView[]): ConversationItemGroup[] {
   const groups: ConversationItemGroup[] = [];
   for (const item of items) {
-    if (item.type === 'userMessage' || item.type === 'agentMessage') {
+    if (
+      item.type === 'userMessage' ||
+      item.type === 'agentMessage' ||
+      item.type === 'exitedReviewMode'
+    ) {
       groups.push({ kind: 'message', key: `message:${item.id}`, item });
       continue;
     }

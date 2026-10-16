@@ -159,6 +159,13 @@ export function createApp({
     );
     return c.json(op, status(op));
   });
+  app.post('/api/threads/:threadId/review', async (c) => {
+    const op = await service.startReview(
+      id(c.req.param('threadId')),
+      await parse(c, schemas.startReviewSchema),
+    );
+    return c.json(op, status(op));
+  });
   app.post('/api/threads/:threadId/steer', async (c) => {
     const op = await service.steer(
       id(c.req.param('threadId')),

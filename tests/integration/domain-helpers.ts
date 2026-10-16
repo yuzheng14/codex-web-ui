@@ -48,6 +48,7 @@ export class DomainCodex implements CodexClient {
   archives = 0;
   unarchives = 0;
   starts = 0;
+  reviews = 0;
   creates = 0;
   steers = 0;
   interrupts = 0;
@@ -167,6 +168,21 @@ export class DomainCodex implements CodexClient {
     thread.status = 'running';
     thread.turns.push(turn);
     this.emit({ type: 'turn', threadId: id, turn });
+    this.onStart?.(id, turn);
+    return this.startGate ? this.startGate.promise : structuredClone(turn);
+  }
+  async startReview(id: string) {
+    this.reviews++;
+    const turn: TurnView = {
+      id: `review-${this.reviews}`,
+      threadId: id,
+      status: 'running',
+      items: [{ id: `review-mode-${this.reviews}`, type: 'enteredReviewMode', text: '未提交改动' }],
+    };
+    const thread = this.threads.get(id)!;
+    thread.status = 'running';
+    thread.turns.push(turn);
+    this.emit({ type: 'turn', threadId: id, turn: structuredClone(turn) });
     this.onStart?.(id, turn);
     return this.startGate ? this.startGate.promise : structuredClone(turn);
   }

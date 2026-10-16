@@ -37,6 +37,7 @@ import type { ThreadResumeResponse } from './generated/v2/ThreadResumeResponse.j
 import type { ThreadTurnsListResponse } from './generated/v2/ThreadTurnsListResponse.js';
 import type { ThreadItemsListResponse } from './generated/v2/ThreadItemsListResponse.js';
 import type { TurnStartResponse } from './generated/v2/TurnStartResponse.js';
+import type { ReviewStartResponse } from './generated/v2/ReviewStartResponse.js';
 import type { TurnSteerResponse } from './generated/v2/TurnSteerResponse.js';
 import type { TurnInterruptResponse } from './generated/v2/TurnInterruptResponse.js';
 import type { CommandExecutionApprovalDecision } from './generated/v2/CommandExecutionApprovalDecision.js';
@@ -89,6 +90,7 @@ const CAPABILITIES = [
   'thread/turns/list',
   'thread/items/list',
   'turn/start',
+  'review/start',
   'turn/steer',
   'turn/interrupt',
   'model/list',
@@ -112,6 +114,7 @@ type Responses = {
   'thread/turns/list': ThreadTurnsListResponse;
   'thread/items/list': ThreadItemsListResponse;
   'turn/start': TurnStartResponse;
+  'review/start': ReviewStartResponse;
   'turn/steer': TurnSteerResponse;
   'turn/interrupt': TurnInterruptResponse;
 };
@@ -764,6 +767,20 @@ export class CodexAdapter implements CodexClient {
       ).turn,
     );
     return turn;
+  }
+  async startReview(id: string): Promise<TurnView> {
+    const result = await this.call('review/start', {
+      threadId: id,
+      target: { type: 'uncommittedChanges' },
+      delivery: 'inline',
+    });
+    if (!isRecord(result) || result.reviewThreadId !== id)
+      throw new CodexError(
+        'PROTOCOL_INCOMPATIBLE',
+        'Codex review returned a different thread; review result needs reconciliation',
+        true,
+      );
+    return mapTurn(id, result.turn);
   }
   steerTurn(
     id: string,

@@ -23,6 +23,7 @@ import type {
   ResumeThreadInput,
   ServerMessage,
   StartTurnInput,
+  StartReviewInput,
   SteerInput,
   SystemInfo,
   ThreadPage,
@@ -587,6 +588,38 @@ export class GatewayService {
       // real terminal evidence releases this durable execution reservation.
       this.publishThread(threadId);
       return { result: { threadId } };
+    });
+  }
+
+  async startReview(threadId: string, input: StartReviewInput): Promise<Operation> {
+    return this.perform('review.start', threadId, input, async () => {
+      const thread = await this.loadThread(threadId);
+      this.ensureManaged(thread);
+      const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
+      if (isActive(thread.status) || thread.turns.some((turn) => isActive(turn.status)))
+        throw new AppError('THREAD_BUSY', '会话已有活动任务，结束后才能开始代码审查', 409, {
+          threadId,
+        });
+      if (thread.status === 'unknown')
+        throw new AppError('RESULT_UNKNOWN', '会话状态尚未确认，请先核对提交', 409, { threadId });
+      this.ensureCompatibilityConfirmed();
+      this.store.dispatch(input.clientOperationId, {
+        threadId,
+        workspaceKey: ownership.workspaceKey,
+        codexEpoch: this.codex.epoch,
+      });
+      const revision = this.projection.revision(threadId);
+      const turn = await this.codex.startReview(threadId);
+      this.store.attachTurn(input.clientOperationId, turn.id);
+      // A completion or approval can arrive before review/start returns its initial turn.
+      this.projection.turn(threadId, turn, this.projection.revision(threadId) !== revision);
+      const projectedTurn = this.projection
+        .get(threadId)
+        ?.turns.find((entry) => entry.id === turn.id);
+      if (projectedTurn && isTerminal(projectedTurn.status))
+        this.store.finishTurn(threadId, turn.id, this.codex.epoch);
+      this.publishThread(threadId);
+      return { result: { threadId, turnId: turn.id }, turnId: turn.id };
     });
   }
 
