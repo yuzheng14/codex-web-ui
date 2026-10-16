@@ -9,6 +9,7 @@ import { isActive, Status } from './components/Status';
 import { Icon } from './components/Icon';
 import { Button } from './components/ui/button';
 import { blocksTarget } from './lib/operations';
+import { createSlashCommands, type SlashCommandContext } from './lib/slash-commands';
 import { CompatibilityNotice } from './components/CompatibilityNotice';
 import { ProjectDialog } from './components/ProjectDialog';
 import {
@@ -161,6 +162,28 @@ export function App() {
       setCheckingCompatibility(false);
     }
   }
+
+  const slashContext: SlashCommandContext = {
+    project,
+    selectedId: workspace.selectedId,
+    thread,
+    system,
+    connection: workspace.connection,
+    authRequired: workspace.authRequired,
+    settings: workspace.settings,
+    projectSettings: workspace.getProjectSettings(workspace.projectId),
+    busy: workspace.busy,
+    operations: workspace.operations,
+    run: workspace.run,
+    onResumeAttempt: () => {
+      resumeAttempt.current = `${system?.codexEpoch}:${thread?.id}`;
+    },
+    refreshThread: workspace.refreshThread,
+    openStatus: () => setDiagnosticsOpen(true),
+  };
+  const slashContextRef = useRef(slashContext);
+  slashContextRef.current = slashContext;
+  const slashCommands = createSlashCommands(() => slashContextRef.current);
 
   return (
     <div className="app-shell">
@@ -439,6 +462,7 @@ export function App() {
             </div>
           )}
           <Composer
+            commands={slashCommands}
             thread={thread}
             threadLoading={Boolean(workspace.selectedId && !thread)}
             draftKey={workspace.selectedId ?? `project:${workspace.projectId}`}
