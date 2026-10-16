@@ -76,7 +76,7 @@ node /absolute/path/codex-web-ui/dist/server/main.js --config /absolute/path/cod
 
 输入框按 Enter 发送消息，Shift + Enter 换行；执行中按 Enter 会追加要求。输入法组合输入期间的 Enter 仅确认候选词，也可点击发送按钮提交。
 
-输入框开头输入 `/` 可打开命令菜单，支持 `/help`、`/new`、`/fork`、`/resume`、`/stop` 和 `/status`。可按名称或说明筛选，使用 ↑ / ↓ 和 Enter 选择执行，Esc 关闭；命令均无需参数，未知命令和执行失败会保留输入。`/resume` 仅恢复当前选中的历史会话，`/stop` 请求中断当前任务；这些命令使用网页已有流程，不透传全部 CLI 命令。输入 `//` 可发送以 `/` 开头的普通消息。详见 [Slash 命令说明与边界](docs/slash-commands.md)。
+输入框开头输入 `/` 可打开命令菜单，支持 `/help`、`/new`、`/fork`、`/resume`、`/rename <名称>`、`/stop` 和 `/status`。可按名称或说明筛选，使用 ↑ / ↓ 和 Enter 选择执行，Esc 关闭；`/rename` 必须提供名称，其他命令无需参数；未知命令和执行失败会保留输入。`/rename` 持久化当前会话名称；`/resume` 仅恢复当前选中的历史会话，`/stop` 请求中断当前任务；这些命令使用网页已有流程，不透传全部 CLI 命令。输入 `//` 可发送以 `/` 开头的普通消息。详见 [Slash 命令说明与边界](docs/slash-commands.md)。
 
 在输入框按 Cmd/Ctrl + V 可粘贴剪贴板中的图片，发送前可以预览和移除，也可以只发图片或在执行中追加图片。支持 PNG、JPEG、WebP 和 GIF，每条消息最多 4 张，图片合计不超过 2 MiB；超出限制时先缩小图片。图片草稿随会话在当前页面内保留，刷新页面会丢失未发送的草稿；发送失败或结果未确认时保留草稿。图片通过 Codex 原生图片输入发送，历史预览受显示与连接缓冲限制，未提供预览的图片会显示数量提示。
 

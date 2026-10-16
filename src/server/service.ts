@@ -1,6 +1,7 @@
 import type { CodexClient, CodexDiagnostics, CodexEvent } from '../codex/types.js';
 import { realpathSync } from 'node:fs';
 import { AppError } from '../shared/errors.js';
+import { threadNameError } from '../shared/thread-name.js';
 import {
   validateElicitationResolution,
   validatePermissionResolution,
@@ -19,6 +20,7 @@ import type {
   PendingAction,
   ReconcileInput,
   RenameProjectInput,
+  RenameThreadInput,
   ResolveActionInput,
   ResumeThreadInput,
   ServerMessage,
@@ -62,6 +64,7 @@ export class GatewayService {
   private confirmedCompatibility: string | undefined;
   private readonly archiveChanges = new Set<string>();
   private readonly compactionBaselines = new Map<string, Set<string>>();
+  private readonly renameChanges = new Set<string>();
   private readonly reads = new Map<string, Promise<ThreadView>>();
   private readonly resumes = new Map<string, Promise<void>>();
   private readonly executionReads = new Map<string, Promise<void>>();
@@ -262,6 +265,7 @@ export class GatewayService {
       this.ensureReady();
       this.ensureCompatibilityConfirmed();
       this.ensureArchiveAvailable(thread, input.clientOperationId);
+      this.ensureRenameAvailable(thread);
       this.store.associateProject(input.clientOperationId, thread.projectId);
       this.archiveChanges.add(threadId);
       try {
@@ -313,6 +317,59 @@ export class GatewayService {
         this.archiveChanges.delete(threadId);
       }
     });
+  }
+
+  async renameThread(threadId: string, input: RenameThreadInput): Promise<Operation> {
+    return this.perform('thread.rename', threadId, input, async () => {
+      const problem = threadNameError(input.name);
+      if (problem) throw new AppError('VALIDATION_ERROR', problem);
+      const name = input.name.trim();
+      const thread = await this.loadThread(threadId);
+      this.ensureManaged(thread);
+      this.ensureCompatibilityConfirmed();
+      this.ensureRenameAvailable(thread, input.clientOperationId);
+      this.store.associateProject(input.clientOperationId, thread.projectId);
+      this.renameChanges.add(threadId);
+      try {
+        const epoch = this.codex.epoch;
+        this.store.dispatch(input.clientOperationId);
+        await this.codex.renameThread(threadId, name);
+        if (this.codex.epoch !== epoch || !this.codex.ready)
+          throw new Error('重命名已发送，但 Codex 实例已变化，请核对会话名称');
+        // Read native metadata after the write; preserve a newer name notification.
+        const sequence = this.beginTitleRead(threadId);
+        let actual: ThreadView;
+        try {
+          actual = await this.codex.readThreadMetadata(threadId);
+          if (actual.id !== threadId || this.codex.epoch !== epoch || !this.codex.ready)
+            throw new Error('会话或 Codex 实例已变化');
+          this.projects.assertOwnership(thread.projectId, actual.cwd);
+        } catch (cause) {
+          // A definite read failure does not undo the acknowledged native write.
+          throw new Error('重命名已发送，但无法确认会话名称，请核对提交', { cause });
+        }
+        this.updateThreadTitle(threadId, actual.title, sequence);
+        if (actual.title !== name || this.projection.get(threadId)?.title !== name)
+          throw new Error('重命名已发送，但当前名称与请求不一致，请核对提交');
+        return { result: { threadId, name } };
+      } finally {
+        this.renameChanges.delete(threadId);
+      }
+    });
+  }
+
+  private ensureRenameAvailable(thread: ThreadView, operationId?: string): void {
+    const pending = this.store
+      .pendingProjectOperations(thread.projectId)
+      .some(
+        (entry) =>
+          entry.kind === 'thread.rename' &&
+          entry.target === thread.id &&
+          entry.clientOperationId !== operationId &&
+          entry.state !== 'accepted',
+      );
+    if (this.renameChanges.has(thread.id) || pending)
+      throw new AppError('THREAD_BUSY', '会话重命名正在处理或结果待核对，请先核对提交', 409);
   }
 
   private ensureArchiveAvailable(thread: ThreadView, operationId?: string): void {

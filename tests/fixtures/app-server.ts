@@ -70,6 +70,7 @@ export interface SimulatorOptions {
   temporaryPermissionProfile?: string;
   userMessageDelayMs?: number;
   titleDelayMs?: number;
+  nameWriteDelayMs?: number;
   threadStartedDelayMs?: number;
   titleBehavior?: 'fail' | 'hang' | 'rename' | 'interaction';
   autoReview?: Exclude<GuardianApprovalReviewStatus, 'inProgress'> | 'unfinished';
@@ -1143,12 +1144,17 @@ function receive(request: ClientRequest): void {
         error(request.id, 'Thread not found');
         break;
       }
-      thread.name = request.params.name;
-      notify({
-        method: 'thread/name/updated',
-        params: { threadId: thread.id, threadName: thread.name },
-      });
-      reply(request.id, {});
+      const name = request.params.name;
+      const write = () => {
+        thread.name = name;
+        notify({
+          method: 'thread/name/updated',
+          params: { threadId: thread.id, threadName: thread.name },
+        });
+        reply(request.id, {});
+      };
+      if (options.nameWriteDelayMs) setTimeout(write, options.nameWriteDelayMs);
+      else write();
       break;
     }
     case 'thread/unsubscribe': {

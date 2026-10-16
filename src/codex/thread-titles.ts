@@ -15,7 +15,7 @@ import {
   TITLE_MODEL,
   TITLE_RESPONSE_MAX_BYTES,
 } from './thread-title-policy.js';
-import { isRecord, type RpcNotification, type RpcTransport } from './transport.js';
+import { CodexError, isRecord, type RpcNotification, type RpcTransport } from './transport.js';
 
 // These experimental fields are omitted by the stable protocol generator.
 // Their shapes match the verified CLI 0.162.1 app-server protocol.
@@ -53,6 +53,8 @@ export class ThreadTitles {
   private readonly candidates = new Map<string, TitleSource>();
   private readonly jobs = new Map<string, Job>();
   private readonly internal = new Map<string, Job | undefined>();
+  private readonly manualNames = new Set<string>();
+  private readonly nameWrites = new Map<string, Promise<unknown>>();
   private closed = false;
   private hasChatgptAccount = false;
   private models: string[] = [];
@@ -75,15 +77,31 @@ export class ThreadTitles {
   }
 
   register(result: TitleSource): void {
-    if (!this.closed && !result.thread.name && !result.thread.ephemeral)
+    if (
+      !this.closed &&
+      !this.manualNames.has(result.thread.id) &&
+      !result.thread.name &&
+      !result.thread.ephemeral
+    )
       this.candidates.set(result.thread.id, { ...result, thread: { ...result.thread, turns: [] } });
     else this.candidates.delete(result.thread.id);
+  }
+
+  async prepareManualName(id: string): Promise<void> {
+    this.manualNames.add(id);
+    this.candidates.delete(id);
+    const job = this.jobs.get(id);
+    if (job) this.cancel(job);
+    // A timeout does not cancel the upstream write. Retain that failure until a new
+    // transport lifetime, rather than let a late generated title overwrite a manual name.
+    await this.nameWrites.get(id);
   }
 
   private start(id: string, text: string): void {
     const candidate = this.candidates.get(id);
     // Retry only on a later user-message event, never while another attempt is pending.
-    if (!candidate || this.closed || !text.trim() || this.jobs.has(id)) return;
+    if (!candidate || this.closed || !text.trim() || this.jobs.has(id) || this.nameWrites.has(id))
+      return;
     let finish!: Job['finish'];
     const completed = new Promise<Turn | null>((resolve) => {
       finish = resolve;
@@ -296,7 +314,15 @@ export class ThreadTitles {
       // An explicit name always wins, including one set while inference was running.
       const latest = await this.call('thread/read', { threadId: id, includeTurns: false });
       if (job.cancelled || latest.thread.id !== id || latest.thread.name) return;
-      await this.call('thread/name/set', { threadId: id, name: title });
+      const write = this.call('thread/name/set', { threadId: id, name: title });
+      this.nameWrites.set(id, write);
+      void write.then(
+        () => this.nameWrites.delete(id),
+        (error: unknown) => {
+          if (error instanceof CodexError && !error.uncertain) this.nameWrites.delete(id);
+        },
+      );
+      await write;
       this.candidates.delete(id);
     } finally {
       if (job.threadId && !this.closed) {

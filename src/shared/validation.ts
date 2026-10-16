@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { imageDataBytes, MAX_IMAGE_BYTES, MAX_IMAGES } from './images.js';
 import type { TaskMessage } from './types.js';
+import { threadNameError } from './thread-name.js';
 export const cursorSchema = z.string().min(1).max(4096);
 export const idSchema = z.string().min(1).max(256);
 const projectNameSchema = z.string().trim().min(1).max(100);
@@ -27,6 +28,15 @@ export const confirmCompatibilitySchema = operationSchema.extend({
 });
 export const createThreadSchema = operationSchema.extend({ settings: settingsSchema.optional() });
 export const forkThreadSchema = createThreadSchema;
+export const renameThreadSchema = operationSchema.extend({
+  name: z
+    .string()
+    .superRefine((name, context) => {
+      const message = threadNameError(name);
+      if (message) context.addIssue({ code: 'custom', message });
+    })
+    .transform((name) => name.trim()),
+});
 export const resumeThreadSchema = createThreadSchema.extend({
   confirmExternalStopped: z.boolean().optional(),
 });

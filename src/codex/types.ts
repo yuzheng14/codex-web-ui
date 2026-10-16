@@ -48,6 +48,7 @@ export interface CodexClient {
   onEvent(listener: (event: CodexEvent) => void): () => void;
   listThreads(cwd: string, cursor?: string, archived?: boolean): Promise<ThreadPage>;
   archiveThread(id: string): Promise<void>;
+  renameThread(id: string, name: string): Promise<void>;
   unarchiveThread(id: string): Promise<ThreadView>;
   readThread(id: string): Promise<ThreadView>;
   readThreadMetadata(id: string): Promise<ThreadView>;
