@@ -195,6 +195,8 @@ interface ConversationProps {
   needsProject?: boolean;
   canAddProject?: boolean;
   onAddProject?: () => void;
+  readingEnabled?: boolean;
+  onReadCompleted?: (threadId: string, turnId: string) => void;
 }
 
 export function Conversation(props: ConversationProps) {
@@ -213,12 +215,15 @@ function ConversationContent({
   needsProject = false,
   canAddProject = true,
   onAddProject,
+  readingEnabled = true,
+  onReadCompleted,
 }: ConversationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const [showBottom, setShowBottom] = useState(false);
   const previousThread = useRef(thread?.id);
+  const lastReadCompletion = useRef<{ threadId: string; turnId: string } | undefined>(undefined);
   const latestTurn = thread?.turns.at(-1);
   const activeCompaction =
     latestTurn && isActive(latestTurn.status)
@@ -254,6 +259,64 @@ function ConversationContent({
     box.addEventListener('toggle', onToggle, true);
     return () => box.removeEventListener('toggle', onToggle, true);
   }, [updateScrollPosition]);
+  useEffect(() => {
+    const box = containerRef.current;
+    const end = endRef.current;
+    const threadId = thread?.id;
+    const turnId = latestTurn?.id;
+    if (
+      !readingEnabled ||
+      !onReadCompleted ||
+      !box ||
+      !end ||
+      !threadId ||
+      !turnId ||
+      latestTurn.status !== 'completed'
+    )
+      return;
+
+    const reportRead = () => {
+      if (
+        document.visibilityState !== 'visible' ||
+        !document.hasFocus() ||
+        document.querySelector('dialog[open]') ||
+        box.clientHeight === 0
+      )
+        return;
+      const bounds = box.getBoundingClientRect();
+      const ending = end.getBoundingClientRect();
+      const visibleTop = Math.max(0, bounds.top + box.clientTop);
+      const visibleBottom = Math.min(
+        window.innerHeight,
+        bounds.top + box.clientTop + box.clientHeight,
+      );
+      // The zero-height sentinel follows the last turn. Scrolling through older history
+      // must not acknowledge a completion that remains below the visible conversation.
+      if (visibleBottom <= visibleTop || ending.top < visibleTop || ending.bottom > visibleBottom)
+        return;
+      const previous = lastReadCompletion.current;
+      if (previous?.threadId === threadId && previous.turnId === turnId) return;
+      lastReadCompletion.current = { threadId, turnId };
+      onReadCompleted(threadId, turnId);
+    };
+
+    const observer = new IntersectionObserver(reportRead, { root: box });
+    observer.observe(end);
+    box.addEventListener('scroll', reportRead);
+    window.addEventListener('focus', reportRead);
+    document.addEventListener('focusin', reportRead);
+    document.addEventListener('close', reportRead, true);
+    document.addEventListener('visibilitychange', reportRead);
+    reportRead();
+    return () => {
+      observer.disconnect();
+      box.removeEventListener('scroll', reportRead);
+      window.removeEventListener('focus', reportRead);
+      document.removeEventListener('focusin', reportRead);
+      document.removeEventListener('close', reportRead, true);
+      document.removeEventListener('visibilitychange', reportRead);
+    };
+  }, [thread?.id, latestTurn?.id, latestTurn?.status, readingEnabled, onReadCompleted]);
   return (
     <div className="conversation-area">
       {latestTurn?.reconnect && (

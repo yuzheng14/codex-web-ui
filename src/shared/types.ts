@@ -125,6 +125,8 @@ export type ThreadSummary = Pick<
   | 'archived'
 > & {
   pendingActionCount: number;
+  /** Stable identity of the latest known turn; absent when history is not loaded. */
+  lastTurnId?: string;
   lastTurnStatus?: RunStatus;
 };
 export interface Question {

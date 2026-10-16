@@ -2651,6 +2651,7 @@ dd {
   top: 4px;
   z-index: 1;
 }
+.thread-status-placeholder,
 .thread-status-indicator {
   position: relative;
   display: inline-flex;

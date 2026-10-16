@@ -165,6 +165,7 @@ test('all execution states remain single-line with accessible icons and pending 
                 ...thread,
                 status: state.status,
                 lastTurnStatus: state.lastTurnStatus,
+                lastTurnId: state.lastTurnStatus ? `fixture-turn-${thread.id}` : undefined,
                 pendingActionCount: state.pending ?? 0,
               }
             : thread;
@@ -180,23 +181,29 @@ test('all execution states remain single-line with accessible icons and pending 
     const detailsButton = row.locator('.thread-details-trigger');
     await expect(threadLink.locator('.thread-progress')).toHaveCount(0);
     await expect(threadLink.locator('.sr-only')).toContainText(state.label);
+    const rowBounds = await threadLink.boundingBox();
+    expect(rowBounds).not.toBeNull();
+    expect(rowBounds!.height).toBeLessThanOrEqual(40);
+    if (state.status === 'idle' && !state.lastTurnStatus) {
+      await expect(indicator).toHaveCount(0);
+      continue;
+    }
     await expect(indicator).toBeVisible();
     await expect(indicator).toHaveAttribute('role', 'img');
     await expect(indicator).toHaveAttribute('data-status', state.lastTurnStatus ?? state.status);
     await expect(indicator).toHaveAccessibleName(new RegExp(state.label));
+    if (state.lastTurnStatus === 'completed')
+      await expect(indicator).toHaveAccessibleName('已完成 · 未读');
     expect(await indicator.evaluate((element) => element.tagName)).toBe('SPAN');
     expect(
       await indicator.evaluate((element) => element.parentElement?.firstElementChild === element),
     ).toBe(true);
     await expect(row.locator('.thread-row-actions > .thread-status-indicator')).toHaveCount(1);
 
-    const rowBounds = await threadLink.boundingBox();
     const iconBounds = await indicator.boundingBox();
     const detailsBounds = await detailsButton.boundingBox();
-    expect(rowBounds).not.toBeNull();
     expect(iconBounds).not.toBeNull();
     expect(detailsBounds).not.toBeNull();
-    expect(rowBounds!.height).toBeLessThanOrEqual(40);
     expect(iconBounds!.y).toBeGreaterThanOrEqual(rowBounds!.y);
     expect(iconBounds!.y + iconBounds!.height).toBeLessThanOrEqual(
       rowBounds!.y + rowBounds!.height,
@@ -316,7 +323,9 @@ test.describe('touch navigation', () => {
     await projectGroup(page, '另一个项目')
       .getByRole('button', { name: '另一个项目', exact: true })
       .tap();
-    await projectGroup(page).getByRole('button', { name: /^测试项目(?:\s|$)/ }).tap();
+    await projectGroup(page)
+      .getByRole('button', { name: /^测试项目(?:\s|$)/ })
+      .tap();
     await expect(link(page, first)).toBeVisible();
     await expect(link(page, second)).toBeVisible();
     await expect(

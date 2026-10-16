@@ -54,6 +54,7 @@ function ThreadStatusIcon({
 export function ThreadLink({
   thread,
   selected,
+  unreadCompletion,
   offline,
   onSelect,
   onArchive,
@@ -61,6 +62,7 @@ export function ThreadLink({
 }: {
   thread: ThreadSummary;
   selected: boolean;
+  unreadCompletion: boolean;
   offline: boolean;
   onSelect: () => void;
   onArchive: () => void;
@@ -91,8 +93,12 @@ export function ThreadLink({
       ? lastResult
       : thread.status;
   const statusLabel = `${offline && isActive(status) ? '上次已知：' : ''}${runStatusLabels[status]}${
-    thread.pendingActionCount > 0 ? ` · ${thread.pendingActionCount} 项待处理` : ''
-  }`;
+    status === 'completed' && unreadCompletion ? ' · 未读' : ''
+  }${thread.pendingActionCount > 0 ? ` · ${thread.pendingActionCount} 项待处理` : ''}`;
+  const showStatus =
+    (status !== 'idle' && status !== 'completed') ||
+    unreadCompletion ||
+    thread.pendingActionCount > 0;
 
   return (
     <div
@@ -122,12 +128,16 @@ export function ThreadLink({
         </span>
       </button>
       <div className="thread-row-actions">
-        <ThreadStatusIcon
-          status={status}
-          label={statusLabel}
-          offline={offline}
-          pending={thread.pendingActionCount > 0}
-        />
+        {showStatus ? (
+          <ThreadStatusIcon
+            status={status === 'completed' && !unreadCompletion ? 'idle' : status}
+            label={statusLabel}
+            offline={offline}
+            pending={thread.pendingActionCount > 0}
+          />
+        ) : (
+          <span className="thread-status-placeholder" aria-hidden="true" />
+        )}
         <Button
           ref={detailsButton}
           variant="ghost"
@@ -196,6 +206,12 @@ export function ThreadLink({
               <Status status={status} offline={offline} />
             </dd>
           </div>
+          {status === 'completed' && thread.lastTurnId && (
+            <div>
+              <dt>阅读状态</dt>
+              <dd>{unreadCompletion ? '未读' : '已读'}</dd>
+            </div>
+          )}
           {thread.pendingActionCount > 0 && (
             <div>
               <dt>待处理</dt>

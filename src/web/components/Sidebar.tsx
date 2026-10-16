@@ -23,6 +23,7 @@ interface Props {
   onProject: (id: string) => void;
   projectThreads: Record<string, ProjectThreads>;
   selectedId?: string;
+  isUnreadCompletion: (thread: ThreadSummary) => boolean;
   onThread: (id: string, projectId: string) => void;
   onMore: (projectId: string, cursor: string) => void;
   onRetry: (projectId: string) => void;
@@ -190,6 +191,7 @@ export function Sidebar(props: Props) {
                       key={entry.id}
                       thread={entry}
                       selected={entry.id === props.selectedId}
+                      unreadCompletion={props.isUnreadCompletion(entry)}
                       offline={props.offline}
                       onArchive={() => props.onArchive(entry.id, !entry.archived)}
                       archiveDisabledReason={props.archiveDisabledReason(entry)}
