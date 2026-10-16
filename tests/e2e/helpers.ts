@@ -29,3 +29,13 @@ export async function confirmCompatibility(page: Page) {
   await compatibilityDialog(page).getByRole('button', { name: '确认继续', exact: true }).click();
   await expect(compatibilityDialog(page)).not.toBeVisible();
 }
+/** Tests that navigate through history must first start a real conversation. */
+export async function saveConversationHistory(page: Page) {
+  const turns = await page.locator('.turn').count();
+  await page
+    .getByRole('textbox', { name: '任务内容', exact: true })
+    .fill('已有会话历史 [title-fail]');
+  await page.getByRole('button', { name: '发送任务', exact: true }).click();
+  await expect(page.locator('.turn')).toHaveCount(turns + 1);
+  await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
+}

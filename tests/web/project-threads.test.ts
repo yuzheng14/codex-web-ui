@@ -23,6 +23,18 @@ const page = (
 });
 
 describe('multi-project conversation overviews', () => {
+  it('excludes drafts and removes rejected first sends without stale reads restoring them', () => {
+    const store = new ProjectThreadsStore();
+    store.applySummary({ ...summary('draft'), historyVisible: false }, cursor(1));
+    expect(store.snapshot.a?.data).toEqual([]);
+    store.applySummary({ ...summary('draft'), historyVisible: true }, cursor(2));
+    expect(store.snapshot.a?.data).toHaveLength(1);
+    const pending = store.beginRead('a');
+    store.applySummary({ ...summary('draft'), historyVisible: false }, cursor(4));
+    store.finishRead(pending, page([{ ...summary('draft'), historyVisible: true }], 3));
+    expect(store.snapshot.a?.data).toEqual([]);
+  });
+
   it('loads, paginates, and fails projects independently without dropping another project', () => {
     const store = new ProjectThreadsStore();
     const readA = store.beginRead('a');

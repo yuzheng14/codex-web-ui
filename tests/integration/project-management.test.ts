@@ -91,6 +91,15 @@ async function create(harness: Harness, projectId: string) {
   });
   return (operation.result as { threadId: string }).threadId;
 }
+async function createHistory(harness: Harness, projectId: string) {
+  const id = await create(harness, projectId);
+  const started = await harness.service.startTurn(id, {
+    clientOperationId: operationId(),
+    text: 'Saved project history',
+  });
+  harness.codex.complete(id, (started.result as { turnId: string }).turnId);
+  return id;
+}
 async function expectError(response: Response, status: number, code: string) {
   expect(response.status).toBe(status);
   expect(await response.json()).toMatchObject({ error: { code } });
@@ -304,7 +313,7 @@ describe('project mutation security and ownership', () => {
     mkdirSync(nested, { recursive: true });
     const parentProject = await add(harness, parent);
     const nestedProject = await add(harness, nested);
-    const threadId = await create(harness, nestedProject.id);
+    const threadId = await createHistory(harness, nestedProject.id);
     expect((await harness.service.listThreads(parentProject.id)).data).toEqual([]);
     expect(harness.store.getThreadLink(threadId)?.projectId).toBe(nestedProject.id);
     expect(
@@ -493,7 +502,7 @@ describe('project identity and removal recovery regressions', () => {
         { id: 'unavailable', name: 'Unavailable', path: join(directory, 'later') },
       ];
     });
-    const threadId = await create(harness, 'legacy-alias');
+    const threadId = await createHistory(harness, 'legacy-alias');
     expect(harness.store.getThreadLink(threadId)?.projectId).toBe('legacy-alias');
     expect((await harness.service.listThreads('original')).data).toEqual([]);
     expect(
@@ -523,8 +532,8 @@ describe('project identity and removal recovery regressions', () => {
         ];
       });
       const survivingId = removedId === 'original' ? 'legacy-alias' : 'original';
-      const removedThread = await create(harness, removedId);
-      const survivingThread = await create(harness, survivingId);
+      const removedThread = await createHistory(harness, removedId);
+      const survivingThread = await createHistory(harness, survivingId);
       expect((await harness.post(`/api/projects/${removedId}/remove`, {})).status).toBe(200);
       await harness.restart();
       const path = join(harness.directory, 'actual');

@@ -94,7 +94,9 @@ describe('explicit compatibility consent belongs to one running gateway and Code
     });
     expect(ctx.service.getSystem().compatibilityConfirmation).toBe('required');
     expect((await ctx.service.getThread(running)).actions[0]?.status).toBe('pending');
-    expect((await ctx.service.listThreads('project')).data).toHaveLength(2);
+    expect((await ctx.service.listThreads('project')).data.map((thread) => thread.id)).toEqual([
+      running,
+    ]);
     expect(ctx.service.listProjects()).toHaveLength(1);
     await ctx.service.interrupt(running, {
       clientOperationId: operationId(),

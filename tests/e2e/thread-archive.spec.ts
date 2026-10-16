@@ -107,7 +107,10 @@ test('leaves the archived conversation without creating a new one, then explicit
   await row(page, id).getByRole('button', { name: '归档会话', exact: true }).click();
   await expectEmpty(page);
   await expect(row(page, id)).toHaveCount(0);
-  expect((await (await request.get('/api/projects/fixture/threads')).json()).data).toEqual([]);
+  const active = (await (await request.get('/api/projects/fixture/threads')).json()).data as {
+    id: string;
+  }[];
+  expect(active.map((thread) => thread.id)).not.toContain(id);
   expect(listReads).toEqual([]);
   expect(creates).toBe(0);
   await page.screenshot({

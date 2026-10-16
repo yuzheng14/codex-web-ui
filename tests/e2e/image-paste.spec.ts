@@ -1,7 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  saveConversationHistory,
+} from './helpers';
 
 const input = (page: Page) => page.locator('.composer-box textarea');
 const previews = (page: Page) => page.locator('.composer-images img');
@@ -119,6 +124,7 @@ test('multiple images can be removed, remain isolated by thread and retain accom
   page,
 }) => {
   const first = await openThread(page);
+  await saveConversationHistory(page);
   await input(page).fill('before after');
   await input(page).evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(7, 7));
   await pasteFiles(page, 2, 'image/png', undefined, '粘贴文字 ');
@@ -213,6 +219,7 @@ test('pending reads block Enter and finish in the originating draft after switch
     };
   });
   const first = await openThread(page);
+  await saveConversationHistory(page);
   await input(page).fill('等图片读完');
   await pasteFiles(page);
   await expect(page.locator('.composer-images')).toContainText('读取中');
@@ -223,7 +230,7 @@ test('pending reads block Enter and finish in the originating draft after switch
   await page.locator(`[data-thread-id="${first}"]`).click();
   await expect(previews(page)).toHaveCount(1);
   await expect(input(page)).toHaveValue('等图片读完');
-  await expect(page.locator('.turn')).toHaveCount(0);
+  await expect(page.locator('.turn')).toHaveCount(1);
 });
 
 test('an image-only follow-up steers the current turn', async ({ page }) => {

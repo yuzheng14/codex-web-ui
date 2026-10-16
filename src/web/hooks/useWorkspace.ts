@@ -65,6 +65,8 @@ export function useWorkspace() {
   const [settingsByScope, setSettingsByScope] = useState(settingsRef.current);
   const navigationRevision = useRef(0);
   const detailReadSequence = useRef(0);
+  const selectionRestoreRef = useRef<number | undefined>(undefined);
+  const [restoringSelection, setRestoringSelection] = useState(false);
   const getProjectSettings = useCallback(
     (id: string) => settingsRef.current[`project:${id}`] ?? {},
     [],
@@ -181,6 +183,14 @@ export function useWorkspace() {
           selectedThreadRef.current = next;
           setThread(next);
           changeArchiveView(Boolean(next.archived));
+          if (next.historyVisible) {
+            try {
+              // Another tab may have discarded this selection while it was empty.
+              localStorage.setItem(`codex-web.selected:${next.projectId}`, next.id);
+            } catch {
+              /* Preferences are optional. */
+            }
+          }
         }
       }
       const scope = `thread:${next.id}`;
@@ -226,24 +236,62 @@ export function useWorkspace() {
     }
   }, []);
   const selectThread = useCallback(
-    async (id: string, owningProjectId?: string) => {
+    async (id: string, owningProjectId?: string, restoring = false) => {
       const revision = navigationRevision.current;
       const read = ++detailReadSequence.current;
+      if (!restoring) {
+        selectionRestoreRef.current = undefined;
+        setRestoringSelection(false);
+      }
       let project =
         owningProjectId ??
         projectStore.current.findProject(id) ??
         streamRef.current?.cache.get(id)?.data.projectId;
       let loaded: ThreadView | undefined;
-      if (!project) {
-        // Parent links may point outside the loaded list. Resolve ownership before navigation.
+      const discardRestoredSelection = () => {
+        if (project) {
+          delete selectionsRef.current[project];
+          try {
+            localStorage.removeItem(`codex-web.selected:${project}`);
+          } catch {
+            /* Preferences are optional. */
+          }
+        }
+        selectedRef.current = undefined;
+        selectedThreadRef.current = undefined;
+        setSelectedId(undefined);
+        setThread(undefined);
+        streamRef.current?.select(undefined);
+      };
+      if (!project || restoring) {
+        // Check remembered selections before subscribing: opening an empty draft
+        // would otherwise automatically resume it and put it back into history.
         try {
-          loaded = await api.thread(id);
+          loaded = restoring ? await api.threadMetadata(id) : await api.thread(id);
           if (navigationRevision.current !== revision || detailReadSequence.current !== read)
             return;
-          project = loaded.projectId;
+          if (project && loaded.projectId !== project) return;
+          project ??= loaded.projectId;
+          if (
+            restoring &&
+            loaded.historyVisible === false &&
+            !operationsRef.current.some((entry) => blocksTarget(entry, id))
+          ) {
+            discardRestoredSelection();
+            return;
+          }
+          if (restoring) loaded = undefined;
         } catch (problem) {
-          if (navigationRevision.current === revision && detailReadSequence.current === read)
-            report(problem);
+          if (navigationRevision.current === revision && detailReadSequence.current === read) {
+            if (
+              restoring &&
+              problem instanceof HttpError &&
+              problem.problem.code === 'THREAD_NOT_FOUND' &&
+              !operationsRef.current.some((entry) => blocksTarget(entry, id))
+            )
+              discardRestoredSelection();
+            else report(problem);
+          }
           return;
         }
       }
@@ -295,6 +343,11 @@ export function useWorkspace() {
   const selectProject = useCallback(
     (id: string) => {
       activateProject(id);
+      selectedRef.current = undefined;
+      selectedThreadRef.current = undefined;
+      setSelectedId(undefined);
+      setThread(undefined);
+      streamRef.current?.select(undefined);
       let remembered = selectionsRef.current[id];
       try {
         remembered ??= localStorage.getItem(`codex-web.selected:${id}`) ?? undefined;
@@ -302,14 +355,19 @@ export function useWorkspace() {
         /* In-memory selections still work when storage is unavailable. */
       }
       if (id && remembered) {
-        void selectThread(remembered, id);
+        const pending = selectThread(remembered, id, true);
+        const read = detailReadSequence.current;
+        selectionRestoreRef.current = read;
+        setRestoringSelection(true);
+        void pending.finally(() => {
+          if (selectionRestoreRef.current !== read) return;
+          selectionRestoreRef.current = undefined;
+          setRestoringSelection(false);
+        });
         return;
       }
-      selectedRef.current = undefined;
-      selectedThreadRef.current = undefined;
-      setSelectedId(undefined);
-      setThread(undefined);
-      streamRef.current?.select(undefined);
+      selectionRestoreRef.current = undefined;
+      setRestoringSelection(false);
     },
     [activateProject, selectThread],
   );
@@ -389,7 +447,7 @@ export function useWorkspace() {
         // Recovery can finish before the initial project list restores the selected thread.
         // Keep the durable navigation intent until that selection can be checked safely.
         if (
-          !projectsLoadedRef.current &&
+          (!projectsLoadedRef.current || selectionRestoreRef.current !== undefined) &&
           known.navigateToResult &&
           (known.kind === 'create' || known.kind === 'fork')
         )
@@ -426,7 +484,7 @@ export function useWorkspace() {
     for (const entry of operationsRef.current) {
       if (entry.operation?.status === 'acknowledged') applyOperation(entry.operation);
     }
-  }, [projectsLoaded, applyOperation]);
+  }, [projectsLoaded, restoringSelection, applyOperation]);
 
   const recordLookupError = useCallback(
     (entry: SavedOperation, problem: unknown) => {

@@ -219,7 +219,9 @@ export class GatewayService {
     for (const thread of page.data) {
       try {
         const normalized = this.normalize(thread, projectId);
+        normalized.hasMessages ??= true;
         const cached = this.projection.get(thread.id);
+        if (cached && normalized.hasMessages) cached.hasMessages = true;
         const titleRead = titleReads.get(thread.id);
         if (cached && titleRead !== undefined) {
           if (this.titleReads.get(thread.id) === titleRead)
@@ -236,11 +238,35 @@ export class GatewayService {
       }
     }
     if (!archived && cursor === undefined) {
-      // A new/active managed thread may not be indexed in upstream history yet.
-      // Always make recent owned sessions discoverable after reopening a browser.
-      const managed = this.projection
-        .values()
-        .filter((thread) => thread.managed && thread.projectId === projectId)
+      // Started threads may not be indexed upstream yet. Unsent drafts stay out
+      // of history, including live summaries and automatic browser restoration.
+      // The gateway may restart before Codex indexes a dispatched first turn.
+      // Its durable execution marker must remain discoverable on another device.
+      const pending = this.store.activeMarkers().flatMap((marker): ThreadView[] => {
+        const link = this.store.getThreadLink(marker.threadId);
+        if (link?.projectId !== projectId || this.projection.get(marker.threadId)) return [];
+        return [
+          {
+            id: marker.threadId,
+            projectId,
+            cwd: link.cwd,
+            source: link.source,
+            title: '提交结果待核对',
+            status: 'unknown',
+            turns: [],
+            actions: [],
+            managed: false,
+            updatedAt: marker.createdAt,
+          },
+        ];
+      });
+      const managed = [...this.projection.values(), ...pending]
+        .filter(
+          (thread) =>
+            (thread.managed || this.store.activeForThread(thread.id)) &&
+            thread.projectId === projectId &&
+            this.historyVisible(thread),
+        )
         .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
         .slice(0, 30);
       for (const thread of managed) {
@@ -249,7 +275,7 @@ export class GatewayService {
       }
     }
     return {
-      data: data.filter((thread) => Boolean(thread.archived) === archived),
+      data: data.filter((thread) => thread.historyVisible && Boolean(thread.archived) === archived),
       nextCursor: page.nextCursor,
     };
   }
@@ -411,6 +437,19 @@ export class GatewayService {
     // A notification may precede the RPC receipt. Other tabs must not resume an
     // unarchived thread until this gateway's lifecycle lock has been released.
     if (!this.archiveChanges.has(threadId)) this.publishThread(threadId);
+  }
+
+  async getThreadMetadata(threadId: string): Promise<ThreadView> {
+    const cached = this.projection.get(threadId);
+    if (cached) {
+      this.projects.assertOwnership(cached.projectId, cached.cwd);
+      if (this.codex.ready) await this.refreshThreadMetadata(threadId);
+      this.projects.assertOwnership(cached.projectId, cached.cwd);
+      return { ...this.threadView(cached), turns: [], actions: [] };
+    }
+    // Checking a remembered ID must not load history or resume an unsent thread.
+    const metadata = this.threadView(this.normalize(await this.codex.readThreadMetadata(threadId)));
+    return { ...metadata, turns: [], actions: [] };
   }
 
   async getThread(threadId: string): Promise<ThreadView> {
@@ -654,6 +693,9 @@ export class GatewayService {
         workspaceKey: ownership.workspaceKey,
         codexEpoch: this.codex.epoch,
       });
+      // A refresh must discover a dispatched first message even before its turn
+      // notification or receipt arrives. A definite failure removes the marker.
+      this.publishThread(threadId);
       const revision = this.projection.revision(threadId);
       const turn = await this.codex.startTurn(
         threadId,
@@ -925,6 +967,7 @@ export class GatewayService {
         const action = this.projection.resolveAction(target, 'pending');
         if (action?.threadId) this.publishThread(action.threadId);
       }
+      if (dispatched && kind === 'turn.start') this.publishThread(target);
       this.events.publish('operation', operation);
       if (uncertain)
         throw new AppError(
@@ -1245,9 +1288,21 @@ export class GatewayService {
     this.events.publishSummary(summary);
   }
 
+  private historyVisible(thread: ThreadView): boolean {
+    return Boolean(
+      thread.hasMessages ||
+      thread.archived ||
+      thread.turns.length ||
+      this.store.activeForThread(thread.id) ||
+      isActive(thread.status) ||
+      thread.actions.some((action) => ['pending', 'responding'].includes(action.status)),
+    );
+  }
+
   private threadView(thread: ThreadView): ThreadView {
     const result = structuredClone(thread);
     result.archived = thread.archived ?? false;
+    result.historyVisible = this.historyVisible(thread);
     const marker = this.store.activeForThread(thread.id);
     delete result.execution;
     if (marker)

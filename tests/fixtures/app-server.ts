@@ -1276,6 +1276,7 @@ const model: Model = {
   availableAccessPrograms: null,
   isDefault: true,
 };
+const delayedStarts = new WeakSet<ClientRequest>();
 function receive(request: ClientRequest): void {
   if (request.method === 'initialize') {
     initialized = true;
@@ -1476,7 +1477,7 @@ function receive(request: ClientRequest): void {
     case 'thread/read': {
       const thread = threads.get(request.params.threadId);
       if (!thread) {
-        error(request.id, 'Thread not found');
+        error(request.id, `thread not loaded: ${request.params.threadId}`, -32600);
         break;
       }
       if (options.forkHistoryReadError && thread.forkedFromId) {
@@ -1701,6 +1702,18 @@ function receive(request: ClientRequest): void {
         error(request.id, 'Thread busy');
         break;
       }
+      const text = request.params.input
+        .flatMap((input) => (input.type === 'text' ? input.text : ''))
+        .join('');
+      if (text.includes('[reject-start]')) {
+        error(request.id, '模拟首条消息被拒绝');
+        break;
+      }
+      if (text.includes('[delay-start]') && !delayedStarts.has(request)) {
+        delayedStarts.add(request);
+        setTimeout(() => receive(request), 1200);
+        break;
+      }
       if (options.crashAfterDispatch) {
         process.exit(17);
       }
@@ -1749,9 +1762,6 @@ function receive(request: ClientRequest): void {
       thread.model = request.params.model ?? thread.model;
       thread.cwd = request.params.cwd ?? thread.cwd;
       thread.status = { type: 'active', activeFlags: [] };
-      const text = request.params.input
-        .flatMap((input) => (input.type === 'text' ? input.text : ''))
-        .join('');
       if (!thread.preview) thread.preview = text;
       notify({ method: 'turn/started', params: { threadId: thread.id, turn } });
       const name = thread.ephemeral ? undefined : options.threadNames?.[thread.turns.length - 1];

@@ -128,6 +128,7 @@ export class DomainCodex implements CodexClient {
   async createThread(cwd: string, _settings?: Settings) {
     this.creates++;
     const thread = threadView(`thread-${this.threads.size + 1}`, cwd);
+    thread.hasMessages = false;
     this.threads.set(thread.id, thread);
     this.emit({ type: 'thread', thread });
     return structuredClone(thread);
@@ -170,6 +171,7 @@ export class DomainCodex implements CodexClient {
     };
     const thread = this.threads.get(id)!;
     thread.status = 'running';
+    thread.hasMessages = true;
     thread.turns.push(turn);
     this.emit({ type: 'turn', threadId: id, turn });
     this.onStart?.(id, turn);
