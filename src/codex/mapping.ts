@@ -102,9 +102,15 @@ export function mapTurn(threadId: string, turn: Turn): TurnView {
     id: turn.id,
     threadId,
     status: turn.status === 'inProgress' ? 'running' : turn.status,
+    ...(validTiming(turn.startedAt) ? { startedAt: turn.startedAt * 1000 } : {}),
+    ...(validTiming(turn.completedAt) ? { completedAt: turn.completedAt * 1000 } : {}),
+    ...(validTiming(turn.durationMs) ? { durationMs: turn.durationMs } : {}),
     items: turn.items.map(mapItem),
     ...(turn.error ? { error: turn.error.message } : {}),
   };
+}
+function validTiming(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 export function mapItem(item: ThreadItem): ItemView {
   assertObjectId(item, 'item');

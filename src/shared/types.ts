@@ -78,6 +78,11 @@ export interface TurnView {
   id: string;
   threadId: string;
   status: RunStatus;
+  /** Upstream Unix timestamps converted to milliseconds; absent in older history. */
+  startedAt?: number;
+  completedAt?: number;
+  /** Upstream duration for the entire turn, in milliseconds; never measured by the browser. */
+  durationMs?: number;
   items: ItemView[];
   diff?: string;
   error?: string;
