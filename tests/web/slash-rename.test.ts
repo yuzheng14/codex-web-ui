@@ -56,6 +56,7 @@ function context(): SlashCommandContext {
     onResumeAttempt: vi.fn(),
     refreshThread: vi.fn(),
     openStatus: vi.fn(),
+    exportThread: vi.fn().mockResolvedValue('test.md'),
   };
 }
 const rename = (state: SlashCommandContext) =>

@@ -7,7 +7,16 @@ import type { ConnectionState } from './realtime';
 import { readableError } from './utils';
 
 export type SlashCommandName =
-  'help' | 'new' | 'fork' | 'resume' | 'stop' | 'status' | 'compact' | 'review' | 'rename';
+  | 'help'
+  | 'new'
+  | 'fork'
+  | 'resume'
+  | 'stop'
+  | 'status'
+  | 'compact'
+  | 'review'
+  | 'rename'
+  | 'export';
 
 export interface SlashCommandResult {
   message: string;
@@ -81,6 +90,7 @@ export interface SlashCommandContext {
   onResumeAttempt: () => void;
   refreshThread: () => Promise<unknown>;
   openStatus: () => void;
+  exportThread: (threadId: string) => Promise<{ partial: boolean }>;
 }
 
 const definitions: { name: SlashCommandName; description: string }[] = [
@@ -93,6 +103,7 @@ const definitions: { name: SlashCommandName; description: string }[] = [
   { name: 'stop', description: '请求中断当前任务（网页快捷命令）' },
   { name: 'status', description: '打开当前连接、运行状态与提交诊断' },
   { name: 'compact', description: '压缩当前会话上下文，保留会话继续工作' },
+  { name: 'export', description: '下载当前会话的已保存记录为 Markdown 文件' },
 ];
 
 function unavailableReason(name: SlashCommandName, context: SlashCommandContext) {
@@ -102,6 +113,13 @@ function unavailableReason(name: SlashCommandName, context: SlashCommandContext)
   if (context.connection !== 'connected') return '当前已离线，请等待连接恢复后重试。';
   if (context.system?.authenticated === false) return 'Codex 尚未登录，请先完成认证。';
   if (!context.system?.ready) return 'Codex 尚不可用，请先查看状态诊断。';
+  if (name === 'export') {
+    if (!context.thread)
+      return context.selectedId ? '会话正在加载，请稍后重试。' : '请先选择一个会话。';
+    if (!context.system.capabilities.includes('thread/read'))
+      return '当前 Codex 未提供 thread/read 能力。';
+    return undefined;
+  }
   if (name !== 'stop' && compatibilityConfirmationRequired(context.system))
     return '请先确认当前 Codex 版本的兼容性提示。';
   const capability = {
@@ -268,6 +286,14 @@ export function createSlashCommands(getContext: () => SlashCommandContext): Slas
       const thread = context.thread;
       const path = `/api/threads/${encodeURIComponent(thread?.id ?? '')}`;
       try {
+        if (name === 'export') {
+          const { partial } = await context.exportThread(thread!.id);
+          return {
+            message: partial
+              ? '已发起 Markdown 下载；存在未完成、状态待确认或截断内容，请查看文件内说明。'
+              : '已发起已保存历史的 Markdown 下载。图片和内部记录的省略范围已在文件中说明。',
+          };
+        }
         let operation: Operation | undefined;
         if (name === 'new') {
           const projectId = context.project!.id;

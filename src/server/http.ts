@@ -128,6 +128,15 @@ export function createApp({
   app.get('/api/threads/:threadId', async (c) =>
     c.json(await service.getThread(id(c.req.param('threadId')))),
   );
+  app.get('/api/threads/:threadId/export', async (c) => {
+    const exported = await service.exportThread(id(c.req.param('threadId')));
+    c.header('Content-Type', 'text/markdown; charset=utf-8');
+    c.header('Content-Disposition', `attachment; filename="${exported.filename}"`);
+    c.header('Cache-Control', 'no-store');
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('X-Export-Completeness', exported.partial ? 'partial' : 'saved-history');
+    return c.body(exported.markdown);
+  });
   app.get('/api/operations/:operationId', (c) =>
     c.json(service.getOperation(id(c.req.param('operationId')))),
   );
