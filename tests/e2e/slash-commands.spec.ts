@@ -92,8 +92,8 @@ test('slash suggestions expose commands, filter by name and description, and exe
   const outgoing = posts(page);
   await input(page).fill('/');
   await expect(menu(page)).toBeVisible();
-  await expect(menu(page).getByRole('option')).toHaveCount(6);
-  for (const command of ['help', 'new', 'fork', 'resume', 'stop', 'status']) {
+  await expect(menu(page).getByRole('option')).toHaveCount(7);
+  for (const command of ['help', 'new', 'fork', 'resume', 'stop', 'status', 'compact']) {
     await expect(option(page, command)).toBeVisible();
     await expect(option(page, command)).toContainText('无需参数');
   }
@@ -111,7 +111,7 @@ test('slash suggestions expose commands, filter by name and description, and exe
   await expect(option(page, 'help')).toBeVisible();
   await input(page).press('Enter');
   await expect(feedback(page)).toHaveAttribute('role', 'status');
-  for (const command of ['help', 'new', 'fork', 'resume', 'stop', 'status'])
+  for (const command of ['help', 'new', 'fork', 'resume', 'stop', 'status', 'compact'])
     await expect(feedback(page)).toContainText(`/${command}`);
   await expect(input(page)).toHaveValue('');
   await expect(menu(page)).toHaveCount(0);
@@ -478,6 +478,10 @@ test('unauthenticated sessions cannot dispatch slash operations', async ({ page 
   });
   await page.reload();
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
+  // The overview socket can connect before project loading restores the selected thread.
+  await expect(
+    page.getByRole('heading', { name: '这个会话准备好了', exact: true }),
+  ).toBeVisible();
   const outgoing = posts(page);
   await input(page).fill('/new');
   await expect(option(page, 'new')).toHaveAttribute('aria-disabled', 'true');

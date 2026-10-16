@@ -51,6 +51,7 @@ export class DomainCodex implements CodexClient {
   creates = 0;
   steers = 0;
   interrupts = 0;
+  compactions = 0;
   resumes = 0;
   forks = 0;
   replies = 0;
@@ -175,6 +176,9 @@ export class DomainCodex implements CodexClient {
   }
   async interruptTurn(_id: string, _turnId: string) {
     this.interrupts++;
+  }
+  async compactThread(_id: string) {
+    this.compactions++;
   }
   async respond(_actionId: string, _resolution: ActionResolution) {
     this.replies++;

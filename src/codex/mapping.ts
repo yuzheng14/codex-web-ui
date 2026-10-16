@@ -139,6 +139,8 @@ export function mapItem(item: ThreadItem): ItemView {
       return { id: item.id, type: item.type, text: [...item.summary, ...item.content].join('\n') };
     case 'plan':
       return { id: item.id, type: item.type, text: item.text };
+    case 'contextCompaction':
+      return { id: item.id, type: item.type };
     case 'commandExecution':
       return {
         id: item.id,

@@ -15,6 +15,7 @@ import type {
   ForkThreadInput,
   InterruptInput,
   Operation,
+  OperationInput,
   PendingAction,
   ReconcileInput,
   RenameProjectInput,
@@ -59,6 +60,7 @@ export class GatewayService {
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly archiveChanges = new Set<string>();
+  private readonly compactionBaselines = new Map<string, Set<string>>();
   private readonly reads = new Map<string, Promise<ThreadView>>();
   private readonly resumes = new Map<string, Promise<void>>();
   private readonly executionReads = new Map<string, Promise<void>>();
@@ -558,6 +560,36 @@ export class GatewayService {
     });
   }
 
+  async compactThread(threadId: string, input: OperationInput): Promise<Operation> {
+    return this.perform('thread.compact', threadId, input, async () => {
+      const thread = await this.loadThread(threadId);
+      this.ensureManaged(thread);
+      const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
+      if (isActive(thread.status) || thread.turns.some((turn) => isActive(turn.status)))
+        throw new AppError('THREAD_BUSY', '请等待当前任务结束后再压缩上下文', 409);
+      if (!thread.turns.length)
+        throw new AppError('EMPTY_THREAD', '当前会话为空，无需压缩上下文', 409);
+      if (thread.status === 'unknown')
+        throw new AppError('RESULT_UNKNOWN', '请先核对当前会话的执行状态', 409);
+      this.ensureCompatibilityConfirmed();
+      this.store.dispatch(input.clientOperationId, {
+        threadId,
+        workspaceKey: ownership.workspaceKey,
+        codexEpoch: this.codex.epoch,
+      });
+      this.compactionBaselines.set(
+        input.clientOperationId,
+        new Set(thread.turns.map((turn) => turn.id)),
+      );
+      this.publishThread(threadId);
+      await this.codex.compactThread(threadId);
+      // No turn ID in this RPC's receipt. consume() binds the new turn and only
+      // real terminal evidence releases this durable execution reservation.
+      this.publishThread(threadId);
+      return { result: { threadId } };
+    });
+  }
+
   async steer(threadId: string, input: SteerInput): Promise<Operation> {
     return this.perform('turn.steer', threadId, input, async () => {
       await this.requireActiveTurn(threadId, input.expectedTurnId);
@@ -759,6 +791,11 @@ export class GatewayService {
     } finally {
       this.inFlightOperations.delete(input.clientOperationId);
       this.pendingThreadCreations.delete(input.clientOperationId);
+      if (kind === 'thread.compact') {
+        if (!this.store.activeForThread(target))
+          this.compactionBaselines.delete(input.clientOperationId);
+        this.publishThread(target);
+      }
     }
   }
 
@@ -1129,6 +1166,7 @@ export class GatewayService {
         this.currentEpoch = event.diagnostics.codexEpoch;
         this.titleReads.clear();
         this.runtimeSettingsUpdates.clear();
+        this.compactionBaselines.clear();
         this.resumes.clear();
         this.store.recover();
         this.projection.runtimeReset();
@@ -1206,8 +1244,17 @@ export class GatewayService {
       // title at turn boundaries, including the first prompt of a new thread.
       void this.refreshThreadMetadata(thread.id);
       const marker = this.store.activeForThread(thread.id);
-      if (marker?.codexEpoch === this.codex.epoch && marker.turnId === null)
+      if (
+        marker?.codexEpoch === this.codex.epoch &&
+        marker.turnId === null &&
+        // A delayed event for an old turn must not bind/finish a compaction
+        // whose RPC has no turn ID. Its new turn can begin after the receipt.
+        (this.store.get(marker.operationId)?.kind !== 'thread.compact' ||
+          this.compactionBaselines.get(marker.operationId)?.has(event.turn.id) === false)
+      ) {
         this.store.attachTurn(marker.operationId, event.turn.id);
+        this.compactionBaselines.delete(marker.operationId);
+      }
       if (isTerminal(event.turn.status)) {
         this.store.finishTurn(thread.id, event.turn.id, this.codex.epoch);
         this.projection.expireTurn(thread.id, event.turn.id);

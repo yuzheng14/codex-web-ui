@@ -66,6 +66,7 @@ import {
   type RpcServerRequest,
 } from './transport.js';
 import type { CodexClient, CodexDiagnostics, CodexEvent } from './types.js';
+import type { ThreadCompactStartResponse } from './generated/v2/ThreadCompactStartResponse.js';
 export type {
   CodexClient,
   CodexDiagnostics,
@@ -84,6 +85,7 @@ const CAPABILITIES = [
   'thread/archive',
   'thread/loaded/list',
   'thread/unarchive',
+  'thread/compact/start',
   'thread/turns/list',
   'thread/items/list',
   'turn/start',
@@ -106,6 +108,7 @@ type Responses = {
   'thread/loaded/list': ThreadLoadedListResponse;
   'thread/archive': ThreadArchiveResponse;
   'thread/unarchive': ThreadUnarchiveResponse;
+  'thread/compact/start': ThreadCompactStartResponse;
   'thread/turns/list': ThreadTurnsListResponse;
   'thread/items/list': ThreadItemsListResponse;
   'turn/start': TurnStartResponse;
@@ -778,6 +781,12 @@ export class CodexAdapter implements CodexClient {
     await this.call('turn/interrupt', { threadId: id, turnId });
   }
 
+  async compactThread(id: string): Promise<void> {
+    // The empty response acknowledges dispatch, not completion. Turn notifications
+    // carry the compaction's identity and final outcome.
+    await this.call('thread/compact/start', { threadId: id });
+  }
+
   private notification(message: RpcNotification): void {
     if (this.titles?.notification(message)) return;
     const event = message as ServerNotification;
@@ -852,7 +861,12 @@ export class CodexAdapter implements CodexClient {
           type: 'item',
           threadId: event.params.threadId,
           turnId: event.params.turnId,
-          item: mapItem(event.params.item),
+          item: {
+            ...mapItem(event.params.item),
+            ...(event.params.item.type === 'contextCompaction'
+              ? { status: event.method === 'item/started' ? 'inProgress' : 'completed' }
+              : {}),
+          },
         });
         break;
       case 'item/agentMessage/delta':
