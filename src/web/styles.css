@@ -575,6 +575,12 @@ svg {
   align-items: center;
   gap: 17px;
   font-size: 11px;
+  flex-shrink: 0;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .thread-title-editor {
   min-width: 0;
@@ -646,27 +652,6 @@ svg {
 }
 .thread-title-error {
   color: var(--destructive);
-}
-.thread-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 24px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.thread-actions-description {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  color: #899199;
-  font-size: 11px;
-  line-height: 1.5;
-}
-.thread-actions > .button {
-  flex-shrink: 0;
 }
 .status {
   display: inline-flex;
@@ -2851,8 +2836,9 @@ dd {
     align-items: flex-end;
     gap: 7px;
   }
-  .thread-actions {
-    padding: 9px 15px;
+  .topbar-actions .button-icon {
+    width: 36px;
+    height: 36px;
   }
   .breadcrumb {
     font-size: 9px;

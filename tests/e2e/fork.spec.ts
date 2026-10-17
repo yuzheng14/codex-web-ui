@@ -93,6 +93,78 @@ test('fork preserves history and the source draft, then continues independently'
   expect(await selectedId(page)).toBe(source);
 });
 
+for (const width of [1280, 390, 320]) {
+  test(`fork toolbar stays compact and navigable at ${width}px`, async ({ page }) => {
+    const source = await newThread(page);
+    await finishTurn(page, '请为项目增加运行状态面板，并整理交互细节与验收步骤');
+    await page.setViewportSize({ width, height: width === 1280 ? 900 : 844 });
+    const toolbar = page.getByRole('group', { name: '会话操作', exact: true });
+    const fork = toolbar.getByRole('button', { name: 'Fork 会话', exact: true });
+    await expect(fork).toBeEnabled();
+    await expect(fork).toHaveAccessibleDescription(
+      'Fork 会话：复制已保存的历史，新会话可与原会话同时执行。',
+    );
+    await expect(page.locator('.thread-actions')).toHaveCount(0);
+    await expect(page.getByText('Fork 复制已保存的历史，新会话可与原会话同时执行。')).toHaveCount(
+      0,
+    );
+    await fork.focus();
+    // Fresh keyboard focus exposes the same guidance as pointer hover.
+    await fork.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('Fork 会话');
+    await page.keyboard.press('Escape');
+    await fork.hover();
+    await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('复制已保存的历史');
+    await page.screenshot({
+      path: `/tmp/codex-issue-100/after-tooltip-${width}.png`,
+      animations: 'disabled',
+    });
+    await fork.press('Enter');
+    const back = toolbar.getByRole('button', { name: '返回原会话', exact: true });
+    await expect(back).toBeVisible();
+    await expect(fork).toBeEnabled();
+    await expect(page.locator('.topbar h1')).toHaveText(/.+/);
+    for (const control of [back, fork, toolbar.locator('.diagnostics > summary')]) {
+      const box = (await control.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      if (control === back || control === fork) {
+        expect(box.width).toBe(width <= 760 ? 36 : 32);
+        expect(box.height).toBe(width <= 760 ? 36 : 32);
+      }
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.mouse.move(0, 0);
+    await page.screenshot({
+      path: `/tmp/codex-issue-100/after-${width}.png`,
+      animations: 'disabled',
+    });
+    await back.click();
+    await expect(back).toHaveCount(0);
+    expect(await selectedId(page)).toBe(source);
+  });
+}
+
+test('disabled fork keeps its explanation in the toolbar tooltip', async ({ page, request }) => {
+  await newThread(page);
+  await finishTurn(page, '检查不可用状态下的 Fork 提示');
+  await controlRuntime(request, { unavailable: true });
+  await page
+    .getByRole('dialog', { name: 'Codex 版本兼容性未经验证' })
+    .getByRole('button', { name: '暂不使用', exact: true })
+    .click();
+  const fork = forkButton(page);
+  await expect(fork).toBeDisabled();
+  await expect(fork).toHaveAccessibleDescription('连接恢复且 Codex 就绪后可 Fork 会话。');
+  await page.locator('.topbar-actions .control-hint').hover();
+  await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText(
+    '连接恢复且 Codex 就绪后可 Fork 会话。',
+  );
+});
+
 test('fork runs in the shared checkout while the source waits for approval', async ({
   page,
   request,
@@ -181,6 +253,14 @@ test('lost fork receipts recover after reload without dispatching a duplicate', 
   await forkButton(page).click();
   await expect(page.locator('.pending-notice')).toContainText('Fork 结果尚未确认');
   await expect(page.getByRole('button', { name: '正在确认 Fork…', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '正在确认 Fork…', exact: true })).toHaveAttribute(
+    'aria-busy',
+    'true',
+  );
+  await page.mouse.move(0, 0);
+  await page.locator('.topbar-actions .control-hint').hover();
+  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('正在确认 Fork');
+  await page.screenshot({ path: '/tmp/codex-issue-100/after-pending.png', animations: 'disabled' });
   expect(await selectedId(page)).toBe(source);
   withhold = false;
   // Recover the operation before the first project snapshot arrives, as can happen on CI

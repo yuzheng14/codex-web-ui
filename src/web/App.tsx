@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, LoaderCircle } from 'lucide-react';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useThreadReadState } from './hooks/useThreadReadState';
 import { Sidebar } from './components/Sidebar';
@@ -10,6 +11,7 @@ import { ConnectionBadge, Diagnostics } from './components/Diagnostics';
 import { isActive, Status } from './components/Status';
 import { Icon } from './components/Icon';
 import { Button } from './components/ui/button';
+import { ControlHint } from './components/ControlHint';
 import { blocksTarget } from './lib/operations';
 import { createSlashCommands, type SlashCommandContext } from './lib/slash-commands';
 import { downloadThreadExport } from './lib/thread-export';
@@ -117,6 +119,17 @@ export function App() {
   const supportsFork = system?.capabilities.includes('thread/fork') ?? false;
   const forking = busyFor('fork') || pendingFork;
   const canFork = Boolean(thread?.turns.length && canOperate && supportsFork && !forking);
+  const forkHint = forking
+    ? '正在确认 Fork…请等待提交回执，暂时不能再次 Fork。'
+    : !supportsFork
+      ? '当前 Codex 版本不支持 Fork 会话。'
+      : !canControl
+        ? '连接恢复且 Codex 就绪后可 Fork 会话。'
+        : !project?.available
+          ? '项目目录不可用，恢复后可 Fork 会话。'
+          : compatibilityConfirmationRequired(system)
+            ? '请先确认当前 Codex 版本的兼容性。'
+            : 'Fork 会话：复制已保存的历史，新会话可与原会话同时执行。';
   const forkThread = () => {
     if (!thread || !canFork) return;
     void workspace.run('fork', thread.id, `/api/threads/${encode(thread.id)}/fork`, {
@@ -317,30 +330,71 @@ export function App() {
           <div className="topbar-status">
             {thread && <Status status={thread.status} offline={offline} />}
             <ConnectionBadge connection={workspace.connection} />
-            <Diagnostics
-              system={system}
-              connection={workspace.connection}
-              operations={workspace.operations}
-              thread={thread}
-              busy={workspace.busy}
-              open={diagnosticsOpen}
-              onOpenChange={setDiagnosticsOpen}
-              refreshing={checkingStatus}
-              onDiscardMissing={workspace.discardMissingOperation}
-              onRefresh={() => {
-                void refreshStatus();
-                if (offline) workspace.retryConnection();
-              }}
-              onReconcile={(id) => {
-                void workspace
-                  .run('reconcile', id, `/api/operations/${encode(id)}/reconcile`, {
-                    confirmEnded: true,
-                  })
-                  .then((operation) => {
-                    if (operation?.status === 'acknowledged') return refreshStatus();
-                  });
-              }}
-            />
+            <div className="topbar-actions" role="group" aria-label="会话操作">
+              {thread && thread.turns.length > 0 && (
+                <>
+                  {thread.forkedFromId && (
+                    <ControlHint id="thread-source-hint" content="返回原会话">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="返回原会话"
+                        aria-describedby="thread-source-hint"
+                        onClick={() => {
+                          void workspace.selectThread(thread.forkedFromId!);
+                        }}
+                      >
+                        <ArrowLeft size={16} />
+                      </Button>
+                    </ControlHint>
+                  )}
+                  <ControlHint id="thread-fork-hint" content={forkHint}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={forking ? '正在确认 Fork…' : 'Fork 会话'}
+                      aria-describedby="thread-fork-hint"
+                      aria-busy={forking}
+                      disabled={!canFork}
+                      onClick={forkThread}
+                    >
+                      {forking ? (
+                        <LoaderCircle size={16} className="thread-status-spinning" />
+                      ) : (
+                        <Icon name="fork" size={16} />
+                      )}
+                    </Button>
+                  </ControlHint>
+                  <span className="sr-only" role="status">
+                    {forking ? '正在确认 Fork…' : ''}
+                  </span>
+                </>
+              )}
+              <Diagnostics
+                system={system}
+                connection={workspace.connection}
+                operations={workspace.operations}
+                thread={thread}
+                busy={workspace.busy}
+                open={diagnosticsOpen}
+                onOpenChange={setDiagnosticsOpen}
+                refreshing={checkingStatus}
+                onDiscardMissing={workspace.discardMissingOperation}
+                onRefresh={() => {
+                  void refreshStatus();
+                  if (offline) workspace.retryConnection();
+                }}
+                onReconcile={(id) => {
+                  void workspace
+                    .run('reconcile', id, `/api/operations/${encode(id)}/reconcile`, {
+                      confirmEnded: true,
+                    })
+                    .then((operation) => {
+                      if (operation?.status === 'acknowledged') return refreshStatus();
+                    });
+                }}
+              />
+            </div>
           </div>
         </header>
         {system?.demo && (
@@ -410,32 +464,6 @@ export function App() {
               onClick={workspace.clearError}
             >
               <Icon name="close" size={15} />
-            </Button>
-          </div>
-        )}
-        {thread && thread.turns.length > 0 && (
-          <div className="thread-actions">
-            <div className="thread-actions-description">
-              {thread.forkedFromId && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void workspace.selectThread(thread.forkedFromId!);
-                  }}
-                >
-                  返回原会话
-                </Button>
-              )}
-              <span>
-                {!supportsFork
-                  ? '当前 Codex 版本不支持 Fork 会话。'
-                  : 'Fork 复制已保存的历史，新会话可与原会话同时执行。'}
-              </span>
-            </div>
-            <Button variant="secondary" size="sm" disabled={!canFork} onClick={forkThread}>
-              <Icon name="fork" size={14} />
-              {forking ? '正在确认 Fork…' : 'Fork 会话'}
             </Button>
           </div>
         )}
