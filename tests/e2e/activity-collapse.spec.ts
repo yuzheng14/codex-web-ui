@@ -1,7 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const evidence = '/tmp/codex-activity-evidence';
 const activities = (page: Page) => page.locator('details.activity');
@@ -14,7 +19,7 @@ async function startScenario(page: Page, streaming = false) {
   const navigation = page.getByRole('button', { name: '打开项目与会话', exact: true });
   if (await navigation.isVisible()) await navigation.click();
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await page
     .getByRole('textbox', { name: '任务内容', exact: true })
     .fill(`${streaming ? '[activity-stream]' : '[activity-collapse]'} 检查长输出与文件变更`);

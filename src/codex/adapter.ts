@@ -635,16 +635,27 @@ export class CodexAdapter implements CodexClient {
     this.archiveChanged(id, false);
     return { ...mapThread(thread), archived: false };
   }
+  private async readThreadHeader(id: string): Promise<Thread> {
+    try {
+      return (await this.call('thread/read', { threadId: id, includeTurns: false })).thread;
+    } catch (error) {
+      if (
+        error instanceof CodexError &&
+        error.rpcCode === -32600 &&
+        error.message === `thread not loaded: ${id}`
+      )
+        throw new AppError('THREAD_NOT_FOUND', '会话尚未保存或已不存在', 404, { threadId: id });
+      throw error;
+    }
+  }
+
   async readThreadMetadata(id: string): Promise<ThreadView> {
     const sequence = ++this.archiveSequence;
-    return this.storedThread(
-      (await this.call('thread/read', { threadId: id, includeTurns: false })).thread,
-      sequence,
-    );
+    return this.storedThread(await this.readThreadHeader(id), sequence);
   }
   async readThread(id: string): Promise<ThreadView> {
     const sequence = ++this.archiveSequence;
-    const { thread } = await this.call('thread/read', { threadId: id, includeTurns: false });
+    const thread = await this.readThreadHeader(id);
     if (thread.historyMode !== 'paginated')
       return this.storedThread(
         (await this.call('thread/read', { threadId: id, includeTurns: true })).thread,

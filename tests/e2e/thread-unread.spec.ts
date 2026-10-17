@@ -23,6 +23,8 @@ async function create(request: APIRequestContext, title: string) {
   const operation = await submit(request, '/api/projects/fixture/threads');
   const { threadId } = operation.result as { threadId: string };
   await submit(request, `/api/threads/${threadId}/rename`, { name: title });
+  const seed = await start(request, threadId, '已有会话历史 [title-fail]');
+  await waitCompleted(request, threadId, seed);
   return threadId;
 }
 
@@ -82,7 +84,7 @@ test('completion stays unread until its latest result is viewed and later turns 
   const target = await create(request, '等待阅读的完成结果');
   const current = await create(request, '当前正在查看的会话');
   await link(page, current).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expect(latestResult(page)).toBeVisible();
   const firstTurn = await start(request, target);
   await waitCompleted(request, target, firstTurn);
   await expect(unread(page, target)).toHaveAccessibleName('已完成 · 未读');

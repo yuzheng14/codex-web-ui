@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { confirmCompatibility, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  createThreadButton,
+  saveConversationHistory,
+  expectThreadReady,
+} from './helpers';
 import type { ThreadView } from '../../src/shared/types';
 
 const rename = (page: Page) => page.getByRole('button', { name: '重命名会话', exact: true });
@@ -10,12 +15,22 @@ const cancel = (page: Page) => page.getByRole('button', { name: '取消重命名
 const error = (page: Page) => page.locator('.thread-title-form').getByRole('alert');
 const selected = (page: Page) =>
   page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
-async function create(page: Page) {
+async function create(page: Page, withHistory = false) {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
-  return (await selected(page))!;
+  await expectThreadReady(page);
+  const id = (await selected(page))!;
+  if (withHistory) {
+    await saveConversationHistory(page);
+    const renamed = await page.request.post(`/api/threads/${id}/rename`, {
+      headers: { Origin: new URL(page.url()).origin },
+      data: { clientOperationId: randomUUID(), name: '新会话' },
+    });
+    expect(renamed.ok()).toBe(true);
+    await expect(page.locator('.topbar h1')).toHaveText('新会话');
+  }
+  return id;
 }
 async function screenshot(page: Page, testInfo: TestInfo, name: string) {
   const path = testInfo.outputPath(`${name}.png`);
@@ -35,7 +50,7 @@ test('editing the heading updates both tabs and persists without adding a messag
   request,
 }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 });
-  const id = await create(page);
+  const id = await create(page, true);
   const other = await context.newPage();
   await other.goto('/');
   await expect(other.locator('.topbar h1')).toHaveText('新会话');
@@ -64,7 +79,7 @@ test('editing the heading updates both tabs and persists without adding a messag
   await expect(page.locator('.topbar h1')).toHaveText('发布前检查 🧪');
   const thread = (await (await request.get(`/api/threads/${id}`)).json()) as ThreadView;
   expect(thread.id).toBe(id);
-  expect(thread.turns).toEqual([]);
+  expect(thread.turns).toHaveLength(1);
   expect(prompts).toEqual([]);
   await other.close();
 });
@@ -140,7 +155,7 @@ test('live title updates preserve a draft and delayed receipts cannot retarget a
   request,
   baseURL,
 }) => {
-  const source = await create(page);
+  const source = await create(page, true);
   await rename(page).click();
   await nameInput(page).fill('本地未保存草稿');
   const updated = await request.post(`/api/threads/${source}/rename`, {
@@ -157,6 +172,7 @@ test('live title updates preserve a draft and delayed receipts cannot retarget a
   await createThreadButton(page).click();
   await expect(page.locator('.topbar h1')).toHaveText('新会话');
   const other = (await selected(page))!;
+  await saveConversationHistory(page);
   await page.locator(`[data-thread-id="${source}"]`).click();
   await rename(page).click();
   await expect(nameInput(page)).toHaveValue('另一标签更新的名称');

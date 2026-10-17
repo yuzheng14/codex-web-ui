@@ -2,7 +2,12 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 import type { ThreadView } from '../../src/shared/types';
 
 const evidence = join(tmpdir(), 'codex-issue-62-evidence');
@@ -22,7 +27,7 @@ test.beforeEach(async ({ page, request }) => {
   await confirmCompatibility(page);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
 });
 
 test('each completed turn retains upstream timing through refresh, reconnect and thread switching', async ({

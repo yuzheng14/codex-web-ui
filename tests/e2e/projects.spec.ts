@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import type { Operation, ServerMessage, ThreadPage, ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, projectGroup, testOrigin } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  projectGroup,
+  saveConversationHistory,
+  testOrigin,
+  expectThreadReady,
+} from './helpers';
 
 const headers = { Origin: testOrigin };
 const first = 'fixture';
@@ -32,14 +39,21 @@ async function readThread(request: APIRequestContext, id: string): Promise<Threa
   expect(response.ok()).toBe(true);
   return (await response.json()) as ThreadView;
 }
-async function create(request: APIRequestContext, projectId: string) {
-  return (
+async function create(request: APIRequestContext, projectId: string, withHistory = false) {
+  const id = (
     (await submit(request, `/api/projects/${projectId}/threads`)).result as { threadId: string }
   ).threadId;
+  if (withHistory) {
+    await submit(request, `/api/threads/${id}/turns`, { text: '已有项目历史 [title-fail]' });
+    await expect
+      .poll(async () => (await readThread(request, id)).turns.at(-1)?.status)
+      .toBe('completed');
+  }
+  return id;
 }
 async function createInPage(page: Page, projectId: string, name: string) {
   await projectGroup(page, name).getByRole('button', { name: '新建会话', exact: true }).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await expect.poll(() => currentProject(page)).toBe(projectId);
   await expect.poll(() => selected(page, projectId)).toBeTruthy();
   return (await selected(page, projectId))!;
@@ -98,8 +112,10 @@ test('all projects remain visible while independent tasks run and drafts stay wi
     projectGroup(page, '不可用项目').getByRole('button', { name: '新建会话', exact: true }),
   ).toBeDisabled();
   const a = await createInPage(page, first, '测试项目');
+  await saveConversationHistory(page);
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill('项目 A 的独立草稿');
   const b = await createInPage(page, second, '另一个项目');
+  await saveConversationHistory(page);
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill('项目 B 的独立草稿');
   await row(page, a).click();
   await expect(page.getByRole('textbox', { name: '任务内容', exact: true })).toHaveValue(
@@ -271,8 +287,8 @@ test('each project retains its loaded pages when navigating to another project',
   request,
 }) => {
   await open(page);
-  const a1 = await create(request, first);
-  const a2 = await create(request, first);
+  const a1 = await create(request, first, true);
+  const a2 = await create(request, first, true);
   let reads = 0;
   await page.route('**/api/projects/fixture/threads*', async (route) => {
     if (route.request().method() !== 'GET') return route.continue();
@@ -295,7 +311,7 @@ test('each project retains its loaded pages when navigating to another project',
   await projectGroup(page).getByRole('button', { name: '加载更多会话', exact: true }).click();
   await expect(row(page, a2)).toBeVisible();
   await row(page, a2).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expect(page.locator('.turn')).toHaveCount(1);
   const before = reads;
   await projectGroup(page, '另一个项目')
     .getByRole('button', { name: '另一个项目', exact: true })
@@ -332,6 +348,7 @@ test('a late create receipt updates its project without stealing navigation back
   });
   await open(page);
   const a = await createInPage(page, first, '测试项目');
+  await saveConversationHistory(page);
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill('当前会话的草稿');
   delaying = true;
   await page.route('**/api/operations/*', (route) =>
@@ -363,7 +380,7 @@ test('a late create receipt updates its project without stealing navigation back
   await expect(
     projectGroup(page, '另一个项目').getByRole('button', { name: '新建会话', exact: true }),
   ).toBeEnabled();
-  await expect(row(page, b)).toBeVisible();
+  await expect(row(page, b)).toHaveCount(0);
   await expect.poll(() => currentProject(page)).toBe(first);
   await expect(page.getByRole('textbox', { name: '任务内容', exact: true })).toHaveValue(
     '当前会话的草稿',

@@ -2,7 +2,12 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const evidence = join(tmpdir(), 'codex-compaction-evidence');
 const notice = (page: Page) => page.getByTestId('context-compaction');
@@ -33,7 +38,7 @@ test.beforeEach(async ({ page, request }) => {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
 });
 for (const viewport of [
   { name: 'desktop', width: 1280, height: 900 },
@@ -97,7 +102,7 @@ test('reload, disconnect and switching threads retain only the matching known li
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await expect(notice(page)).not.toContainText('上次已知');
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await expect(notice(page)).toHaveCount(0);
   await page.locator(`[data-thread-id="${id}"]`).click();
   await expect(notice(page)).toHaveAttribute('data-state', 'inProgress');

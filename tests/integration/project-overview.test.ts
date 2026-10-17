@@ -301,6 +301,7 @@ describe('project conversation overview', () => {
           pendingActionCount: 0,
           lastTurnId: 'turn',
           lastTurnStatus: 'completed',
+          historyVisible: true,
         },
       ],
     });

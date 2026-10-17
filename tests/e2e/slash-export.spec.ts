@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import type { ServerMessage, ThreadPage, ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, createThreadButton } from './helpers';
+import { confirmCompatibility, createThreadButton, expectThreadReady } from './helpers';
 
 const input = (page: Page) => page.getByRole('textbox', { name: /^(任务内容|追加要求)$/ });
 const feedback = (page: Page) => page.locator('.slash-feedback');
@@ -10,7 +10,7 @@ async function newThread(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   return (await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture')))!;
 }
 async function finishTurn(page: Page, text: string) {

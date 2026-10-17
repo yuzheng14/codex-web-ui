@@ -7,6 +7,10 @@ export const projectGroup = (page: Page, name = '测试项目') =>
   page.getByRole('region', { name, exact: true, includeHidden: true });
 export const createThreadButton = (page: Page) =>
   projectGroup(page).getByRole('button', { name: '新建会话', exact: true, includeHidden: true });
+/** The shared welcome page also appears before creation; wait for the selected thread. */
+export async function expectThreadReady(page: Page) {
+  await expect(page.getByTestId('workspace-start')).toHaveAttribute('data-thread-ready', 'true');
+}
 export async function controlRuntime(
   request: APIRequestContext,
   input: {
@@ -28,4 +32,14 @@ export async function confirmCompatibility(page: Page) {
   await expect(compatibilityDialog(page)).toBeVisible();
   await compatibilityDialog(page).getByRole('button', { name: '确认继续', exact: true }).click();
   await expect(compatibilityDialog(page)).not.toBeVisible();
+}
+/** Tests that navigate through history must first start a real conversation. */
+export async function saveConversationHistory(page: Page) {
+  const turns = await page.locator('.turn').count();
+  await page
+    .getByRole('textbox', { name: '任务内容', exact: true })
+    .fill('已有会话历史 [title-fail]');
+  await page.getByRole('button', { name: '发送任务', exact: true }).click();
+  await expect(page.locator('.turn')).toHaveCount(turns + 1);
+  await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
 }

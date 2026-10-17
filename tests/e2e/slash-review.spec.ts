@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page, type Request } from '@playwright/test';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 import type { ThreadView } from '../../src/shared/types';
 
 const input = (page: Page) => page.getByRole('textbox', { name: /^(任务内容|追加要求)$/ });
@@ -9,7 +14,7 @@ async function create(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   return (await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture')))!;
 }
 test.beforeEach(async ({ request }) => {

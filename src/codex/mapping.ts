@@ -48,6 +48,8 @@ export function mapThread(thread: Thread): ThreadView {
     source: typeof thread.source === 'string' ? thread.source : JSON.stringify(thread.source),
     originator: typeof thread.originator === 'string' ? thread.originator : null,
     title: thread.name || thread.preview || '新会话',
+    // List/metadata responses omit turns. The native preview is history evidence.
+    hasMessages: Boolean(thread.preview) || thread.turns.length > 0,
     status: threadStatus(thread.status),
     turns: thread.turns.map((turn) => mapTurn(thread.id, turn)),
     managed: false,

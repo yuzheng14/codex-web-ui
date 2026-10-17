@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmCompatibility, createThreadButton, projectGroup } from './helpers';
+import {
+  confirmCompatibility,
+  createThreadButton,
+  projectGroup,
+  saveConversationHistory,
+  expectThreadReady,
+} from './helpers';
 import type { ThreadView } from '../../src/shared/types';
 
 const input = (page: Page) => page.getByRole('textbox', { name: /^(任务内容|追加要求)$/ });
@@ -11,7 +17,7 @@ async function create(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   return (await selected(page))!;
 }
 
@@ -27,6 +33,7 @@ test('rename shows parameter guidance, updates both titles and survives reload w
   request,
 }) => {
   const id = await create(page);
+  await saveConversationHistory(page);
   const prompts: string[] = [];
   page.on('request', (request) => {
     if (request.method() === 'POST' && /\/(turns|steer)$/.test(request.url()))
@@ -48,7 +55,7 @@ test('rename shows parameter guidance, updates both titles and survives reload w
   await page.reload();
   await expect(page.locator('.topbar h1')).toHaveText('发布前检查 🧪');
   const thread = (await (await request.get(`/api/threads/${id}`)).json()) as ThreadView;
-  expect(thread.turns).toEqual([]);
+  expect(thread.turns).toHaveLength(1);
   expect(thread.id).toBe(id);
   expect(prompts).toEqual([]);
 });
@@ -94,6 +101,7 @@ test('late rename receipt cannot replace a newly selected project draft', async 
   request,
 }) => {
   const id = await create(page);
+  await saveConversationHistory(page);
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;

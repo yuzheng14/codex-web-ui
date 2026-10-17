@@ -337,8 +337,12 @@ function ConversationContent({
               当前实时快照已省略部分较早历史，以限制传输大小。
             </p>
           )}
-          {!thread ? (
-            <div className="empty-state">
+          {!thread?.turns.length ? (
+            <div
+              className="empty-state"
+              data-testid="workspace-start"
+              data-thread-ready={Boolean(thread)}
+            >
               <div className="empty-symbol">
                 <Icon name="code" size={36} />
               </div>
@@ -356,6 +360,12 @@ function ConversationContent({
                     添加项目
                   </Button>
                 </>
+              ) : thread ? (
+                <p>
+                  描述你要完成的任务，也可以粘贴图片、问题或错误信息。
+                  <br />
+                  Codex 在运行服务的电脑上执行，你在这里掌握进展。
+                </p>
               ) : (
                 <p>
                   选择会话继续，或在{projectName ? `「${projectName}」` : '项目'}中新建会话。
@@ -377,12 +387,6 @@ function ConversationContent({
                   随时审批与追加
                 </span>
               </div>
-            </div>
-          ) : thread.turns.length === 0 ? (
-            <div className="thread-empty">
-              <Icon name="chat" size={28} />
-              <h2>这个会话准备好了</h2>
-              <p>描述你要完成的任务，也可以贴上问题或错误信息。</p>
             </div>
           ) : (
             thread.turns.map((turn, index) => (

@@ -130,6 +130,10 @@ export interface ThreadView {
   updatedAt?: number;
   actions: PendingAction[];
   historyTruncated?: boolean;
+  /** Native preview/history evidence, also available when a response omits turns. */
+  hasMessages?: boolean;
+  /** False for an unsent draft; pending executions remain visible until resolved. */
+  historyVisible?: boolean;
   execution?: ExecutionMarker;
 }
 export type ThreadSummary = Pick<
@@ -144,6 +148,7 @@ export type ThreadSummary = Pick<
   | 'managed'
   | 'updatedAt'
   | 'archived'
+  | 'historyVisible'
 > & {
   pendingActionCount: number;
   /** Stable identity of the latest known turn; absent when history is not loaded. */

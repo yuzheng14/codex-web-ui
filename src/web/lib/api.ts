@@ -67,6 +67,8 @@ export const api = {
       `/api/projects/${encodeURIComponent(projectId)}/threads${archived ? '?archived=true' : ''}${cursor ? `${archived ? '&' : '?'}cursor=${encodeURIComponent(cursor)}` : ''}`,
     ),
   thread: (threadId: string) => request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}`),
+  threadMetadata: (threadId: string) =>
+    request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}/metadata`),
   operation: (id: string) => request<Operation>(`/api/operations/${encodeURIComponent(id)}`),
   submit: (path: string, body: object) => request<Operation>(path, body),
 };

@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import type { Operation, ThreadPage } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const headers = { Origin: 'http://127.0.0.1:8788' };
 test.beforeEach(async ({ page, request }) => {
@@ -9,7 +14,7 @@ test.beforeEach(async ({ page, request }) => {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
 });
 test.afterEach(async ({ request }) => {
   const response = await request.get('/api/threads?projectId=fixture');
@@ -38,7 +43,7 @@ test('runs two conversations in one directory and interrupts them independently'
   expect(response.ok()).toBe(true);
   await expect(page.locator('.action-card')).toHaveCount(1);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   const target = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
   await page
     .getByRole('textbox', { name: '任务内容', exact: true })
@@ -103,7 +108,7 @@ for (const destination of ['same', 'new'] as const) {
     await expect(page.locator('.turn-heading .status').last()).toHaveText('执行中');
     if (destination === 'new') {
       await createThreadButton(page).click();
-      await expect(page.getByText('这个会话准备好了')).toBeVisible();
+      await expectThreadReady(page);
     }
     await page.getByRole('textbox', { name: '任务内容', exact: true }).fill('继续检查');
     await page.getByRole('button', { name: '发送任务', exact: true }).click();

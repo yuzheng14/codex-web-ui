@@ -1,9 +1,15 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import type { Operation, ServerMessage, ThreadPage, ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+  testOrigin,
+} from './helpers';
 
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
 const forkButton = (page: Page) => page.getByRole('button', { name: 'Fork 会话', exact: true });
 const selectedId = (page: Page) =>
   page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
@@ -11,7 +17,7 @@ async function newThread(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   return (await selectedId(page))!;
 }
 async function finishTurn(page: Page, text: string) {
@@ -65,8 +71,7 @@ test('fork preserves history and the source draft, then continues independently'
   request,
 }) => {
   const source = await newThread(page);
-  await expect(forkButton(page)).toBeDisabled();
-  await expect(page.getByText('发送首条消息后可 Fork 已保存的历史。')).toBeVisible();
+  await expect(forkButton(page)).toHaveCount(0);
   await finishTurn(page, '用于 Fork 的原始历史');
   await page.getByRole('textbox', { name: '任务内容' }).fill('原会话尚未发送的草稿');
   await forkButton(page).click();
@@ -230,7 +235,7 @@ test('a late fork receipt adds the result without taking over a newly selected c
       });
     else await route.continue();
   });
-  await newThread(page);
+  const source = await newThread(page);
   await finishTurn(page, '迟到回执前的原会话历史');
   let release!: () => void;
   const delayed = new Promise<void>((resolve) => {
@@ -253,18 +258,22 @@ test('a late fork receipt adds the result without taking over a newly selected c
     data: { clientOperationId: randomUUID() },
   });
   const otherId = ((await other.json()) as Operation).result as { threadId: string };
+  await request.post(`/api/threads/${otherId.threadId}/turns`, {
+    headers,
+    data: { clientOperationId: randomUUID(), text: '另一个已开始的会话 [title-fail]' },
+  });
+  await expect
+    .poll(async () => (await readThread(request, otherId.threadId)).turns[0]?.status)
+    .toBe('completed');
   await page.getByRole('button', { name: '刷新会话列表', exact: true }).click();
-  await page
-    .locator('.thread-link:not([aria-current="page"])')
-    .filter({ hasText: '新会话' })
-    .click();
+  await page.locator(`[data-thread-id="${otherId.threadId}"]`).click();
   await expect.poll(() => selectedId(page)).toBe(otherId.threadId);
   const receipt = page.waitForResponse(
     (response) => response.request().method() === 'POST' && response.url().endsWith('/fork'),
   );
   withhold = false;
   release();
-  await receipt;
+  const result = ((await (await receipt).json()) as Operation).result as { threadId: string };
   await expect
     .poll(() =>
       page.evaluate(
@@ -272,7 +281,8 @@ test('a late fork receipt adds the result without taking over a newly selected c
       ),
     )
     .toBe(0);
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
-  await expect(page.locator('.thread-link')).toHaveCount(3);
+  await expect(page.locator('.turn')).toHaveCount(1);
+  for (const id of [source, otherId.threadId, result.threadId])
+    await expect(page.locator(`[data-thread-id="${id}"]`)).toBeVisible();
   expect(await selectedId(page)).toBe(otherId.threadId);
 });

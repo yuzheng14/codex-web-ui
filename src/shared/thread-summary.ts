@@ -13,6 +13,7 @@ export function toThreadSummary(thread: ThreadView): ThreadSummary {
     title: thread.title,
     status: thread.status,
     managed: thread.managed,
+    ...(thread.historyVisible === undefined ? {} : { historyVisible: thread.historyVisible }),
     ...(thread.updatedAt === undefined ? {} : { updatedAt: thread.updatedAt }),
     pendingActionCount: thread.actions.filter(
       (action) => action.status === 'pending' || action.status === 'responding',

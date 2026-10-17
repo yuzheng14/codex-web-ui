@@ -13,6 +13,7 @@ import {
   controlRuntime,
   createThreadButton,
   projectGroup,
+  expectThreadReady,
 } from './helpers';
 
 const headers = { Origin: 'http://127.0.0.1:8788' };
@@ -41,7 +42,7 @@ async function open(page: Page) {
 async function newThread(page: Page) {
   await open(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   return (await selected(page))!;
 }
 async function readThread(request: APIRequestContext, id: string): Promise<ThreadView> {
@@ -50,8 +51,10 @@ async function readThread(request: APIRequestContext, id: string): Promise<Threa
   return (await response.json()) as ThreadView;
 }
 async function finishTurn(page: Page, text: string) {
+  const turns = await page.locator('.turn').count();
   await input(page).fill(text);
   await input(page).press('Enter');
+  await expect(page.locator('.turn')).toHaveCount(turns + 1);
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
 }
 async function flushKeyboardEvents(page: Page) {
@@ -283,7 +286,7 @@ test('/new creates a conversation in the selected project from its overview', as
   );
   await execute(page).click();
   expect((await creation).postDataJSON().clientOperationId).toBeTruthy();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   const id = (await selected(page, 'fixture-other'))!;
   expect((await readThread(request, id)).projectId).toBe('fixture-other');
   await expect(input(page)).toHaveValue('');
@@ -310,6 +313,7 @@ test('a delayed /new receipt cannot replace another project or overwrite a newer
     });
   });
   const source = await newThread(page);
+  await finishTurn(page, '保留当前会话历史 [title-fail]');
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -337,7 +341,7 @@ test('a delayed /new receipt cannot replace another project or overwrite a newer
   await input(page).fill('另一项目独立草稿');
   release();
   await expect(createThreadButton(page)).toBeEnabled();
-  await expect(page.locator(`[data-thread-id="${createdId}"]`)).toBeVisible();
+  await expect(page.locator(`[data-thread-id="${createdId}"]`)).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('codex-web.project'))).toBe(
     'fixture-other',
   );
@@ -488,10 +492,8 @@ test('unauthenticated sessions cannot dispatch slash operations', async ({ page 
   });
   await page.reload();
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
-  // The overview socket can connect before project loading restores the selected thread.
-  await expect(
-    page.getByRole('heading', { name: '这个会话准备好了', exact: true }),
-  ).toBeVisible();
+  // Authentication failure does not make an unsent draft eligible for restoration.
+  await expect.poll(() => selected(page)).toBeNull();
   const outgoing = posts(page);
   await input(page).fill('/new');
   await expect(option(page, 'new')).toHaveAttribute('aria-disabled', 'true');
@@ -549,12 +551,15 @@ test('switching conversations resets the menu selection while keeping each draft
   page,
 }) => {
   const first = await newThread(page);
+  await finishTurn(page, '第一个会话的历史 [title-fail]');
   await input(page).fill('/');
   await input(page).press('ArrowDown');
   await expect(option(page, 'new')).toHaveAttribute('aria-selected', 'true');
   await createThreadButton(page).click();
+  await expectThreadReady(page);
   await expect(input(page)).toHaveValue('');
   await expect(menu(page)).toHaveCount(0);
+  await finishTurn(page, '第二个会话的历史 [title-fail]');
   await input(page).fill('/');
   await expect(option(page, 'help')).toHaveAttribute('aria-selected', 'true');
   await input(page).fill('另一个会话的普通草稿');

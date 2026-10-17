@@ -128,6 +128,9 @@ export function createApp({
   app.get('/api/threads/:threadId', async (c) =>
     c.json(await service.getThread(id(c.req.param('threadId')))),
   );
+  app.get('/api/threads/:threadId/metadata', async (c) =>
+    c.json(await service.getThreadMetadata(id(c.req.param('threadId')))),
+  );
   app.get('/api/threads/:threadId/export', async (c) => {
     const exported = await service.exportThread(id(c.req.param('threadId')));
     c.header('Content-Type', 'text/markdown; charset=utf-8');

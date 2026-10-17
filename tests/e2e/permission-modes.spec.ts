@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { PermissionMode, RuntimeSettings, ThreadView } from '../../src/shared/types';
 import { permissionModes } from '../../src/shared/permissions';
-import { confirmCompatibility, controlRuntime, createThreadButton, projectGroup } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  projectGroup,
+  expectThreadReady,
+} from './helpers';
 
 const evidence = join(tmpdir(), 'codex-issue-72-evidence');
 const modeControl = (page: Page) => page.getByRole('combobox', { name: '权限模式', exact: true });
@@ -15,7 +21,7 @@ async function open(page: Page) {
 async function newThread(page: Page) {
   await open(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await expect(modeControl(page)).toHaveAttribute('data-value', 'read-only');
   return (await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture')))!;
 }
@@ -215,8 +221,10 @@ test('preserves mode drafts by project and conversation and never substitutes de
   page,
 }) => {
   const first = await newThread(page);
+  await send(page, '已有会话历史 [title-fail]');
   await choose(page, 'auto-review');
   await createThreadButton(page).click();
+  await expectThreadReady(page);
   await expect(modeControl(page)).toHaveAttribute('data-value', 'read-only');
   await page.locator(`[data-thread-id="${first}"]`).click();
   await expect(modeControl(page)).toHaveAttribute('data-value', 'auto-review');

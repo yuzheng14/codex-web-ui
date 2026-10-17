@@ -77,6 +77,7 @@ export class Projection {
   turn(threadId: string, incoming: TurnView, preserveCurrent = false): void {
     const thread = this.threads.get(threadId);
     if (!thread) return;
+    thread.hasMessages = true;
     const current = thread.turns.find((turn) => turn.id === incoming.id);
     if (!current)
       thread.turns.push({

@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 test('replaces the first prompt with an AI title in both tabs and retains it after more turns and reload', async ({
   page,
@@ -11,18 +16,19 @@ test('replaces the first prompt with an AI title in both tabs and retains it aft
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   const id = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
   const title = page.locator(`[data-thread-id="${id}"] .thread-title`);
-  await expect(title).toHaveText('新会话');
+  await expect(title).toHaveCount(0);
   const firstPrompt = '解释一下运行设置如何继承 Codex 配置';
   const generatedTitle = 'Codex 配置继承与运行设置';
   const other = await context.newPage();
   await other.goto('/');
-  await expect(other.locator('.topbar h1')).toHaveText('新会话');
+  await expect(other.locator(`[data-thread-id="${id}"]`)).toHaveCount(0);
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill(firstPrompt);
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(title).toHaveText(firstPrompt);
+  await other.locator(`[data-thread-id="${id}"]`).click();
   await page.screenshot({ path: testInfo.outputPath('thread-title-before.png'), fullPage: true });
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
   await expect(title).toHaveText(generatedTitle);
@@ -63,7 +69,7 @@ test('keeps the preview on failure and generates a title after the next user mes
   await confirmCompatibility(page);
   await createThreadButton(page).click();
   const prompt = '命名失败时仍能继续对话 [title-fail]';
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill(prompt);
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');

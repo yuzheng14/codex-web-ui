@@ -105,6 +105,25 @@ describe('verified protocol adapter with a real subprocess', () => {
     },
   );
 
+  it('keeps metadata history evidence without turns and identifies missing saved IDs', async () => {
+    const { adapter } = await fixture();
+    const empty = await adapter.createThread('/tmp');
+    expect(await adapter.readThreadMetadata(empty.id)).toMatchObject({
+      hasMessages: false,
+      turns: [],
+    });
+    await adapter.startTurn(empty.id, '/tmp', 'saved message');
+    expect(await adapter.readThreadMetadata(empty.id)).toMatchObject({
+      hasMessages: true,
+      turns: [],
+    });
+    for (const read of [adapter.readThread.bind(adapter), adapter.readThreadMetadata.bind(adapter)])
+      await expect(read('missing-thread')).rejects.toMatchObject({
+        code: 'THREAD_NOT_FOUND',
+        status: 404,
+      });
+  });
+
   it.each([
     [9, 142],
     [1, 1279],

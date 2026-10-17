@@ -42,7 +42,7 @@ export class ProjectThreadsStore {
   }
 
   private includes(summary: ThreadSummary) {
-    return Boolean(summary.archived) === this.archived;
+    return summary.historyVisible !== false && Boolean(summary.archived) === this.archived;
   }
 
   get snapshot() {
