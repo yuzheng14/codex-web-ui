@@ -2971,18 +2971,23 @@ dd {
 .thread-row {
   position: relative;
   margin-bottom: 2px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  border-radius: 8px;
+}
+.thread-row:has(.thread-selected) {
+  background: #ebefec;
 }
 .thread-row .thread-link {
   min-width: 0;
-  padding-right: 118px;
+  padding-right: 4px;
 }
 .thread-row-actions {
-  position: absolute;
   display: flex;
   align-items: center;
   gap: 2px;
-  right: 4px;
-  top: 4px;
+  padding: 4px 4px 0 0;
   z-index: 1;
 }
 .thread-status-placeholder,
@@ -3064,6 +3069,7 @@ dd {
   cursor: default;
 }
 .thread-details {
+  grid-column: 1 / -1;
   margin: 3px 4px 8px;
   padding: 12px;
   border: 1px solid var(--border);
@@ -3140,11 +3146,10 @@ dd {
 @media (pointer: coarse) {
   .thread-row .thread-link {
     min-height: 44px;
-    padding: 12px 158px 12px 10px;
+    padding: 12px 4px 12px 10px;
   }
   .thread-row-actions {
-    top: 0;
-    right: 0;
+    padding: 0;
     gap: 0;
   }
   .thread-details-trigger,
