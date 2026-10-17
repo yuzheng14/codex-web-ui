@@ -466,6 +466,7 @@ svg {
 .thread-pagination {
   display: flex;
   flex-direction: column;
+  text-align: center;
 }
 .sidebar-pagination-status,
 .load-more {
@@ -483,14 +484,19 @@ svg {
 .load-more {
   width: 100%;
   min-height: 22px;
-  justify-content: flex-start;
+  justify-content: center;
 }
 .load-more:disabled {
   opacity: 1;
   cursor: wait;
 }
 .load-more-error {
-  color: #986f5c;
+  color: #966724;
+  background: #fbf5e9;
+}
+.load-more-error:hover:not(:disabled) {
+  color: #80571d;
+  background: #f5ead4;
 }
 .sidebar-footer {
   margin: 18px 8px 0;
