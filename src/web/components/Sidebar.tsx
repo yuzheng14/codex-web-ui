@@ -272,10 +272,11 @@ export function Sidebar(props: Props) {
             className="notification-settings-button"
             variant="ghost"
             size="sm"
+            aria-label={`工作完成通知 · ${props.notificationStatus}`}
             onClick={props.onNotificationSettings}
           >
             <Bell size={15} aria-hidden="true" />
-            <span>工作完成通知</span>
+            <span>完成通知</span>
             <span className="notification-settings-status">{props.notificationStatus}</span>
           </Button>
           <span className="privacy-mark">服务器执行</span>

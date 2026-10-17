@@ -501,6 +501,7 @@ svg {
   background: #f5ead4;
 }
 .sidebar-footer {
+  position: relative;
   margin: 18px 8px 0;
   border-top: 1px solid var(--border);
   padding-top: 16px;
@@ -513,14 +514,18 @@ svg {
   color: #66786c;
 }
 .notification-settings-button {
-  width: 100%;
+  position: absolute;
+  top: 12px;
+  right: 0;
+  min-height: 24px;
+  height: 24px;
+  padding: 2px 5px;
+  font-size: 11px;
   justify-content: flex-start;
-  margin-bottom: 12px;
 }
 .notification-settings-status {
-  margin-left: auto;
   color: #748078;
-  font-size: 11px;
+  font-size: 10px;
 }
 .notification-dialog > p,
 .notification-background {
