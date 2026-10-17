@@ -262,3 +262,14 @@ describe('optimistic archive projections', () => {
     expect(store.snapshot.a).toBeUndefined();
   });
 });
+
+it('projects only the renamed title, and rolls back onto the latest server fields', () => {
+  const store = new ProjectThreadsStore();
+  store.applySummary(summary('one'), cursor(1));
+  store.beginMutation('rename', 'one', { projectId: 'a', title: 'chosen title' });
+  const latest = { ...summary('one'), title: 'newer external name', status: 'running' as const };
+  store.applySummary(latest, cursor(4));
+  expect(store.snapshot.a?.data[0]).toMatchObject({ title: 'chosen title', status: 'running' });
+  store.settleMutation('rename');
+  expect(store.snapshot.a?.data).toEqual([latest]);
+});

@@ -8,7 +8,15 @@ import { Icon } from './Icon';
 import { Button } from './ui/button';
 
 /** Mount one editor per thread so drafts and late receipts cannot cross navigation. */
-export function ThreadTitle({ title, rename }: { title: string; rename: SlashCommand }) {
+export function ThreadTitle({
+  title,
+  rename,
+  pending,
+}: {
+  title: string;
+  rename: SlashCommand;
+  pending: boolean;
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string>();
@@ -31,6 +39,12 @@ export function ThreadTitle({ title, rename }: { title: string; rename: SlashCom
   useEffect(() => {
     if (editing && !saving && error) inputRef.current?.focus();
   }, [editing, saving, error]);
+
+  useEffect(() => {
+    if (!error || saving || pending || editing) return;
+    if (title === draft.trim()) setError(undefined);
+    else setEditing(true);
+  }, [error, saving, pending, editing, title, draft]);
 
   useLayoutEffect(() => {
     if (!editing && restoreTriggerFocus.current) {
@@ -58,10 +72,11 @@ export function ThreadTitle({ title, rename }: { title: string; rename: SlashCom
     submitting.current = true;
     setSaving(true);
     setError(undefined);
+    finish();
     try {
       const result = await rename.run(draft);
       if (result.error) setError(result.message.replaceAll('/status', '状态诊断'));
-      else finish();
+      else setError(undefined);
     } catch (problem) {
       setError(readableError(problem));
     } finally {

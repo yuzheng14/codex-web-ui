@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Pencil } from 'lucide-react';
 import type { ThreadSummary } from '../shared/types';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useThreadReadState } from './hooks/useThreadReadState';
@@ -366,6 +366,12 @@ export function App() {
                   key={`${thread.projectId}:${thread.id}`}
                   title={thread.title || '新会话'}
                   rename={renameCommand}
+                  pending={Boolean(
+                    thread &&
+                    workspace.operations.some(
+                      (entry) => entry.kind === 'rename' && blocksTarget(entry, thread.id),
+                    ),
+                  )}
                 />
               ) : (
                 <h1>开始你的下一项任务</h1>
@@ -494,15 +500,19 @@ export function App() {
               role="status"
               key={entry.clientOperationId}
             >
-              <Icon name="archive" size={16} />
+              {entry.kind === 'rename' ? <Pencil size={16} /> : <Icon name="archive" size={16} />}
               <span>
-                {entry.mutation!.archived
+                {entry.kind === 'rename'
                   ? entry.status === 'unknown'
-                    ? '归档结果待确认'
-                    : '正在归档会话…'
-                  : entry.status === 'unknown'
-                    ? '取消归档结果待确认'
-                    : '正在取消归档…'}
+                    ? '重命名结果待确认'
+                    : '正在保存会话名称…'
+                  : entry.mutation!.archived
+                    ? entry.status === 'unknown'
+                      ? '归档结果待确认'
+                      : '正在归档会话…'
+                    : entry.status === 'unknown'
+                      ? '取消归档结果待确认'
+                      : '正在取消归档…'}
               </span>
               {entry.status === 'unknown' && (
                 <Button

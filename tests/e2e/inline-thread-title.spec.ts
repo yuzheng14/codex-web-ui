@@ -216,10 +216,9 @@ test('live title updates preserve a draft and delayed receipts cannot retarget a
   try {
     await nameInput(page).press('Enter');
     await dispatched;
-    await expect(nameInput(page)).toBeDisabled();
-    await expect(save(page)).toBeDisabled();
-    await expect(cancel(page)).toBeDisabled();
-    await nameInput(page).dispatchEvent('keydown', { key: 'Enter', bubbles: true });
+    await expect(nameInput(page)).toHaveCount(0);
+    await expect(page.locator('.topbar h1')).toHaveText('迟到回执只属于原会话');
+    await expect(rename(page)).toHaveAttribute('aria-disabled', 'true');
     await page.locator(`[data-thread-id="${other}"]`).click();
     await rename(page).click();
     await nameInput(page).fill('新会话独立草稿');
@@ -253,6 +252,7 @@ test('mobile title editing keeps save and cancel visible without horizontal over
   await screenshot(page, testInfo, 'inline-title-mobile-editing');
   await save(page).click();
   await expect(page.locator('.topbar h1')).toHaveText('移动端会话名称：发布前检查 🧪');
+  await expect(page.locator('.mutation-notice')).toHaveCount(0);
   await screenshot(page, testInfo, 'inline-title-mobile-saved');
   await rename(page).click();
   await nameInput(page).fill('放弃移动端修改');

@@ -229,3 +229,25 @@ it('persists only the archive intent needed for reconciliation', () => {
     mutation: { projectId: 'project', archived: true },
   });
 });
+
+it('restores a pending rename with only its validated display name and identity', () => {
+  let data = '';
+  const storage = {
+    getItem: () => data,
+    setItem: (_key: string, value: string) => {
+      data = value;
+    },
+  };
+  const entry: SavedOperation = {
+    clientOperationId: 'rename',
+    kind: 'rename',
+    target: 'thread',
+    createdAt: 1,
+    status: 'accepted',
+    mutation: { projectId: 'project', title: '新名称' },
+  };
+  saveOperations([entry], storage);
+  expect(readOperations(storage)[0]?.mutation).toEqual({ projectId: 'project', title: '新名称' });
+  data = data.replace('新名称', '名'.repeat(101));
+  expect(readOperations(storage)[0]?.mutation).toBeUndefined();
+});

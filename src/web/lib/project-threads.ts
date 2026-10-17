@@ -75,7 +75,12 @@ export class ProjectThreadsStore {
   project<T extends { id: string }>(thread: T): T {
     let next = thread;
     for (const { target, change } of this.mutations.values())
-      if (target === thread.id) next = { ...next, archived: change.archived };
+      if (target === thread.id)
+        next = {
+          ...next,
+          ...(change.archived === undefined ? {} : { archived: change.archived }),
+          ...(change.title === undefined ? {} : { title: change.title }),
+        };
     return next;
   }
 
