@@ -308,7 +308,7 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
   );
   for (const width of [1280, 390, 320]) {
     await page.setViewportSize({ width, height: 844 });
-    const elements = [model, row.getByRole('combobox', { name: '速度模式' }), effort, send];
+    const elements = [model, row.getByRole('button', { name: 'Fast 模式' }), effort, send];
     const boxes = await Promise.all(elements.map((element) => element.boundingBox()));
     const centers = boxes.map((box) => box!.y + box!.height / 2);
     expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
@@ -343,7 +343,7 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
     await page.setViewportSize({ width, height: 844 });
     const elements = [
       model,
-      row.getByRole('combobox', { name: '速度模式' }),
+      row.getByRole('button', { name: 'Fast 模式' }),
       effort,
       row.getByRole('button', { name: '中断', exact: true }),
       row.getByRole('button', { name: '追加要求', exact: true }),

@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
+import { Zap } from 'lucide-react';
 import type {
   ModelDefaults,
   ModelDefaultsResult,
@@ -46,9 +47,9 @@ export function SettingsPanel({
   const [expanded, setExpanded] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [effortMenuOpen, setEffortMenuOpen] = useState(false);
-  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const advancedId = useId();
   const effortHintId = useId();
+  const speedHintId = useId();
   const scope = JSON.stringify([projectId, thread?.id]);
   const [saveNotice, setSaveNotice] = useState<{
     scope: string;
@@ -60,7 +61,6 @@ export function SettingsPanel({
   useEffect(() => {
     setModelMenuOpen(false);
     setEffortMenuOpen(false);
-    setSpeedMenuOpen(false);
   }, [disabled, thread?.id, projectId]);
   useEffect(() => setExpanded(false), [thread?.id, projectId]);
   const defaults = useRuntimeDefaults(
@@ -84,8 +84,9 @@ export function SettingsPanel({
   const effort = settings.reasoningEffort ?? current?.reasoningEffort ?? '';
   const effortTierLabel = effort === 'max' ? 'Max' : effort === 'ultra' ? 'Ultra' : null;
   const tier = settings.serviceTier !== undefined ? settings.serviceTier : current?.serviceTier;
-  const speed = tier === null ? 'standard' : (tier ?? '');
+  const fast = tier === 'fast';
   const selectedModel = models.find((entry) => entry.id === model);
+  const fastAvailable = selectedModel?.serviceTiers?.includes('fast');
   const changes = pendingSettings(settings, current);
   const pending = Object.keys(changes).length > 0;
   const source = thread ? (thread.managed ? '会话当前配置' : '会话保存配置') : '新会话默认配置';
@@ -243,45 +244,47 @@ export function SettingsPanel({
               ))}
             </SelectContent>
           </Select>
-          <Select
-            value={speed}
-            disabled={disabled || Boolean(threadLoading)}
-            open={speedMenuOpen}
-            onOpenChange={setSpeedMenuOpen}
-            onValueChange={(value) =>
-              onChange(
-                pendingSettings(
-                  { ...settings, serviceTier: value === 'fast' ? 'fast' : null },
-                  current,
-                ),
-              )
+          <ControlHint
+            id={speedHintId}
+            content={
+              <>
+                <span>{speedLabel(tier, unknown)}</span>
+                <span>
+                  {fast
+                    ? '点击关闭 Fast'
+                    : fastAvailable
+                      ? '点击开启 Fast · 更快响应，增加用量'
+                      : '当前模型未提供 Fast'}
+                </span>
+                {changes.serviceTier !== undefined && (
+                  <span>待应用 · 当前 {speedLabel(current?.serviceTier, unknown)}</span>
+                )}
+              </>
             }
           >
-            <SelectTrigger
+            <button
+              type="button"
               className="settings-choice settings-speed"
-              aria-label="速度模式"
-              title={`${speedLabel(tier, unknown)}${changes.serviceTier !== undefined ? ' · 待生效' : ''}`}
-              data-value={speed}
-              data-fast={tier === 'fast'}
+              aria-label="Fast 模式"
+              aria-describedby={speedHintId}
+              aria-pressed={tier === undefined ? 'mixed' : fast}
+              disabled={disabled || Boolean(threadLoading) || (!fast && !fastAvailable)}
+              data-fast={fast}
               data-pending={changes.serviceTier !== undefined}
+              onClick={() =>
+                onChange(
+                  pendingSettings({ ...settings, serviceTier: fast ? null : 'fast' }, current),
+                )
+              }
             >
-              <SelectValue placeholder={`Fast ${unknown}`}>{speedLabel(tier, unknown)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent side="top" aria-label="速度模式">
-              <SelectItem value="standard">标准 · 关闭 Fast</SelectItem>
-              <SelectItem value="fast" disabled={!selectedModel?.serviceTiers?.includes('fast')}>
-                Fast ·{' '}
-                {selectedModel?.serviceTiers?.includes('fast')
-                  ? '更快响应，增加用量'
-                  : '当前模型未提供'}
-              </SelectItem>
-              {tier && tier !== 'fast' && (
-                <SelectItem value={tier} disabled>
-                  {tier} · 当前档位
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
+              <Zap
+                size={18}
+                strokeWidth={1.7}
+                fill={fast ? 'currentColor' : 'none'}
+                aria-hidden="true"
+              />
+            </button>
+          </ControlHint>
           <Select
             value={effort}
             disabled={disabled || !selectedModel?.reasoningEfforts.length}

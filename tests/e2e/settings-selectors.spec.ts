@@ -63,7 +63,7 @@ test('effort hint reports the exact value on hover and keyboard focus and Escape
   await expect(hint).toHaveCount(0);
 
   const model = page.getByRole('combobox', { name: '模型', exact: true });
-  const speed = page.getByRole('combobox', { name: '速度模式', exact: true });
+  const speed = page.getByRole('button', { name: 'Fast 模式', exact: true });
   await model.focus();
   await model.press('Tab');
   await expect(speed).toBeFocused();
@@ -194,7 +194,7 @@ test('custom menus support keyboard selection, Escape and outside dismissal with
   await expect(model).toHaveAttribute('data-value', 'simulated-model');
 
   await model.press('Tab');
-  const speed = page.getByRole('combobox', { name: '速度模式', exact: true });
+  const speed = page.getByRole('button', { name: 'Fast 模式', exact: true });
   await expect(speed).toBeFocused();
   await speed.press('Tab');
   await expect(effort).toBeFocused();
