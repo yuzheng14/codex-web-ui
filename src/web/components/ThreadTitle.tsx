@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Pencil } from 'lucide-react';
 import { MAX_THREAD_NAME_CHARACTERS, threadNameError } from '../../shared/thread-name';
 import type { SlashCommand } from '../lib/slash-commands';
@@ -16,6 +16,7 @@ export function ThreadTitle({ title, rename }: { title: string; rename: SlashCom
   const submitting = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const restoreTriggerFocus = useRef(false);
   const composing = useRef(false);
   const compositionEndedAt = useRef(-Infinity);
   const id = useId();
@@ -31,10 +32,19 @@ export function ThreadTitle({ title, rename }: { title: string; rename: SlashCom
     if (editing && !saving && error) inputRef.current?.focus();
   }, [editing, saving, error]);
 
+  useLayoutEffect(() => {
+    if (!editing && restoreTriggerFocus.current) {
+      restoreTriggerFocus.current = false;
+      triggerRef.current?.focus();
+    }
+  }, [editing]);
+
   function finish() {
+    // A frame callback can precede React's commit or be throttled in a background tab.
+    // Restore focus only after the trigger has been mounted again.
+    restoreTriggerFocus.current = true;
     setEditing(false);
     setError(undefined);
-    requestAnimationFrame(() => triggerRef.current?.focus());
   }
 
   async function save() {

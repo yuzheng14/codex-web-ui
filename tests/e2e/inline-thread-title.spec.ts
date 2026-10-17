@@ -54,6 +54,8 @@ test('editing the heading updates both tabs and persists without adding a messag
   const other = await context.newPage();
   await other.goto('/');
   await expect(other.locator('.topbar h1')).toHaveText('新会话');
+  // Focus assertions describe the user's active editor, not the background observer tab.
+  await page.bringToFront();
   const prompts: string[] = [];
   page.on('request', (request) => {
     if (request.method() === 'POST' && /\/(turns|steer)$/.test(request.url()))
@@ -82,6 +84,25 @@ test('editing the heading updates both tabs and persists without adding a messag
   expect(thread.turns).toHaveLength(1);
   expect(prompts).toEqual([]);
   await other.close();
+});
+
+test('save and cancel return focus even when animation frames are paused', async ({ page }) => {
+  const now = Date.now();
+  await page.clock.install({ time: now });
+  await create(page);
+  await rename(page).click();
+  await nameInput(page).fill('取消的名称');
+  await page.clock.pauseAt(now + 60_000);
+  await nameInput(page).press('Escape');
+  await expect(rename(page)).toBeFocused();
+
+  await page.clock.resume();
+  await rename(page).click();
+  await nameInput(page).fill('保存后恢复焦点');
+  await page.clock.pauseAt(now + 120_000);
+  await nameInput(page).press('Enter');
+  await expect(page.locator('.topbar h1')).toHaveText('保存后恢复焦点');
+  await expect(rename(page)).toBeFocused();
 });
 
 test('cancel, blur, IME, validation and a rejected save preserve the intended draft', async ({
