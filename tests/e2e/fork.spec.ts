@@ -6,9 +6,10 @@ import {
   controlRuntime,
   createThreadButton,
   expectThreadReady,
+  testOrigin,
 } from './helpers';
 
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
 const forkButton = (page: Page) => page.getByRole('button', { name: 'Fork 会话', exact: true });
 const selectedId = (page: Page) =>
   page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));

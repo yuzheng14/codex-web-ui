@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
-import type { ThreadSummaryPage } from '../../src/shared/types';
+import type { ThreadSummaryPage, ThreadView } from '../../src/shared/types';
 import {
   confirmCompatibility,
   controlRuntime,
@@ -49,7 +49,19 @@ async function seedThread(request: APIRequestContext, project = 'fixture') {
     data: { clientOperationId: randomUUID() },
   });
   expect(response.ok()).toBe(true);
-  return ((await response.json()).result as { threadId: string }).threadId;
+  const id = ((await response.json()).result as { threadId: string }).threadId;
+  const started = await request.post(`/api/threads/${id}/turns`, {
+    headers: { Origin: testOrigin },
+    data: { clientOperationId: randomUUID(), text: '已有会话历史 [title-fail]' },
+  });
+  expect(started.ok()).toBe(true);
+  await expect
+    .poll(async () => {
+      const detail = await request.get(`/api/threads/${id}`);
+      return ((await detail.json()) as ThreadView).turns.at(-1)?.status;
+    })
+    .toBe('completed');
+  return id;
 }
 function deferred() {
   let resolve!: () => void;
@@ -245,8 +257,7 @@ test('archiving another conversation preserves the current draft, loaded pages a
 }) => {
   const current = await create(page, '继续阅读的会话');
   await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
-  const ids: string[] = [];
-  for (let index = 0; index < 18; index++) ids.push(await seedThread(request));
+  const ids = await Promise.all(Array.from({ length: 18 }, () => seedThread(request)));
   const target = ids[8]!;
   // The fixture has a single upstream page. Split real records to exercise browser pagination.
   const snapshot = (await (
@@ -265,10 +276,12 @@ test('archiving another conversation preserves the current draft, loaded pages a
   await page.getByRole('button', { name: '刷新会话列表' }).click();
   await expect(projectGroup(page).locator('.thread-row')).toHaveCount(10);
   await projectGroup(page).getByRole('button', { name: '加载更多会话' }).click();
-  await expect(projectGroup(page).locator('.thread-row')).toHaveCount(19);
+  await expect(
+    page.locator([current, ...ids].map((id) => `[data-thread-id="${id}"]`).join(',')),
+  ).toHaveCount(19);
   // Visit the target first so reopening archived history also exercises an older detail cache.
   await row(page, target).locator('.thread-link').click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expect(page.locator('.user-text')).toHaveText('已有会话历史 [title-fail]');
   await row(page, current).locator('.thread-link').click();
   await expect(page.locator('.conversation-content')).toContainText('继续阅读的会话');
   await page.getByRole('textbox', { name: '任务内容' }).fill('当前会话的未发送草稿');
@@ -324,7 +337,7 @@ for (const destination of ['thread', 'project'] as const) {
     await archive(page, target);
     await expect(row(page, target).getByRole('button', { name: '归档会话' })).toBeDisabled();
     await row(page, other).locator('.thread-link').click();
-    await expect(page.getByText('这个会话准备好了')).toBeVisible();
+    await expect(page.locator('.user-text')).toHaveText('已有会话历史 [title-fail]');
     await page.getByRole('textbox', { name: '任务内容' }).fill('新选择的会话草稿');
     const reads: string[] = [];
     page.on('request', (request) => {

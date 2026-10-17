@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import type { Operation, RunStatus, ThreadSummary, ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, projectGroup } from './helpers';
+import { confirmCompatibility, controlRuntime, projectGroup, testOrigin } from './helpers';
 
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
 const longTitle =
   '完整会话标题：检查来自 Web UI 的会话来源、键盘访问与触屏详情，确保省略的内容仍可阅读';
 const link = (page: Page, id: string) => page.locator(`[data-thread-id="${id}"]`);
@@ -49,9 +49,11 @@ test('compact rows retain keyboard-accessible full titles and creation details',
   await page.setViewportSize({ width: 1280, height: 900 });
   test.setTimeout(90_000);
   await open(page);
-  const ids: string[] = [];
-  for (let index = 0; index < 34; index++)
-    ids.push(await create(request, `会话 ${index + 1}：检查项目配置与运行结果`));
+  const ids = await Promise.all(
+    Array.from({ length: 34 }, (_, index) =>
+      create(request, `会话 ${index + 1}：检查项目配置与运行结果`),
+    ),
+  );
   const id = await create(request, longTitle);
   ids.push(id);
   await page.getByRole('button', { name: '刷新会话列表' }).click();
