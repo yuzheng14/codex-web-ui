@@ -15,6 +15,7 @@ export async function controlRuntime(
   request: APIRequestContext,
   input: {
     reset?: boolean;
+    restart?: boolean;
     version?: string;
     unavailable?: boolean;
     external?: 'free' | 'occupied' | 'error';

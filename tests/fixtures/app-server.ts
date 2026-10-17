@@ -1,7 +1,7 @@
 /** Explicit test process. Its envelopes and payloads use the CLI-generated 0.162.1 protocol. */
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -44,6 +44,7 @@ export interface SimulatorOptions {
   crashAfterDispatch?: boolean;
   unsupportedMethod?: string;
   logPath?: string;
+  historyPath?: string;
   paginated?: boolean;
   activeArchiveDescendant?: boolean;
   historyPageSize?: number;
@@ -102,6 +103,17 @@ const options = JSON.parse(
 ) as SimulatorOptions;
 const threads = new Map<string, Thread>();
 const archived = new Set<string>();
+if (options.historyPath && existsSync(options.historyPath)) {
+  const saved = JSON.parse(readFileSync(options.historyPath, 'utf8')) as {
+    threads: Thread[];
+    archived: string[];
+  };
+  for (const thread of saved.threads) {
+    thread.status = { type: 'notLoaded' };
+    threads.set(thread.id, thread);
+  }
+  for (const id of saved.archived) archived.add(id);
+}
 const policies = new Map<
   string,
   Pick<ThreadStartResponse, 'sandbox' | 'approvalPolicy' | 'approvalsReviewer'>
@@ -2207,7 +2219,22 @@ input.on('line', (line) => {
   }
   receive(message);
 });
+function saveHistory() {
+  if (options.historyPath)
+    writeFileSync(
+      options.historyPath,
+      JSON.stringify({
+        threads: [...threads.values()].filter((thread) => !thread.ephemeral),
+        archived: [...archived],
+      }),
+    );
+}
+process.once('SIGTERM', () => {
+  saveHistory();
+  process.exit(0);
+});
 input.on('close', () => {
   for (const timer of finishes.values()) clearTimeout(timer);
+  saveHistory();
   void writes.then(() => process.exit(0));
 });

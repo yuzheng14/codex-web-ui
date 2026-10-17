@@ -56,6 +56,13 @@ export function mapThread(thread: Thread): ThreadView {
       'Codex thread response is missing required fields',
       true,
     );
+  const turns = thread.turns.map((turn) => mapTurn(thread.id, turn));
+  let status = threadStatus(thread.status);
+  // Persisted history is normally notLoaded after a restart, even when every turn
+  // finished. Keep unfinished history uncertain; the gateway separately overlays
+  // durable execution markers, including dispatches without a known turn ID.
+  if (thread.status.type === 'notLoaded' && !turns.some((turn) => turn.status === 'running'))
+    status = turns.at(-1)?.status ?? 'idle';
   return {
     id: thread.id,
     ...(typeof thread.forkedFromId === 'string' ? { forkedFromId: thread.forkedFromId } : {}),
@@ -66,8 +73,8 @@ export function mapThread(thread: Thread): ThreadView {
     title: thread.name || thread.preview || '新会话',
     // List/metadata responses omit turns. The native preview is history evidence.
     hasMessages: Boolean(thread.preview) || thread.turns.length > 0,
-    status: threadStatus(thread.status),
-    turns: thread.turns.map((turn) => mapTurn(thread.id, turn)),
+    status,
+    turns,
     managed: false,
     runtimeSettings: {
       model: thread.model ?? null,

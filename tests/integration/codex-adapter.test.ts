@@ -74,6 +74,41 @@ async function waitFor<T>(get: () => T | undefined): Promise<T> {
 }
 
 describe('verified protocol adapter with a real subprocess', () => {
+  it.each([false, true])(
+    'distinguishes unloaded history from unfinished work after restarting (paginated: %s)',
+    async (paginated) => {
+      const dir = await mkdtemp(join(tmpdir(), 'codex-restart-'));
+      dirs.push(dir);
+      const { adapter, events } = await fixture({
+        paginated,
+        historyPath: join(dir, 'history.json'),
+      });
+      const empty = await adapter.createThread('/tmp');
+      const finished = await adapter.createThread('/tmp');
+      const turn = await adapter.startTurn(finished.id, finished.cwd, 'saved task');
+      await waitFor(() =>
+        events.find(
+          (event) =>
+            event.type === 'turn' && event.turn.id === turn.id && event.turn.status === 'completed',
+        ),
+      );
+      const unfinished = await adapter.createThread('/tmp');
+      await adapter.startTurn(unfinished.id, unfinished.cwd, '[approval] unfinished task');
+      await adapter.stop();
+      await adapter.start();
+      expect((await adapter.listThreads('/tmp')).data.map((thread) => thread.status)).toEqual([
+        'idle',
+        'idle',
+        'idle',
+      ]);
+      expect((await adapter.readThread(empty.id)).status).toBe('idle');
+      expect((await adapter.readThread(finished.id)).status).toBe('completed');
+      expect((await adapter.readThreadMetadata(finished.id)).status).toBe('idle');
+      expect((await adapter.readThread(unfinished.id)).status).toBe('unknown');
+      expect((await adapter.readThread(unfinished.id)).turns.at(-1)?.status).toBe('running');
+    },
+  );
+
   it('retains async questions through live events and history without creating a blocking RPC action', async () => {
     const { adapter, events, requests } = await fixture();
     const thread = await adapter.createThread('/tmp');
