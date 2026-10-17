@@ -7,6 +7,7 @@ import type {
   SystemInfo,
   ThreadSummary,
   ThreadView,
+  TurnCompletion,
 } from '../shared/types.js';
 
 type BusinessEvent = Extract<ServerMessage, { type: 'event' }>;
@@ -80,6 +81,18 @@ export class EventHub {
     return () => {
       this.overviewListeners.delete(send);
     };
+  }
+
+  /** Only connected overview clients receive this signal. It never enters the replay buffer. */
+  publishCompletion(completion: TurnCompletion): void {
+    const event: BusinessEvent = {
+      type: 'event',
+      kind: 'turnCompletion',
+      threadId: completion.threadId,
+      cursor: this.cursor(),
+      payload: structuredClone(completion),
+    };
+    for (const listener of this.overviewListeners) this.deliver(listener, event);
   }
 
   /** Project snapshots have their own update boundary even without a thread event. */

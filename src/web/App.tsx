@@ -19,6 +19,7 @@ import { downloadThreadExport } from './lib/thread-export';
 import { encodeQuestionReplies } from '../shared/async-questions';
 import { CompatibilityNotice } from './components/CompatibilityNotice';
 import { ProjectDialog } from './components/ProjectDialog';
+import { NotificationSettings } from './components/NotificationSettings';
 import {
   canConfirmCompatibility,
   compatibilityConfirmationRequired,
@@ -32,6 +33,7 @@ export function App() {
   const workspace = useWorkspace();
   const { isUnreadCompletion, markCompletedRead } = useThreadReadState();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
   useEffect(() => {
     const desktop = window.matchMedia('(min-width: 761px)');
     const closeMobileNavigation = () => {
@@ -251,6 +253,17 @@ export function App() {
   return (
     <div className="app-shell">
       <Sidebar
+        onNotificationSettings={() => {
+          setSidebarOpen(false);
+          setNotificationSettingsOpen(true);
+        }}
+        notificationStatus={
+          workspace.notifications.error
+            ? '请检查设置'
+            : workspace.notifications.enabled && workspace.notifications.access === 'granted'
+              ? '已开启'
+              : '未开启'
+        }
         archiveView={workspace.archiveView}
         onArchiveView={workspace.setArchiveView}
         onArchive={(id, archived) => {
@@ -641,6 +654,12 @@ export function App() {
           onClose={() =>
             setProjectDialog((current) => (current === projectDialog ? undefined : current))
           }
+        />
+      )}
+      {notificationSettingsOpen && (
+        <NotificationSettings
+          notifications={workspace.notifications}
+          onClose={() => setNotificationSettingsOpen(false)}
         />
       )}
     </div>

@@ -6,6 +6,7 @@ import type {
   SystemInfo,
   ThreadSummary,
   ThreadView,
+  TurnCompletion,
 } from '../../shared/types';
 
 export type ConnectionState =
@@ -37,6 +38,8 @@ export class ProjectionCache {
   }
   apply(message: ServerMessage): boolean {
     if (message.type === 'error') return true;
+    // Live signals do not establish or advance any snapshot/replay cursor.
+    if (message.type === 'event' && message.kind === 'turnCompletion') return true;
     if (message.type === 'snapshot') {
       const previous = this.threads.get(message.threadId);
       if (
@@ -103,6 +106,8 @@ interface Handlers {
   projects?: (projects: Project[]) => void;
   operation: (operation: Operation) => void;
   error: (message: string) => void;
+  completion?: (completion: TurnCompletion) => void;
+  refresh?: () => void;
 }
 
 function isMessage(value: unknown): value is ServerMessage {
@@ -154,6 +159,15 @@ function isMessage(value: unknown): value is ServerMessage {
       typeof payload.status === 'string' &&
       typeof payload.pendingActionCount === 'number'
     );
+  if (m.type === 'event' && m.kind === 'turnCompletion')
+    return (
+      typeof m.threadId === 'string' &&
+      payload.threadId === m.threadId &&
+      typeof payload.turnId === 'string' &&
+      typeof payload.projectId === 'string' &&
+      typeof payload.title === 'string' &&
+      ['completed', 'failed', 'interrupted'].includes(String(payload.status))
+    );
   return m.type === 'event' && (m.kind === 'runtime' || m.kind === 'operation');
 }
 
@@ -172,6 +186,12 @@ export class ThreadStream {
     window.addEventListener('online', this.retry);
     window.addEventListener('offline', this.offline);
     window.addEventListener('focus', this.retry);
+    window.addEventListener('pageshow', this.resume);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('freeze', this.offline);
+      document.addEventListener('resume', this.resume);
+      document.addEventListener('visibilitychange', this.visible);
+    }
     this.connect();
   }
   stop() {
@@ -180,6 +200,12 @@ export class ThreadStream {
     window.removeEventListener('online', this.retry);
     window.removeEventListener('offline', this.offline);
     window.removeEventListener('focus', this.retry);
+    window.removeEventListener('pageshow', this.resume);
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('freeze', this.offline);
+      document.removeEventListener('resume', this.resume);
+      document.removeEventListener('visibilitychange', this.visible);
+    }
     this.socket?.close();
     this.socket = undefined;
   }
@@ -209,6 +235,14 @@ export class ThreadStream {
     this.socket = undefined;
     socket?.close();
     this.handlers.connection('disconnected');
+  };
+  private resume = () => {
+    if (this.stopped || this.blocked) return;
+    this.retry();
+    this.handlers.refresh?.();
+  };
+  private visible = () => {
+    if (document.visibilityState === 'visible') this.resume();
   };
   private subscribe() {
     const cached = this.selected ? this.cache.get(this.selected) : undefined;
@@ -257,6 +291,8 @@ export class ThreadStream {
         if (value.type === 'snapshot' && value.threadId === this.selected)
           this.handlers.thread(value.data);
         if (value.type === 'event') {
+          if (value.kind === 'turnCompletion')
+            this.handlers.completion?.(value.payload as TurnCompletion);
           if (value.kind === 'threadSummary')
             this.handlers.summary(value.payload as ThreadSummary, value.cursor);
           if (value.kind === 'thread' && value.threadId === this.selected)

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Bell } from 'lucide-react';
 import type { Project, ThreadSummary } from '../../shared/types';
 import type { ProjectThreads } from '../lib/project-threads';
 import { cn } from '../lib/utils';
@@ -35,6 +36,8 @@ interface Props {
   offline: boolean;
   open: boolean;
   onClose: () => void;
+  onNotificationSettings: () => void;
+  notificationStatus: string;
 }
 
 export function Sidebar(props: Props) {
@@ -265,6 +268,16 @@ export function Sidebar(props: Props) {
           )}
         </nav>
         <div className="sidebar-footer">
+          <Button
+            className="notification-settings-button"
+            variant="ghost"
+            size="sm"
+            onClick={props.onNotificationSettings}
+          >
+            <Bell size={15} aria-hidden="true" />
+            <span>工作完成通知</span>
+            <span className="notification-settings-status">{props.notificationStatus}</span>
+          </Button>
           <span className="privacy-mark">服务器执行</span>
           <p>代码与凭据保留在运行服务的电脑上</p>
         </div>
