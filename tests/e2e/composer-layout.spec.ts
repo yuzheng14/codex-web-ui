@@ -1,6 +1,11 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { Project, SystemInfo } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, expectThreadReady, projectGroup } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createEmptyThread,
+  expectThreadReady,
+} from './helpers';
 
 const longModel = 'private-provider-gpt-5-codex-with-a-very-long-version-name';
 const longProject = 'codex-web-ui-项目名称超长时应该保留省略号并支持查看完整名称';
@@ -60,9 +65,7 @@ test('switching model names preserves layout and active controls fit on a narrow
   expect(await model.boundingBox()).toEqual(longBox);
   expect(await page.locator('.composer-target').boundingBox()).toEqual(projectBox);
 
-  await projectGroup(page, longProject)
-    .getByRole('button', { name: '新建会话', exact: true })
-    .click();
+  await createEmptyThread(page, longProject);
   await expectThreadReady(page);
   await expect(page.getByRole('combobox', { name: '推理强度', exact: true })).toHaveAttribute(
     'data-value',
@@ -84,11 +87,9 @@ test('switching model names preserves layout and active controls fit on a narrow
         previousRight = box.x + box.width;
       }
     }
-    expect((await page.locator('.composer-target > span').boundingBox())!.width).toBeGreaterThan(
-      30,
-    );
+    await expectProjectName(page);
+    await expectSingleRow(page);
   }
-  await expect(page.locator('.composer-target > span')).toBeVisible();
   await expect(page.getByRole('button', { name: '追加要求', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '中断', exact: true }).click();
   await expect(model).toBeEnabled();
@@ -103,6 +104,29 @@ async function expectInside(control: Locator, container: Locator) {
   expect(box.y).toBeGreaterThanOrEqual(bounds.y);
   expect(box.y + box.height).toBeLessThanOrEqual(bounds.y + bounds.height);
   return box;
+}
+
+async function expectProjectName(page: Page) {
+  const text = page.locator('.composer-target > span');
+  const width = await page.locator('.composer-box').evaluate((element) => element.clientWidth);
+  if (width <= 330) {
+    await expect(text).toBeHidden();
+  } else {
+    await expect(text).toBeVisible();
+    expect((await text.boundingBox())!.width).toBeGreaterThan(30);
+  }
+}
+
+async function expectSingleRow(page: Page) {
+  const boxes = await Promise.all(
+    (await page.locator('.composer-context > *, .composer-send-controls > *').all()).map(
+      (control) => control.boundingBox(),
+    ),
+  );
+  const centers = boxes.map((box) => box!.y + box!.height / 2);
+  expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
+  for (let index = 1; index < boxes.length; index++)
+    expect(boxes[index]!.x).toBeGreaterThanOrEqual(boxes[index - 1]!.x + boxes[index - 1]!.width);
 }
 
 for (const model of ['gpt-5', longModel]) {
@@ -126,12 +150,12 @@ for (const model of ['gpt-5', longModel]) {
 
       for (const width of [1440, 1000, 900, 760, 430, 375, 320]) {
         await page.setViewportSize({ width, height: 900 });
-        await expect(projectText).toBeVisible();
+        await expectProjectName(page);
+        await expectSingleRow(page);
         const modelBox = await expectInside(modelControl, composer);
         const projectBox = await expectInside(target, composer);
         expect(modelBox.width).toBeLessThanOrEqual(160);
         expect(projectBox.width).toBeLessThanOrEqual(180);
-        expect((await projectText.boundingBox())!.width).toBeGreaterThan(30);
         for (const group of ['.composer-context', '.composer-send-controls']) {
           const children = page.locator(group).locator(':scope > *');
           let previousRight = 0;
@@ -141,17 +165,15 @@ for (const model of ['gpt-5', longModel]) {
             previousRight = box.x + box.width;
           }
         }
-        expect(
-          projectBox.x + projectBox.width <= modelBox.x ||
-            projectBox.y + projectBox.height <= modelBox.y,
-        ).toBe(true);
+        expect(projectBox.x + projectBox.width).toBeLessThanOrEqual(modelBox.x);
         const modelText = page.locator('.settings-model-value');
         expect(
           await modelText.evaluate((element) => element.scrollWidth > element.clientWidth),
         ).toBe(model === longModel);
-        expect(
-          await projectText.evaluate((element) => element.scrollWidth > element.clientWidth),
-        ).toBe(projectName === longProject);
+        if (await projectText.isVisible())
+          expect(
+            await projectText.evaluate((element) => element.scrollWidth > element.clientWidth),
+          ).toBe(projectName === longProject);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
           true,
         );

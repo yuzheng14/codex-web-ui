@@ -3,12 +3,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  confirmCompatibility,
-  controlRuntime,
-  createThreadButton,
-  expectThreadReady,
-} from './helpers';
+import { confirmCompatibility, controlRuntime, createEmptyThread } from './helpers';
 
 const attachment =
   'https://github.com/user-attachments/assets/04aaa811-cdeb-45e0-a303-0619761552f1';
@@ -82,8 +77,7 @@ test.beforeEach(async ({ page, request }) => {
     expect(csp.split(';').map((value) => value.trim())).toContain(directive);
   }
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
-  await expectThreadReady(page);
+  await createEmptyThread(page);
 });
 
 test('gateway CSP permits extensionless HTTPS images, queries and cross-origin redirects', async ({
