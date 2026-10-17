@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 import Markdown, { defaultUrlTransform, type Components, type UrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { localImagePath, localImageUrl } from '../lib/local-images';
-import { LocalImage, useImagePreview } from './ImagePreview';
+import { LocalImage, RemoteImage, useImagePreview } from './ImagePreview';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock';
 
 // Preserve the default protocol allowlist for ordinary links and remote images.
@@ -51,7 +51,13 @@ const markdownComponents: Components = {
     return path ? (
       <LocalImage key={path} path={path} alt={alt} title={title} interactive={!linked} />
     ) : (
-      <img src={src} alt={alt} title={title} />
+      <RemoteImage
+        key={String(src)}
+        src={typeof src === 'string' ? src : ''}
+        alt={alt}
+        title={title}
+        interactive={!linked}
+      />
     );
   },
   table: ({ children }) => (

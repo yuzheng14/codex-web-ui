@@ -12,10 +12,10 @@ import { readableError } from '../lib/utils';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 
-interface ImageTarget {
-  path: string;
+type ImageSource = { path: string; url?: never } | { url: string; path?: never };
+type ImageTarget = ImageSource & {
   label: string;
-}
+};
 const ImageContext = createContext<{
   threadId?: string;
   open: (target: ImageTarget) => void;
@@ -33,9 +33,9 @@ export function ImagePreviewProvider({
   return (
     <ImageContext value={context}>
       {children}
-      {target && threadId && (
+      {target && (target.url || threadId) && (
         <ImagePreviewDialog
-          key={target.path}
+          key={target.url || target.path}
           threadId={threadId}
           target={target}
           onClose={() => setTarget(undefined)}
@@ -50,11 +50,15 @@ export function useImagePreview() {
 }
 
 type ImageState = { src?: string; error?: string };
-function useLocalImage(threadId: string | undefined, path: string) {
-  const [state, setState] = useState<ImageState>({});
+function useImage(threadId: string | undefined, { path, url: remoteUrl }: ImageSource) {
+  const [state, setState] = useState<ImageState>(() => ({ src: remoteUrl }));
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (!threadId) return;
+    if (remoteUrl) {
+      setState({ src: remoteUrl });
+      return;
+    }
+    if (!threadId || !path) return;
     const controller = new AbortController();
     let url: string | undefined;
     const timeout = setTimeout(() => {
@@ -77,19 +81,42 @@ function useLocalImage(threadId: string | undefined, path: string) {
       controller.abort();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [threadId, path, attempt]);
+  }, [threadId, path, remoteUrl, attempt]);
   return {
     ...state,
-    retry: () => setAttempt((value) => value + 1),
-    fail: () => setState({ error: '图片无法解码，文件可能已损坏或格式不受浏览器支持。' }),
+    retry: () => {
+      setState({});
+      setAttempt((value) => value + 1);
+    },
+    fail: () =>
+      setState({
+        error: remoteUrl
+          ? '图片加载失败，可能已失效、访问受限或网络不可用。'
+          : '图片无法解码，文件可能已损坏或格式不受浏览器支持。',
+      }),
   };
 }
 
-function ImageError({ error, path, retry }: { error: string; path: string; retry?: () => void }) {
+function ImageError({
+  error,
+  path,
+  retry,
+  url,
+}: {
+  error: string;
+  path: string;
+  retry?: () => void;
+  url?: string;
+}) {
   return (
     <span className="local-image-error" role="alert">
       <span>{error}</span>
       <code>{path}</code>
+      {url && (
+        <a href={url} target="_blank" rel="noopener noreferrer">
+          打开原图
+        </a>
+      )}
       {retry && (
         <button type="button" className="image-retry" onClick={retry}>
           重试加载图片
@@ -99,26 +126,28 @@ function ImageError({ error, path, retry }: { error: string; path: string; retry
   );
 }
 
-export function LocalImage({
-  path,
+function ReplyImage({
+  source,
   alt,
   title,
   interactive = true,
 }: {
-  path: string;
+  source: ImageSource;
   alt?: string;
   title?: string;
   interactive?: boolean;
 }) {
   const { threadId, open } = useImagePreview();
-  const image = useLocalImage(threadId, path);
-  const label = alt || path.split('/').at(-1) || '图片';
+  const image = useImage(threadId, source);
+  const { path, url } = source;
+  const label = alt || (path ? path.split('/').at(-1) : undefined) || '图片';
   const thumbnail = (
     <>
       <img
         className="local-image-thumbnail"
         src={image.src}
         alt={alt || label}
+        referrerPolicy={url ? 'no-referrer' : undefined}
         onError={image.fail}
       />
       <span className="local-image-caption">
@@ -130,7 +159,12 @@ export function LocalImage({
   return (
     <span className="local-image">
       {image.error ? (
-        <ImageError error={image.error} path={path} retry={interactive ? image.retry : undefined} />
+        <ImageError
+          error={image.error}
+          path={url ?? path}
+          retry={interactive ? image.retry : undefined}
+          url={interactive ? url : undefined}
+        />
       ) : image.src ? (
         interactive ? (
           <button
@@ -138,7 +172,7 @@ export function LocalImage({
             className="local-image-open"
             aria-label={`预览图片：${label}`}
             title={title || '点击放大图片'}
-            onClick={() => open({ path, label })}
+            onClick={() => open({ ...source, label })}
           >
             {thumbnail}
           </button>
@@ -149,11 +183,25 @@ export function LocalImage({
         )
       ) : (
         <span className="local-image-loading" role="status">
-          正在加载图片…<code>{path}</code>
+          正在加载图片…<code>{url || path}</code>
         </span>
       )}
     </span>
   );
+}
+
+type ImageProps = { alt?: string; title?: string; interactive?: boolean };
+export function LocalImage({ path, ...props }: ImageProps & { path: string }) {
+  return <ReplyImage source={{ path }} {...props} />;
+}
+export function RemoteImage({ src, ...props }: ImageProps & { src: string }) {
+  if (!src)
+    return (
+      <span className="local-image-error" role="alert">
+        图片地址不可用。
+      </span>
+    );
+  return <ReplyImage source={{ url: src }} {...props} />;
 }
 
 function ImagePreviewDialog({
@@ -161,13 +209,13 @@ function ImagePreviewDialog({
   target,
   onClose,
 }: {
-  threadId: string;
+  threadId?: string;
   target: ImageTarget;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
-  const image = useLocalImage(threadId, target.path);
+  const image = useImage(threadId, target);
   const [zoom, setZoom] = useState(1);
   const [natural, setNatural] = useState({ width: 0, height: 0 });
   const [bounds, setBounds] = useState({ width: 0, height: 0 });
@@ -251,11 +299,17 @@ function ImagePreviewDialog({
       </div>
       <div className="image-preview-viewport" ref={viewport} tabIndex={0} aria-label="图片查看区域">
         {image.error ? (
-          <ImageError error={image.error} path={target.path} retry={image.retry} />
+          <ImageError
+            error={image.error}
+            path={target.url ?? target.path}
+            retry={image.retry}
+            url={target.url}
+          />
         ) : image.src ? (
           <div className="image-preview-canvas">
             <img
               src={image.src}
+              referrerPolicy={target.url ? 'no-referrer' : undefined}
               alt={target.label}
               style={
                 fit
@@ -278,8 +332,14 @@ function ImagePreviewDialog({
         )}
       </div>
       <p className="image-preview-path">
-        <span>原始路径</span>
-        <code>{target.path}</code>
+        <span>{target.url ? '原图链接' : '原始路径'}</span>
+        {target.url ? (
+          <a href={target.url} target="_blank" rel="noopener noreferrer">
+            打开原图
+          </a>
+        ) : (
+          <code>{target.path}</code>
+        )}
       </p>
     </dialog>
   );

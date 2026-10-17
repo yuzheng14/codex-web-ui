@@ -524,35 +524,47 @@ function execute(thread: Thread, turn: Turn, cmd = command(randomUUID(), thread.
     setTimeout(() => complete(thread, turn), options.turnDelayMs ?? 100),
   );
 }
-function localImageReply(
+function imageReply(
   thread: Thread,
   turn: Turn,
-  variant: 'normal' | 'errors' | 'temporary',
+  variant: 'normal' | 'errors' | 'temporary' | 'remote' | 'remote-errors',
 ): void {
   const absolute = join(thread.cwd, 'assets/发布 图表.png');
   const temporaryDirectory = `codex-local-image-${thread.id}`;
   const systemImage = join(tmpdir(), temporaryDirectory, '临时 图.png');
-  const text =
-    variant === 'temporary'
-      ? '图片已保存在服务器临时目录中，仍可直接查看和放大。\n\n' +
-        `![服务器临时图片](<${systemImage}>)\n\n` +
-        `[临时文件 URL 图片](${pathToFileURL(systemImage).href})` +
-        (process.platform === 'win32'
-          ? ''
-          : ` · [标准 tmp 图片](<${join('/tmp', temporaryDirectory, '临时 图.png')}>)`)
-      : variant === 'errors'
-        ? '以下图片暂时无法预览，原始路径仍可查看：\n\n' +
-          '![缺失截图](<assets/不存在 截图.png>)\n\n' +
-          '![不支持的矢量图](assets/diagram.svg)\n\n' +
-          '![损坏图片](assets/broken.png)\n\n' +
-          '![无法解码的图片](assets/undecodable.png)\n\n' +
-          '[查看缺失截图](<assets/不存在 截图.png>)'
-        : '已生成项目进度图。点击图片可放大查看，图片链接也可直接预览。\n\n' +
-          '![项目进度图](<./assets/发布 图表.png>)\n\n' +
-          `[绝对路径图片](<${absolute}>) · ` +
-          `[文件 URL 图片](${pathToFileURL(absolute).href}) · ` +
-          '[JPEG 图片](assets/preview.jpg) · [WebP 图片](assets/preview.webp) · [GIF 图片](assets/preview.gif)\n\n' +
-          '[普通文件](assets/notes.txt) · [外部说明](https://example.com/docs)';
+  const text = {
+    remote:
+      '远程图片可以直接查看，点击缩略图可放大。\n\n' +
+      '![桌面复制效果](https://github.com/user-attachments/assets/04aaa811-cdeb-45e0-a303-0619761552f1)\n\n' +
+      '![跨域跳转图片](https://images.example.test/asset?name=preview&version=2)\n\n' +
+      '[![带链接的图片](https://images.example.test/linked)](https://example.com/docs)',
+    'remote-errors':
+      '图片暂时无法显示，可以重试或打开原图检查。\n\n' +
+      ['missing', 'refused', 'offline', 'corrupt']
+        .map((name) => `![${name}](https://images.example.test/${name})`)
+        .join('\n\n'),
+    temporary:
+      '图片已保存在服务器临时目录中，仍可直接查看和放大。\n\n' +
+      `![服务器临时图片](<${systemImage}>)\n\n` +
+      `[临时文件 URL 图片](${pathToFileURL(systemImage).href})` +
+      (process.platform === 'win32'
+        ? ''
+        : ` · [标准 tmp 图片](<${join('/tmp', temporaryDirectory, '临时 图.png')}>)`),
+    errors:
+      '以下图片暂时无法预览，原始路径仍可查看：\n\n' +
+      '![缺失截图](<assets/不存在 截图.png>)\n\n' +
+      '![不支持的矢量图](assets/diagram.svg)\n\n' +
+      '![损坏图片](assets/broken.png)\n\n' +
+      '![无法解码的图片](assets/undecodable.png)\n\n' +
+      '[查看缺失截图](<assets/不存在 截图.png>)',
+    normal:
+      '已生成项目进度图。点击图片可放大查看，图片链接也可直接预览。\n\n' +
+      '![项目进度图](<./assets/发布 图表.png>)\n\n' +
+      `[绝对路径图片](<${absolute}>) · ` +
+      `[文件 URL 图片](${pathToFileURL(absolute).href}) · ` +
+      '[JPEG 图片](assets/preview.jpg) · [WebP 图片](assets/preview.webp) · [GIF 图片](assets/preview.gif)\n\n' +
+      '[普通文件](assets/notes.txt) · [外部说明](https://example.com/docs)',
+  }[variant];
   const item: ThreadItem = {
     id: randomUUID(),
     type: 'agentMessage',
@@ -2118,12 +2130,14 @@ function receive(request: ClientRequest): void {
         else approval(thread, turn, 'command');
       } else if (reviewStatus) autoReview(thread, turn, reviewStatus, prompt);
       else if (kind) approval(thread, turn, kind);
+      else if (prompt.includes('[remote-images]') || prompt.includes('[remote-image-errors]'))
+        imageReply(thread, turn, prompt.includes('[remote-images]') ? 'remote' : 'remote-errors');
       else if (
         prompt.includes('[local-images]') ||
         prompt.includes('[local-image-errors]') ||
         prompt.includes('[local-temp-images]')
       )
-        localImageReply(
+        imageReply(
           thread,
           turn,
           prompt.includes('[local-temp-images]')
