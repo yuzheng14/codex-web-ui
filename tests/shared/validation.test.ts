@@ -127,3 +127,19 @@ describe('project management input contract', () => {
     expect(removeProjectSchema.parse({})).toEqual({});
   });
 });
+
+it('accepts explicit Fast clearing while rejecting unknown service tiers', () => {
+  for (const serviceTier of ['fast', null]) {
+    expect(
+      startTurnSchema.parse({ clientOperationId, text: 'task', settings: { serviceTier } })
+        .settings,
+    ).toEqual({ serviceTier });
+  }
+  expect(
+    startTurnSchema.safeParse({
+      clientOperationId,
+      text: 'task',
+      settings: { serviceTier: 'invented' },
+    }).success,
+  ).toBe(false);
+});

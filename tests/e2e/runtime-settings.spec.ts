@@ -282,7 +282,7 @@ test('restored saved settings stay distinct from edits until the next task confi
   await expect(page.locator('.settings-pending')).toHaveCount(0);
 });
 
-test('one-row controls stay grouped on desktop and narrow screens, with distinct effort gauges', async ({
+test('controls stay grouped on desktop and narrow screens, with distinct effort gauges', async ({
   page,
   request,
 }) => {
@@ -299,7 +299,6 @@ test('one-row controls stay grouped on desktop and narrow screens, with distinct
   await page.goto('/');
   await confirmCompatibility(page);
   const row = page.locator('.composer-actions');
-  const policy = row.getByRole('combobox', { name: '权限模式', exact: true });
   const model = row.getByRole('combobox', { name: '模型', exact: true });
   const effort = row.getByRole('combobox', { name: '推理强度', exact: true });
   const send = row.getByRole('button', { name: '发送任务', exact: true });
@@ -309,8 +308,17 @@ test('one-row controls stay grouped on desktop and narrow screens, with distinct
   );
   for (const width of [1280, 390, 320]) {
     await page.setViewportSize({ width, height: 844 });
-    const elements = [page.locator('.composer-target'), policy, model, effort, send];
+    const elements = [
+      page.locator('.composer-target'),
+      row.getByRole('combobox', { name: '权限模式' }),
+      row.getByRole('button', { name: '权限详情' }),
+      model,
+      effort,
+      row.getByRole('button', { name: 'Fast 模式' }),
+      send,
+    ];
     const boxes = await Promise.all(elements.map((element) => element.boundingBox()));
+    expect(boxes[elements.indexOf(model)]!.width).toBeGreaterThanOrEqual(50);
     const centers = boxes.map((box) => box!.y + box!.height / 2);
     expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
     for (let index = 1; index < boxes.length; index++)
@@ -335,6 +343,7 @@ test('one-row controls stay grouped on desktop and narrow screens, with distinct
   expect(Number(await gauge.getAttribute('data-progress'))).toBeGreaterThan(low);
   await expect(effort).toHaveAccessibleDescription(/^推理强度：high/);
   await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-high.png' });
+  await chooseEffort(page, 'ultra');
   await page
     .getByRole('textbox', { name: '任务内容', exact: true })
     .fill('[approval] 检查运行中的发送栏');
@@ -344,13 +353,16 @@ test('one-row controls stay grouped on desktop and narrow screens, with distinct
     await page.setViewportSize({ width, height: 844 });
     const elements = [
       page.locator('.composer-target'),
-      policy,
+      row.getByRole('combobox', { name: '权限模式' }),
+      row.getByRole('button', { name: '权限详情' }),
       model,
       effort,
+      row.getByRole('button', { name: 'Fast 模式' }),
       row.getByRole('button', { name: '中断', exact: true }),
       row.getByRole('button', { name: '追加要求', exact: true }),
     ];
     const boxes = await Promise.all(elements.map((element) => element.boundingBox()));
+    expect(boxes[elements.indexOf(model)]!.width).toBeGreaterThanOrEqual(50);
     const centers = boxes.map((box) => box!.y + box!.height / 2);
     expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
     for (let index = 1; index < boxes.length; index++)
@@ -358,7 +370,7 @@ test('one-row controls stay grouped on desktop and narrow screens, with distinct
     expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     await page
       .locator('.composer-box')
-      .screenshot({ path: `/tmp/codex-toolbar-active-${width}.png` });
+      .screenshot({ path: `/tmp/codex-toolbar-active-${width}.png`, animations: 'disabled' });
   }
   await row.getByRole('button', { name: '中断', exact: true }).click();
   await expect(row.getByRole('button', { name: '中断', exact: true })).toHaveCount(0);

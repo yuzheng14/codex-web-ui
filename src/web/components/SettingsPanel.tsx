@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
+import { Zap } from 'lucide-react';
 import type {
   ModelDefaults,
   ModelDefaultsResult,
@@ -7,7 +8,7 @@ import type {
   ThreadView,
 } from '../../shared/types';
 import { useRuntimeDefaults } from '../hooks/useRuntimeDefaults';
-import { chooseModel, pendingSettings, selectedModelDefaults } from '../lib/settings';
+import { chooseModel, pendingSettings, selectedModelDefaults, speedLabel } from '../lib/settings';
 import { Icon } from './Icon';
 import { PermissionDetails, PermissionModeSelect } from './PermissionModeSelect';
 import { permissionModes } from '../../shared/permissions';
@@ -48,6 +49,7 @@ export function SettingsPanel({
   const [effortMenuOpen, setEffortMenuOpen] = useState(false);
   const advancedId = useId();
   const effortHintId = useId();
+  const speedHintId = useId();
   const scope = JSON.stringify([projectId, thread?.id]);
   const [saveNotice, setSaveNotice] = useState<{
     scope: string;
@@ -81,7 +83,10 @@ export function SettingsPanel({
   const model = settings.model ?? current?.model ?? '';
   const effort = settings.reasoningEffort ?? current?.reasoningEffort ?? '';
   const effortTierLabel = effort === 'max' ? 'Max' : effort === 'ultra' ? 'Ultra' : null;
+  const tier = settings.serviceTier !== undefined ? settings.serviceTier : current?.serviceTier;
+  const fast = tier === 'fast';
   const selectedModel = models.find((entry) => entry.id === model);
+  const fastAvailable = selectedModel?.serviceTiers?.includes('fast');
   const changes = pendingSettings(settings, current);
   const pending = Object.keys(changes).length > 0;
   const source = thread ? (thread.managed ? '会话当前配置' : '会话保存配置') : '新会话默认配置';
@@ -114,6 +119,8 @@ export function SettingsPanel({
                 ? '下次任务生效'
                 : '恢复后发送或 Fork 时生效'}{' '}
             · 当前 {current?.model ?? '未报告'} / {current?.reasoningEffort ?? '未报告'}
+            {changes.serviceTier !== undefined &&
+              ` · 速度待生效：${speedLabel(changes.serviceTier)}；当前：${speedLabel(current?.serviceTier, unknown)}`}
             {changes.permissionMode &&
               ` · 权限待生效：${permissionModes[changes.permissionMode].label}；当前：${permissionLabel(current)}`}
           </span>
@@ -299,6 +306,47 @@ export function SettingsPanel({
               ))}
             </SelectContent>
           </Select>
+          <ControlHint
+            id={speedHintId}
+            content={
+              <>
+                <span>{speedLabel(tier, unknown)}</span>
+                <span>
+                  {fast
+                    ? '点击关闭 Fast'
+                    : fastAvailable
+                      ? '点击开启 Fast · 更快响应，增加用量'
+                      : '当前模型未提供 Fast'}
+                </span>
+                {changes.serviceTier !== undefined && (
+                  <span>待应用 · 当前 {speedLabel(current?.serviceTier, unknown)}</span>
+                )}
+              </>
+            }
+          >
+            <button
+              type="button"
+              className="settings-choice settings-speed"
+              aria-label="Fast 模式"
+              aria-describedby={speedHintId}
+              aria-pressed={tier === undefined ? 'mixed' : fast}
+              disabled={disabled || Boolean(threadLoading) || (!fast && !fastAvailable)}
+              data-fast={fast}
+              data-pending={changes.serviceTier !== undefined}
+              onClick={() =>
+                onChange(
+                  pendingSettings({ ...settings, serviceTier: fast ? null : 'fast' }, current),
+                )
+              }
+            >
+              <Zap
+                size={18}
+                strokeWidth={1.7}
+                fill={fast ? 'currentColor' : 'none'}
+                aria-hidden="true"
+              />
+            </button>
+          </ControlHint>
           {children}
         </div>
       </div>

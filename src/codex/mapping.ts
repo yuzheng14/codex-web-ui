@@ -1,4 +1,11 @@
-import type { ItemView, RunStatus, Settings, ThreadView, TurnView } from '../shared/types.js';
+import type {
+  ItemView,
+  RunStatus,
+  RuntimeSettings,
+  Settings,
+  ThreadView,
+  TurnView,
+} from '../shared/types.js';
 import { permissionModes } from '../shared/permissions.js';
 import type { PermissionSelection } from './permissions.js';
 export { permissionSettings } from './permissions.js';
@@ -18,6 +25,14 @@ export function taskInput(text: string, images: string[] = []): UserInput[] {
     ...(text ? [{ type: 'text' as const, text, text_elements: [] }] : []),
     ...images.map((url) => ({ type: 'image' as const, url })),
   ];
+}
+
+/** Codex 0.162.1 reports Fast as priority and standard speed as default. */
+export function serviceTierSettings(
+  tier: string | null | undefined,
+): Pick<RuntimeSettings, 'serviceTier'> {
+  if (tier === undefined) return {};
+  return { serviceTier: tier === 'priority' ? 'fast' : tier === 'default' ? null : tier };
 }
 
 export function threadStatus(status: ThreadStatus): RunStatus {
@@ -156,12 +171,13 @@ export function threadSettings(
   settings: Settings = {},
 ): Pick<
   ThreadStartParams,
-  'model' | 'approvalPolicy' | 'approvalsReviewer' | 'sandbox' | 'config'
+  'model' | 'serviceTier' | 'approvalPolicy' | 'approvalsReviewer' | 'sandbox' | 'config'
 > &
   PermissionSelection {
   const preset = settings.permissionMode && permissionModes[settings.permissionMode];
   return {
     ...(settings.model === undefined ? {} : { model: settings.model }),
+    ...(settings.serviceTier === undefined ? {} : { serviceTier: settings.serviceTier }),
     ...(settings.approvalPolicy === undefined ? {} : { approvalPolicy: settings.approvalPolicy }),
     ...(settings.approvalReviewer === undefined
       ? {}
@@ -184,7 +200,7 @@ export function turnSettings(
   settings: Settings = {},
 ): Pick<
   TurnStartParams,
-  'model' | 'approvalPolicy' | 'approvalsReviewer' | 'sandboxPolicy' | 'effort'
+  'model' | 'serviceTier' | 'approvalPolicy' | 'approvalsReviewer' | 'sandboxPolicy' | 'effort'
 > &
   PermissionSelection {
   const preset = settings.permissionMode && permissionModes[settings.permissionMode];
@@ -204,6 +220,7 @@ export function turnSettings(
           : undefined;
   return {
     ...(settings.model === undefined ? {} : { model: settings.model }),
+    ...(settings.serviceTier === undefined ? {} : { serviceTier: settings.serviceTier }),
     ...(settings.approvalPolicy === undefined ? {} : { approvalPolicy: settings.approvalPolicy }),
     ...(settings.approvalReviewer === undefined
       ? {}
