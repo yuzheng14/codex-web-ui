@@ -115,6 +115,8 @@ describe('interactive approval claims', () => {
     for (const resolution of [
       { decision: 'accept', permissions: { network: { enabled: true } } },
       { decision: 'accept', scope: 'session' },
+      { decision: 'accept', persist: 'always' },
+      { decision: 'accept', _meta: { persist: 'session' } },
       { decision: 'accept', content: { nested: { enabled: true } } },
       { decision: 'accept', content: { array: [1, 2] } },
       { decision: 'accept', content: { nullValue: null } },
@@ -127,5 +129,32 @@ describe('interactive approval claims', () => {
       clientOperationId,
       resolution: { decision: 'accept', content },
     });
+  });
+
+  it('claims only the session scope advertised by the MCP action', async () => {
+    const ctx = await setup('elicitation');
+    await expect(
+      ctx.service.resolveAction(ctx.action.actionId, {
+        clientOperationId: operationId(),
+        resolution: { decision: 'accept', persist: 'session' },
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(ctx.codex.replies).toBe(0);
+    expect((await ctx.service.getThread(ctx.threadId)).actions[0]?.status).toBe('pending');
+    ctx.action.elicitation = {
+      serverName: 'test',
+      mode: 'form',
+      fields: [],
+      approval: { allowSession: true },
+    };
+    ctx.codex.emit({ type: 'action', action: ctx.action });
+    await ctx.service.resolveAction(ctx.action.actionId, {
+      clientOperationId: operationId(),
+      resolution: resolveActionSchema.parse({
+        clientOperationId: operationId(),
+        resolution: { decision: 'accept', persist: 'session' },
+      }).resolution,
+    });
+    expect(ctx.codex.replies).toBe(1);
   });
 });

@@ -1230,6 +1230,7 @@ export class GatewayService {
     } else if (
       !('decision' in resolution) ||
       'content' in resolution ||
+      'persist' in resolution ||
       !action.options.some((option) => option.id === resolution.decision)
     )
       throw new AppError('VALIDATION_ERROR', '请选择上游提供的合法选项');

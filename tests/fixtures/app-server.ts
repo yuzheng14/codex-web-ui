@@ -63,12 +63,16 @@ export interface SimulatorOptions {
     | 'elicitation-form'
     | 'elicitation-choice'
     | 'elicitation-confirm'
+    | 'elicitation-approval'
+    | 'elicitation-session'
+    | 'elicitation-session-array'
     | 'elicitation-url'
     | 'elicitation-openai'
     | 'elicitation-openai-form'
     | 'elicitation-malformed';
   permissions?: RequestPermissionProfile;
   elicitationSchema?: unknown;
+  elicitationMeta?: JsonValue;
   elicitationTurnId?: null;
   malformed?: boolean;
   hugeLineBytes?: number;
@@ -1255,12 +1259,34 @@ function approval(
       threadId: thread.id,
       turnId: options.elicitationTurnId === null ? null : turn.id,
       serverName: '截图发布服务',
-      _meta: null,
-      message: '请确认截图发布设置，只有提交后任务才会继续。',
+      _meta:
+        options.elicitationMeta ??
+        (['elicitation-approval', 'elicitation-session', 'elicitation-session-array'].includes(kind)
+          ? {
+              codex_approval_kind: 'mcp_tool_call',
+              ...(kind === 'elicitation-session'
+                ? { persist: 'session' }
+                : kind === 'elicitation-session-array'
+                  ? { persist: ['always', 'session'] }
+                  : {}),
+            }
+          : null),
+      message: [
+        'elicitation-approval',
+        'elicitation-session',
+        'elicitation-session-array',
+      ].includes(kind)
+        ? '允许截图发布服务调用上传附件工具，将本次截图贴到 GitHub PR 评论？'
+        : '请确认截图发布设置，只有提交后任务才会继续。',
     };
-    const schema =
-      options.elicitationSchema ??
-      (kind === 'elicitation-confirm'
+    const schema = Object.hasOwn(options, 'elicitationSchema')
+      ? options.elicitationSchema
+      : [
+            'elicitation-confirm',
+            'elicitation-approval',
+            'elicitation-session',
+            'elicitation-session-array',
+          ].includes(kind)
         ? { type: 'object', properties: {} }
         : kind === 'elicitation-choice'
           ? {
@@ -1300,7 +1326,7 @@ function approval(
                   note: { type: 'string', title: '备注' },
                 },
                 required: ['project', 'retries', 'rating', 'notify', 'environment', 'channels'],
-              });
+              };
     request = {
       id,
       method: 'mcpServer/elicitation/request',
@@ -2010,6 +2036,9 @@ function receive(request: ClientRequest): void {
         'elicitation-form',
         'elicitation-choice',
         'elicitation-confirm',
+        'elicitation-approval',
+        'elicitation-session',
+        'elicitation-session-array',
         'elicitation-url',
         'elicitation-openai',
         'elicitation-openai-form',

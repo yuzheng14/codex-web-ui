@@ -1303,11 +1303,21 @@ export class CodexAdapter implements CodexClient {
       };
     } else if (request.method === 'mcpServer/elicitation/request') {
       action.kind = 'elicitation';
-      action.title = `MCP 交互：${request.params.serverName}`;
       action.reason = request.params.message;
       action.elicitation = normalizeElicitationRequest(params);
+      action.title = `${action.elicitation.approval ? 'MCP 工具审批' : 'MCP 交互'}：${request.params.serverName}`;
       action.options = [
-        { id: 'accept', label: action.elicitation.mode === 'url' ? '已完成，继续' : '提交' },
+        {
+          id: 'accept',
+          label: action.elicitation.approval
+            ? '允许本次'
+            : action.elicitation.mode === 'url'
+              ? '已完成，继续'
+              : '提交',
+        },
+        ...(action.elicitation.approval?.allowSession
+          ? [{ id: 'acceptSession', label: '本会话允许' }]
+          : []),
         { id: 'decline', label: '拒绝' },
         { id: 'cancel', label: '取消' },
       ];
@@ -1371,7 +1381,10 @@ export class CodexAdapter implements CodexClient {
       response = {
         action: (resolution as { decision: 'accept' | 'decline' | 'cancel' }).decision,
         content,
-        _meta: null,
+        _meta:
+          'decision' in resolution && resolution.persist === 'session'
+            ? { persist: 'session' }
+            : null,
       };
     } else if (context.request.method === 'item/tool/requestUserInput') {
       if (!('answers' in resolution))
@@ -1402,6 +1415,7 @@ export class CodexAdapter implements CodexClient {
       if (
         !('decision' in resolution) ||
         'content' in resolution ||
+        'persist' in resolution ||
         !context.decisions.has(resolution.decision)
       )
         throw new AppError('VALIDATION_ERROR', '此请求不支持所提交的决定');
