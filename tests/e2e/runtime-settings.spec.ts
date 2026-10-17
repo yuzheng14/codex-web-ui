@@ -282,7 +282,7 @@ test('restored saved settings stay distinct from edits until the next task confi
   await expect(page.locator('.settings-pending')).toHaveCount(0);
 });
 
-test('controls stay grouped on desktop and narrow screens, with distinct effort gauges', async ({
+test('controls stay on one row on desktop and narrow screens, with distinct effort gauges', async ({
   page,
   request,
 }) => {
@@ -306,7 +306,7 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
     'data-value',
     'private-model-with-a-very-long-provider-and-version-name',
   );
-  for (const width of [1280, 390, 320]) {
+  for (const width of [1280, 1000, 900, 760, 600, 430, 390, 375, 320]) {
     await page.setViewportSize({ width, height: 844 });
     const elements = [
       page.locator('.composer-target'),
@@ -319,16 +319,10 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
     ];
     const boxes = await Promise.all(elements.map((element) => element.boundingBox()));
     expect(boxes[elements.indexOf(model)]!.width).toBeGreaterThanOrEqual(50);
-    const groups = width === 1280 ? [boxes] : [boxes.slice(0, 3), boxes.slice(3)];
-    for (const group of groups) {
-      const centers = group.map((box) => box!.y + box!.height / 2);
-      expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
-      for (let index = 1; index < group.length; index++)
-        expect(group[index]!.x).toBeGreaterThanOrEqual(
-          group[index - 1]!.x + group[index - 1]!.width,
-        );
-    }
-    if (width !== 1280) expect(boxes[0]!.y + boxes[0]!.height).toBeLessThanOrEqual(boxes[3]!.y);
+    const centers = boxes.map((box) => box!.y + box!.height / 2);
+    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
+    for (let index = 1; index < boxes.length; index++)
+      expect(boxes[index]!.x).toBeGreaterThanOrEqual(boxes[index - 1]!.x + boxes[index - 1]!.width);
     expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -355,7 +349,7 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
     .fill('[approval] 检查运行中的发送栏');
   await send.click();
   await expect(page.locator('.action-card')).toBeVisible();
-  for (const width of [390, 320]) {
+  for (const width of [1280, 1000, 900, 760, 600, 430, 390, 375, 320]) {
     await page.setViewportSize({ width, height: 844 });
     const elements = [
       page.locator('.composer-target'),
@@ -369,15 +363,10 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
     ];
     const boxes = await Promise.all(elements.map((element) => element.boundingBox()));
     expect(boxes[elements.indexOf(model)]!.width).toBeGreaterThanOrEqual(50);
-    for (const group of [boxes.slice(0, 3), boxes.slice(3)]) {
-      const centers = group.map((box) => box!.y + box!.height / 2);
-      expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
-      for (let index = 1; index < group.length; index++)
-        expect(group[index]!.x).toBeGreaterThanOrEqual(
-          group[index - 1]!.x + group[index - 1]!.width,
-        );
-    }
-    expect(boxes[0]!.y + boxes[0]!.height).toBeLessThanOrEqual(boxes[3]!.y);
+    const centers = boxes.map((box) => box!.y + box!.height / 2);
+    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
+    for (let index = 1; index < boxes.length; index++)
+      expect(boxes[index]!.x).toBeGreaterThanOrEqual(boxes[index - 1]!.x + boxes[index - 1]!.width);
     expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     await page
       .locator('.composer-box')

@@ -2200,14 +2200,6 @@ svg {
 @container (max-width: 700px) {
   .composer-actions {
     gap: 8px;
-    flex-wrap: wrap;
-  }
-  .composer-context,
-  .composer-send-controls {
-    flex: 1 1 100%;
-  }
-  .settings-model {
-    margin-right: auto;
   }
   .composer-action-label {
     display: none;
@@ -2218,9 +2210,9 @@ svg {
     padding: 0;
   }
 }
-@container (max-width: 430px) {
+@container (max-width: 600px) {
   .composer-actions {
-    column-gap: 4px;
+    gap: 4px;
   }
   .settings-policy > span,
   .settings-policy > svg:last-child {
@@ -2244,6 +2236,8 @@ svg {
     gap: 3px;
   }
   .settings-model {
+    flex-basis: auto;
+    width: clamp(50px, 22cqw, 160px);
     gap: 3px;
     padding: 6px 5px;
   }
@@ -2265,6 +2259,17 @@ svg {
   .settings-fields {
     grid-template-columns: minmax(0, 1fr);
     padding: 12px;
+  }
+}
+@container (max-width: 330px) {
+  .composer-target {
+    flex: 0 0 auto;
+  }
+  .composer-target > span {
+    display: none;
+  }
+  .settings-model {
+    width: 60px;
   }
 }
 .pending-actions {
