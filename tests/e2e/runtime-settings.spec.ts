@@ -42,15 +42,12 @@ test('direct selectors show reported settings, keep proposals distinct and follo
   await expect(effort).toHaveAttribute('data-value', 'high');
   await page.reload();
   await expect(effort).toHaveAttribute('data-value', 'high');
-  await page.getByRole('button', { name: '权限与审批设置' }).click();
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+  await page.getByRole('button', { name: '权限详情' }).click();
+  await expect(page.getByRole('combobox', { name: '权限模式', exact: true })).toHaveAttribute(
     'data-value',
     'read-only',
   );
-  await expect(page.getByRole('combobox', { name: '审批策略', exact: true })).toHaveAttribute(
-    'data-value',
-    'on-request',
-  );
+  await expect(page.locator('.permission-values')).toContainText('由 Codex 请求审批');
   await expect(page.locator('.settings-observed')).toContainText('当前网络权限：受限');
   await expect(page.locator('.settings-panel')).not.toContainText('继承');
   await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-advanced.png' });
@@ -65,7 +62,7 @@ test('direct selectors show reported settings, keep proposals distinct and follo
     fullPage: true,
     animations: 'disabled',
   });
-  await page.getByRole('button', { name: '权限与审批设置' }).click();
+  await page.getByRole('button', { name: '权限详情' }).click();
   await page.screenshot({ path: '/tmp/codex-toolbar-mobile-collapsed.png', fullPage: true });
 });
 
@@ -149,15 +146,12 @@ test('retries unavailable defaults and preserves unknown or custom values withou
   await expect(effort).toHaveAccessibleDescription('推理强度：未报告');
   await expect(effort).toBeDisabled();
   await expect(page.locator('.reasoning-gauge text')).toHaveText('?');
-  await page.getByRole('button', { name: '权限与审批设置' }).click();
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+  await page.getByRole('button', { name: '权限详情' }).click();
+  await expect(page.getByRole('combobox', { name: '权限模式', exact: true })).toHaveAttribute(
     'data-value',
-    'external-sandbox',
+    'custom',
   );
-  await expect(page.getByRole('combobox', { name: '审批策略', exact: true })).toHaveAttribute(
-    'data-value',
-    'granular',
-  );
+  await expect(page.locator('.permission-values')).toContainText('自定义审批规则');
   await expect(page.locator('.settings-observed')).toContainText('当前网络权限：允许');
   await expect(page.locator('.settings-pending')).toHaveCount(0);
 });
@@ -217,18 +211,15 @@ test('idle history reports complete permissions immediately after resume', async
   }, id);
   await page.goto('/');
   await confirmCompatibility(page);
-  const policy = page.getByRole('button', { name: '权限与审批设置' });
-  await expect(policy).toContainText('按需审批');
-  await policy.click();
+  const policy = page.getByRole('combobox', { name: '权限模式', exact: true });
+  await expect(policy).toContainText('只读');
+  await page.getByRole('button', { name: '权限详情', exact: true }).click();
   await expect(page.locator('.settings-heading')).toContainText('会话当前配置');
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('combobox', { name: '权限模式', exact: true })).toHaveAttribute(
     'data-value',
     'read-only',
   );
-  await expect(page.getByRole('combobox', { name: '审批策略', exact: true })).toHaveAttribute(
-    'data-value',
-    'on-request',
-  );
+  await expect(page.locator('.permission-values')).toContainText('由 Codex 请求审批');
   await expect(page.locator('.settings-observed')).toContainText('当前网络权限：受限');
   await expect(page.locator('.settings-observed')).toContainText('审批执行方：user');
   await expect(page.locator('.settings-panel')).not.toContainText('未报告');
@@ -250,9 +241,9 @@ test('restored saved settings stay distinct from edits until the next task confi
   await expect(notice).toContainText('此会话正被其他进程使用');
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
   await expect(effort).toHaveAttribute('data-value', 'medium');
-  await page.getByRole('button', { name: '权限与审批设置' }).click();
+  await page.getByRole('button', { name: '权限详情' }).click();
   // An occupied history has not resumed, so its saved model does not imply known permissions.
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toContainText(
+  await expect(page.getByRole('combobox', { name: '权限模式', exact: true })).toContainText(
     '未报告',
   );
   await expect(page.locator('.settings-heading')).toContainText('会话保存配置');
@@ -269,7 +260,7 @@ test('restored saved settings stay distinct from edits until the next task confi
     '下次任务生效 · 当前 simulated-model / medium',
   );
   await expect(effort).toHaveAttribute('data-value', 'high');
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('combobox', { name: '权限模式', exact: true })).toHaveAttribute(
     'data-value',
     'read-only',
   );
@@ -297,7 +288,7 @@ test('one-row controls stay grouped on desktop and narrow screens, with distinct
   await page.goto('/');
   await confirmCompatibility(page);
   const row = page.locator('.composer-actions');
-  const policy = row.getByRole('button', { name: '权限与审批设置', exact: true });
+  const policy = row.getByRole('combobox', { name: '权限模式', exact: true });
   const model = row.getByRole('combobox', { name: '模型', exact: true });
   const effort = row.getByRole('combobox', { name: '推理强度', exact: true });
   const send = row.getByRole('button', { name: '发送任务', exact: true });

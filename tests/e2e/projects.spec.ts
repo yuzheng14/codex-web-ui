@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import type { Operation, ServerMessage, ThreadPage, ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, projectGroup } from './helpers';
+import { confirmCompatibility, controlRuntime, projectGroup, testOrigin } from './helpers';
 
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
 const first = 'fixture';
 const second = 'fixture-other';
 const row = (page: Page, id: string) => page.locator(`[data-thread-id="${id}"]`);
@@ -240,30 +240,29 @@ test('project overview drafts and execution settings remain independent before a
   await open(page);
   const input = page.getByRole('textbox', { name: '任务内容', exact: true });
   await input.fill('项目 A 概览草稿');
-  await page.getByRole('button', { name: '权限与审批设置', exact: true }).click();
-  await chooseSetting(page, '权限范围', '项目内写入');
+  await chooseSetting(page, '权限模式', '请求批准');
   await projectGroup(page, '另一个项目')
     .getByRole('button', { name: '另一个项目', exact: true })
     .click();
   await expect(input).toHaveValue('');
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('combobox', { name: '权限模式', exact: true })).toHaveAttribute(
     'data-value',
-    'read-only',
+    '',
   );
   await input.fill('项目 B 概览草稿');
-  await chooseSetting(page, '权限范围', '项目内写入');
+  await chooseSetting(page, '权限模式', '请求批准');
   await projectGroup(page).getByRole('button', { name: '测试项目', exact: true }).click();
   await expect(input).toHaveValue('项目 A 概览草稿');
-  await expect(page.getByRole('combobox', { name: '权限范围', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('combobox', { name: '权限模式', exact: true })).toHaveAttribute(
     'data-value',
-    'workspace-write',
+    'ask',
   );
   const creation = page.waitForRequest(
     (request) =>
       request.method() === 'POST' && request.url().endsWith('/api/projects/fixture-other/threads'),
   );
   await createInPage(page, second, '另一个项目');
-  expect((await creation).postDataJSON().settings).toEqual({ sandbox: 'workspace-write' });
+  expect((await creation).postDataJSON().settings).toEqual({ permissionMode: 'ask' });
   await expect(input).toHaveValue('');
 });
 

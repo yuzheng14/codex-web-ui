@@ -3,28 +3,12 @@ import type { ModelInfo, Settings, ThreadView } from '../../shared/types';
 import { useRuntimeDefaults } from '../hooks/useRuntimeDefaults';
 import { chooseModel, pendingSettings } from '../lib/settings';
 import { Icon } from './Icon';
+import { PermissionDetails, PermissionModeSelect } from './PermissionModeSelect';
+import { permissionModes } from '../../shared/permissions';
+import { permissionLabel } from '../lib/settings';
 import { ReasoningGauge } from './ReasoningGauge';
 import { ControlHint } from './ControlHint';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-
-const sandboxLabels: Record<string, string> = {
-  'read-only': '只读',
-  'workspace-write': '项目内写入',
-  'danger-full-access': '完全访问',
-  'external-sandbox': '外部沙箱',
-};
-const approvalLabels: Record<string, string> = {
-  untrusted: '不可信操作需审批',
-  'on-request': '由 Codex 请求审批',
-  never: '不请求审批',
-  granular: '自定义审批规则',
-};
-const approvalShortLabels: Record<string, string> = {
-  untrusted: '操作审批',
-  'on-request': '按需审批',
-  never: '无需审批',
-  granular: '自定义审批',
-};
 
 export function SettingsPanel({
   settings,
@@ -52,26 +36,36 @@ export function SettingsPanel({
   const [expanded, setExpanded] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [effortMenuOpen, setEffortMenuOpen] = useState(false);
-  const [permissionMenu, setPermissionMenu] = useState<'sandbox' | 'approval' | null>(null);
   const advancedId = useId();
   const effortHintId = useId();
   useEffect(() => {
     setModelMenuOpen(false);
     setEffortMenuOpen(false);
-    setPermissionMenu(null);
   }, [disabled, thread?.id, projectId]);
-  const defaults = useRuntimeDefaults(thread || threadLoading ? undefined : projectId, runtimeKey);
+  useEffect(() => setExpanded(false), [thread?.id, projectId]);
+  const defaults = useRuntimeDefaults(
+    thread?.managed || threadLoading ? undefined : projectId,
+    runtimeKey,
+  );
   const current = thread ? thread.runtimeSettings : defaults.value;
+  // A saved/occupied thread has no effective permission query. Defaults supply availability
+  // for a future fork only; never use their permission values as the thread's actual state.
+  const permissions =
+    current?.permissionCapabilities || thread?.managed
+      ? current
+      : {
+          ...current,
+          model: current?.model ?? null,
+          reasoningEffort: current?.reasoningEffort ?? null,
+          permissionCapabilities: defaults.value?.permissionCapabilities,
+        };
   const unknown = threadLoading || (defaults.loading && !thread) ? '读取中…' : '未报告';
   const model = settings.model ?? current?.model ?? '';
   const effort = settings.reasoningEffort ?? current?.reasoningEffort ?? '';
-  const sandbox = settings.sandbox ?? current?.sandbox ?? '';
-  const approval = settings.approvalPolicy ?? current?.approvalPolicy ?? '';
   const selectedModel = models.find((entry) => entry.id === model);
   const changes = pendingSettings(settings, current);
   const pending = Object.keys(changes).length > 0;
   const source = thread ? (thread.managed ? '会话当前配置' : '会话保存配置') : '新会话默认配置';
-  const policyLabel = approvalShortLabels[approval] ?? `审批${unknown}`;
   function update(key: keyof Settings, value: string) {
     onChange(pendingSettings({ ...settings, [key]: value }, current));
   }
@@ -86,6 +80,8 @@ export function SettingsPanel({
                 ? '下次任务生效'
                 : '恢复后发送或 Fork 时生效'}{' '}
             · 当前 {current?.model ?? '未报告'} / {current?.reasoningEffort ?? '未报告'}
+            {changes.permissionMode &&
+              ` · 权限待生效：${permissionModes[changes.permissionMode].label}；当前：${permissionLabel(current)}`}
           </span>
           <button type="button" disabled={disabled} onClick={() => onChange({})}>
             撤销修改
@@ -102,76 +98,13 @@ export function SettingsPanel({
       )}
       {expanded && (
         <div className="settings-fields" id={advancedId}>
-          <div className="settings-heading">
-            <strong>运行设置</strong>
-            <span>{source}</span>
-          </div>
-          <label>
-            权限范围
-            <Select
-              value={sandbox}
-              disabled={disabled}
-              open={permissionMenu === 'sandbox'}
-              onOpenChange={(open) => setPermissionMenu(open ? 'sandbox' : null)}
-              onValueChange={(value) => update('sandbox', value)}
-            >
-              <SelectTrigger aria-label="权限范围" data-value={sandbox}>
-                <SelectValue placeholder={unknown}>{sandboxLabels[sandbox] ?? unknown}</SelectValue>
-              </SelectTrigger>
-              <SelectContent aria-label="权限范围">
-                {sandbox === 'external-sandbox' && (
-                  <SelectItem value={sandbox} disabled>
-                    {sandboxLabels[sandbox]}
-                  </SelectItem>
-                )}
-                {['read-only', 'workspace-write', 'danger-full-access'].map((entry) => (
-                  <SelectItem key={entry} value={entry}>
-                    {sandboxLabels[entry]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-          <label>
-            审批策略
-            <Select
-              value={approval}
-              disabled={disabled}
-              open={permissionMenu === 'approval'}
-              onOpenChange={(open) => setPermissionMenu(open ? 'approval' : null)}
-              onValueChange={(value) => update('approvalPolicy', value)}
-            >
-              <SelectTrigger aria-label="审批策略" data-value={approval}>
-                <SelectValue placeholder={unknown}>
-                  {approvalLabels[approval] ?? unknown}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent aria-label="审批策略">
-                {approval === 'granular' && (
-                  <SelectItem value={approval} disabled>
-                    {approvalLabels[approval]}
-                  </SelectItem>
-                )}
-                {['untrusted', 'on-request', 'never'].map((entry) => (
-                  <SelectItem key={entry} value={entry}>
-                    {approvalLabels[entry]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-          <p className="settings-observed">
-            当前网络权限：
-            {current?.networkAccess == null ? '未报告' : current.networkAccess ? '允许' : '受限'}
-            <span>审批执行方：{current?.approvalReviewer ?? '未报告'}</span>
-          </p>
-          <p className="settings-note">
-            {thread && !thread.managed ? '恢复后更新完整配置。' : ''}修改仅用于此
-            {thread ? '会话的后续操作' : '项目的新会话'}，不更改全局配置。
-            {pending &&
-              ` 当前权限：${sandboxLabels[current?.sandbox ?? ''] ?? '未报告'}；审批：${approvalLabels[current?.approvalPolicy ?? ''] ?? '未报告'}。`}
-            {settings.sandbox === 'danger-full-access' && '完全访问允许在沙箱外执行操作。'}
-          </p>
+          <PermissionDetails
+            current={permissions}
+            source={source}
+            settings={changes}
+            thread={Boolean(thread)}
+            unknown={unknown}
+          />
         </div>
       )}
       <div className="composer-actions">
@@ -180,18 +113,24 @@ export function SettingsPanel({
             <Icon name="folder" size={14} />
             <span>{projectName ?? '未选择项目'}</span>
           </span>
+          <PermissionModeSelect
+            settings={changes}
+            current={permissions}
+            unknown={unknown}
+            disabled={disabled || Boolean(threadLoading)}
+            scope={`${projectId}:${thread?.id ?? ''}:${runtimeKey}`}
+            onChange={onChange}
+          />
           <button
-            className="settings-policy"
+            className="settings-details-toggle"
             type="button"
-            aria-label="权限与审批设置"
-            title={`审批策略：${approvalLabels[approval] ?? unknown}；权限范围：${sandboxLabels[sandbox] ?? unknown}`}
+            aria-label="权限详情"
+            title="权限详情"
             aria-expanded={expanded}
             aria-controls={advancedId}
             onClick={() => setExpanded(!expanded)}
           >
-            <Icon name="shield" size={16} />
-            <span>{policyLabel}</span>
-            <Icon name="down" size={11} />
+            <Icon name="settings" size={14} />
           </button>
         </div>
         <div className="composer-send-controls">
