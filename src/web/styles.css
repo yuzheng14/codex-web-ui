@@ -2195,7 +2195,7 @@ svg {
   min-width: 0;
   max-width: 100%;
 }
-@container (max-width: 600px) {
+@container (max-width: 700px) {
   .composer-actions {
     gap: 8px;
     flex-wrap: wrap;

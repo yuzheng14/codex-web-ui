@@ -60,18 +60,25 @@ test('switching model names preserves layout and active controls fit on a narrow
   expect(await model.boundingBox()).toEqual(shortBox);
   expect(await page.locator('.composer-target').boundingBox()).toEqual(projectBox);
 
-  await page.setViewportSize({ width: 320, height: 900 });
   await page
     .getByRole('textbox', { name: '任务内容', exact: true })
     .fill('[approval] 验证运行状态布局');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
   await expect(page.locator('.action-card')).toBeVisible();
   const composer = page.locator('.composer-box');
-  let previousRight = 0;
-  for (const child of await page.locator('.composer-send-controls > *').all()) {
-    const box = await expectInside(child, composer);
-    expect(box.x).toBeGreaterThanOrEqual(previousRight);
-    previousRight = box.x + box.width;
+  for (const width of [1280, 1000, 960, 940, 900, 760, 430, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const group of ['.composer-context', '.composer-send-controls']) {
+      let previousRight = 0;
+      for (const child of await page.locator(`${group} > *`).all()) {
+        const box = await expectInside(child, composer);
+        expect(box.x).toBeGreaterThanOrEqual(previousRight);
+        previousRight = box.x + box.width;
+      }
+    }
+    expect((await page.locator('.composer-target > span').boundingBox())!.width).toBeGreaterThan(
+      30,
+    );
   }
   await expect(page.locator('.composer-target > span')).toBeVisible();
   await expect(page.getByRole('button', { name: '追加要求', exact: true })).toBeVisible();
