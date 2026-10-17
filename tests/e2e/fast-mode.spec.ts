@@ -77,10 +77,18 @@ test('enables and disables Fast with server confirmation, refresh and per-sessio
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    await page.screenshot({ path: `/tmp/codex-fast-mobile-${width}.png`, fullPage: true });
+    await page.screenshot({
+      path: `/tmp/codex-fast-mobile-${width}.png`,
+      fullPage: true,
+      animations: 'disabled',
+    });
   }
   await speed(page).click();
-  await page.screenshot({ path: '/tmp/codex-fast-mobile-menu.png', fullPage: true });
+  await page.screenshot({
+    path: '/tmp/codex-fast-mobile-menu.png',
+    fullPage: true,
+    animations: 'disabled',
+  });
   await page.keyboard.press('Escape');
 });
 

@@ -364,6 +364,9 @@ for (const viewport of [
       await details.press('Tab');
       await expect(model).toBeFocused();
       await model.press('Tab');
+      const speed = page.getByRole('combobox', { name: '速度模式', exact: true });
+      await expect(speed).toBeFocused();
+      await speed.press('Tab');
       await expect(effort).toBeFocused();
       await effort.press('Tab');
       await expect(sendButton(page)).toBeFocused();

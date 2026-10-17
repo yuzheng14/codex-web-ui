@@ -79,7 +79,7 @@
 | 设置折叠后不易发现，展开表单占空间 | P1：项目/审批、模型/速度/推理/发送融合到发送栏；权限模式入口旁可展开只读详情 | 四个选择器使用可键盘操作的 shadcn Select，详情不再提供独立权限/审批选择 |
 | 手动选择容易被误认作已经生效       | P0：待生效提示、当前值、撤销；服务器确认后清除                          | 运行中禁用，恢复保留值时继续提示                                        |
 | 同项目不同会话共享选择             | P0：会话草稿隔离；模型/强度显式保存为 Codex 默认值                      | 权限草稿继续按项目、会话隔离；不自动覆盖已有会话                        |
-| 移动端高级表单挤占阅读区           | P1：默认折叠，常用控件在窄屏缩成图标保持单行，高级字段单列              | 复杂文件权限编辑器不在本次范围                                          |
+| 移动端高级表单挤占阅读区           | P1：默认折叠，窄屏将权限和模型/速度操作分成两行，高级字段单列              | 复杂文件权限编辑器不在本次范围                                          |
 
 实现入口：`src/codex/adapter.ts` / `mapping.ts`（RPC 映射）、`src/server/service.ts` / `projection.ts`（同步）、`src/web/hooks/useWorkspace.ts` / `useRuntimeDefaults.ts`（草稿与默认值）、`src/web/components/SettingsPanel.tsx`（展示）。
 
@@ -89,6 +89,6 @@
 
 仅提交用户改动：开启传 `serviceTier: "fast"`，关闭传 `serviceTier: null`，未修改则省略字段。该字段用于 `thread/start`、`thread/resume`、`thread/fork` 和 `turn/start`；不使用仅对单轮有效的 `serviceTierForTurn`。选择后先显示待生效提示，服务器响应或 `thread/settings/updated` 确认后才清除；执行期间禁止修改，草稿随现有设置按项目和会话隔离，可撤销。
 
-2026-10-17 用本机真实 Codex 0.162.1 做无推理核验：`thread/start` 的 `fast` 请求返回 `priority`，显式 `null` 请求返回 `default`。适配层将 `priority` / `fast` 统一为开启、`default` / `null` 统一为关闭，保留其他档位和缺失字段的区别。`config/read.service_tier` 用于新会话默认值；已保存的 `Thread` 元数据没有服务档位，恢复前显示未报告。恢复、新建和 Fork 的响应及实时配置通知提供已确认状态；网关实例重置清除旧的服务档位，元数据读取不会覆盖本实例已确认的值。
+2026-10-17 用本机真实 Codex 0.162.1 做无推理核验：`thread/start` 的 `fast` 请求返回 `priority`，显式 `null` 请求返回 `default`；通过子进程 `-c service_tier="fast"` 临时设为默认开启后，`null` 仍返回 `default`，没有改动全局配置。适配层将 `priority` / `fast` 统一为开启、`default` / `null` 统一为关闭，保留其他档位和缺失字段的区别。`config/read.service_tier` 用于新会话默认值；已保存的 `Thread` 元数据没有服务档位，恢复前显示未报告。恢复、新建和 Fork 的响应及实时配置通知提供已确认状态；网关实例重置清除旧的服务档位，元数据读取不会覆盖本实例已确认的值。
 
 官方行为依据：[OpenAI Docs：Speed](https://learn.chatgpt.com/docs/agent-configuration/speed)。这次仅增加 UI 入口，不新增 `/fast` Slash Command。
