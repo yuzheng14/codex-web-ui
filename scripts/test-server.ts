@@ -144,14 +144,8 @@ const config = parseConfig(
 config.demo = true;
 const codex = new ControlledFixture(
   new CodexAdapter({
-    binary: process.execPath,
-    args: [
-      '--import',
-      'tsx',
-      resolve('tests/fixtures/app-server.ts'),
-      '--options',
-      JSON.stringify({ fragmentBytes: 7, turnDelayMs: 800, titleDelayMs: 1500 }),
-    ],
+    binary: resolve('tests/fixtures/codex.mjs'),
+    args: ['--options', JSON.stringify({ fragmentBytes: 7, turnDelayMs: 800, titleDelayMs: 1500 })],
   }),
 );
 const runtime = await startGateway(config, { codex, staticDir: resolve('dist/web') });

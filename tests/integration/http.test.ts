@@ -838,12 +838,15 @@ it('returns only displayable runtime defaults for registered projects and reject
   const { origin } = await setup();
   const response = await fetch(`${origin}/api/projects/test/runtime-settings`);
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({
+  const body = await response.json();
+  expect(body).toMatchObject({
     model: 'simulated-model',
     reasoningEffort: 'medium',
     sandbox: 'read-only',
     approvalPolicy: 'on-request',
     approvalReviewer: 'user',
   });
+  expect(body).not.toHaveProperty('api_key');
+  expect(body).not.toHaveProperty('developer_instructions');
   expect((await fetch(`${origin}/api/projects/unknown/runtime-settings`)).status).toBe(404);
 });

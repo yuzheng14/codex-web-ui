@@ -21,8 +21,16 @@ import type { RequestPermissionProfile } from '../../src/codex/generated/v2/Requ
 import type { McpElicitationSchema } from '../../src/codex/generated/v2/McpElicitationSchema.js';
 import type { JsonValue } from '../../src/codex/generated/serde_json/JsonValue.js';
 import type { GuardianApprovalReviewStatus } from '../../src/codex/generated/v2/GuardianApprovalReviewStatus.js';
+import type { PermissionRequirements, PermissionSelection } from '../../src/codex/permissions.js';
+import type { ActivePermissionProfile } from '../../src/codex/generated/v2/ActivePermissionProfile.js';
 
 export interface SimulatorOptions {
+  configOverrides?: Record<string, JsonValue>;
+  requirements?: Partial<PermissionRequirements> | null;
+  guardianApproval?: boolean;
+  rejectPermissions?: boolean;
+  ignorePermissions?: boolean;
+  settingsOnFeatureRead?: boolean;
   configModel?: string | null;
   configEffort?: ReasoningEffort | null;
   fragmentBytes?: number;
@@ -92,6 +100,7 @@ const policies = new Map<
   string,
   Pick<ThreadStartResponse, 'sandbox' | 'approvalPolicy' | 'approvalsReviewer'>
 >();
+const profiles = new Map<string, ActivePermissionProfile>();
 const finishes = new Map<string, NodeJS.Timeout>();
 type ServerReply = { id: RequestId; result?: unknown; error?: unknown };
 const callbacks = new Map<RequestId, (response: ServerReply) => void>();
@@ -177,26 +186,48 @@ function startResponse(
     instructionSources: [],
     ...policy(thread),
     reasoningEffort: thread.reasoningEffort,
-    ...(options.activePermissionProfile
-      ? {
-          activePermissionProfile: {
-            id: thread.ephemeral
-              ? (options.temporaryPermissionProfile ?? options.activePermissionProfile)
-              : options.activePermissionProfile,
-          },
-        }
-      : {}),
+    ...(thread.ephemeral && options.temporaryPermissionProfile
+      ? { activePermissionProfile: { id: options.temporaryPermissionProfile, extends: null } }
+      : profiles.has(thread.id)
+        ? { activePermissionProfile: profiles.get(thread.id) }
+        : options.activePermissionProfile
+          ? {
+              activePermissionProfile: {
+                id: thread.ephemeral
+                  ? (options.temporaryPermissionProfile ?? options.activePermissionProfile)
+                  : options.activePermissionProfile,
+                extends: null,
+              },
+            }
+          : { activePermissionProfile: { id: ':read-only', extends: null } }),
   };
 }
 function applySettings(
   thread: Thread,
-  settings: Pick<ThreadStartParams, 'model' | 'config' | 'sandbox' | 'approvalPolicy'>,
+  settings: Pick<
+    ThreadStartParams,
+    'model' | 'config' | 'sandbox' | 'approvalPolicy' | 'approvalsReviewer'
+  > &
+    PermissionSelection,
 ) {
   if (settings.model) thread.model = settings.model;
   const effort = settings.config?.model_reasoning_effort;
   if (typeof effort === 'string') thread.reasoningEffort = effort as ReasoningEffort;
   const current = policy(thread);
+  if (settings.permissions && !options.ignorePermissions) {
+    profiles.set(thread.id, { id: settings.permissions, extends: null });
+    settings = {
+      ...settings,
+      sandbox:
+        settings.permissions === ':workspace'
+          ? 'workspace-write'
+          : settings.permissions === ':danger-full-access'
+            ? 'danger-full-access'
+            : 'read-only',
+    };
+  }
   if (settings.approvalPolicy) current.approvalPolicy = settings.approvalPolicy;
+  if (settings.approvalsReviewer) current.approvalsReviewer = settings.approvalsReviewer;
   if (settings.sandbox)
     current.sandbox =
       settings.sandbox === 'danger-full-access'
@@ -223,7 +254,10 @@ function notifySettings(thread: Thread) {
         approvalPolicy: policy(thread).approvalPolicy,
         approvalsReviewer: policy(thread).approvalsReviewer,
         sandboxPolicy: policy(thread).sandbox,
-        activePermissionProfile: null,
+        activePermissionProfile: profiles.get(thread.id) ?? {
+          id: options.activePermissionProfile ?? ':read-only',
+          extends: null,
+        },
         model: thread.model!,
         modelProvider: thread.modelProvider,
         serviceTier: null,
@@ -1251,9 +1285,33 @@ function receive(request: ClientRequest): void {
           approvals_reviewer: 'user',
           developer_instructions: 'private instructions',
           api_key: 'private-test-key',
+          ...options.configOverrides,
         },
         origins: {},
         layers: null,
+      });
+      break;
+    case 'configRequirements/read':
+      reply(request.id, { requirements: options.requirements ?? null });
+      break;
+    case 'experimentalFeature/list':
+      if (options.settingsOnFeatureRead && request.params.threadId) {
+        const thread = threads.get(request.params.threadId);
+        if (thread) notifySettings(thread);
+      }
+      reply(request.id, {
+        data: [
+          {
+            name: 'guardian_approval',
+            stage: 'stable',
+            enabled: options.guardianApproval !== false,
+            defaultEnabled: true,
+            displayName: null,
+            description: null,
+            announcement: null,
+          },
+        ],
+        nextCursor: null,
       });
       break;
     case 'model/list':
@@ -1267,6 +1325,10 @@ function receive(request: ClientRequest): void {
       });
       break;
     case 'thread/start': {
+      if (options.rejectPermissions && (request.params as PermissionSelection).permissions) {
+        error(request.id, 'Managed policy rejected permission selection');
+        break;
+      }
       const thread = makeThread(request.params.cwd ?? process.cwd());
       thread.ephemeral = request.params.ephemeral ?? false;
       thread.modelProvider = request.params.modelProvider ?? thread.modelProvider;
@@ -1401,6 +1463,9 @@ function receive(request: ClientRequest): void {
         name: source.name,
         turns: structuredClone(source.turns),
       };
+      policies.set(thread.id, structuredClone(policy(source)));
+      const inheritedProfile = profiles.get(source.id);
+      if (inheritedProfile) profiles.set(thread.id, structuredClone(inheritedProfile));
       for (const turn of thread.turns) {
         if (turn.status === 'inProgress') {
           turn.status = 'interrupted';
@@ -1612,8 +1677,17 @@ function receive(request: ClientRequest): void {
       if (request.params.model) thread.model = request.params.model;
       if (request.params.effort) thread.reasoningEffort = request.params.effort;
       const current = policy(thread);
+      const permissions = (request.params as PermissionSelection).permissions;
+      if (options.rejectPermissions && permissions) {
+        error(request.id, 'Managed policy rejected permission selection');
+        break;
+      }
+      if (permissions)
+        applySettings(thread, { permissions, approvalsReviewer: request.params.approvalsReviewer });
       if (request.params.sandboxPolicy) current.sandbox = request.params.sandboxPolicy;
       if (request.params.approvalPolicy) current.approvalPolicy = request.params.approvalPolicy;
+      if (request.params.approvalsReviewer)
+        current.approvalsReviewer = request.params.approvalsReviewer;
       policies.set(thread.id, current);
       notifySettings(thread);
       const input: ThreadItem = {
@@ -1780,7 +1854,11 @@ function receive(request: ClientRequest): void {
         );
       else if (reconnect) codexReconnect(thread, turn, reconnect);
       else if (prompt.includes('[codex-thinking]')) thinking(thread, turn);
-      else if (reviewStatus) autoReview(thread, turn, reviewStatus, prompt);
+      else if (prompt.includes('[mode-approval]') && policy(thread).approvalPolicy !== 'never') {
+        if (policy(thread).approvalsReviewer === 'auto_review')
+          autoReview(thread, turn, 'approved', prompt);
+        else approval(thread, turn, 'command');
+      } else if (reviewStatus) autoReview(thread, turn, reviewStatus, prompt);
       else if (kind) approval(thread, turn, kind);
       else if (
         prompt.includes('[local-images]') ||
