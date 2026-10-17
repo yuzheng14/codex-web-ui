@@ -497,8 +497,11 @@ export function useWorkspace() {
           if (project) void loadProjectThreads(project);
           if (
             known.navigateToResult &&
-            project === projectRef.current &&
-            (known.kind === 'create' || known.target === selectedRef.current)
+            (known.navigationSource?.projectId ?? project) === projectRef.current &&
+            (known.kind === 'create' ||
+              (known.navigationSource
+                ? (known.navigationSource.threadId ?? undefined)
+                : known.target) === selectedRef.current)
           ) {
             void selectThread(id, project);
           }
@@ -691,7 +694,21 @@ export function useWorkspace() {
           createdAt: Date.now(),
           status: 'accepted',
           ...(kind === 'fork' || kind === 'create'
-            ? { projectId: kind === 'create' ? target : projectRef.current, navigateToResult: true }
+            ? {
+                projectId:
+                  kind === 'create'
+                    ? target
+                    : (projectStore.current.findProject(target) ?? projectRef.current),
+                navigateToResult: true,
+                ...(kind === 'fork'
+                  ? {
+                      navigationSource: {
+                        projectId: projectRef.current,
+                        threadId: selectedRef.current ?? null,
+                      },
+                    }
+                  : {}),
+              }
             : {}),
         },
       ]);

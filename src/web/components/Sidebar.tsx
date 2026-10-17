@@ -12,6 +12,9 @@ interface Props {
   onArchiveView: (archived: boolean) => void;
   onArchive: (id: string, archived: boolean) => void;
   archiveDisabledReason: (thread: ThreadSummary) => string | undefined;
+  onFork: (thread: ThreadSummary) => void;
+  forkDisabledReason: (thread: ThreadSummary) => string | undefined;
+  forking: (id: string) => boolean;
   projects: Project[];
   projectsLoaded: boolean;
   projectId: string;
@@ -190,6 +193,9 @@ export function Sidebar(props: Props) {
                       offline={props.offline}
                       onArchive={() => props.onArchive(entry.id, !entry.archived)}
                       archiveDisabledReason={props.archiveDisabledReason(entry)}
+                      onFork={() => props.onFork(entry)}
+                      forkDisabledReason={props.forkDisabledReason(entry)}
+                      forking={props.forking(entry.id)}
                       onSelect={() => {
                         props.onThread(entry.id, project.id);
                         props.onClose();

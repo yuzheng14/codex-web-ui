@@ -1,9 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { LoaderCircle } from 'lucide-react';
 import type { RunStatus, ThreadSummary } from '../../shared/types';
 import { threadOrigin } from '../lib/thread-origin';
 import { formatTime, cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
+import { ControlHint } from './ControlHint';
 import { isActive, runStatusLabels, Status } from './Status';
 
 const statusIcons = {
@@ -59,6 +61,9 @@ export function ThreadLink({
   onSelect,
   onArchive,
   archiveDisabledReason,
+  onFork,
+  forkDisabledReason,
+  forking,
 }: {
   thread: ThreadSummary;
   selected: boolean;
@@ -67,9 +72,13 @@ export function ThreadLink({
   onSelect: () => void;
   onArchive: () => void;
   archiveDisabledReason?: string;
+  onFork: () => void;
+  forkDisabledReason?: string;
+  forking: boolean;
 }) {
   const tooltipId = useId();
   const detailsId = useId();
+  const forkHintId = useId();
   const detailsButton = useRef<HTMLButtonElement>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [tooltipDismissed, setTooltipDismissed] = useState(false);
@@ -151,6 +160,27 @@ export function ThreadLink({
         >
           <Icon name="info" size={15} />
         </Button>
+        <ControlHint
+          id={forkHintId}
+          className="thread-fork"
+          content={forkDisabledReason ?? 'Fork 会话：复制已保存的历史，新会话可与原会话同时执行。'}
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={forking ? '正在确认 Fork…' : 'Fork 会话'}
+            aria-describedby={forkHintId}
+            aria-busy={forking}
+            disabled={Boolean(forkDisabledReason)}
+            onClick={onFork}
+          >
+            {forking ? (
+              <LoaderCircle size={15} className="thread-status-spinning" />
+            ) : (
+              <Icon name="fork" size={15} />
+            )}
+          </Button>
+        </ControlHint>
         <span
           className="thread-archive"
           onMouseEnter={() => {

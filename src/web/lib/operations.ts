@@ -14,6 +14,8 @@ export interface SavedOperation {
   lookupError?: { message: string; missing: boolean };
   projectId?: string;
   navigateToResult?: boolean;
+  /** Navigation when Fork was clicked, which can differ from its source row and project. */
+  navigationSource?: { projectId: string; threadId: string | null };
 }
 
 export function operationLookupError(problem: unknown): NonNullable<SavedOperation['lookupError']> {
@@ -49,16 +51,36 @@ export function readOperations(storage?: Pick<Storage, 'getItem'>): SavedOperati
           typeof entry.kind === 'string' &&
           typeof entry.createdAt === 'number',
       )
-      .map(({ clientOperationId, kind, target, createdAt, projectId, navigateToResult }) => ({
-        clientOperationId,
-        kind,
-        target,
-        createdAt,
-        status: 'unknown',
-        ...((kind === 'fork' || kind === 'create') && typeof projectId === 'string'
-          ? { projectId, navigateToResult: navigateToResult === true }
-          : {}),
-      }));
+      .map(
+        ({
+          clientOperationId,
+          kind,
+          target,
+          createdAt,
+          projectId,
+          navigateToResult,
+          navigationSource,
+        }) => ({
+          clientOperationId,
+          kind,
+          target,
+          createdAt,
+          status: 'unknown',
+          ...((kind === 'fork' || kind === 'create') && typeof projectId === 'string'
+            ? { projectId, navigateToResult: navigateToResult === true }
+            : {}),
+          ...(kind === 'fork' &&
+          typeof navigationSource?.projectId === 'string' &&
+          (navigationSource.threadId === null || typeof navigationSource.threadId === 'string')
+            ? {
+                navigationSource: {
+                  projectId: navigationSource.projectId,
+                  threadId: navigationSource.threadId,
+                },
+              }
+            : {}),
+        }),
+      );
   } catch {
     return [];
   }
@@ -70,12 +92,21 @@ export function saveOperations(operations: SavedOperation[], storage?: Pick<Stor
       STORAGE_KEY,
       JSON.stringify(
         operations.map(
-          ({ clientOperationId, kind, target, createdAt, projectId, navigateToResult }) => ({
+          ({
+            clientOperationId,
+            kind,
+            target,
+            createdAt,
+            projectId,
+            navigateToResult,
+            navigationSource,
+          }) => ({
             clientOperationId,
             kind,
             target,
             createdAt,
             ...(kind === 'fork' || kind === 'create' ? { projectId, navigateToResult } : {}),
+            ...(kind === 'fork' && navigationSource ? { navigationSource } : {}),
           }),
         ),
       ),

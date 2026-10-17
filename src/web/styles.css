@@ -647,27 +647,6 @@ svg {
 .thread-title-error {
   color: var(--destructive);
 }
-.thread-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 24px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.thread-actions-description {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  color: #899199;
-  font-size: 11px;
-  line-height: 1.5;
-}
-.thread-actions > .button {
-  flex-shrink: 0;
-}
 .status {
   display: inline-flex;
   align-items: center;
@@ -2851,9 +2830,6 @@ dd {
     align-items: flex-end;
     gap: 7px;
   }
-  .thread-actions {
-    padding: 9px 15px;
-  }
   .breadcrumb {
     font-size: 9px;
   }
@@ -2995,18 +2971,23 @@ dd {
 .thread-row {
   position: relative;
   margin-bottom: 2px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  border-radius: 8px;
+}
+.thread-row:has(.thread-selected) {
+  background: #ebefec;
 }
 .thread-row .thread-link {
   min-width: 0;
-  padding-right: 88px;
+  padding-right: 4px;
 }
 .thread-row-actions {
-  position: absolute;
   display: flex;
   align-items: center;
-  gap: 2px;
-  right: 4px;
-  top: 4px;
+  gap: 0;
+  padding: 4px 4px 0 0;
   z-index: 1;
 }
 .thread-status-placeholder,
@@ -3073,8 +3054,9 @@ dd {
   position: relative;
 }
 .thread-details-trigger,
+.thread-fork > .button,
 .thread-archive > button {
-  width: 28px;
+  width: 24px;
   height: 28px;
   min-height: 28px;
   color: var(--muted);
@@ -3087,6 +3069,7 @@ dd {
   cursor: default;
 }
 .thread-details {
+  grid-column: 1 / -1;
   margin: 3px 4px 8px;
   padding: 12px;
   border: 1px solid var(--border);
@@ -3163,16 +3146,16 @@ dd {
 @media (pointer: coarse) {
   .thread-row .thread-link {
     min-height: 44px;
-    padding: 12px 114px 12px 10px;
+    padding: 12px 4px 12px 10px;
   }
   .thread-row-actions {
-    top: 0;
-    right: 0;
+    padding: 0;
     gap: 0;
   }
   .thread-details-trigger,
+  .thread-fork > .button,
   .thread-archive > button {
-    width: 44px;
+    width: 32px;
     height: 44px;
     min-height: 44px;
   }
