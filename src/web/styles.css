@@ -1874,23 +1874,6 @@ svg {
     box-shadow: 0 0 4px var(--effort-glow);
   }
 }
-@media (prefers-color-scheme: dark) {
-  .reasoning-tier[data-effort='max'] {
-    --effort-color: #ffb242;
-    --effort-surface: #352718;
-    --effort-hover: #4b3520;
-    --effort-glow: #ffb24240;
-  }
-  .reasoning-tier[data-effort='ultra'] {
-    --effort-color: #ba82ff;
-    --effort-surface: #2f2341;
-    --effort-hover: #43305c;
-    --effort-glow: #ba82ff40;
-  }
-  .select-item.reasoning-tier:is([data-effort='max'], [data-effort='ultra']) {
-    background: var(--effort-surface);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .settings-effort[data-effort] .reasoning-effort-display {
     animation: none;

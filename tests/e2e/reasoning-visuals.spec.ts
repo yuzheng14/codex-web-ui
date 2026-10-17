@@ -14,7 +14,7 @@ test.beforeEach(async ({ request }) => {
 
 for (const colorScheme of ['light', 'dark'] as const) {
   for (const width of [1280, 320]) {
-    test(`${colorScheme}, ${width}px: tiers retain readable accents and stable geometry through switching`, async ({
+    test(`${colorScheme} OS preference, ${width}px: tiers keep light styling and stable geometry through switching`, async ({
       page,
     }) => {
       await page.emulateMedia({ colorScheme, reducedMotion: 'no-preference' });
@@ -29,15 +29,23 @@ for (const colorScheme of ['light', 'dark'] as const) {
       let tierWidth = 0;
 
       for (const [value, label, color] of [
-        ['max', 'Max', colorScheme === 'light' ? 'rgb(166, 83, 16)' : 'rgb(255, 178, 66)'],
-        ['ultra', 'Ultra', colorScheme === 'light' ? 'rgb(124, 58, 217)' : 'rgb(186, 130, 255)'],
+        ['max', 'Max', 'rgb(166, 83, 16)'],
+        ['ultra', 'Ultra', 'rgb(124, 58, 217)'],
       ] as const) {
         await effort.click();
         const option = page.getByRole('option', { name: value, exact: true });
         await option.hover();
         await expect(option).toHaveCSS('color', color);
+        await expect(option).toHaveCSS(
+          'background-color',
+          value === 'max' ? 'rgb(255, 234, 208)' : 'rgb(234, 220, 255)',
+        );
         await option.click();
         await expect(effort).toHaveCSS('color', color);
+        await expect(effort).toHaveCSS(
+          'background-color',
+          value === 'max' ? 'rgb(255, 244, 229)' : 'rgb(244, 237, 255)',
+        );
         await expect(effort.locator('.reasoning-tier-label')).toHaveText(label);
         await expect(effort).toHaveAccessibleDescription(new RegExp(`^推理强度：${value}`));
         await expect(display).toHaveCSS('animation-name', `effort-${value}-ignite`);
