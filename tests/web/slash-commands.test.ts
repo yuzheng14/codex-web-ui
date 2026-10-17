@@ -66,7 +66,7 @@ function context(): SlashCommandContext {
     connection: 'connected',
     authRequired: false,
     settings: { model: 'thread-override' },
-    projectSettings: { model: 'project-default' },
+    openDraft: vi.fn().mockReturnValue('project-draft'),
     busy: [],
     operations: [],
     run: vi.fn().mockResolvedValue(receipt()),
@@ -231,13 +231,6 @@ describe('slash command availability', () => {
       '项目目录不可用',
     ],
     [
-      'capability',
-      (state: SlashCommandContext) => {
-        state.system!.capabilities = [];
-      },
-      'thread/start',
-    ],
-    [
       'busy create',
       (state: SlashCommandContext) => {
         state.busy = ['create:project/one'];
@@ -366,15 +359,11 @@ describe('slash command execution', () => {
   it('uses project defaults for new and conversation overrides for Fork, following acknowledged IDs', async () => {
     const state = context();
     expect(await command(state, 'new').run()).toMatchObject({
-      draftKey: 'created-thread',
-      message: '已新建会话。',
+      draftKey: 'project-draft',
+      message: expect.stringContaining('发送首条消息时创建'),
     });
-    expect(state.run).toHaveBeenLastCalledWith(
-      'create',
-      'project/one',
-      '/api/projects/project%2Fone/threads',
-      { settings: { model: 'project-default' } },
-    );
+    expect(state.openDraft).toHaveBeenCalledOnce();
+    expect(state.run).not.toHaveBeenCalled();
     expect(await command(state, 'fork').run()).toMatchObject({
       draftKey: 'created-thread',
       message: '已 Fork 为新会话。',
@@ -424,7 +413,7 @@ describe('slash command execution', () => {
     async (status) => {
       const state = context();
       state.run = vi.fn().mockResolvedValue(receipt(status));
-      const result = await command(state, 'new').run();
+      const result = await command(state, 'fork').run();
       expect(result.error).toBe(true);
       expect(result.draftKey).toBeUndefined();
     },
@@ -433,12 +422,12 @@ describe('slash command execution', () => {
   it('preserves failures and missing receipts instead of claiming a new thread exists', async () => {
     const state = context();
     state.run = vi.fn().mockResolvedValue(undefined);
-    expect(await command(state, 'new').run()).toMatchObject({
+    expect(await command(state, 'fork').run()).toMatchObject({
       error: true,
       message: expect.stringContaining('成功回执'),
     });
     state.run = vi.fn().mockResolvedValue({ ...receipt(), result: {} });
-    expect(await command(state, 'new').run()).toMatchObject({
+    expect(await command(state, 'fork').run()).toMatchObject({
       error: true,
       message: expect.stringContaining('新会话标识'),
     });
@@ -451,7 +440,7 @@ describe('slash command execution', () => {
       message: '此会话正被其他进程使用',
     });
     state.run = vi.fn().mockRejectedValue(new Error('Network unavailable'));
-    expect(await command(state, 'new').run()).toEqual({
+    expect(await command(state, 'fork').run()).toEqual({
       error: true,
       message: 'Network unavailable',
     });
@@ -517,4 +506,14 @@ describe('manual context compaction', () => {
     state.thread!.status = 'unknown';
     expect(command(state, 'compact').unavailableReason).toContain('核对');
   });
+});
+
+it('opens a project draft without requiring native creation capability or mutating the running source', async () => {
+  const state = context();
+  activeThread(state);
+  state.system!.capabilities = [];
+  expect(await command(state, 'new').run()).toMatchObject({ draftKey: 'project-draft' });
+  expect(state.openDraft).toHaveBeenCalledOnce();
+  expect(state.run).not.toHaveBeenCalled();
+  expect(state.thread!.status).toBe('running');
 });
