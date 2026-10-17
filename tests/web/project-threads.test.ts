@@ -168,3 +168,97 @@ it('invalidates in-flight pages when switching archive views and keeps live rest
   store.finishRead(active, page([summary('one')], 14));
   expect(store.snapshot.a?.data).toHaveLength(1);
 });
+
+describe('optimistic archive projections', () => {
+  const result = (row: ThreadSummary, seq: number, serverEpoch = 'epoch') => ({
+    threadId: row.id,
+    summary: row,
+    cursor: cursor(seq, serverEpoch),
+  });
+  it('hides a pending archive across old list reads and inserts it in the archive filter', () => {
+    const store = new ProjectThreadsStore();
+    store.finishRead(store.beginRead('a'), page([summary('one'), summary('two')], 1, 'more'));
+    store.beginMutation('archive', 'one', { projectId: 'a', archived: true });
+    store.finishRead(store.beginRead('a'), page([summary('one'), summary('two')], 2, 'more'));
+    expect(store.snapshot.a?.data.map((row) => row.id)).toEqual(['two']);
+    expect(store.snapshot.a?.nextCursor).toBe('more');
+    store.setArchived(true);
+    expect(store.snapshot.a?.data).toEqual([{ ...summary('one'), archived: true }]);
+    store.settleMutation('archive');
+    expect(store.snapshot.a?.data ?? []).toEqual([]);
+  });
+  it.each(['receipt', 'event'])(
+    'settles %s first without duplicate rows or a stale read restoring the source',
+    (first) => {
+      const store = new ProjectThreadsStore();
+      store.applySummary(summary('one'), cursor(1));
+      store.beginMutation('archive', 'one', { projectId: 'a', archived: true });
+      const stale = store.beginRead('a');
+      const archived = { ...summary('one'), archived: true };
+      if (first === 'event') store.applySummary(archived, cursor(4));
+      store.settleMutation('archive', result(archived, 4));
+      if (first === 'receipt') store.applySummary(archived, cursor(4));
+      store.finishRead(stale, page([summary('one')], 2));
+      expect(store.snapshot.a?.data).toEqual([]);
+      store.setArchived(true);
+      store.finishRead(store.beginRead('a'), page([archived], 5));
+      expect(store.snapshot.a?.data).toEqual([archived]);
+    },
+  );
+  it('rolls back only the rejected mutation and preserves new server state and other pending rows', () => {
+    const store = new ProjectThreadsStore();
+    store.applySummary(summary('one'), cursor(1));
+    store.applySummary(summary('two'), cursor(2));
+    store.beginMutation('first', 'one', { projectId: 'a', archived: true });
+    store.beginMutation('second', 'two', { projectId: 'a', archived: true });
+    const newer = { ...summary('one'), title: 'newer server title', status: 'running' as const };
+    store.applySummary(newer, cursor(5));
+    store.settleMutation('first');
+    expect(store.snapshot.a?.data).toEqual([newer]);
+    store.settleMutation('second');
+    expect(store.snapshot.a?.data).toContainEqual(summary('two'));
+  });
+  it('does not undo a later server archive change when an earlier receipt arrives', () => {
+    const store = new ProjectThreadsStore();
+    store.applySummary(summary('one'), cursor(1));
+    store.beginMutation('archive', 'one', { projectId: 'a', archived: true });
+    store.applySummary(
+      { ...summary('one'), archived: false, title: 'restored elsewhere' },
+      cursor(8),
+    );
+    store.settleMutation('archive', result({ ...summary('one'), archived: true }, 4));
+    expect(store.snapshot.a?.data[0]).toMatchObject({
+      archived: false,
+      title: 'restored elsewhere',
+    });
+  });
+  it('restores an unknown intent after reload without persisting its summary', () => {
+    const store = new ProjectThreadsStore([
+      {
+        clientOperationId: 'restore',
+        kind: 'archive',
+        target: 'one',
+        createdAt: 1,
+        status: 'unknown',
+        mutation: { projectId: 'a', archived: false },
+      },
+    ]);
+    store.seedMutation('restore', { ...summary('one'), archived: true });
+    expect(store.snapshot.a?.data).toEqual([{ ...summary('one'), archived: false }]);
+    store.setArchived(true);
+    expect(store.snapshot.a?.data).toEqual([]);
+    store.settleMutation('restore');
+    expect(store.snapshot.a?.data).toEqual([{ ...summary('one'), archived: true }]);
+  });
+  it('rejects a recovered receipt from an older gateway and removes mutations with their project', () => {
+    const store = new ProjectThreadsStore();
+    store.applySummary(summary('one'), cursor(1));
+    store.beginMutation('archive', 'one', { projectId: 'a', archived: true });
+    store.applySummary({ ...summary('one'), title: 'after restart' }, cursor(1, 'new'));
+    store.settleMutation('archive', result({ ...summary('one'), archived: true }, 20));
+    expect(store.snapshot.a?.data[0]?.title).toBe('after restart');
+    store.beginMutation('next', 'one', { projectId: 'a', archived: true });
+    store.removeProject('a');
+    expect(store.snapshot.a).toBeUndefined();
+  });
+});

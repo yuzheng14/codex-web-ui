@@ -324,6 +324,13 @@ export interface ThreadPage {
   data: ThreadView[];
   nextCursor: string | null;
 }
+/** A mutation receipt carries the same overview boundary as its real-time notification. */
+export interface ThreadMutationResult {
+  threadId: string;
+  summary: ThreadSummary;
+  cursor: Cursor;
+}
+
 export interface ThreadSummaryPage {
   data: ThreadSummary[];
   nextCursor: string | null;
