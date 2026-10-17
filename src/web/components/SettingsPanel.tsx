@@ -62,6 +62,7 @@ export function SettingsPanel({
   const unknown = threadLoading || (defaults.loading && !thread) ? '读取中…' : '未报告';
   const model = settings.model ?? current?.model ?? '';
   const effort = settings.reasoningEffort ?? current?.reasoningEffort ?? '';
+  const effortTierLabel = effort === 'max' ? 'Max' : effort === 'ultra' ? 'Ultra' : null;
   const selectedModel = models.find((entry) => entry.id === model);
   const changes = pendingSettings(settings, current);
   const pending = Object.keys(changes).length > 0;
@@ -187,12 +188,18 @@ export function SettingsPanel({
               }
             >
               <SelectTrigger
-                className="settings-choice settings-effort"
+                className="settings-choice settings-effort reasoning-tier"
                 aria-label="推理强度"
                 aria-describedby={effortHintId}
                 data-value={effort}
+                data-effort={effort}
               >
-                <ReasoningGauge effort={effort} />
+                <span className="reasoning-effort-display" key={effort} aria-hidden="true">
+                  <ReasoningGauge effort={effort} />
+                  {effortTierLabel && (
+                    <span className="reasoning-tier-label">{effortTierLabel}</span>
+                  )}
+                </span>
                 <span className="sr-only">
                   <SelectValue placeholder={unknown}>{effort || unknown}</SelectValue>
                 </span>
@@ -200,12 +207,17 @@ export function SettingsPanel({
             </ControlHint>
             <SelectContent side="top" aria-label="推理强度">
               {effort && !selectedModel?.reasoningEfforts.includes(effort) && (
-                <SelectItem value={effort} disabled>
+                <SelectItem value={effort} disabled className="reasoning-tier" data-effort={effort}>
                   {effort}
                 </SelectItem>
               )}
               {selectedModel?.reasoningEfforts.map((entry) => (
-                <SelectItem key={entry} value={entry}>
+                <SelectItem
+                  key={entry}
+                  value={entry}
+                  className="reasoning-tier"
+                  data-effort={entry}
+                >
                   {entry}
                 </SelectItem>
               ))}
