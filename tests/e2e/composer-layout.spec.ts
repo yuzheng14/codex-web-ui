@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { Project, SystemInfo } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, projectGroup } from './helpers';
+import { confirmCompatibility, controlRuntime, expectThreadReady, projectGroup } from './helpers';
 
 const longModel = 'private-provider-gpt-5-codex-with-a-very-long-version-name';
 const longProject = 'codex-web-ui-项目名称超长时应该保留省略号并支持查看完整名称';
@@ -47,19 +47,27 @@ test('switching model names preserves layout and active controls fit on a narrow
   await configureNames(page, longModel, longProject);
   await page.goto('/');
   await confirmCompatibility(page);
+  const model = page.getByRole('combobox', { name: '模型', exact: true });
+  await expect(model).toHaveAttribute('data-value', longModel);
+  const longBox = (await model.boundingBox())!;
+  const projectBox = (await page.locator('.composer-target').boundingBox())!;
+  // The long name is a display fixture; execute only a model known by the test server.
+  await page.unroute('**/api/projects/fixture/runtime-settings');
+  await model.click();
+  await page.getByRole('option', { name: 'simulated-model', exact: true }).click();
+  await expect(page.locator('.settings-defaults')).toHaveText('已保存为 Codex 新会话默认值');
+  await expect(model).toHaveAttribute('data-value', 'simulated-model');
+  expect(await model.boundingBox()).toEqual(longBox);
+  expect(await page.locator('.composer-target').boundingBox()).toEqual(projectBox);
+
   await projectGroup(page, longProject)
     .getByRole('button', { name: '新建会话', exact: true })
     .click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
-  const model = page.getByRole('combobox', { name: '模型', exact: true });
-  const shortBox = (await model.boundingBox())!;
-  const projectBox = (await page.locator('.composer-target').boundingBox())!;
-  await model.click();
-  await page.getByRole('option', { name: longModel, exact: true }).click();
-  await expect(page.locator('.settings-defaults')).toHaveText('已保存为 Codex 新会话默认值');
-  expect(await model.boundingBox()).toEqual(shortBox);
-  expect(await page.locator('.composer-target').boundingBox()).toEqual(projectBox);
-
+  await expectThreadReady(page);
+  await expect(page.getByRole('combobox', { name: '推理强度', exact: true })).toHaveAttribute(
+    'data-value',
+    'ultra',
+  );
   await page
     .getByRole('textbox', { name: '任务内容', exact: true })
     .fill('[approval] 验证运行状态布局');
