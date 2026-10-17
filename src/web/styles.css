@@ -2198,9 +2198,12 @@ svg {
     width: 12px;
     flex-shrink: 0;
   }
-  .settings-effort {
+  .settings-choice.settings-effort {
     width: 28px;
     padding: 2px;
+  }
+  .reasoning-tier-label {
+    display: none;
   }
   .settings-speed {
     width: 24px;

@@ -1,5 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { confirmCompatibility, controlRuntime } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const effortControl = (page: Page) => page.getByRole('combobox', { name: '推理强度', exact: true });
 async function chooseEffort(page: Page, value: string) {
@@ -18,9 +23,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
       page,
     }) => {
       await page.emulateMedia({ colorScheme, reducedMotion: 'no-preference' });
-      await page.setViewportSize({ width, height: 844 });
+      await page.setViewportSize({ width: 1280, height: 844 });
       await page.goto('/');
       await confirmCompatibility(page);
+      await createThreadButton(page).click();
+      await expectThreadReady(page);
+      await page.setViewportSize({ width, height: 844 });
       const effort = effortControl(page);
       const display = effort.locator('.reasoning-effort-display');
       await expect(effort).toHaveAttribute('data-value', 'medium');
@@ -47,6 +55,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
           value === 'max' ? 'rgb(255, 244, 229)' : 'rgb(244, 237, 255)',
         );
         await expect(effort.locator('.reasoning-tier-label')).toHaveText(label);
+        if (width === 320) await expect(effort.locator('.reasoning-tier-label')).toBeHidden();
+        else await expect(effort.locator('.reasoning-tier-label')).toBeVisible();
         await expect(effort).toHaveAccessibleDescription(new RegExp(`^推理强度：${value}`));
         await expect(display).toHaveCSS('animation-name', `effort-${value}-ignite`);
         const before = await effort.boundingBox();
@@ -65,6 +75,13 @@ for (const colorScheme of ['light', 'dark'] as const) {
         expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
           true,
         );
+        expect(
+          (await page.getByRole('combobox', { name: '模型', exact: true }).boundingBox())!.width,
+        ).toBeGreaterThanOrEqual(50);
+        await page.locator('.composer-box').screenshot({
+          path: `/tmp/codex-fast-${value}-${width}-${colorScheme}.png`,
+          animations: 'disabled',
+        });
 
         await effort.click();
         await expect(page.getByRole('option', { name: value, exact: true })).toHaveAttribute(
@@ -80,7 +97,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expect(effort.locator('.reasoning-tier-label')).toHaveCount(0);
       // Undo also restores the ordinary appearance without stale tier effects.
       await chooseEffort(page, 'ultra');
-      await page.getByRole('button', { name: '撤销修改', exact: true }).click();
+      await page.getByRole('button', { name: '撤销本会话修改', exact: true }).click();
       await expect(effort).toHaveAttribute('data-value', 'medium');
       await expect(effort).toHaveCSS('color', ordinaryColor);
       await expect(display).toHaveCSS('animation-name', 'none');

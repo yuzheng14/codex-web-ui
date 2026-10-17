@@ -85,6 +85,8 @@
 
 ## Fast 速度模式
 
+窄屏的 Max/Ultra 保留仪表盘配色、档位提示和点亮动效，隐藏额外的文字标签，让模型、仪表盘、闪电及发送/中断控件保持单行；较宽界面仍显示 Max/Ultra 标签。
+
 输入栏的推理仪表盘右侧只显示一个闪电按钮（桌面 28px、窄屏 24px）：关闭时为轮廓，开启时完全填充，点击直接切换 Fast 与标准速度；没有文字或下拉箭头。悬停或键盘聚焦显示当前状态、点击操作与用量说明，待确认时还显示服务器当前值。未报告状态通过提示及 `aria-pressed="mixed"` 表达，不冒充关闭。是否提供 Fast 由当前模型的 `model/list.serviceTiers` 决定（`priority` 归一为 `fast`），不支持的模型禁用开启操作；已有 Fast 状态仍可关闭，切换到不支持 Fast 的模型时提议恢复标准速度。其他上游档位原样显示，不误报成标准。此入口与推理强度独立。
 
 仅提交用户改动：开启传 `serviceTier: "fast"`，关闭传 `serviceTier: null`，未修改则省略字段。该字段用于 `thread/start`、`thread/resume`、`thread/fork` 和 `turn/start`；不使用仅对单轮有效的 `serviceTierForTurn`。选择后先显示待生效提示，服务器响应或 `thread/settings/updated` 确认后才清除；执行期间禁止修改，草稿随现有设置按项目和会话隔离，可撤销。

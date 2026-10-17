@@ -343,6 +343,7 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
   expect(Number(await gauge.getAttribute('data-progress'))).toBeGreaterThan(low);
   await expect(effort).toHaveAccessibleDescription(/^推理强度：high/);
   await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-high.png' });
+  await chooseEffort(page, 'ultra');
   await page
     .getByRole('textbox', { name: '任务内容', exact: true })
     .fill('[approval] 检查运行中的发送栏');
