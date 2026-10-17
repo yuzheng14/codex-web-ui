@@ -80,6 +80,53 @@ for (const viewport of [
   { name: 'desktop', width: 1280, height: 900 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
+  test(`${viewport.name} keeps failed calls local to a neutral group through retry and completion`, async ({
+    page,
+  }) => {
+    await startScenario(page, '[activity-retry] 检查工具失败后的自动重试');
+    await page.setViewportSize(viewport);
+    const group = groups(page).first();
+    const summary = header(group);
+    const failed = childActivities(group).first();
+    const expectNeutral = async () => {
+      await expect(group).toHaveCSS('border-top-color', 'rgb(232, 235, 234)');
+      await expect(group).toHaveCSS('background-color', 'rgb(251, 252, 251)');
+      await expect(summary).toHaveCSS('background-color', 'rgb(245, 248, 246)');
+      await expect(summary).toHaveCSS('color', 'rgb(123, 135, 128)');
+      await expect(summary.locator('.activity-group-problem')).toHaveCSS(
+        'color',
+        'rgb(174, 62, 57)',
+      );
+    };
+
+    await expect(page.locator('.turn-heading .status')).toHaveText('执行中');
+    for (const state of ['失败 1', '已完成 1', '执行中 1'])
+      await expect(summary).toContainText(state);
+    await expect(group).not.toHaveAttribute('open');
+    await expectNeutral();
+    await screenshot(page, `neutral-retry-running-${viewport.name}`);
+
+    await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
+    await expect(summary).toContainText('失败 1');
+    await expect(summary).toContainText('已完成 2');
+    await expect(summary).not.toContainText('执行中');
+    await expect(page.getByRole('group', { name: '本轮完成信息' })).toBeVisible();
+    await expect(group).not.toHaveAttribute('open');
+    await expectNeutral();
+    await screenshot(page, `neutral-retry-completed-${viewport.name}`);
+
+    await summary.click();
+    await expect(header(failed)).toContainText('失败');
+    await expect(failed).toHaveClass(/activity-failed/);
+    await header(failed).click();
+    await expect(failed.locator('.tool-output')).toContainText(
+      'Error: test service temporarily unavailable.',
+    );
+    await expectNeutral();
+    await screenshot(page, `neutral-retry-expanded-${viewport.name}`);
+    expect(await page.locator('.error-banner').count()).toBe(0);
+  });
+
   test(`${viewport.name} collapses consecutive activities into separate groups with two sticky collapse levels`, async ({
     page,
   }) => {
@@ -186,6 +233,20 @@ for (const viewport of [
     await screenshot(page, `groups-long-review-collapsed-${viewport.name}`);
   });
 }
+
+test('a terminal turn failure remains explicit while its activity summary stays neutral', async ({
+  page,
+}) => {
+  await startScenario(page, '[activity-retry] [turn-failure] 检查整轮任务失败');
+  const group = groups(page).first();
+  await expect(page.locator('.turn-heading .status')).toHaveText('失败');
+  await expect(page.locator('.error-banner')).toHaveText('任务失败：重试后测试服务仍不可用。');
+  await expect(header(group)).toContainText('失败 2');
+  await expect(group).toHaveCSS('border-top-color', 'rgb(232, 235, 234)');
+  await expect(header(group)).toHaveCSS('background-color', 'rgb(245, 248, 246)');
+  await expect(page.getByRole('group', { name: '本轮完成信息' })).toHaveCount(0);
+  await screenshot(page, 'neutral-terminal-turn-failed-desktop');
+});
 
 test('a wrapped group summary reserves its measured height for the sticky child after viewport resizing', async ({
   page,

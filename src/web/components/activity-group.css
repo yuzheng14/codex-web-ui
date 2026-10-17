@@ -52,23 +52,9 @@
   color: #55785f;
   font-weight: 600;
 }
-.activity-group-error {
-  --activity-surface: #fff6f4;
-  border-color: #efd0cc;
-}
-.activity-group-error > summary {
-  background: #fff6f4;
-}
 .activity-group-problem {
   color: var(--destructive);
   font-weight: 600;
-}
-.activity-group-warning {
-  --activity-surface: #fdfbf5;
-  border-color: #e8dfc9;
-}
-.activity-group-warning > summary {
-  background: #fdfbf5;
 }
 .activity-group-attention {
   color: #8b6726;
