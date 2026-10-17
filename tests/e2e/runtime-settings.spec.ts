@@ -319,10 +319,16 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
     ];
     const boxes = await Promise.all(elements.map((element) => element.boundingBox()));
     expect(boxes[elements.indexOf(model)]!.width).toBeGreaterThanOrEqual(50);
-    const centers = boxes.map((box) => box!.y + box!.height / 2);
-    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
-    for (let index = 1; index < boxes.length; index++)
-      expect(boxes[index]!.x).toBeGreaterThanOrEqual(boxes[index - 1]!.x + boxes[index - 1]!.width);
+    const groups = width === 1280 ? [boxes] : [boxes.slice(0, 3), boxes.slice(3)];
+    for (const group of groups) {
+      const centers = group.map((box) => box!.y + box!.height / 2);
+      expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
+      for (let index = 1; index < group.length; index++)
+        expect(group[index]!.x).toBeGreaterThanOrEqual(
+          group[index - 1]!.x + group[index - 1]!.width,
+        );
+    }
+    if (width !== 1280) expect(boxes[0]!.y + boxes[0]!.height).toBeLessThanOrEqual(boxes[3]!.y);
     expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -363,10 +369,15 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
     ];
     const boxes = await Promise.all(elements.map((element) => element.boundingBox()));
     expect(boxes[elements.indexOf(model)]!.width).toBeGreaterThanOrEqual(50);
-    const centers = boxes.map((box) => box!.y + box!.height / 2);
-    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
-    for (let index = 1; index < boxes.length; index++)
-      expect(boxes[index]!.x).toBeGreaterThanOrEqual(boxes[index - 1]!.x + boxes[index - 1]!.width);
+    for (const group of [boxes.slice(0, 3), boxes.slice(3)]) {
+      const centers = group.map((box) => box!.y + box!.height / 2);
+      expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
+      for (let index = 1; index < group.length; index++)
+        expect(group[index]!.x).toBeGreaterThanOrEqual(
+          group[index - 1]!.x + group[index - 1]!.width,
+        );
+    }
+    expect(boxes[0]!.y + boxes[0]!.height).toBeLessThanOrEqual(boxes[3]!.y);
     expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     await page
       .locator('.composer-box')

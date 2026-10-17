@@ -1730,10 +1730,10 @@ svg {
   gap: 7px;
 }
 .composer-context {
-  flex: 0 1 auto;
+  flex: 1 1 0;
 }
 .composer-send-controls {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   margin-left: auto;
 }
 .composer-send-controls > :not(.settings-model) {
@@ -1741,20 +1741,22 @@ svg {
 }
 .composer-target {
   display: flex;
+  flex: 1 1 0;
   align-items: center;
   gap: 6px;
   color: #8d9b90;
   font-size: 11px;
   min-width: 0;
+  max-width: 180px;
 }
 .composer-target svg {
   flex-shrink: 0;
 }
 .composer-target > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 120px;
 }
 .control-hint {
   display: inline-flex;
@@ -1885,8 +1887,13 @@ svg {
   background: #edf3ee;
 }
 .settings-model {
-  max-width: 220px;
+  flex: 0 1 160px;
+  width: 160px;
+  max-width: 160px;
   padding: 6px 9px 6px 10px;
+}
+.settings-model .select-chevron {
+  flex-shrink: 0;
 }
 .settings-model-value {
   min-width: 0;
@@ -2191,9 +2198,14 @@ svg {
 @container (max-width: 600px) {
   .composer-actions {
     gap: 8px;
+    flex-wrap: wrap;
+  }
+  .composer-context,
+  .composer-send-controls {
+    flex: 1 1 100%;
   }
   .settings-model {
-    max-width: 160px;
+    margin-right: auto;
   }
   .composer-action-label {
     display: none;
@@ -2206,14 +2218,7 @@ svg {
 }
 @container (max-width: 430px) {
   .composer-actions {
-    gap: 4px;
-    flex-wrap: nowrap;
-  }
-  .composer-context {
-    flex: 0 0 auto;
-  }
-  .composer-send-controls {
-    flex: 1 1 0;
+    column-gap: 4px;
   }
   .settings-policy > span,
   .settings-policy > svg:last-child {
@@ -2236,12 +2241,7 @@ svg {
   .composer-send-controls {
     gap: 3px;
   }
-  .composer-target > span {
-    display: none;
-  }
   .settings-model {
-    flex: 1 1 0;
-    max-width: 170px;
     gap: 3px;
     padding: 6px 5px;
   }
