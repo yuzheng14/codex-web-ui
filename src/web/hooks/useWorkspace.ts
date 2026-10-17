@@ -26,6 +26,7 @@ import { readableError } from '../lib/utils';
 import { operationNeedsCompatibilityConfirmation } from '../lib/compatibility';
 import { SystemSnapshotGuard } from '../lib/system';
 import { ProjectThreadsStore } from '../lib/project-threads';
+import { readThreadPage } from '../lib/thread-pagination';
 
 function preferredProject() {
   try {
@@ -109,14 +110,28 @@ export function useWorkspace() {
   const loadProjectThreads = useCallback(
     async (id: string, cursor?: string) => {
       if (!id || !projectsRef.current.some((project) => project.id === id)) return;
-      const read = projectStore.current.beginRead(id, Boolean(cursor));
+      const store = projectStore.current;
+      const previous = store.snapshot[id];
+      // React may not have rendered the disabled button yet; guard synchronously as well.
+      if (cursor && (previous?.loading || previous?.nextCursor !== cursor)) return;
+      const archived = store.archived;
+      const knownIds = new Set(cursor ? previous?.data.map((thread) => thread.id) : []);
+      const read = store.beginRead(id, Boolean(cursor));
       setProjectThreads(projectStore.current.snapshot);
       try {
-        const page = await api.threads(id, cursor, projectStore.current.archived);
-        if (projectStore.current.finishRead(read, page))
-          setProjectThreads(projectStore.current.snapshot);
+        // Bound the entire filtered-page scan, including response bodies, to one request budget.
+        const signal = AbortSignal.timeout(35_000);
+        const page = await readThreadPage({
+          projectId: id,
+          archived,
+          cursor,
+          knownIds,
+          read: (next) => api.threads(id, next, archived, signal),
+          isCurrent: () => store.isCurrent(read),
+        });
+        if (page && store.finishRead(read, page)) setProjectThreads(projectStore.current.snapshot);
       } catch (problem) {
-        if (projectStore.current.failRead(read, readableError(problem)))
+        if (store.failRead(read, readableError(problem), cursor))
           setProjectThreads(projectStore.current.snapshot);
         if (problem instanceof HttpError && problem.authenticationRequired) report(problem);
       }

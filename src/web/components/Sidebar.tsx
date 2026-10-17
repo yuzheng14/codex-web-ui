@@ -1,17 +1,12 @@
 import { useState } from 'react';
 import type { Project, ThreadSummary } from '../../shared/types';
+import type { ProjectThreads } from '../lib/project-threads';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { isActive } from './Status';
 import { ThreadLink } from './ThreadLink';
 
-interface ProjectThreads {
-  data: ThreadSummary[];
-  nextCursor: string | null;
-  loading: boolean;
-  error?: string;
-}
 interface Props {
   archiveView: boolean;
   onArchiveView: (archived: boolean) => void;
@@ -201,19 +196,6 @@ export function Sidebar(props: Props) {
                       }}
                     />
                   ))}
-                  {state?.error && (
-                    <div className="project-list-error" role="status">
-                      <p>{state.error}</p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={state.loading}
-                        onClick={() => props.onRetry(project.id)}
-                      >
-                        重试加载会话
-                      </Button>
-                    </div>
-                  )}
                   {project.available &&
                     !state?.loading &&
                     !state?.error &&
@@ -226,21 +208,38 @@ export function Sidebar(props: Props) {
                             : '暂无会话。创建一个，开始工作。'}
                       </p>
                     )}
-                  {state?.loading && (
-                    <p className="sidebar-empty" role="status">
-                      正在读取会话…
-                    </p>
-                  )}
-                  {state?.nextCursor && (
-                    <Button
-                      variant="ghost"
-                      className="load-more"
-                      size="sm"
-                      disabled={state.loading}
-                      onClick={() => props.onMore(project.id, state.nextCursor!)}
-                    >
-                      加载更多会话
-                    </Button>
+                  {state && (
+                    <div className="thread-pagination" aria-live="polite" aria-busy={state.loading}>
+                      {state.loading || state.error || state.nextCursor ? (
+                        <Button
+                          variant="ghost"
+                          className={cn('load-more', state.error && 'load-more-error')}
+                          size="sm"
+                          disabled={state.loading}
+                          title={state.error}
+                          aria-describedby={
+                            state.error ? `thread-pagination-error-${project.id}` : undefined
+                          }
+                          onClick={() => {
+                            if (state.error) props.onRetry(project.id);
+                            else if (state.nextCursor) props.onMore(project.id, state.nextCursor);
+                          }}
+                        >
+                          {state.loading
+                            ? '正在加载更多会话…'
+                            : state.error
+                              ? '加载失败，重试'
+                              : '加载更多会话'}
+                        </Button>
+                      ) : state.loaded && state.data.length > 0 && !query ? (
+                        <p className="sidebar-pagination-status">已加载全部会话</p>
+                      ) : null}
+                      {state.error && (
+                        <span className="sr-only" id={`thread-pagination-error-${project.id}`}>
+                          {state.error}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </section>

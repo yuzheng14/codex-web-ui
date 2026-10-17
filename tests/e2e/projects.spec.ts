@@ -237,11 +237,13 @@ test('project loading errors are isolated and navigation stays usable with unava
     else await route.continue();
   });
   await open(page);
-  await expect(projectGroup(page, '另一个项目')).toContainText('此项目暂时读取失败');
+  await expect(
+    projectGroup(page, '另一个项目').getByRole('button', { name: '加载失败，重试' }),
+  ).toHaveAttribute('title', '此项目暂时读取失败');
   await expect(projectGroup(page, '不可用项目').locator('.project-error')).toBeVisible();
   await createInPage(page, first, '测试项目');
   fail = false;
-  await projectGroup(page, '另一个项目').getByRole('button', { name: '重试加载会话' }).click();
+  await projectGroup(page, '另一个项目').getByRole('button', { name: '加载失败，重试' }).click();
   await expect(projectGroup(page, '另一个项目')).not.toContainText('此项目暂时读取失败');
   await page.getByRole('searchbox', { name: '搜索项目与已加载会话' }).fill('另一个项目');
   await expect(projectGroup(page)).toHaveCount(0);
