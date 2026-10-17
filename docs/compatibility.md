@@ -60,3 +60,11 @@ MCP 表单支持字符串、数字、整数、布尔值、单选和多选，以�
 - 本机真实推理冒烟已完成：临时项目文件内容正确、收到实际文件变更、继续对话和历史查询通过；无需执行 shell，因此该轮没有命令输出，不能将此写成真实命令输出验证。网页断线恢复、实际人工审批及经 Cloudflare 的完整访问，须以 `docs/verification.md` 中对应实测记录为准；适配器的订阅测试不等同于浏览器或 Tunnel 验证。
 
 本应用不更改全局 Codex 配置、不自动登录或升级、不编辑 Codex 的内部数据库或 rollout 文件。恢复会话时由 Codex 的跨进程写入锁判定占用。已用本机 0.162.1 的两个独立进程验证 legacy、paginated 历史：持有写入权时，另一进程的 `thread/read` 可返回 `notLoaded`，而 `thread/resume` 返回 `-32600` 和 `thread <当前 ID> already has an active writer`；原进程退出后恢复成功。适配层严格匹配错误码、当前 ID 和完整错误文本，再映射为 `THREAD_IN_USE`；其他错误不推断为占用。未来版本若改变错误格式，会显示原始恢复错误，不冒充占用。旧客户端的 `confirmExternalStopped` 参数继续接受，但不再作为恢复前提。
+
+## 异步提问兼容范围
+
+`request_user_input_async` 通过助手消息携带问题，不需要切换 Plan 模式，也不依赖 `default_mode_request_user_input`。参考 Codex 0.162.1 的 [工具实现](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/core/src/tools/handlers/request_user_input_async.rs) 与 [原生答案信封](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/tui/src/async_question_reply.rs)。它不创建阻塞 RPC，请勿把异步问题转换成人工审批或伪造等待输入状态。
+
+WebUI 将结构化问题显示在所属助手消息中，每组支持一次回答多个问题。任意选项题均可改用自由回答，纯文本题必须填写；不会因默认选中首项、刷新或重连自动发送。运行中使用现有 `turn/steer` 链路，结束后使用 `turn/start`，共享原有权限、兼容性、操作回执和结果不明保护。发送失败保留输入，状态变化引起的明确失败允许重试，但不自动重发答案。
+
+原生答案以 `questionItemId = JSON.stringify(["request_user_input_async", messageId, questionIndex])` 逐题关联，兼容旧版按整条消息 ID 关联的回复，网页只显示可读的题目与答案；通过历史、Fork 或其他兼容客户端发送的原生答案也能恢复已发送状态。普通聊天消息不会被猜测为已回答。大快照缩减保留问题选项与回复关联，超限时明确报告，避免丢掉表单或重新开放已回答的问题。未发送的回答仅保留在当前已挂载的会话界面中，刷新或切换会话后需要重新填写。

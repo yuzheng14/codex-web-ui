@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ItemView, ThreadView, TurnView } from '../../shared/types';
+import type { AsyncQuestionReply, ItemView, ThreadView, TurnView } from '../../shared/types';
+import { AsyncQuestionCard, type AsyncQuestionControls } from './AsyncQuestionCard';
+import { asyncQuestionId } from '../../shared/async-questions';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { isActive, Status } from './Status';
@@ -117,7 +119,15 @@ function Diff({ text }: { text: string }) {
   );
 }
 
-function Item({ item }: { item: ItemView }) {
+function Item({
+  item,
+  questionControls,
+  replies,
+}: {
+  item: ItemView;
+  questionControls?: AsyncQuestionControls;
+  replies?: AsyncQuestionReply[];
+}) {
   if (item.type === 'contextCompaction') {
     return item.status === 'inProgress' ? null : <ContextCompaction item={item} />;
   }
@@ -129,7 +139,17 @@ function Item({ item }: { item: ItemView }) {
     return (
       <article className="message assistant-message" aria-label="Codex 的回复">
         <div className="message-content">
-          <TextContent text={item.text ?? ''} />
+          {item.type === 'agentMessage' && item.questions?.length ? (
+            <AsyncQuestionCard
+              itemId={item.id}
+              questions={item.questions}
+              replies={replies}
+              disabled={questionControls?.disabled ?? true}
+              onReply={questionControls?.onReply ?? (async () => false)}
+            />
+          ) : (
+            <TextContent text={item.text ?? ''} />
+          )}
           {item.error && <p className="inline-error">{item.error}</p>}
         </div>
       </article>
@@ -178,6 +198,7 @@ interface ConversationProps {
   needsProject?: boolean;
   canAddProject?: boolean;
   onAddProject?: () => void;
+  questionControls?: AsyncQuestionControls;
   readingEnabled?: boolean;
   onReadCompleted?: (threadId: string, turnId: string) => void;
 }
@@ -200,6 +221,7 @@ function ConversationContent({
   onAddProject,
   readingEnabled = true,
   onReadCompleted,
+  questionControls,
 }: ConversationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -208,6 +230,13 @@ function ConversationContent({
   const previousThread = useRef(thread?.id);
   const lastReadCompletion = useRef<{ threadId: string; turnId: string } | undefined>(undefined);
   const latestTurn = thread?.turns.at(-1);
+  const questionReplies = new Map<string, AsyncQuestionReply[]>();
+  for (const turn of thread?.turns ?? [])
+    for (const item of turn.items)
+      for (const reply of item.questionReplies ?? []) {
+        const previous = questionReplies.get(reply.questionItemId) ?? [];
+        questionReplies.set(reply.questionItemId, [...previous, reply]);
+      }
   const activeCompaction =
     latestTurn && isActive(latestTurn.status)
       ? latestTurn.items.findLast(
@@ -390,7 +419,18 @@ function ConversationContent({
                   )}
                   {groupConversationItems(turn.items).map((group) =>
                     group.kind === 'message' ? (
-                      <Item key={group.key} item={group.item} />
+                      <Item
+                        key={group.key}
+                        item={group.item}
+                        questionControls={questionControls}
+                        replies={[
+                          ...(questionReplies.get(group.item.id) ?? []),
+                          ...(group.item.questions ?? []).flatMap(
+                            (_, index) =>
+                              questionReplies.get(asyncQuestionId(group.item.id, index)) ?? [],
+                          ),
+                        ]}
+                      />
                     ) : (
                       <ActivityGroup key={group.key} items={group.items}>
                         {group.items.map((item) => (

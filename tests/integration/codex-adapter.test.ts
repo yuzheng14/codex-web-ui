@@ -74,6 +74,28 @@ async function waitFor<T>(get: () => T | undefined): Promise<T> {
 }
 
 describe('verified protocol adapter with a real subprocess', () => {
+  it('retains async questions through live events and history without creating a blocking RPC action', async () => {
+    const { adapter, events, requests } = await fixture();
+    const thread = await adapter.createThread('/tmp');
+    const turn = await adapter.startTurn(thread.id, '/tmp', '[async-questions-running]');
+    const incoming = await waitFor(() =>
+      events.find((event) => event.type === 'item' && event.item.questions?.length),
+    );
+    if (incoming.type !== 'item') throw new Error('Wrong event');
+    expect(incoming.item.delivery).toBe('async');
+    expect(incoming.item.questions).toHaveLength(2);
+    expect(events.some((event) => event.type === 'action')).toBe(false);
+    const history = await adapter.readThread(thread.id);
+    expect(history.turns[0]!.status).toBe('running');
+    expect(history.turns[0]!.items.find((item) => item.id === incoming.item.id)!.questions).toEqual(
+      incoming.item.questions,
+    );
+    await adapter.steerTurn(thread.id, turn.id, '继续执行');
+    await waitFor(() =>
+      events.find((event) => event.type === 'turn' && event.turn.status === 'completed'),
+    );
+    expect((await requests()).filter((request) => request.method === 'turn/steer')).toHaveLength(1);
+  });
   it('preserves creator identity separately from source in creation, notifications and history', async () => {
     const { adapter, events } = await fixture();
     const thread = await adapter.createThread('/tmp');

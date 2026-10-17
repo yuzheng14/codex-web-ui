@@ -96,6 +96,18 @@ export interface ItemView {
   truncated?: boolean;
   error?: string;
   autoReview?: AutoReviewView;
+  delivery?: 'async';
+  questions?: AsyncQuestion[];
+  questionReplies?: AsyncQuestionReply[];
+}
+export interface AsyncQuestion {
+  title: string;
+  options: string[] | null;
+}
+export interface AsyncQuestionReply {
+  questionItemId: string;
+  question: string;
+  answer: string;
 }
 export interface TurnView {
   id: string;
