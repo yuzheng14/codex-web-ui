@@ -159,6 +159,13 @@ it.each(['fail', 'hang', 'rename', 'interaction'] as const)(
     await vi.waitFor(async () =>
       expect((await requests()).some((r) => r.method === 'thread/unsubscribe')).toBe(true),
     );
+    // Naming cleanup and the user's turn finish independently under CI load.
+    await vi.waitFor(async () =>
+      expect((await adapter.readThread(thread.id)).turns[0]).toMatchObject({
+        id: turn.id,
+        status: 'completed',
+      }),
+    );
     const history = await adapter.readThread(thread.id);
     expect(history.title).toBe(titleBehavior === 'rename' ? '用户手动命名' : '第一条问题');
     expect(history.turns).toHaveLength(1);
