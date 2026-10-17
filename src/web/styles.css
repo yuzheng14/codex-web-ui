@@ -2986,7 +2986,7 @@ dd {
 .thread-row-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   padding: 4px 4px 0 0;
   z-index: 1;
 }
@@ -3056,7 +3056,7 @@ dd {
 .thread-details-trigger,
 .thread-fork > .button,
 .thread-archive > button {
-  width: 28px;
+  width: 24px;
   height: 28px;
   min-height: 28px;
   color: var(--muted);
@@ -3155,7 +3155,7 @@ dd {
   .thread-details-trigger,
   .thread-fork > .button,
   .thread-archive > button {
-    width: 44px;
+    width: 32px;
     height: 44px;
     min-height: 44px;
   }

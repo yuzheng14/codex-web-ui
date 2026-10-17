@@ -161,7 +161,7 @@ test.describe('touch sidebar', () => {
     const archive = selectedRow(page).getByRole('button', { name: '归档会话', exact: true });
     for (const button of [fork, archive]) {
       const box = (await button.boundingBox())!;
-      expect(box.width).toBe(44);
+      expect(box.width).toBe(32);
       expect(box.height).toBe(44);
     }
     await page.screenshot({
