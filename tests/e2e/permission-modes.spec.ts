@@ -221,8 +221,10 @@ test('preserves mode drafts by project and conversation and never substitutes de
   page,
 }) => {
   const first = await newThread(page);
+  await send(page, '已有会话历史 [title-fail]');
   await choose(page, 'auto-review');
   await createThreadButton(page).click();
+  await expectThreadReady(page);
   await expect(modeControl(page)).toHaveAttribute('data-value', 'read-only');
   await page.locator(`[data-thread-id="${first}"]`).click();
   await expect(modeControl(page)).toHaveAttribute('data-value', 'auto-review');
