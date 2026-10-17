@@ -90,13 +90,15 @@ export function ElicitationForm({
   const submitLabel =
     status !== 'pending'
       ? actionStatusLabel(status)
-      : request.mode === 'url'
-        ? '我已完成'
-        : fields.length === 0
-          ? '确认继续'
-          : fields.every((field) => ['boolean', 'enum', 'multiEnum'].includes(field.type))
-            ? '确认选择'
-            : '提交回答';
+      : request.approval
+        ? '允许本次'
+        : request.mode === 'url'
+          ? '我已完成'
+          : fields.length === 0
+            ? '确认继续'
+            : fields.every((field) => ['boolean', 'enum', 'multiEnum'].includes(field.type))
+              ? '确认选择'
+              : '提交回答';
   const [draft, setDraft] = useState<Draft>(() => initialDraft(fields));
   const [attempted, setAttempted] = useState(false);
   const { content, errors } = contentFor(fields, draft);
@@ -118,13 +120,20 @@ export function ElicitationForm({
         setAttempted(true);
         if (request.mode === 'form' && Object.keys(errors).length > 0) return;
         onResolve(
-          request.mode === 'form' ? { decision: 'accept', content } : { decision: 'accept' },
+          request.mode === 'form' && !request.approval
+            ? { decision: 'accept', content }
+            : { decision: 'accept' },
         );
       }}
     >
       <p className="elicitation-source">
         来源：<strong>{request.serverName}</strong>
       </p>
+      {request.approval?.allowSession && (
+        <p className="elicitation-scope subtle">
+          本会话允许仅适用于当前请求对应的工具或连接范围，并受审批策略约束；新会话需重新确认。
+        </p>
+      )}
       {unavailable && (
         <p className="elicitation-error" role="alert">
           {unavailable}
@@ -310,6 +319,15 @@ export function ElicitationForm({
         {!unavailable && (
           <Button type="submit" disabled={disabled}>
             {submitLabel}
+          </Button>
+        )}
+        {!unavailable && request.approval?.allowSession && (
+          <Button
+            variant="secondary"
+            disabled={disabled}
+            onClick={() => onResolve({ decision: 'accept', persist: 'session' })}
+          >
+            本会话允许
           </Button>
         )}
         <Button

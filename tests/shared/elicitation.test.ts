@@ -14,6 +14,81 @@ const form = (properties: Record<string, unknown>, required: string[] = []) =>
     requestedSchema: { type: 'object', properties, required },
   });
 
+describe('MCP approval persistence', () => {
+  const approval = (meta: unknown, schema: unknown = { type: 'object', properties: {} }) =>
+    normalizeElicitationRequest({
+      serverName: 'screenshots',
+      mode: 'form',
+      requestedSchema: schema,
+      _meta: meta,
+    });
+
+  it.each(['session', ['session'], ['always', 'session'], [null, 1, 'session']])(
+    'accepts advertised session capability %j without accepting command decisions',
+    (persist) => {
+      for (const schema of [null, { type: 'object', properties: {} }]) {
+        const request = approval({ persist }, schema);
+        expect(request.approval).toEqual({ allowSession: true });
+        expect(validateElicitationResolution(request, { decision: 'accept' })).toBeNull();
+        expect(
+          validateElicitationResolution(request, { decision: 'accept', persist: 'session' }),
+        ).toBeNull();
+        for (const resolution of [
+          { decision: 'acceptForSession' },
+          { decision: 'acceptSession' },
+          { decision: 'accept', persist: 'always' },
+          { decision: 'accept', persist: 'session', content: {} },
+          { decision: 'decline', persist: 'session' },
+          { decision: 'cancel', persist: 'session' },
+        ])
+          expect(() =>
+            validateElicitationResolution(request, resolution as ActionResolution),
+          ).toThrow();
+      }
+    },
+  );
+
+  it.each([undefined, null, true, 'always', ['always'], {}, ['Session']])(
+    'keeps single-call approvals available without session capability %j',
+    (persist) => {
+      const request = approval({ codex_approval_kind: 'mcp_tool_call', persist });
+      expect(request.approval).toEqual({ allowSession: false });
+      expect(validateElicitationResolution(request, { decision: 'accept' })).toBeNull();
+      for (const decision of ['decline', 'cancel'])
+        expect(validateElicitationResolution(request, { decision })).toBeNull();
+      expect(() =>
+        validateElicitationResolution(request, { decision: 'accept', persist: 'session' }),
+      ).toThrow();
+    },
+  );
+
+  it('never turns data forms, plain confirmations, unsupported schemas or URLs into tool approvals', () => {
+    const requests = [
+      form({ value: { type: 'string' } }),
+      form({}),
+      approval(
+        { persist: 'session', codex_approval_kind: 'mcp_tool_call' },
+        {
+          type: 'object',
+          properties: { value: { type: 'string' } },
+        },
+      ),
+      approval({ persist: 'session' }, { type: 'object', properties: {}, unknown: true }),
+      normalizeElicitationRequest({
+        mode: 'url',
+        url: 'https://example.com',
+        _meta: { persist: 'session' },
+      }),
+    ];
+    for (const request of requests) {
+      expect(request.approval).toBeUndefined();
+      expect(() =>
+        validateElicitationResolution(request, { decision: 'accept', persist: 'session' }),
+      ).toThrow();
+    }
+  });
+});
+
 describe('MCP elicitation form contract', () => {
   it('retains primitive values, Unicode length and omitted optional fields', () => {
     const request = form(

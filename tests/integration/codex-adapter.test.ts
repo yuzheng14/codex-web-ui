@@ -133,7 +133,9 @@ describe('verified protocol adapter with a real subprocess', () => {
     expect(
       await adapter.saveModelDefaults({ model: 'other-model', reasoningEffort: 'high' }),
     ).toEqual({ status: 'ok' });
-    expect((await requests()).filter((entry) => entry.method === 'config/batchWrite')).toMatchObject([
+    expect(
+      (await requests()).filter((entry) => entry.method === 'config/batchWrite'),
+    ).toMatchObject([
       {
         method: 'config/batchWrite',
         params: {
@@ -912,6 +914,82 @@ describe('verified protocol adapter with a real subprocess', () => {
       },
     ]);
   });
+  it.each([
+    ['elicitation-approval', false],
+    ['elicitation-session', true],
+    ['elicitation-session-array', true],
+    ['elicitation-session', true, null],
+  ] as const)(
+    'maps %s scope to MCP metadata and null content',
+    async (approval, allowSession, schema: null | undefined = undefined) => {
+      const { adapter, events, dir } = await fixture({
+        approval,
+        ...(schema === null ? { elicitationSchema: null } : {}),
+      });
+      const thread = await adapter.createThread('/tmp');
+      await adapter.startTurn(thread.id, thread.cwd, 'approve MCP tool');
+      const incoming = await waitFor(() => events.find((event) => event.type === 'action'));
+      if (incoming.type !== 'action') throw new Error('Wrong event');
+      expect(incoming.action.elicitation?.approval).toEqual({ allowSession });
+      expect(incoming.action.options.map((option) => option.id)).toEqual(
+        allowSession
+          ? ['accept', 'acceptSession', 'decline', 'cancel']
+          : ['accept', 'decline', 'cancel'],
+      );
+      // The normalized browser projection cannot grant a capability absent from the RPC request.
+      incoming.action.elicitation!.approval!.allowSession = true;
+      for (const resolution of [
+        { decision: 'acceptForSession' },
+        { decision: 'accept', content: {} },
+        { decision: 'decline', persist: 'session' as const },
+        ...(!allowSession ? [{ decision: 'accept', persist: 'session' as const }] : []),
+      ])
+        await expect(adapter.respond(incoming.action.actionId, resolution)).rejects.toMatchObject({
+          code: 'VALIDATION_ERROR',
+        });
+      expect(await replies(dir)).toEqual([]);
+      await adapter.respond(
+        incoming.action.actionId,
+        allowSession ? { decision: 'accept', persist: 'session' } : { decision: 'accept' },
+      );
+      await waitFor(() => events.find((event) => event.type === 'actionResolved'));
+      expect(await replies(dir)).toEqual([
+        {
+          id: 0,
+          result: {
+            action: 'accept',
+            content: null,
+            _meta: allowSession ? { persist: 'session' } : null,
+          },
+        },
+      ]);
+    },
+  );
+
+  it.each(['command', 'permissions', 'elicitation-form', 'elicitation-url'] as const)(
+    'rejects MCP persistence on %s without consuming the request',
+    async (approval) => {
+      const { adapter, events, dir } = await fixture({
+        approval,
+        elicitationMeta: { persist: 'session', codex_approval_kind: 'mcp_tool_call' },
+      });
+      const thread = await adapter.createThread('/tmp');
+      await adapter.startTurn(thread.id, thread.cwd, 'keep protocol scopes separate');
+      const incoming = await waitFor(() => events.find((event) => event.type === 'action'));
+      if (incoming.type !== 'action') throw new Error('Wrong event');
+      expect(incoming.action.elicitation?.approval).toBeUndefined();
+      await expect(
+        adapter.respond(incoming.action.actionId, {
+          decision: 'accept',
+          persist: 'session',
+        }),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect(await replies(dir)).toEqual([]);
+      await adapter.respond(incoming.action.actionId, { decision: 'decline' });
+      await waitFor(() => events.find((event) => event.type === 'actionResolved'));
+    },
+  );
+
   it.each(['elicitation-form', 'elicitation-openai', 'elicitation-openai-form'] as const)(
     'accepts %s typed values only after valid explicit input',
     async (approval) => {

@@ -324,8 +324,24 @@ export function normalizeElicitationRequest(params: Record<string, unknown>): El
       };
     }
   }
-  if (['form', 'openai/form', 'openaiForm'].includes(String(params.mode)))
-    return { ...base, mode: 'form', ...normalizeElicitationSchema(params.requestedSchema) };
+  if (['form', 'openai/form', 'openaiForm'].includes(String(params.mode))) {
+    const schema = params.requestedSchema;
+    const form: Pick<ElicitationRequest, 'fields' | 'schemaError'> =
+      schema === null ? { fields: [] } : normalizeElicitationSchema(schema);
+    const meta = record(params._meta) ? params._meta : undefined;
+    const allowSession =
+      meta?.persist === 'session' ||
+      (Array.isArray(meta?.persist) && meta.persist.includes('session'));
+    // Like the CLI, only message-only forms can carry an approval action. A data form or
+    // URL remains an information request even if its metadata advertises persistence.
+    const approval =
+      !form.schemaError &&
+      form.fields?.length === 0 &&
+      (meta?.codex_approval_kind === 'mcp_tool_call' || allowSession)
+        ? { allowSession }
+        : undefined;
+    return { ...base, mode: 'form', ...form, ...(approval ? { approval } : {}) };
+  }
   return {
     ...base,
     mode: 'form',
@@ -340,16 +356,28 @@ export function validateElicitationResolution(
   resolution: ActionResolution,
 ): Record<string, ElicitationValue> | null {
   if (!record(resolution)) fail('请提交有效的交互回答');
-  onlyKeys(resolution as Record<string, unknown>, ['decision', 'content'], '交互回答');
+  onlyKeys(resolution as Record<string, unknown>, ['decision', 'content', 'persist'], '交互回答');
   if (!('decision' in resolution) || !['accept', 'decline', 'cancel'].includes(resolution.decision))
     fail('此请求不支持所提交的决定');
-  const answer = resolution as { decision: string; content?: Record<string, ElicitationValue> };
+  const answer = resolution as Extract<ActionResolution, { decision: string }>;
+  if (
+    has(answer, 'persist') &&
+    (answer.persist !== 'session' ||
+      answer.decision !== 'accept' ||
+      request?.mode !== 'form' ||
+      !request.approval?.allowSession)
+  )
+    fail('此请求不支持所选授权范围');
   if (answer.decision !== 'accept') {
     if (has(answer, 'content')) fail('拒绝或取消时不能提交表单内容');
     return null;
   }
   if (!request || request.schemaError) fail(request?.schemaError ?? '交互请求缺少表单信息');
   const elicitation = request as ElicitationRequest;
+  if (elicitation.approval) {
+    if (has(answer, 'content')) fail('工具审批不能提交表单内容');
+    return null;
+  }
   if (elicitation.mode === 'url') {
     const checked = normalizeElicitationRequest({
       mode: 'url',

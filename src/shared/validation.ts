@@ -97,6 +97,7 @@ export const resolveActionSchema = operationSchema.extend({
       .object({
         decision: z.string().min(1).max(200),
         content: z.record(z.string().max(1000), elicitationValueSchema).optional(),
+        persist: z.literal('session').optional(),
       })
       .strict(),
     z.object({ answers: z.record(z.string(), z.array(z.string().max(10_000)).max(50)) }).strict(),

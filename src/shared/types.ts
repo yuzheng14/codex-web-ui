@@ -203,6 +203,8 @@ export interface ElicitationField {
 export interface ElicitationRequest {
   serverName: string;
   mode: 'form' | 'url';
+  /** Message-only approval; persistence is offered only when advertised by this request. */
+  approval?: { allowSession: boolean };
   url?: string;
   fields?: ElicitationField[];
   schemaError?: string;
@@ -237,7 +239,7 @@ export interface PendingAction {
   elicitation?: ElicitationRequest;
 }
 export type ActionResolution =
-  | { decision: string; content?: Record<string, ElicitationValue> }
+  | { decision: string; content?: Record<string, ElicitationValue>; persist?: 'session' }
   | { answers: Record<string, string[]> };
 export interface OperationInput {
   clientOperationId: string;
