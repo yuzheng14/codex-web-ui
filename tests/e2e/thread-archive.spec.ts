@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
-import type { ThreadSummaryPage, ThreadView } from '../../src/shared/types';
+import type { ServerMessage, ThreadSummaryPage, ThreadView } from '../../src/shared/types';
 import {
   confirmCompatibility,
   controlRuntime,
@@ -120,6 +120,7 @@ test('leaves the archived conversation without creating a new one, then explicit
   await row(page, id).getByRole('button', { name: '归档会话', exact: true }).click();
   await expectEmpty(page);
   await expect(row(page, id)).toHaveCount(0);
+  await expect(page.locator('.mutation-notice')).toHaveCount(0);
   const active = (await (await request.get('/api/projects/fixture/threads')).json()).data as {
     id: string;
   }[];
@@ -175,6 +176,23 @@ test('disables archive for running approvals and synchronizes completed archive 
   page,
   context,
 }) => {
+  // Reproduce a client that unsubscribed before receiving its archive detail.
+  // The overview still delivers both lifecycle changes while that detail is absent.
+  let replayArchiveDetails = false;
+  await page.routeWebSocket('**/ws?overview=1', (socket) => {
+    const server = socket.connectToServer();
+    server.onMessage((raw) => {
+      const message = JSON.parse(raw.toString()) as ServerMessage;
+      if (
+        message.type === 'event' &&
+        message.kind === 'thread' &&
+        !replayArchiveDetails &&
+        (message.payload as ThreadView).archived
+      )
+        return;
+      socket.send(raw);
+    });
+  });
   const id = await create(page, '[approval] 等待批准后才能归档');
   await expect(page.locator('.action-card')).toBeVisible();
   const other = await context.newPage();
@@ -198,6 +216,7 @@ test('disables archive for running approvals and synchronizes completed archive 
   await openArchived(other, id);
   await other.locator('.archive-notice').getByRole('button', { name: '取消归档' }).click();
   await expect(page.locator('.archive-notice')).toHaveCount(0);
+  replayArchiveDetails = true;
   await row(page, id).locator('.thread-link').click();
   await page.getByRole('textbox', { name: '任务内容' }).fill('恢复后继续');
   await expect(page.getByRole('button', { name: '发送任务', exact: true })).toBeEnabled();
@@ -337,7 +356,8 @@ for (const destination of ['thread', 'project'] as const) {
       await route.fulfill({ response });
     });
     await archive(page, target);
-    await expect(row(page, target).getByRole('button', { name: '归档会话' })).toBeDisabled();
+    await expect(row(page, target)).toHaveCount(0);
+    await expect(page.locator('.mutation-notice')).toContainText('正在归档会话');
     await row(page, other).locator('.thread-link').click();
     await expect(page.locator('.user-text')).toHaveText('已有会话历史 [title-fail]');
     await page.getByRole('textbox', { name: '任务内容' }).fill('新选择的会话草稿');

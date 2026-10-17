@@ -8,8 +8,10 @@ import type {
   ModelDefaultsResult,
   SystemInfo,
   ThreadSummary,
+  ThreadMutationResult,
   ThreadView,
 } from '../../shared/types';
+import { toThreadSummary } from '../../shared/thread-summary';
 import { api, HttpError } from '../lib/api';
 import { pendingSettings } from '../lib/settings';
 import {
@@ -50,7 +52,9 @@ export function useWorkspace() {
   const projectReadSequence = useRef(0);
   const [projectId, setActiveProjectId] = useState(preferredProject);
   const projectsRef = useRef<Project[]>([]);
-  const projectStore = useRef(new ProjectThreadsStore());
+  const [operations, setOperations] = useState<SavedOperation[]>(readOperations);
+  const operationsRef = useRef(operations);
+  const projectStore = useRef(new ProjectThreadsStore(operations));
   const [archiveView, setArchiveView] = useState(false);
   const [projectThreads, setProjectThreads] = useState(projectStore.current.snapshot);
   const [thread, setThread] = useState<ThreadView>();
@@ -65,8 +69,6 @@ export function useWorkspace() {
   const [errorDetails, setErrorDetails] = useState<unknown>();
   const [authRequired, setAuthRequired] = useState(false);
   const [busy, setBusy] = useState<string[]>([]);
-  const [operations, setOperations] = useState<SavedOperation[]>(readOperations);
-  const operationsRef = useRef(operations);
   const busyRef = useRef(new Set<string>());
   const streamRef = useRef<ThreadStream | undefined>(undefined);
   const projectRef = useRef(projectId);
@@ -78,6 +80,18 @@ export function useWorkspace() {
   const [settingsByScope, setSettingsByScope] = useState(settingsRef.current);
   const [runtimeDefaultsRevision, setRuntimeDefaultsRevision] = useState(0);
   const navigationRevision = useRef(0);
+  const mutationNavigation = useRef(
+    new Map<
+      string,
+      {
+        projectId: string;
+        threadId: string;
+        revision: number;
+        archived: boolean;
+        left: boolean;
+      }
+    >(),
+  );
   const detailReadSequence = useRef(0);
   const selectionRestoreRef = useRef<number | undefined>(undefined);
   const [restoringSelection, setRestoringSelection] = useState(false);
@@ -191,6 +205,16 @@ export function useWorkspace() {
     (summary: ThreadSummary, cursor: Cursor) => {
       if (!projectsRef.current.some((project) => project.id === summary.projectId)) return;
       if (projectStore.current.applySummary(summary, cursor)) {
+        const cached = streamRef.current?.cache.get(summary.id)?.data;
+        if (
+          summary.id !== selectedRef.current &&
+          cached &&
+          Boolean(cached.archived) !== Boolean(summary.archived)
+        ) {
+          // An unselected cache can miss the archive detail event, then return to
+          // the same visible state after restore. Never replay that obsolete visit.
+          streamRef.current?.cache.invalidateDetail(summary.id);
+        }
         setProjectThreads(projectStore.current.snapshot);
         if (summary.archived && !projectStore.current.archived)
           forgetSelection(summary.id, summary.projectId);
@@ -203,14 +227,15 @@ export function useWorkspace() {
       if (!projectsRef.current.some((project) => project.id === next.projectId)) return;
       if (next.id === selectedRef.current && next.projectId === projectRef.current) {
         const previous = selectedThreadRef.current;
-        if (next.archived && previous?.id === next.id && !previous.archived) {
+        const visible = projectStore.current.project(next);
+        if (visible.archived && previous?.id === next.id && !previous.archived) {
           // A confirmed archive ends the current visit. Opening archived history is
           // an explicit selection, with no previous detail, and still follows its view.
           clearSelection();
         } else {
           selectedThreadRef.current = next;
           setThread(next);
-          changeArchiveView(Boolean(next.archived));
+          changeArchiveView(Boolean(visible.archived));
           if (next.historyVisible) {
             try {
               // Another tab may have discarded this selection while it was empty.
@@ -456,12 +481,49 @@ export function useWorkspace() {
         report(problem);
     }
   }, [applyProjects, report]);
+  const settleMutation = useCallback(
+    (id: string, result?: ThreadMutationResult, rollback = !result) => {
+      const summary = projectStore.current.settleMutation(id, result);
+      setProjectThreads(projectStore.current.snapshot);
+      // Force the selected detail to re-project after removing its local mutation.
+      setThread((previous) =>
+        previous && summary?.id === previous.id
+          ? { ...previous, archived: summary.archived }
+          : previous
+            ? { ...previous }
+            : previous,
+      );
+      const navigation = mutationNavigation.current.get(id);
+      mutationNavigation.current.delete(id);
+      if (
+        rollback &&
+        navigation &&
+        navigation.projectId === projectRef.current &&
+        navigation.revision === navigationRevision.current
+      ) {
+        if (navigation.left && !selectedRef.current)
+          void selectThread(navigation.threadId, navigation.projectId);
+        else if (selectedRef.current === navigation.threadId)
+          changeArchiveView(navigation.archived);
+      }
+    },
+    [selectThread, changeArchiveView],
+  );
+
   const applyOperation = useCallback(
     (operation: Operation) => {
       const known = operationsRef.current.find(
         (entry) => entry.clientOperationId === operation.clientOperationId,
       );
       if (!known) return;
+      if (known.mutation && (isSettled(operation) || operation.reconciliation))
+        settleMutation(
+          operation.clientOperationId,
+          operation.status === 'acknowledged'
+            ? (operation.result as ThreadMutationResult)
+            : undefined,
+          operation.status === 'failed',
+        );
       const draft = conversationDrafts.current.apply(operation);
       if (draft?.created) {
         settingsRef.current = {
@@ -485,6 +547,7 @@ export function useWorkspace() {
                 operation,
                 error: operation.error?.message,
                 lookupError: undefined,
+                ...(operation.reconciliation ? { mutation: undefined } : {}),
               }
             : entry,
         ),
@@ -544,8 +607,22 @@ export function useWorkspace() {
           previous.filter((entry) => entry.clientOperationId !== operation.clientOperationId),
         );
     },
-    [refreshSystem, selectThread, track, loadProjectThreads],
+    [refreshSystem, selectThread, track, loadProjectThreads, settleMutation],
   );
+
+  useEffect(() => {
+    // Restore pending archive projections after a reload, using real metadata as their baseline.
+    for (const entry of operationsRef.current) {
+      if (!entry.mutation) continue;
+      void api
+        .threadMetadata(entry.target)
+        .then((detail) => {
+          projectStore.current.seedMutation(entry.clientOperationId, toThreadSummary(detail));
+          setProjectThreads(projectStore.current.snapshot);
+        })
+        .catch(report);
+    }
+  }, [report]);
 
   useEffect(() => {
     if (!projectsLoaded) return;
@@ -734,6 +811,8 @@ export function useWorkspace() {
         return undefined;
       }
       if (busyRef.current.has(key)) return;
+      if (kind === 'archive' && operationsRef.current.some((entry) => blocksTarget(entry, target)))
+        return;
       if (
         (kind === 'fork' || kind === 'create' || kind === 'send') &&
         operationsRef.current.some(
@@ -747,6 +826,36 @@ export function useWorkspace() {
       setErrorDetails(undefined);
       const clientOperationId = crypto.randomUUID();
       if (draft) conversationDrafts.current.track(clientOperationId, draft);
+      const source =
+        selectedThreadRef.current?.id === target
+          ? toThreadSummary(selectedThreadRef.current)
+          : Object.values(projectStore.current.snapshot)
+              .flatMap((page) => page.data)
+              .find((row) => row.id === target);
+      const mutation =
+        kind === 'archive' &&
+        source &&
+        typeof (body as { archived?: boolean }).archived === 'boolean'
+          ? { projectId: source.projectId, archived: (body as { archived: boolean }).archived }
+          : undefined;
+      if (mutation) {
+        projectStore.current.beginMutation(clientOperationId, target, mutation, source);
+        setProjectThreads(projectStore.current.snapshot);
+        if (selectedRef.current === target) {
+          const archived = projectStore.current.archived;
+          const left = mutation.archived;
+          if (left) clearSelection();
+          else changeArchiveView(false);
+          mutationNavigation.current.set(clientOperationId, {
+            projectId: mutation.projectId,
+            threadId: target,
+            revision: navigationRevision.current,
+            archived,
+            left,
+          });
+          setThread((previous) => (previous ? { ...previous } : previous));
+        }
+      }
       track((previous) => [
         ...previous,
         {
@@ -755,6 +864,7 @@ export function useWorkspace() {
           target,
           createdAt: Date.now(),
           status: 'accepted',
+          ...(mutation ? { mutation } : {}),
           ...(kind === 'fork' || kind === 'create'
             ? {
                 projectId:
@@ -789,6 +899,7 @@ export function useWorkspace() {
           problem.problem.code !== 'RESULT_UNKNOWN'
         ) {
           conversationDrafts.current.discard(clientOperationId);
+          if (mutation) settleMutation(clientOperationId);
           track((previous) =>
             previous.filter((entry) => entry.clientOperationId !== clientOperationId),
           );
@@ -826,7 +937,16 @@ export function useWorkspace() {
         setBusy([...busyRef.current]);
       }
     },
-    [applyOperation, report, track, system, recordLookupError],
+    [
+      applyOperation,
+      report,
+      track,
+      system,
+      recordLookupError,
+      clearSelection,
+      changeArchiveView,
+      settleMutation,
+    ],
   );
 
   const cancelResultNavigation = () => {
@@ -939,7 +1059,7 @@ export function useWorkspace() {
     projectThreads,
     threads: projectThreads[projectId]?.data ?? [],
     nextCursor: projectThreads[projectId]?.nextCursor ?? null,
-    thread,
+    thread: thread ? projectStore.current.project(thread) : undefined,
     selectedId,
     selectThread: (id: string, owningProjectId?: string) => {
       cancelResultNavigation();
@@ -993,6 +1113,7 @@ export function useWorkspace() {
       )
         return;
       conversationDrafts.current.discard(id);
+      if (entry.mutation) settleMutation(id, undefined, false);
       track((previous) => previous.filter((current) => current.clientOperationId !== id));
       setError((previous) => (previous === entry.lookupError?.message ? undefined : previous));
     },

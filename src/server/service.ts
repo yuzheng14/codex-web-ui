@@ -356,7 +356,14 @@ export class GatewayService {
         this.beginTitleRead(threadId); // Invalidate older list/metadata reads.
         this.updateArchiveState(threadId, input.archived);
         this.publishThread(threadId);
-        return { result: { threadId, archived: input.archived } };
+        return {
+          result: {
+            threadId,
+            archived: input.archived,
+            summary: toThreadSummary(this.threadView(this.projection.get(threadId)!)),
+            cursor: this.events.cursor(),
+          },
+        };
       } finally {
         this.archiveChanges.delete(threadId);
       }
