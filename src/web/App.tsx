@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspace } from './hooks/useWorkspace';
+import { useThreadReadState } from './hooks/useThreadReadState';
 import { Sidebar } from './components/Sidebar';
 import { Conversation } from './components/Conversation';
 import { ThreadTitle } from './components/ThreadTitle';
@@ -25,7 +26,16 @@ const encode = encodeURIComponent;
 
 export function App() {
   const workspace = useWorkspace();
+  const { isUnreadCompletion, markCompletedRead } = useThreadReadState();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 761px)');
+    const closeMobileNavigation = () => {
+      if (desktop.matches) setSidebarOpen(false);
+    };
+    desktop.addEventListener('change', closeMobileNavigation);
+    return () => desktop.removeEventListener('change', closeMobileNavigation);
+  }, []);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const statusCheck = useRef(false);
@@ -33,6 +43,7 @@ export function App() {
     { kind: 'add' } | { kind: 'manage'; id: string }
   >();
   const [checkingCompatibility, setCheckingCompatibility] = useState(false);
+  const [compatibilityDialogOpen, setCompatibilityDialogOpen] = useState(false);
   const compatibilityAttempt = useRef(false);
   const project = workspace.projects.find((entry) => entry.id === workspace.projectId);
   const managedProject =
@@ -220,6 +231,7 @@ export function App() {
         onProject={workspace.setProjectId}
         projectThreads={workspace.projectThreads}
         selectedId={workspace.selectedId}
+        isUnreadCompletion={isUnreadCompletion}
         onThread={(id, projectId) => {
           void workspace.selectThread(id, projectId);
         }}
@@ -346,6 +358,7 @@ export function App() {
         )}
         <CompatibilityNotice
           system={system}
+          onOpenChange={setCompatibilityDialogOpen}
           canConfirm={canConfirm}
           submitting={compatibilitySubmitting}
           uncertain={compatibilityUncertain}
@@ -436,6 +449,14 @@ export function App() {
         )}
         <Conversation
           thread={thread}
+          readingEnabled={
+            !sidebarOpen &&
+            !projectDialog &&
+            !diagnosticsOpen &&
+            !workspace.authRequired &&
+            !compatibilityDialogOpen
+          }
+          onReadCompleted={markCompletedRead}
           offline={offline}
           projectName={project?.name}
           needsProject={workspace.projectsLoaded && workspace.projects.length === 0}

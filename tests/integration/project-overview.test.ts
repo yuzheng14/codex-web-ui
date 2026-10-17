@@ -59,6 +59,79 @@ function approval(threadId: string, turnId: string): PendingAction {
 }
 
 describe('project conversation overview', () => {
+  it('identifies completions by turn ID across renames and repeated update timestamps', async () => {
+    const { service, codex, first } = setup();
+    const overview: ServerMessage[] = [];
+    service.subscribeOverview((event) => overview.push(event));
+    const id = await create(service, 'first');
+    codex.threads.get(id)!.updatedAt = 123;
+    service.projection.get(id)!.updatedAt = 123;
+    const noTurns = toThreadSummary(service.projection.get(id)!);
+    expect(noTurns).not.toHaveProperty('lastTurnId');
+    expect(noTurns).not.toHaveProperty('lastTurnStatus');
+
+    await service.startTurn(id, { clientOperationId: operationId(), text: 'first completion' });
+    codex.complete(id, 'turn-1');
+    expect(overview.at(-1)).toMatchObject({
+      payload: { lastTurnId: 'turn-1', lastTurnStatus: 'completed', updatedAt: 123 },
+    });
+    await service.renameThread(id, { clientOperationId: operationId(), name: 'Renamed' });
+    expect(overview.at(-1)).toMatchObject({
+      payload: { title: 'Renamed', lastTurnId: 'turn-1', lastTurnStatus: 'completed' },
+    });
+    expect((await service.listThreadSummaries('first')).data[0]).toMatchObject({
+      lastTurnId: 'turn-1',
+      lastTurnStatus: 'completed',
+      updatedAt: 123,
+    });
+
+    await service.startTurn(id, { clientOperationId: operationId(), text: 'second completion' });
+    codex.complete(id, 'turn-2');
+    expect(overview.at(-1)).toMatchObject({
+      payload: { lastTurnId: 'turn-2', lastTurnStatus: 'completed', updatedAt: 123 },
+    });
+
+    // Metadata-only history cannot establish a completed turn from the thread timestamp.
+    codex.threads.set('unloaded-history', {
+      ...threadView('unloaded-history', first),
+      updatedAt: 456,
+    });
+    const unloaded = (await service.listThreadSummaries('first')).data.find(
+      (entry) => entry.id === 'unloaded-history',
+    );
+    expect(unloaded).toMatchObject({ updatedAt: 456 });
+    expect(unloaded).not.toHaveProperty('lastTurnId');
+    expect(unloaded).not.toHaveProperty('lastTurnStatus');
+  });
+
+  it('retains the creator through metadata refreshes, projection updates and summary broadcasts', async () => {
+    const { service, codex, first, app } = setup();
+    const originator = 'codex_web_ui';
+    const thread = { ...threadView('web-created', first), source: 'vscode', originator };
+    codex.threads.set(thread.id, thread);
+    const overview: ServerMessage[] = [];
+    service.subscribeOverview((event) => overview.push(event));
+    codex.emit({ type: 'thread', thread });
+    const identity = { id: thread.id, source: 'vscode', originator };
+    expect(overview.at(-1)).toMatchObject({ kind: 'threadSummary', payload: identity });
+    expect((await service.listThreadSummaries('first')).data).toContainEqual(
+      expect.objectContaining(identity),
+    );
+
+    await service.getThread(thread.id);
+    codex.emit({ type: 'threadName', threadId: thread.id, name: 'Renamed thread' });
+    codex.emit({ type: 'threadStatus', threadId: thread.id, status: 'running' });
+    expect(service.projection.get(thread.id)).toMatchObject({
+      ...identity,
+      title: 'Renamed thread',
+      status: 'running',
+    });
+    expect(overview.at(-1)).toMatchObject({ payload: { ...identity, status: 'running' } });
+    expect(
+      await (await app.request(`http://127.0.0.1:8787/api/threads/${thread.id}`)).json(),
+    ).toMatchObject(identity);
+  });
+
   it('reports other projects, new forks and approvals without subscribing to their content', async () => {
     const { service, codex } = setup();
     const first = await create(service, 'first');
@@ -220,11 +293,13 @@ describe('project conversation overview', () => {
           forkedFromId: 'parent',
           projectId: 'first',
           source: 'appServer',
+          originator: null,
           title: 'first-thread',
           status: 'idle',
           managed: false,
           updatedAt: 123,
           pendingActionCount: 0,
+          lastTurnId: 'turn',
           lastTurnStatus: 'completed',
         },
       ],

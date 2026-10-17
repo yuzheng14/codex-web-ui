@@ -119,6 +119,8 @@ export interface ThreadView {
   projectId: string;
   cwd: string;
   source: string;
+  /** Client recorded at creation; independent of the current executor. */
+  originator?: string | null;
   title: string;
   status: RunStatus;
   turns: TurnView[];
@@ -136,6 +138,7 @@ export type ThreadSummary = Pick<
   | 'forkedFromId'
   | 'projectId'
   | 'source'
+  | 'originator'
   | 'title'
   | 'status'
   | 'managed'
@@ -143,6 +146,8 @@ export type ThreadSummary = Pick<
   | 'archived'
 > & {
   pendingActionCount: number;
+  /** Stable identity of the latest known turn; absent when history is not loaded. */
+  lastTurnId?: string;
   lastTurnStatus?: RunStatus;
 };
 export interface Question {

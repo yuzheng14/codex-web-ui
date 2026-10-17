@@ -7,7 +7,8 @@ import {
   type AdapterEvent,
   type CodexAdapterOptions,
 } from '../../src/codex/adapter.js';
-import { mapItem, permissionSettings } from '../../src/codex/mapping.js';
+import { mapItem, mapThread, permissionSettings } from '../../src/codex/mapping.js';
+import type { Thread } from '../../src/codex/generated/v2/Thread.js';
 import type { ThreadItem } from '../../src/codex/generated/v2/ThreadItem.js';
 import type { SimulatorOptions } from '../fixtures/app-server.js';
 const adapters: CodexAdapter[] = [];
@@ -73,6 +74,37 @@ async function waitFor<T>(get: () => T | undefined): Promise<T> {
 }
 
 describe('verified protocol adapter with a real subprocess', () => {
+  it('preserves creator identity separately from source in creation, notifications and history', async () => {
+    const { adapter, events } = await fixture();
+    const thread = await adapter.createThread('/tmp');
+    const identity = { id: thread.id, source: 'vscode', originator: 'codex_web_ui' };
+    expect(thread).toMatchObject(identity);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'thread', thread: expect.objectContaining(identity) }),
+    );
+    expect(await adapter.readThreadMetadata(thread.id)).toMatchObject(identity);
+    expect(await adapter.readThread(thread.id)).toMatchObject(identity);
+    expect((await adapter.listThreads('/tmp')).data).toContainEqual(
+      expect.objectContaining(identity),
+    );
+  });
+
+  it.each([null, undefined])(
+    'keeps a missing creator unknown (%s) without deriving it from source',
+    (originator) => {
+      const thread = {
+        id: 'legacy',
+        cwd: '/tmp',
+        source: 'vscode',
+        status: { type: 'idle' },
+        turns: [],
+        updatedAt: 0,
+        ...(originator === undefined ? {} : { originator }),
+      } as unknown as Thread;
+      expect(mapThread(thread)).toMatchObject({ source: 'vscode', originator: null });
+    },
+  );
+
   it.each([
     [9, 142],
     [1, 1279],
@@ -471,7 +503,8 @@ describe('verified protocol adapter with a real subprocess', () => {
       expect(fork).toMatchObject({
         forkedFromId: source.id,
         cwd: source.cwd,
-        source: 'appServer',
+        source: 'vscode',
+        originator: 'codex_web_ui',
         status: 'idle',
         actions: [],
       });

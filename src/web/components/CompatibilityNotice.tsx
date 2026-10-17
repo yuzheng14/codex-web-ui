@@ -13,6 +13,7 @@ interface Props {
   onConfirm: () => void;
   onReconfirm: () => void;
   onRefresh: () => void;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function CompatibilityNotice(props: Props) {
@@ -22,6 +23,10 @@ export function CompatibilityNotice(props: Props) {
   const [reopenedFingerprint, setReopenedFingerprint] = useState<string>();
   const fingerprint = compatibilityFingerprint(system);
   const open = shouldOpenCompatibilityDialog(system, dismissedFingerprint, reopenedFingerprint);
+
+  useEffect(() => {
+    props.onOpenChange?.(open);
+  }, [open, props.onOpenChange]);
 
   useEffect(() => {
     const element = dialog.current;
