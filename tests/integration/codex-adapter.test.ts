@@ -1090,3 +1090,38 @@ describe('verified protocol adapter with a real subprocess', () => {
     expect(mapItem(item)).toEqual({ id: 'new-tool', type: 'futureTool', details: item });
   });
 });
+
+it('maps Fast defaults, confirmed tiers and explicit clearing across native lifecycle RPCs', async () => {
+  const { adapter, events, requests } = await fixture({
+    configOverrides: { service_tier: 'fast' },
+  });
+  expect((await adapter.readRuntimeSettings('/tmp')).serviceTier).toBe('fast');
+  expect(adapter.diagnostics().models[0]?.serviceTiers).toContain('fast');
+  const thread = await adapter.createThread('/tmp', { serviceTier: 'fast' });
+  expect(thread.runtimeSettings?.serviceTier).toBe('fast');
+  // Stored Thread metadata has no tier. It must never claim standard speed.
+  expect((await adapter.readThread(thread.id)).runtimeSettings?.serviceTier).toBeUndefined();
+  expect((await adapter.resumeThread(thread.id, '/tmp')).runtimeSettings?.serviceTier).toBe('fast');
+  expect((await adapter.forkThread(thread.id, '/tmp')).runtimeSettings?.serviceTier).toBe('fast');
+  expect(
+    (await adapter.forkThread(thread.id, '/tmp', { serviceTier: null })).runtimeSettings
+      ?.serviceTier,
+  ).toBeNull();
+  await adapter.startTurn(thread.id, '/tmp', '关闭 Fast', { serviceTier: null });
+  await waitFor(() => events.find((event) => event.type === 'threadSettings'));
+  expect(events.findLast((event) => event.type === 'threadSettings')).toMatchObject({
+    settings: { serviceTier: null },
+  });
+  const calls = await requests();
+  expect(
+    calls.find((entry) => entry.method === 'thread/start' && !entry.params.ephemeral)?.params
+      .serviceTier,
+  ).toBe('fast');
+  expect(calls.find((entry) => entry.method === 'turn/start')?.params).toHaveProperty(
+    'serviceTier',
+    null,
+  );
+  expect(calls.find((entry) => entry.method === 'thread/resume')?.params).not.toHaveProperty(
+    'serviceTier',
+  );
+});

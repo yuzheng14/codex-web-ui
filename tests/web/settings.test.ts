@@ -109,3 +109,20 @@ it('drops acknowledged edits but keeps newer edits and never sends observed cust
     ),
   ).toEqual({});
 });
+
+it('keeps explicit Fast-off pending until confirmed and clears Fast on an unsupported model', () => {
+  const current = { model: 'model-a', reasoningEffort: 'high', serviceTier: 'fast' };
+  expect(pendingSettings({ serviceTier: null }, current)).toEqual({ serviceTier: null });
+  expect(pendingSettings({ serviceTier: null }, { ...current, serviceTier: null })).toEqual({});
+  expect(pendingSettings({ serviceTier: null }, { model: null, reasoningEffort: null })).toEqual({
+    serviceTier: null,
+  });
+  expect(chooseModel({}, current, model).serviceTier).toBeNull();
+  expect(
+    chooseModel(
+      { serviceTier: 'fast' },
+      { ...current, serviceTier: null },
+      { ...model, serviceTiers: ['fast'] },
+    ).serviceTier,
+  ).toBe('fast');
+});

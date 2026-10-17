@@ -103,6 +103,9 @@ const policies = new Map<
   Pick<ThreadStartResponse, 'sandbox' | 'approvalPolicy' | 'approvalsReviewer'>
 >();
 const profiles = new Map<string, ActivePermissionProfile>();
+const serviceTiers = new Map<string, string | null>();
+const reportedTier = (id: string) =>
+  serviceTiers.get(id) === 'fast' ? 'priority' : (serviceTiers.get(id) ?? 'default');
 const finishes = new Map<string, NodeJS.Timeout>();
 type ServerReply = { id: RequestId; result?: unknown; error?: unknown };
 const callbacks = new Map<RequestId, (response: ServerReply) => void>();
@@ -187,7 +190,7 @@ function startResponse(
     thread,
     model: thread.model ?? 'simulated-model',
     modelProvider: thread.modelProvider,
-    serviceTier: null,
+    serviceTier: reportedTier(thread.id),
     disabledPluginIds: [],
     cwd: thread.cwd,
     instructionSources: [],
@@ -213,11 +216,12 @@ function applySettings(
   thread: Thread,
   settings: Pick<
     ThreadStartParams,
-    'model' | 'config' | 'sandbox' | 'approvalPolicy' | 'approvalsReviewer'
+    'model' | 'serviceTier' | 'config' | 'sandbox' | 'approvalPolicy' | 'approvalsReviewer'
   > &
     PermissionSelection,
 ) {
   if (settings.model) thread.model = settings.model;
+  if (settings.serviceTier !== undefined) serviceTiers.set(thread.id, settings.serviceTier);
   const effort = settings.config?.model_reasoning_effort;
   if (typeof effort === 'string') thread.reasoningEffort = effort as ReasoningEffort;
   const current = policy(thread);
@@ -267,7 +271,7 @@ function notifySettings(thread: Thread) {
         },
         model: thread.model!,
         modelProvider: thread.modelProvider,
-        serviceTier: null,
+        serviceTier: reportedTier(thread.id),
         effort: thread.reasoningEffort,
         summary: null,
         personality: null,
@@ -1365,7 +1369,7 @@ const model: Model = {
   supportsPersonality: false,
   multiAgentVersion: null,
   additionalSpeedTiers: [],
-  serviceTiers: [],
+  serviceTiers: [{ id: 'priority', name: 'Fast', description: 'Faster responses' }],
   defaultServiceTier: null,
   availableAccessPrograms: null,
   isDefault: true,
@@ -1409,6 +1413,7 @@ function receive(request: ClientRequest): void {
           model:
             savedModelDefaults?.model ??
             (options.configModel === undefined ? 'simulated-model' : options.configModel),
+          service_tier: null,
           model_reasoning_effort: savedModelDefaults
             ? savedModelDefaults.effort
             : options.configEffort === undefined
@@ -1622,6 +1627,7 @@ function receive(request: ClientRequest): void {
         turns: structuredClone(source.turns),
       };
       policies.set(thread.id, structuredClone(policy(source)));
+      serviceTiers.set(thread.id, serviceTiers.get(source.id) ?? null);
       const inheritedProfile = profiles.get(source.id);
       if (inheritedProfile) profiles.set(thread.id, structuredClone(inheritedProfile));
       for (const turn of thread.turns) {
@@ -1845,6 +1851,8 @@ function receive(request: ClientRequest): void {
         break;
       }
       if (request.params.model) thread.model = request.params.model;
+      if (request.params.serviceTier !== undefined)
+        serviceTiers.set(thread.id, request.params.serviceTier);
       if (request.params.effort) thread.reasoningEffort = request.params.effort;
       const current = policy(thread);
       const permissions = (request.params as PermissionSelection).permissions;

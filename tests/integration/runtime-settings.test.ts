@@ -38,6 +38,7 @@ it('keeps loaded permission settings through metadata reads and drops them on ru
   const settings = {
     model: 'model-a',
     reasoningEffort: 'high',
+    serviceTier: 'fast',
     sandbox: 'workspace-write' as const,
     approvalPolicy: 'granular' as const,
     approvalReviewer: 'auto_review',
@@ -58,6 +59,7 @@ it('keeps loaded permission settings through metadata reads and drops them on ru
 const confirmedSettings: RuntimeSettings = {
   model: 'model-a',
   reasoningEffort: 'ultra',
+  serviceTier: 'fast',
   sandbox: 'workspace-write',
   approvalPolicy: 'on-request',
   approvalReviewer: 'auto_review',

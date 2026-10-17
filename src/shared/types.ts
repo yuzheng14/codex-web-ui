@@ -11,6 +11,8 @@ export type RunStatus =
 export interface Settings {
   model?: string;
   reasoningEffort?: string;
+  /** fast opts in; null explicitly clears Fast instead of inheriting it. */
+  serviceTier?: 'fast' | null;
   /** Atomic user selection. Omitted permissions always inherit Codex's actual config. */
   permissionMode?: PermissionMode;
   approvalPolicy?: 'untrusted' | 'on-request' | 'never';
@@ -27,10 +29,12 @@ export interface PermissionCapabilities {
   allowedProfiles: string[] | null;
   autoReviewRequiredModels: string[];
 }
-/** Values reported by Codex; null means unset or unavailable, never a guessed default. */
+/** Values reported by Codex; missing values are never replaced by guessed defaults. */
 export interface RuntimeSettings {
   model: string | null;
   reasoningEffort: string | null;
+  /** null is reported standard speed; omitted means the upstream did not report it. */
+  serviceTier?: string | null;
   sandbox?: Settings['sandbox'] | 'external-sandbox' | null;
   approvalPolicy?: Settings['approvalPolicy'] | 'granular' | null;
   approvalReviewer?: string | null;
@@ -317,6 +321,7 @@ export interface ModelInfo {
   description: string;
   reasoningEfforts: string[];
   defaultReasoningEffort?: string;
+  serviceTiers?: string[];
 }
 export interface SystemInfo {
   ready: boolean;

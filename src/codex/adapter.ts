@@ -67,6 +67,7 @@ import {
   mapThread,
   mapTurn,
   permissionSettings,
+  serviceTierSettings,
   threadSettings,
   threadStatus,
   turnSettings,
@@ -373,6 +374,9 @@ export class CodexAdapter implements CodexClient {
         description: model.description,
         reasoningEfforts: model.supportedReasoningEfforts.map((effort) => effort.reasoningEffort),
         defaultReasoningEffort: model.defaultReasoningEffort,
+        serviceTiers:
+          model.serviceTiers?.map((tier) => (tier.id === 'priority' ? 'fast' : tier.id)) ??
+          model.additionalSpeedTiers,
       }));
       let cursor = models.nextCursor;
       const seen = new Set<string>();
@@ -390,6 +394,9 @@ export class CodexAdapter implements CodexClient {
               (effort) => effort.reasoningEffort,
             ),
             defaultReasoningEffort: model.defaultReasoningEffort,
+            serviceTiers:
+              model.serviceTiers?.map((tier) => (tier.id === 'priority' ? 'fast' : tier.id)) ??
+              model.additionalSpeedTiers,
           })),
         );
         cursor = page.nextCursor;
@@ -745,6 +752,7 @@ export class CodexAdapter implements CodexClient {
       model: typeof config.model === 'string' ? config.model : null,
       reasoningEffort:
         typeof config.model_reasoning_effort === 'string' ? config.model_reasoning_effort : null,
+      ...serviceTierSettings(config.service_tier),
       sandbox: config.sandbox_mode ?? null,
       approvalPolicy:
         typeof config.approval_policy === 'string'
@@ -851,6 +859,7 @@ export class CodexAdapter implements CodexClient {
     const settings: RuntimeSettings = {
       model: result.model ?? result.thread.model ?? null,
       reasoningEffort: result.reasoningEffort ?? null,
+      ...serviceTierSettings(result.serviceTier),
       ...permissionSettings(
         result.sandbox,
         result.approvalPolicy,
@@ -1005,6 +1014,7 @@ export class CodexAdapter implements CodexClient {
           const observed: RuntimeSettings = {
             model: event.params.threadSettings.model ?? null,
             reasoningEffort: event.params.threadSettings.effort ?? null,
+            ...serviceTierSettings(event.params.threadSettings.serviceTier),
             ...permissionSettings(
               event.params.threadSettings.sandboxPolicy,
               event.params.threadSettings.approvalPolicy,

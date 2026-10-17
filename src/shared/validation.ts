@@ -14,6 +14,7 @@ export const settingsSchema = z
   .object({
     model: z.string().min(1).max(200).optional(),
     reasoningEffort: z.string().min(1).max(40).optional(),
+    serviceTier: z.literal('fast').nullable().optional(),
     permissionMode: z.enum(['ask', 'auto-review', 'full-access', 'read-only']).optional(),
     approvalPolicy: z.enum(['untrusted', 'on-request', 'never']).optional(),
     approvalReviewer: z.enum(['user', 'auto_review']).optional(),

@@ -7,7 +7,7 @@ import type {
   ThreadView,
 } from '../../shared/types';
 import { useRuntimeDefaults } from '../hooks/useRuntimeDefaults';
-import { chooseModel, pendingSettings, selectedModelDefaults } from '../lib/settings';
+import { chooseModel, pendingSettings, selectedModelDefaults, speedLabel } from '../lib/settings';
 import { Icon } from './Icon';
 import { PermissionDetails, PermissionModeSelect } from './PermissionModeSelect';
 import { permissionModes } from '../../shared/permissions';
@@ -46,6 +46,7 @@ export function SettingsPanel({
   const [expanded, setExpanded] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [effortMenuOpen, setEffortMenuOpen] = useState(false);
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const advancedId = useId();
   const effortHintId = useId();
   const scope = JSON.stringify([projectId, thread?.id]);
@@ -59,6 +60,7 @@ export function SettingsPanel({
   useEffect(() => {
     setModelMenuOpen(false);
     setEffortMenuOpen(false);
+    setSpeedMenuOpen(false);
   }, [disabled, thread?.id, projectId]);
   useEffect(() => setExpanded(false), [thread?.id, projectId]);
   const defaults = useRuntimeDefaults(
@@ -81,6 +83,8 @@ export function SettingsPanel({
   const model = settings.model ?? current?.model ?? '';
   const effort = settings.reasoningEffort ?? current?.reasoningEffort ?? '';
   const effortTierLabel = effort === 'max' ? 'Max' : effort === 'ultra' ? 'Ultra' : null;
+  const tier = settings.serviceTier !== undefined ? settings.serviceTier : current?.serviceTier;
+  const speed = tier === null ? 'standard' : (tier ?? '');
   const selectedModel = models.find((entry) => entry.id === model);
   const changes = pendingSettings(settings, current);
   const pending = Object.keys(changes).length > 0;
@@ -114,6 +118,8 @@ export function SettingsPanel({
                 ? '下次任务生效'
                 : '恢复后发送或 Fork 时生效'}{' '}
             · 当前 {current?.model ?? '未报告'} / {current?.reasoningEffort ?? '未报告'}
+            {changes.serviceTier !== undefined &&
+              ` · 速度待生效：${speedLabel(changes.serviceTier)}；当前：${speedLabel(current?.serviceTier, unknown)}`}
             {changes.permissionMode &&
               ` · 权限待生效：${permissionModes[changes.permissionMode].label}；当前：${permissionLabel(current)}`}
           </span>
@@ -235,6 +241,45 @@ export function SettingsPanel({
                   {entry.id}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={speed}
+            disabled={disabled || Boolean(threadLoading)}
+            open={speedMenuOpen}
+            onOpenChange={setSpeedMenuOpen}
+            onValueChange={(value) =>
+              onChange(
+                pendingSettings(
+                  { ...settings, serviceTier: value === 'fast' ? 'fast' : null },
+                  current,
+                ),
+              )
+            }
+          >
+            <SelectTrigger
+              className="settings-choice settings-speed"
+              aria-label="速度模式"
+              title={`${speedLabel(tier, unknown)}${changes.serviceTier !== undefined ? ' · 待生效' : ''}`}
+              data-value={speed}
+              data-fast={tier === 'fast'}
+              data-pending={changes.serviceTier !== undefined}
+            >
+              <SelectValue placeholder={`Fast ${unknown}`}>{speedLabel(tier, unknown)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent side="top" aria-label="速度模式">
+              <SelectItem value="standard">标准 · 关闭 Fast</SelectItem>
+              <SelectItem value="fast" disabled={!selectedModel?.serviceTiers?.includes('fast')}>
+                Fast ·{' '}
+                {selectedModel?.serviceTiers?.includes('fast')
+                  ? '更快响应，增加用量'
+                  : '当前模型未提供'}
+              </SelectItem>
+              {tier && tier !== 'fast' && (
+                <SelectItem value={tier} disabled>
+                  {tier} · 当前档位
+                </SelectItem>
+              )}
             </SelectContent>
           </Select>
           <Select

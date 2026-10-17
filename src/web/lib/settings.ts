@@ -74,5 +74,13 @@ export function chooseModel(
   const next: Settings = { ...settings, model: selected.model };
   if (selected.reasoningEffort === null) delete next.reasoningEffort;
   else next.reasoningEffort = selected.reasoningEffort;
+  const tier = settings.serviceTier !== undefined ? settings.serviceTier : current?.serviceTier;
+  if (tier === 'fast' && !model.serviceTiers?.includes('fast')) next.serviceTier = null;
   return pendingSettings(next, current);
+}
+
+export function speedLabel(tier: string | null | undefined, unknown = '未报告'): string {
+  if (tier === null || tier === 'default') return 'Fast 关';
+  if (tier === 'fast') return 'Fast 开';
+  return tier === undefined ? `Fast ${unknown}` : tier;
 }

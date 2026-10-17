@@ -1848,6 +1848,20 @@ svg {
   padding: 4px;
   justify-content: center;
 }
+.settings-speed {
+  padding: 5px 8px;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #637669;
+}
+.settings-speed[data-fast='true'] {
+  color: #326744;
+  background: #e7f2e9;
+}
+.settings-speed[data-pending='true'] {
+  box-shadow: inset 0 -2px #ac7d2e;
+}
 .settings-effort .select-chevron {
   display: none;
 }
@@ -2143,6 +2157,16 @@ svg {
   }
 }
 @container (max-width: 430px) {
+  .composer-actions {
+    flex-wrap: wrap;
+  }
+  .composer-context,
+  .composer-send-controls {
+    flex: 1 1 100%;
+  }
+  .composer-send-controls {
+    margin-left: 0;
+  }
   .settings-policy > span,
   .settings-policy > svg:last-child {
     display: none;
@@ -2168,7 +2192,8 @@ svg {
     max-width: 62px;
   }
   .settings-model {
-    max-width: 125px;
+    max-width: 170px;
+    margin-right: auto;
   }
   .settings-fields {
     grid-template-columns: minmax(0, 1fr);
@@ -2177,14 +2202,14 @@ svg {
 }
 @container (max-width: 330px) {
   .composer-target > span {
-    display: none;
+    max-width: 62px;
   }
   .composer-target {
     flex-shrink: 0;
     padding: 4px;
   }
   .settings-model {
-    max-width: 110px;
+    max-width: 150px;
   }
 }
 .pending-actions {
