@@ -51,6 +51,7 @@ afterEach(() => {
 
 function start() {
   vi.stubGlobal('window', new EventTarget());
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }));
   vi.stubGlobal('navigator', { onLine: true });
   vi.stubGlobal('location', { protocol: 'http:', host: 'localhost' });
   vi.stubGlobal('WebSocket', FakeSocket);
@@ -62,6 +63,8 @@ function start() {
     system: vi.fn(),
     operation: vi.fn(),
     error: vi.fn(),
+    completion: vi.fn(),
+    refresh: vi.fn(),
   };
   stream = new ThreadStream(handlers);
   stream.start();
@@ -71,6 +74,42 @@ function start() {
 }
 
 describe('workspace overview transport', () => {
+  it('keeps completion signals independent of replay cursors and rejects malformed endings', () => {
+    const { stream, socket, handlers } = start();
+    const completion: ServerMessage = {
+      type: 'event',
+      kind: 'turnCompletion',
+      threadId: 'b',
+      cursor: { serverEpoch: 'epoch', seq: 2 },
+      payload: { threadId: 'b', turnId: 'turn', projectId: 'p', title: 'result', status: 'failed' },
+    };
+    socket.receive(completion);
+    expect(handlers.completion).toHaveBeenCalledWith(completion.payload);
+    expect(stream.cache.get('b')).toBeUndefined();
+    socket.receive({
+      ...completion,
+      payload: { ...completion.payload, status: 'running' },
+    } as ServerMessage);
+    expect(handlers.completion).toHaveBeenCalledTimes(1);
+    expect(handlers.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the socket before freezing and refreshes snapshots when the page resumes', () => {
+    const { stream, socket, handlers } = start();
+    document.dispatchEvent(new Event('freeze'));
+    expect(socket.close).toHaveBeenCalledOnce();
+    expect(handlers.connection).toHaveBeenLastCalledWith('disconnected');
+    expect(FakeSocket.instances).toHaveLength(1);
+    document.dispatchEvent(new Event('resume'));
+    expect(FakeSocket.instances).toHaveLength(2);
+    expect(handlers.refresh).toHaveBeenCalledOnce();
+    FakeSocket.instances[1]!.open();
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(handlers.refresh).toHaveBeenCalledTimes(2);
+    stream.stop();
+    document.dispatchEvent(new Event('resume'));
+    expect(handlers.refresh).toHaveBeenCalledTimes(2);
+  });
   it('switches detail subscriptions without reconnecting or turning an overview into a replay cursor', () => {
     const { stream, socket, handlers } = start();
     expect(socket.url).toBe('ws://localhost/ws?overview=1');

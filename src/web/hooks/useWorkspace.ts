@@ -27,6 +27,7 @@ import { operationNeedsCompatibilityConfirmation } from '../lib/compatibility';
 import { SystemSnapshotGuard } from '../lib/system';
 import { ProjectThreadsStore } from '../lib/project-threads';
 import { readThreadPage } from '../lib/thread-pagination';
+import { useBrowserNotifications } from './useBrowserNotifications';
 import {
   ConversationDrafts,
   type DraftSubmission,
@@ -621,6 +622,15 @@ export function useWorkspace() {
     [loadProjectThreads],
   );
 
+  const notifications = useBrowserNotifications({
+    projectName: (id) => projectsRef.current.find((project) => project.id === id)?.name,
+    openThread: (id, project) => {
+      cancelResultNavigation();
+      void selectThread(id, project);
+    },
+  });
+  const notifyCompletion = notifications.notify;
+
   useEffect(() => {
     void refreshProjects();
     void refreshSystem();
@@ -639,6 +649,15 @@ export function useWorkspace() {
       },
       thread: updateThread,
       summary: updateSummary,
+      completion: (completion) => {
+        void notifyCompletion(completion);
+      },
+      refresh: () => {
+        void refreshProjects().then(refreshProjectsThreads);
+        void refreshThread();
+        void refreshOperations();
+        void refreshSystem();
+      },
       system: (next) => {
         systemSnapshotGuard.current.runtimeEvent();
         setSystem(next);
@@ -668,6 +687,9 @@ export function useWorkspace() {
     refreshProjectsThreads,
     refreshProjects,
     applyProjects,
+    notifyCompletion,
+    refreshThread,
+    refreshOperations,
   ]);
   useEffect(() => {
     if (authRequired) {
@@ -975,5 +997,6 @@ export function useWorkspace() {
       setError((previous) => (previous === entry.lookupError?.message ? undefined : previous));
     },
     retryConnection: () => streamRef.current?.retry(),
+    notifications,
   };
 }

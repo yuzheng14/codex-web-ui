@@ -501,6 +501,7 @@ svg {
   background: #f5ead4;
 }
 .sidebar-footer {
+  position: relative;
   margin: 18px 8px 0;
   border-top: 1px solid var(--border);
   padding-top: 16px;
@@ -511,6 +512,78 @@ svg {
   align-items: center;
   font-size: 11px;
   color: #66786c;
+}
+.notification-settings-button {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  min-height: 24px;
+  height: 24px;
+  padding: 2px 5px;
+  font-size: 11px;
+  justify-content: flex-start;
+}
+.notification-settings-status {
+  color: #748078;
+  font-size: 10px;
+}
+.notification-dialog > p,
+.notification-background {
+  color: #66786c;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.notification-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.notification-control > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  font-size: 13px;
+}
+.notification-control span {
+  color: #748078;
+  font-size: 12px;
+}
+.notification-control .button {
+  flex-shrink: 0;
+}
+.notification-dialog .notification-help {
+  font-size: 12px;
+}
+.notification-background {
+  margin-top: 22px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.notification-background h3 {
+  margin: 0;
+  color: #303b35;
+  font-size: 13px;
+}
+.notification-background summary {
+  cursor: pointer;
+  color: #405e4c;
+}
+.notification-background ul {
+  padding-left: 20px;
+}
+.notification-background li + li {
+  margin-top: 8px;
+}
+.notification-background a {
+  margin-left: 5px;
+  color: #337052;
+  text-decoration: underline;
 }
 .privacy-mark::before {
   content: '';

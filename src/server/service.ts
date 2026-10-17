@@ -1460,6 +1460,8 @@ export class GatewayService {
       if (this.store.activeForThread(thread.id)?.state !== 'unknown') thread.status = event.status;
       this.projection.touch(thread.id);
     } else if (event.type === 'turn') {
+      const previous = thread.turns.find((turn) => turn.id === event.turn.id);
+      const newCompletion = !previous || !isTerminal(previous.status);
       if (isTerminal(event.turn.status)) this.turnUsage.save(thread.id, event.turn);
       this.projection.turn(thread.id, event.turn);
       // Preview changes do not have a dedicated notification. Read the upstream
@@ -1480,6 +1482,20 @@ export class GatewayService {
       if (isTerminal(event.turn.status)) {
         this.store.finishTurn(thread.id, event.turn.id, this.codex.epoch);
         this.projection.expireTurn(thread.id, event.turn.id);
+        if (newCompletion) {
+          try {
+            this.projects.assertOwnership(thread.projectId, thread.cwd);
+            this.events.publishCompletion({
+              threadId: thread.id,
+              turnId: event.turn.id,
+              projectId: thread.projectId,
+              title: thread.title,
+              status: event.turn.status as 'completed' | 'failed' | 'interrupted',
+            });
+          } catch {
+            // Removed or unavailable projects must not disclose completion metadata.
+          }
+        }
       }
     } else if (event.type === 'item') this.projection.item(thread.id, event.turnId, event.item);
     else if (event.type === 'delta')

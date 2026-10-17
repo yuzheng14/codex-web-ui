@@ -361,13 +361,21 @@ export interface SubscribeMessage {
   threadId: string;
   after?: Cursor;
 }
+/** Live-only completion metadata; never replayed from conversation history. */
+export interface TurnCompletion {
+  threadId: string;
+  turnId: string;
+  projectId: string;
+  title: string;
+  status: 'completed' | 'failed' | 'interrupted';
+}
 export type ServerMessage =
   | { type: 'snapshot'; cursor: Cursor; threadId: string; data: ThreadView }
   | {
       type: 'event';
       cursor: Cursor;
       threadId?: string;
-      kind: 'thread' | 'threadSummary' | 'runtime' | 'operation' | 'projects';
-      payload: ThreadView | ThreadSummary | SystemInfo | Operation | Project[];
+      kind: 'thread' | 'threadSummary' | 'runtime' | 'operation' | 'projects' | 'turnCompletion';
+      payload: ThreadView | ThreadSummary | SystemInfo | Operation | Project[] | TurnCompletion;
     }
   | { type: 'error'; error: ApiError };
