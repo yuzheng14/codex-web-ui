@@ -1171,6 +1171,7 @@ svg {
   background: transparent;
 }
 .markdown-code-block {
+  position: relative;
   min-width: 0;
   max-width: 100%;
   margin: 0 0 12px;
@@ -1182,27 +1183,36 @@ svg {
   margin-bottom: 0;
 }
 .markdown-code-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 4px 6px 0 12px;
+  position: absolute;
+  top: 6px;
+  right: 6px;
 }
 .code-copy-feedback {
-  min-width: 0;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 1;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 64px));
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 2px 8px #0000000d;
   color: var(--accent);
   font-size: 12px;
   line-height: 1.5;
+  pointer-events: none;
+}
+.code-copy-feedback:empty {
+  opacity: 0;
 }
 .code-copy-failed {
   color: #ae3e39;
 }
-.code-copy-button {
-  flex-shrink: 0;
-}
 .markdown .markdown-code-block pre {
-  margin: 0;
-  padding-top: 4px;
+  /* Reserve only horizontal space: the floating button never covers scrolling code. */
+  margin: 0 44px 0 0;
   border: 0;
   white-space: pre;
   overflow-wrap: normal;

@@ -41,8 +41,10 @@ test('each code block copies exact text with independent, temporary success feed
   }
   const first = blocks(page).first();
   await expect(blocks(page).last().getByRole('status')).toBeEmpty();
+  const heightBeforeCopy = (await first.boundingBox())!.height;
   await first.getByRole('button', { name: '复制代码块' }).click();
   await expect(first.getByRole('status')).toHaveText('已复制');
+  expect((await first.boundingBox())!.height).toBe(heightBeforeCopy);
   await page.screenshot({ path: '/tmp/codex-code-copy-desktop.png', animations: 'disabled' });
   await expect(first.getByRole('status')).toBeEmpty();
   // Inline code has no toolbar or copy button.
@@ -98,7 +100,14 @@ for (const width of [320, 390]) {
     await expect(button).toBeInViewport();
     const buttonBounds = await button.boundingBox();
     const codeBounds = await code.boundingBox();
-    expect(buttonBounds!.y + buttonBounds!.height).toBeLessThanOrEqual(codeBounds!.y);
+    const blockBounds = await block.boundingBox();
+    // The button floats beside the first line rather than adding a toolbar row.
+    expect(codeBounds!.y).toBe(blockBounds!.y + 1);
+    expect(buttonBounds!.y).toBeGreaterThan(codeBounds!.y);
+    expect(buttonBounds!.y + buttonBounds!.height).toBeLessThanOrEqual(
+      codeBounds!.y + codeBounds!.height,
+    );
+    expect(buttonBounds!.x).toBeGreaterThanOrEqual(codeBounds!.x + codeBounds!.width);
     await button.focus();
     await button.press('Space');
     await expect(block.getByRole('status')).toHaveText('已复制');
@@ -112,6 +121,7 @@ for (const failure of ['denied', 'unavailable']) {
   test(`clipboard ${failure}: shows a clear error without reporting success and allows retry`, async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
     await page.evaluate((mode) => {
       const clipboard = navigator.clipboard;
@@ -129,9 +139,15 @@ for (const failure of ['denied', 'unavailable']) {
       });
     }, failure);
     const block = blocks(page).first();
+    const heightBeforeCopy = (await block.boundingBox())!.height;
     await block.getByRole('button', { name: '复制代码块' }).click();
     await expect(block.getByRole('status')).toHaveText('复制失败，请手动选择代码复制。');
     await expect(page.getByText('已复制', { exact: true })).toHaveCount(0);
+    expect((await block.boundingBox())!.height).toBe(heightBeforeCopy);
+    await page.screenshot({
+      path: `/tmp/codex-code-copy-failed-${failure}.png`,
+      animations: 'disabled',
+    });
     await page.evaluate(() => Reflect.get(window, 'restoreClipboard')());
     await block.getByRole('button', { name: '复制代码块' }).click();
     await expect(block.getByRole('status')).toHaveText('已复制');
