@@ -10,12 +10,17 @@ import {
 } from './helpers';
 
 const headers = { Origin: testOrigin };
-const forkButton = (page: Page) => page.getByRole('button', { name: 'Fork 会话', exact: true });
+const selectedRow = (page: Page) =>
+  page.locator('.thread-row').filter({ has: page.locator('.thread-selected') });
+const forkButton = (page: Page) =>
+  selectedRow(page).getByRole('button', { name: 'Fork 会话', exact: true });
 const selectedId = (page: Page) =>
   page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
 async function newThread(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
+  if (await page.getByRole('button', { name: '打开项目与会话' }).isVisible())
+    await page.getByRole('button', { name: '打开项目与会话' }).click();
   await createThreadButton(page).click();
   await expectThreadReady(page);
   return (await selectedId(page))!;
@@ -94,22 +99,40 @@ test('fork preserves history and the source draft, then continues independently'
 });
 
 for (const width of [1280, 390, 320]) {
-  test(`fork toolbar stays compact and navigable at ${width}px`, async ({ page }) => {
-    const source = await newThread(page);
+  test(`fork sits next to archive at ${width}px`, async ({ page }) => {
+    await newThread(page);
     await finishTurn(page, '请为项目增加运行状态面板，并整理交互细节与验收步骤');
     await page.setViewportSize({ width, height: width === 1280 ? 900 : 844 });
-    const toolbar = page.getByRole('group', { name: '会话操作', exact: true });
-    const fork = toolbar.getByRole('button', { name: 'Fork 会话', exact: true });
+    if (width < 760) await page.getByRole('button', { name: '打开项目与会话' }).click();
+    const row = selectedRow(page);
+    const fork = forkButton(page);
+    const archive = row.getByRole('button', { name: '归档会话', exact: true });
     await expect(fork).toBeEnabled();
     await expect(fork).toHaveAccessibleDescription(
       'Fork 会话：复制已保存的历史，新会话可与原会话同时执行。',
     );
+    await expect(
+      page.locator('.topbar').getByRole('button', { name: 'Fork 会话', exact: true }),
+    ).toHaveCount(0);
     await expect(page.locator('.thread-actions')).toHaveCount(0);
-    await expect(page.getByText('Fork 复制已保存的历史，新会话可与原会话同时执行。')).toHaveCount(
-      0,
+    // Wait for the mobile drawer's entrance transition before comparing positions.
+    await archive.hover();
+    const forkBox = (await fork.boundingBox())!;
+    const archiveBox = (await archive.boundingBox())!;
+    expect(forkBox.width).toBe(archiveBox.width);
+    expect(forkBox.height).toBe(archiveBox.height);
+    expect(archiveBox.x - forkBox.x - forkBox.width).toBeLessThanOrEqual(2);
+    expect(archiveBox.y).toBe(forkBox.y);
+    expect(archiveBox.x + archiveBox.width).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
     );
+    await page.mouse.move(0, 0);
+    await page.screenshot({
+      path: `/tmp/codex-issue-100/sidebar-after-${width}.png`,
+      animations: 'disabled',
+    });
     await fork.focus();
-    // Fresh keyboard focus exposes the same guidance as pointer hover.
     await fork.press('Shift+Tab');
     await page.keyboard.press('Tab');
     await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('Fork 会话');
@@ -117,38 +140,118 @@ for (const width of [1280, 390, 320]) {
     await fork.hover();
     await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('复制已保存的历史');
     await page.screenshot({
-      path: `/tmp/codex-issue-100/after-tooltip-${width}.png`,
+      path: `/tmp/codex-issue-100/sidebar-tooltip-${width}.png`,
       animations: 'disabled',
     });
     await fork.press('Enter');
-    const back = toolbar.getByRole('button', { name: '返回原会话', exact: true });
-    await expect(back).toBeVisible();
-    await expect(fork).toBeEnabled();
-    await expect(page.locator('.topbar h1')).toHaveText(/.+/);
-    for (const control of [back, fork, toolbar.locator('.diagnostics > summary')]) {
-      const box = (await control.boundingBox())!;
-      expect(box.x).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width).toBeLessThanOrEqual(width);
-      if (control === back || control === fork) {
-        expect(box.width).toBe(width <= 760 ? 36 : 32);
-        expect(box.height).toBe(width <= 760 ? 36 : 32);
-      }
-    }
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-      true,
-    );
-    await page.mouse.move(0, 0);
-    await page.screenshot({
-      path: `/tmp/codex-issue-100/after-${width}.png`,
-      animations: 'disabled',
-    });
-    await back.click();
-    await expect(back).toHaveCount(0);
-    expect(await selectedId(page)).toBe(source);
+    await expect(page.getByRole('button', { name: '返回原会话', exact: true })).toBeVisible();
+    if (width < 760) await expect(page.locator('.sidebar')).not.toBeInViewport();
   });
 }
 
-test('disabled fork keeps its explanation in the toolbar tooltip', async ({ page, request }) => {
+test.describe('touch sidebar', () => {
+  test.use({ hasTouch: true, viewport: { width: 320, height: 844 } });
+  test('fork and archive have matching touch targets and tapping fork closes navigation', async ({
+    page,
+  }) => {
+    await newThread(page);
+    await finishTurn(page, '触屏 Fork 操作');
+    await page.getByRole('button', { name: '打开项目与会话' }).tap();
+    const fork = forkButton(page);
+    const archive = selectedRow(page).getByRole('button', { name: '归档会话', exact: true });
+    for (const button of [fork, archive]) {
+      const box = (await button.boundingBox())!;
+      expect(box.width).toBe(44);
+      expect(box.height).toBe(44);
+    }
+    await page.screenshot({
+      path: '/tmp/codex-issue-100/sidebar-touch-320.png',
+      animations: 'disabled',
+    });
+    await fork.tap();
+    await expect(page.getByRole('button', { name: '返回原会话', exact: true })).toBeVisible();
+    await expect(page.locator('.sidebar')).not.toBeInViewport();
+  });
+});
+
+for (const recover of [false, true]) {
+  test(`forks an unselected ${recover ? 'other-project conversation after reload' : 'conversation'} without resuming it`, async ({
+    page,
+    request,
+  }) => {
+    if (recover) await filterSocket(page, (message) => (isForkReceipt(message) ? null : message));
+    const selected = await newThread(page);
+    await finishTurn(page, '当前会话历史');
+    await page.getByRole('textbox', { name: '任务内容' }).fill('当前会话的草稿');
+    const projectId = recover ? 'fixture-other' : 'fixture';
+    const created = await request.post(`/api/projects/${projectId}/threads`, {
+      headers,
+      data: { clientOperationId: randomUUID() },
+    });
+    const source = ((await created.json()).result as { threadId: string }).threadId;
+    await request.post(`/api/threads/${source}/turns`, {
+      headers,
+      data: { clientOperationId: randomUUID(), text: '未打开的会话历史 [title-fail]' },
+    });
+    await expect
+      .poll(async () => (await readThread(request, source)).turns.at(-1)?.status)
+      .toBe('completed');
+    const sourceRow = page
+      .locator('.thread-row')
+      .filter({ has: page.locator(`[data-thread-id="${source}"]`) });
+    await expect(sourceRow).toBeVisible();
+    const resumes: string[] = [];
+    let submissions = 0;
+    let withhold = recover;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().endsWith(`/threads/${source}/resume`))
+        resumes.push(request.url());
+    });
+    await page.route(`**/api/threads/${source}/fork`, async (route) => {
+      submissions++;
+      expect(route.request().postDataJSON().settings).toBeUndefined();
+      if (recover) {
+        await route.fetch();
+        await route.abort('failed');
+      } else await route.continue();
+    });
+    if (recover)
+      await page.route('**/api/operations/*', (route) =>
+        withhold
+          ? route.fulfill({
+              status: 503,
+              json: { error: { code: 'UNAVAILABLE', message: '暂时无法核对' } },
+            })
+          : route.continue(),
+      );
+    await sourceRow.getByRole('button', { name: 'Fork 会话', exact: true }).click();
+    if (recover) {
+      await expect(
+        sourceRow.getByRole('button', { name: '正在确认 Fork…', exact: true }),
+      ).toBeDisabled();
+      expect(await selectedId(page)).toBe(selected);
+      withhold = false;
+      await page.reload();
+    }
+    await expect(page.getByRole('button', { name: '返回原会话', exact: true })).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem('codex-web.project')))
+      .toBe(projectId);
+    const resultId = await page.evaluate(
+      (id) => localStorage.getItem(`codex-web.selected:${id}`),
+      projectId,
+    );
+    expect((await readThread(request, resultId!)).forkedFromId).toBe(source);
+    expect(submissions).toBe(1);
+    expect(resumes).toEqual([]);
+    await page.locator(`[data-thread-id="${selected}"]`).click();
+    await expect(page.getByRole('textbox', { name: '任务内容' })).toHaveValue(
+      recover ? '' : '当前会话的草稿',
+    );
+  });
+}
+
+test('disabled fork keeps its explanation next to archive', async ({ page, request }) => {
   await newThread(page);
   await finishTurn(page, '检查不可用状态下的 Fork 提示');
   await controlRuntime(request, { unavailable: true });
@@ -159,7 +262,7 @@ test('disabled fork keeps its explanation in the toolbar tooltip', async ({ page
   const fork = forkButton(page);
   await expect(fork).toBeDisabled();
   await expect(fork).toHaveAccessibleDescription('连接恢复且 Codex 就绪后可 Fork 会话。');
-  await page.locator('.topbar-actions .control-hint').hover();
+  await selectedRow(page).locator('.thread-fork').hover();
   await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText(
     '连接恢复且 Codex 就绪后可 Fork 会话。',
   );
@@ -258,9 +361,12 @@ test('lost fork receipts recover after reload without dispatching a duplicate', 
     'true',
   );
   await page.mouse.move(0, 0);
-  await page.locator('.topbar-actions .control-hint').hover();
+  await selectedRow(page).locator('.thread-fork').hover();
   await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('正在确认 Fork');
-  await page.screenshot({ path: '/tmp/codex-issue-100/after-pending.png', animations: 'disabled' });
+  await page.screenshot({
+    path: '/tmp/codex-issue-100/sidebar-pending.png',
+    animations: 'disabled',
+  });
   expect(await selectedId(page)).toBe(source);
   withhold = false;
   // Recover the operation before the first project snapshot arrives, as can happen on CI

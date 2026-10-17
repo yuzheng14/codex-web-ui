@@ -575,12 +575,6 @@ svg {
   align-items: center;
   gap: 17px;
   font-size: 11px;
-  flex-shrink: 0;
-}
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 .thread-title-editor {
   min-width: 0;
@@ -2836,10 +2830,6 @@ dd {
     align-items: flex-end;
     gap: 7px;
   }
-  .topbar-actions .button-icon {
-    width: 36px;
-    height: 36px;
-  }
   .breadcrumb {
     font-size: 9px;
   }
@@ -2984,7 +2974,7 @@ dd {
 }
 .thread-row .thread-link {
   min-width: 0;
-  padding-right: 88px;
+  padding-right: 118px;
 }
 .thread-row-actions {
   position: absolute;
@@ -3059,6 +3049,7 @@ dd {
   position: relative;
 }
 .thread-details-trigger,
+.thread-fork > .button,
 .thread-archive > button {
   width: 28px;
   height: 28px;
@@ -3149,7 +3140,7 @@ dd {
 @media (pointer: coarse) {
   .thread-row .thread-link {
     min-height: 44px;
-    padding: 12px 114px 12px 10px;
+    padding: 12px 158px 12px 10px;
   }
   .thread-row-actions {
     top: 0;
@@ -3157,6 +3148,7 @@ dd {
     gap: 0;
   }
   .thread-details-trigger,
+  .thread-fork > .button,
   .thread-archive > button {
     width: 44px;
     height: 44px;

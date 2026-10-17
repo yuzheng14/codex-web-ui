@@ -123,6 +123,7 @@ describe('durable operation identity', () => {
       createdAt: 1,
       status: 'unknown',
       navigateToResult: false,
+      navigationSource: { projectId: 'other-project', threadId: 'selected-thread' },
       error: 'Response details are not durable',
     };
     expect(saveOperations([entry], storage)).toBe(true);
