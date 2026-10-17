@@ -80,6 +80,13 @@ export function createApp({
   app.get('/api/projects/:projectId/runtime-settings', async (c) =>
     c.json(await service.readRuntimeSettings(id(c.req.param('projectId')))),
   );
+  app.post('/api/projects/:projectId/model-defaults', async (c) => {
+    const op = await service.saveModelDefaults(
+      id(c.req.param('projectId')),
+      await parse(c, schemas.saveModelDefaultsSchema),
+    );
+    return c.json(op, status(op));
+  });
   app.post('/api/projects', async (c) =>
     c.json(service.addProject(await parse(c, schemas.createProjectSchema))),
   );

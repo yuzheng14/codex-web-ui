@@ -104,6 +104,77 @@ describe('verified protocol adapter with a real subprocess', () => {
       expect(mapThread(thread)).toMatchObject({ source: 'vscode', originator: null });
     },
   );
+  it('persists the model and effort as one native config edit without changing existing threads or permissions', async () => {
+    const { adapter, requests } = await fixture({ models: ['simulated-model', 'other-model'] });
+    const previous = await adapter.createThread('/tmp');
+    const before = previous.runtimeSettings;
+    expect(
+      await adapter.saveModelDefaults({ model: 'other-model', reasoningEffort: 'high' }),
+    ).toEqual({ status: 'ok' });
+    expect((await requests()).filter((entry) => entry.method === 'config/batchWrite')).toMatchObject([
+      {
+        method: 'config/batchWrite',
+        params: {
+          edits: [
+            { keyPath: 'model', value: 'other-model', mergeStrategy: 'replace' },
+            { keyPath: 'model_reasoning_effort', value: 'high', mergeStrategy: 'replace' },
+          ],
+          reloadUserConfig: true,
+        },
+      },
+    ]);
+    expect(await adapter.readRuntimeSettings('/tmp')).toMatchObject({
+      model: 'other-model',
+      reasoningEffort: 'high',
+      sandbox: 'read-only',
+      approvalReviewer: 'user',
+    });
+    expect((await adapter.createThread('/tmp')).runtimeSettings).toMatchObject({
+      model: 'other-model',
+      reasoningEffort: 'high',
+      permissionMode: 'read-only',
+    });
+    expect((await adapter.readThread(previous.id)).runtimeSettings).toMatchObject({
+      model: before!.model,
+      reasoningEffort: before!.reasoningEffort,
+    });
+  });
+
+  it('clears an explicit effort when saving a model default and reports overridden writes without exposing config metadata', async () => {
+    const { adapter } = await fixture({ configWriteStatus: 'okOverridden' });
+    expect(
+      await adapter.saveModelDefaults({ model: 'simulated-model', reasoningEffort: null }),
+    ).toEqual({ status: 'okOverridden' });
+    expect((await adapter.readRuntimeSettings('/tmp')).reasoningEffort).toBeNull();
+  });
+
+  it('rejects invalid pairs before writing and leaves execution available if config writes are unsupported', async () => {
+    const { adapter, requests } = await fixture();
+    for (const settings of [
+      { model: 'missing', reasoningEffort: 'high' },
+      { model: 'simulated-model', reasoningEffort: 'missing' },
+    ])
+      await expect(adapter.saveModelDefaults(settings)).rejects.toMatchObject({
+        code: 'VALIDATION_ERROR',
+      });
+    expect((await requests()).some((entry) => entry.method === 'config/batchWrite')).toBe(false);
+    const unsupported = (await fixture({ unsupportedMethod: 'config/batchWrite' })).adapter;
+    await expect(
+      unsupported.saveModelDefaults({ model: 'simulated-model', reasoningEffort: 'high' }),
+    ).rejects.toMatchObject({ code: 'PROTOCOL_INCOMPATIBLE' });
+    expect(unsupported.ready).toBe(true);
+    expect((await unsupported.createThread('/tmp')).runtimeSettings?.reasoningEffort).toBe(
+      'medium',
+    );
+  });
+
+  it('does not replace defaults when the owning server rejects a config write', async () => {
+    const { adapter } = await fixture({ configWriteFailure: true });
+    await expect(
+      adapter.saveModelDefaults({ model: 'simulated-model', reasoningEffort: 'high' }),
+    ).rejects.toThrow('not writable');
+    expect((await adapter.readRuntimeSettings('/tmp')).reasoningEffort).toBe('medium');
+  });
 
   it('keeps metadata history evidence without turns and identifies missing saved IDs', async () => {
     const { adapter } = await fixture();

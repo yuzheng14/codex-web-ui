@@ -226,6 +226,17 @@ export type ActionResolution =
 export interface OperationInput {
   clientOperationId: string;
 }
+/** Saved together, independently of any thread's pending runtime settings. */
+export interface ModelDefaults {
+  model: string;
+  reasoningEffort: string | null;
+}
+export interface SaveModelDefaultsInput extends OperationInput {
+  settings: ModelDefaults;
+}
+export interface ModelDefaultsResult {
+  status: 'ok' | 'okOverridden';
+}
 export interface ArchiveThreadInput extends OperationInput {
   archived: boolean;
 }

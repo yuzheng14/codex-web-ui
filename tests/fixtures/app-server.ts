@@ -33,6 +33,8 @@ export interface SimulatorOptions {
   settingsOnFeatureRead?: boolean;
   configModel?: string | null;
   configEffort?: ReasoningEffort | null;
+  configWriteStatus?: 'ok' | 'okOverridden';
+  configWriteFailure?: boolean;
   fragmentBytes?: number;
   ackDelayMs?: number;
   turnDelayMs?: number;
@@ -108,6 +110,7 @@ let initialized = false;
 let handshaken = false;
 let nextRequestId = 0;
 let titleAttempts = 0;
+let savedModelDefaults: { model: string; effort: ReasoningEffort | null } | undefined;
 let writes = Promise.resolve();
 function send(message: unknown): void {
   const data = Buffer.from(JSON.stringify(message) + '\n');
@@ -145,8 +148,12 @@ function makeThread(cwd: string): Thread {
     projectId: null,
     historyMode: options.paginated ? 'paginated' : 'legacy',
     modelProvider: options.modelProvider ?? 'openai',
-    model: 'simulated-model',
-    reasoningEffort: cwd.endsWith('other-project') ? 'high' : 'medium',
+    model: savedModelDefaults?.model ?? 'simulated-model',
+    reasoningEffort: savedModelDefaults
+      ? savedModelDefaults.effort
+      : cwd.endsWith('other-project')
+        ? 'high'
+        : 'medium',
     createdAt: Date.now() / 1000,
     updatedAt: Date.now() / 1000,
     recencyAt: null,
@@ -1356,9 +1363,12 @@ function receive(request: ClientRequest): void {
       reply(request.id, {
         config: {
           mcp_servers: { 'fixture.tools': { command: 'unused', enabled: true } },
-          model: options.configModel === undefined ? 'simulated-model' : options.configModel,
-          model_reasoning_effort:
-            options.configEffort === undefined
+          model:
+            savedModelDefaults?.model ??
+            (options.configModel === undefined ? 'simulated-model' : options.configModel),
+          model_reasoning_effort: savedModelDefaults
+            ? savedModelDefaults.effort
+            : options.configEffort === undefined
               ? request.params.cwd?.endsWith('other-project')
                 ? 'high'
                 : 'medium'
@@ -1374,6 +1384,28 @@ function receive(request: ClientRequest): void {
         layers: null,
       });
       break;
+    case 'config/batchWrite': {
+      if (options.configWriteFailure) {
+        error(request.id, 'Fixture configuration is not writable');
+        break;
+      }
+      const selectedModel = request.params.edits.find((edit) => edit.keyPath === 'model')?.value;
+      const effort = request.params.edits.find(
+        (edit) => edit.keyPath === 'model_reasoning_effort',
+      )?.value;
+      if (typeof selectedModel !== 'string' || (effort !== null && typeof effort !== 'string')) {
+        error(request.id, 'Expected a complete model selection');
+        break;
+      }
+      savedModelDefaults = { model: selectedModel, effort: effort as ReasoningEffort | null };
+      reply(request.id, {
+        status: options.configWriteStatus ?? 'ok',
+        version: randomUUID(),
+        filePath: join(tmpdir(), 'fixture-user-config.toml'),
+        overriddenMetadata: null,
+      });
+      break;
+    }
     case 'configRequirements/read':
       reply(request.id, { requirements: options.requirements ?? null });
       break;

@@ -1,7 +1,13 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import type { ModelInfo, Settings, ThreadView } from '../../shared/types';
+import type {
+  ModelDefaults,
+  ModelDefaultsResult,
+  ModelInfo,
+  Settings,
+  ThreadView,
+} from '../../shared/types';
 import { useRuntimeDefaults } from '../hooks/useRuntimeDefaults';
-import { chooseModel, pendingSettings } from '../lib/settings';
+import { chooseModel, pendingSettings, selectedModelDefaults } from '../lib/settings';
 import { Icon } from './Icon';
 import { PermissionDetails, PermissionModeSelect } from './PermissionModeSelect';
 import { permissionModes } from '../../shared/permissions';
@@ -21,6 +27,8 @@ export function SettingsPanel({
   disabled,
   threadLoading,
   onChange,
+  onSaveModelDefaults,
+  savingModelDefaults,
 }: {
   settings: Settings;
   projectName?: string;
@@ -32,12 +40,22 @@ export function SettingsPanel({
   disabled: boolean;
   threadLoading?: boolean;
   onChange: (settings: Settings) => void;
+  onSaveModelDefaults: (settings: ModelDefaults) => Promise<ModelDefaultsResult | undefined>;
+  savingModelDefaults: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [effortMenuOpen, setEffortMenuOpen] = useState(false);
   const advancedId = useId();
   const effortHintId = useId();
+  const scope = JSON.stringify([projectId, thread?.id]);
+  const [saveNotice, setSaveNotice] = useState<{
+    scope: string;
+    settings: ModelDefaults;
+    state: 'saving' | 'saved' | 'overridden' | 'error';
+  }>();
+  const notice = saveNotice?.scope === scope ? saveNotice : undefined;
+  const saving = savingModelDefaults || notice?.state === 'saving';
   useEffect(() => {
     setModelMenuOpen(false);
     setEffortMenuOpen(false);
@@ -67,8 +85,23 @@ export function SettingsPanel({
   const changes = pendingSettings(settings, current);
   const pending = Object.keys(changes).length > 0;
   const source = thread ? (thread.managed ? '会话当前配置' : '会话保存配置') : '新会话默认配置';
-  function update(key: keyof Settings, value: string) {
-    onChange(pendingSettings({ ...settings, [key]: value }, current));
+  async function saveModelDefaults(selection: ModelDefaults) {
+    setSaveNotice({ scope, settings: selection, state: 'saving' });
+    try {
+      const result = await onSaveModelDefaults(selection);
+      setSaveNotice({
+        scope,
+        settings: selection,
+        state:
+          result?.status === 'ok'
+            ? 'saved'
+            : result?.status === 'okOverridden'
+              ? 'overridden'
+              : 'error',
+      });
+    } catch {
+      setSaveNotice({ scope, settings: selection, state: 'error' });
+    }
   }
   return (
     <div className="settings-panel" role="group" aria-label="运行设置">
@@ -84,10 +117,39 @@ export function SettingsPanel({
             {changes.permissionMode &&
               ` · 权限待生效：${permissionModes[changes.permissionMode].label}；当前：${permissionLabel(current)}`}
           </span>
-          <button type="button" disabled={disabled} onClick={() => onChange({})}>
-            撤销修改
+          <button
+            type="button"
+            disabled={disabled || saving}
+            onClick={() => {
+              onChange({});
+              if (notice?.state === 'error') setSaveNotice(undefined);
+            }}
+          >
+            {thread && (changes.model !== undefined || changes.reasoningEffort !== undefined)
+              ? '撤销本会话修改'
+              : '撤销修改'}
           </button>
         </div>
+      )}
+      {notice && (
+        <p className="settings-defaults" data-state={notice.state} role="status">
+          {notice.state === 'saving'
+            ? '正在保存模型和推理强度默认值…'
+            : notice.state === 'saved'
+              ? '已保存为 Codex 新会话默认值'
+              : notice.state === 'overridden'
+                ? '默认值已保存，但被更高优先级配置覆盖；新会话以实际配置为准。'
+                : '未能确认默认值已保存。当前会话的待生效选择仍保留，请查看提交核对结果。'}
+          {notice.state === 'error' && (
+            <button
+              type="button"
+              disabled={disabled || saving}
+              onClick={() => void saveModelDefaults(notice.settings)}
+            >
+              重新保存默认值
+            </button>
+          )}
+        </p>
       )}
       {!thread && defaults.error && (
         <p className="settings-error" role="status">
@@ -139,15 +201,22 @@ export function SettingsPanel({
             value={model}
             disabled={disabled || !models.length}
             open={modelMenuOpen}
-            onOpenChange={setModelMenuOpen}
+            onOpenChange={(open) => {
+              if (!saving || !open) setModelMenuOpen(open);
+            }}
             onValueChange={(value) => {
+              if (saving) return;
               const selected = models.find((entry) => entry.id === value);
-              if (selected) onChange(chooseModel(settings, current, selected));
+              if (selected) {
+                onChange(chooseModel(settings, current, selected));
+                void saveModelDefaults(selectedModelDefaults(settings, current, selected));
+              }
             }}
           >
             <SelectTrigger
               className="settings-choice settings-model"
               aria-label="模型"
+              aria-disabled={saving || undefined}
               title={`模型：${model || unknown}`}
               data-value={model}
             >
@@ -172,8 +241,14 @@ export function SettingsPanel({
             value={effort}
             disabled={disabled || !selectedModel?.reasoningEfforts.length}
             open={effortMenuOpen}
-            onOpenChange={setEffortMenuOpen}
-            onValueChange={(value) => update('reasoningEffort', value)}
+            onOpenChange={(open) => {
+              if (!saving || !open) setEffortMenuOpen(open);
+            }}
+            onValueChange={(value) => {
+              if (saving) return;
+              onChange(pendingSettings({ ...settings, reasoningEffort: value }, current));
+              void saveModelDefaults({ model, reasoningEffort: value });
+            }}
           >
             <ControlHint
               id={effortHintId}
@@ -190,6 +265,7 @@ export function SettingsPanel({
               <SelectTrigger
                 className="settings-choice settings-effort reasoning-tier"
                 aria-label="推理强度"
+                aria-disabled={saving || undefined}
                 aria-describedby={effortHintId}
                 data-value={effort}
                 data-effort={effort}

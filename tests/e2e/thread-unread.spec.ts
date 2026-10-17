@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page, type TestInfo } from '@playwright/test';
 import type { Operation, ThreadView } from '../../src/shared/types';
-import { compatibilityDialog, confirmCompatibility, controlRuntime } from './helpers';
+import { compatibilityDialog, confirmCompatibility, controlRuntime, testOrigin } from './helpers';
 
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
 const link = (page: Page, id: string) => page.locator(`[data-thread-id="${id}"]`);
 const row = (page: Page, id: string) => link(page, id).locator('..');
 const unread = (page: Page, id: string) =>
@@ -197,6 +197,8 @@ test.describe('touch reading', () => {
     await page.getByRole('button', { name: '关闭导航', exact: true }).tap();
     await page.getByRole('button', { name: '回到最新内容', exact: true }).tap();
     await expect(latestResult(page)).toBeInViewport();
+    // Keep the result unobscured until the asynchronous visibility observer confirms reading.
+    await expect(unread(page, id)).toHaveCount(0);
     await page.getByRole('button', { name: '打开项目与会话' }).tap();
     await expect(unread(page, id)).toHaveCount(0);
     await expect(row(page, id).locator('.thread-details')).toContainText('已读');

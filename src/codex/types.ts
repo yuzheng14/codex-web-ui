@@ -6,6 +6,8 @@ import type {
   PendingAction,
   RunStatus,
   Settings,
+  ModelDefaults,
+  ModelDefaultsResult,
   SystemInfo,
   ThreadPage,
   ThreadView,
@@ -46,6 +48,7 @@ export interface CodexClient {
   stop(): Promise<void>;
   diagnostics(): CodexDiagnostics;
   readRuntimeSettings(cwd: string): Promise<RuntimeSettings>;
+  saveModelDefaults(settings: ModelDefaults): Promise<ModelDefaultsResult>;
   onEvent(listener: (event: CodexEvent) => void): () => void;
   listThreads(cwd: string, cursor?: string, archived?: boolean): Promise<ThreadPage>;
   archiveThread(id: string): Promise<void>;

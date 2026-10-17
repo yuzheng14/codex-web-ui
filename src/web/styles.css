@@ -2026,6 +2026,7 @@ svg {
   gap: 4px 18px;
 }
 .settings-pending,
+.settings-defaults,
 .settings-error {
   display: flex;
   flex-wrap: wrap;
@@ -2038,6 +2039,7 @@ svg {
   color: #85682c;
 }
 .settings-pending button,
+.settings-defaults button,
 .settings-error button {
   border: 0;
   background: transparent;
@@ -2046,6 +2048,13 @@ svg {
   font: inherit;
   cursor: pointer;
   text-decoration: underline;
+}
+.settings-defaults[data-state='saved'] {
+  color: #52735a;
+}
+.settings-pending > span {
+  min-width: 0;
+  max-width: 100%;
 }
 @container (max-width: 600px) {
   .composer-actions {

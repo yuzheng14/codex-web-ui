@@ -4,6 +4,7 @@ import {
   choosePermissionMode,
   pendingSettings,
   permissionLabel,
+  selectedModelDefaults,
 } from '../../src/web/lib/settings';
 import type { ModelInfo } from '../../src/shared/types';
 const model: ModelInfo = {
@@ -13,6 +14,19 @@ const model: ModelInfo = {
   reasoningEfforts: ['low', 'high'],
   defaultReasoningEffort: 'high',
 };
+it('saves a complete supported pair even when a field already matches the current session', () => {
+  const current = { model: 'model-b', reasoningEffort: 'high' };
+  expect(chooseModel({}, current, model)).toEqual({});
+  expect(selectedModelDefaults({}, current, model)).toEqual(current);
+  expect(selectedModelDefaults({ reasoningEffort: 'low' }, current, model)).toEqual({
+    model: 'model-b',
+    reasoningEffort: 'low',
+  });
+  expect(selectedModelDefaults({}, current, { ...model, reasoningEfforts: [] })).toEqual({
+    model: 'model-b',
+    reasoningEffort: null,
+  });
+});
 it('proposes a supported effort on model switch without claiming it is already active', () => {
   const current = { model: 'model-a', reasoningEffort: 'medium' };
   expect(chooseModel({}, current, model)).toEqual({ model: 'model-b', reasoningEffort: 'high' });

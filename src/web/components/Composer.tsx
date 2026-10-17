@@ -1,6 +1,12 @@
 import { useEffect, useId, useRef, useState, type ClipboardEvent } from 'react';
 import { emptyDraft, imagePasteError, readImage, type MessageDraft } from '../lib/image-paste';
-import type { ModelInfo, Settings, ThreadView } from '../../shared/types';
+import type {
+  ModelDefaults,
+  ModelDefaultsResult,
+  ModelInfo,
+  Settings,
+  ThreadView,
+} from '../../shared/types';
 import { isActive } from './Status';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
@@ -26,6 +32,8 @@ interface Props {
   settings: Settings;
   models: ModelInfo[];
   onSettings: (settings: Settings) => void;
+  onSaveModelDefaults: (settings: ModelDefaults) => Promise<ModelDefaultsResult | undefined>;
+  savingModelDefaults: boolean;
   onSend: (text: string, steer: boolean, images?: string[]) => Promise<boolean>;
   onInterrupt: () => void;
   onResume: () => void;
@@ -401,6 +409,8 @@ export function Composer(props: Props) {
           projectName={props.projectName}
           models={props.models}
           onChange={props.onSettings}
+          onSaveModelDefaults={props.onSaveModelDefaults}
+          savingModelDefaults={props.savingModelDefaults}
           thread={props.thread}
           projectId={props.projectId}
           runtimeKey={props.runtimeKey}

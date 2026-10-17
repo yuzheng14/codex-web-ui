@@ -17,6 +17,7 @@ import type {
   InterruptInput,
   Operation,
   OperationInput,
+  SaveModelDefaultsInput,
   PendingAction,
   ReconcileInput,
   RenameProjectInput,
@@ -203,6 +204,17 @@ export class GatewayService {
   async readRuntimeSettings(projectId: string) {
     const project = this.projects.get(projectId);
     return this.codex.readRuntimeSettings(project.canonicalRoot);
+  }
+
+  async saveModelDefaults(projectId: string, input: SaveModelDefaultsInput): Promise<Operation> {
+    return this.perform('config.modelDefaults', projectId, input, async () => {
+      this.projects.get(projectId);
+      this.ensureReady();
+      this.ensureCompatibilityConfirmed();
+      this.store.associateProject(input.clientOperationId, projectId);
+      this.store.dispatch(input.clientOperationId);
+      return { result: await this.codex.saveModelDefaults(input.settings) };
+    });
   }
 
   async listThreads(projectId: string, cursor?: string, archived = false): Promise<ThreadPage> {
