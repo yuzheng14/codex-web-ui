@@ -47,6 +47,7 @@ export function useWorkspace() {
   const [thread, setThread] = useState<ThreadView>();
   const [selectedId, setSelectedId] = useState<string>();
   const selectedRef = useRef<string | undefined>(undefined);
+  const selectedThreadRef = useRef<ThreadView | undefined>(undefined);
   const selectionsRef = useRef<Record<string, string>>({});
   const [system, setSystem] = useState<SystemInfo>();
   const systemSnapshotGuard = useRef(new SystemSnapshotGuard());
@@ -135,17 +136,52 @@ export function useWorkspace() {
     },
     [refreshProjectsThreads],
   );
-  const updateSummary = useCallback((summary: ThreadSummary, cursor: Cursor) => {
-    if (!projectsRef.current.some((project) => project.id === summary.projectId)) return;
-    if (projectStore.current.applySummary(summary, cursor))
-      setProjectThreads(projectStore.current.snapshot);
+  const forgetSelection = useCallback((id: string, project: string) => {
+    if (selectionsRef.current[project] === id) delete selectionsRef.current[project];
+    try {
+      if (localStorage.getItem(`codex-web.selected:${project}`) === id)
+        localStorage.removeItem(`codex-web.selected:${project}`);
+    } catch {
+      /* In-memory selections still work when storage is unavailable. */
+    }
   }, []);
+  const clearSelection = useCallback(() => {
+    const id = selectedRef.current;
+    if (id) forgetSelection(id, projectRef.current);
+    // Invalidate reads started before leaving the conversation.
+    navigationRevision.current++;
+    detailReadSequence.current++;
+    selectedRef.current = undefined;
+    selectedThreadRef.current = undefined;
+    setSelectedId(undefined);
+    setThread(undefined);
+    streamRef.current?.select(undefined);
+  }, [forgetSelection]);
+  const updateSummary = useCallback(
+    (summary: ThreadSummary, cursor: Cursor) => {
+      if (!projectsRef.current.some((project) => project.id === summary.projectId)) return;
+      if (projectStore.current.applySummary(summary, cursor)) {
+        setProjectThreads(projectStore.current.snapshot);
+        if (summary.archived && !projectStore.current.archived)
+          forgetSelection(summary.id, summary.projectId);
+      }
+    },
+    [forgetSelection],
+  );
   const updateThread = useCallback(
     (next: ThreadView) => {
       if (!projectsRef.current.some((project) => project.id === next.projectId)) return;
       if (next.id === selectedRef.current && next.projectId === projectRef.current) {
-        setThread(next);
-        changeArchiveView(Boolean(next.archived));
+        const previous = selectedThreadRef.current;
+        if (next.archived && previous?.id === next.id && !previous.archived) {
+          // A confirmed archive ends the current visit. Opening archived history is
+          // an explicit selection, with no previous detail, and still follows its view.
+          clearSelection();
+        } else {
+          selectedThreadRef.current = next;
+          setThread(next);
+          changeArchiveView(Boolean(next.archived));
+        }
       }
       const scope = `thread:${next.id}`;
       const draft = settingsRef.current[scope];
@@ -177,7 +213,7 @@ export function useWorkspace() {
         ]);
       }
     },
-    [track, changeArchiveView],
+    [track, changeArchiveView, clearSelection],
   );
   const activateProject = useCallback((id: string) => {
     // Change ownership synchronously, before any callbacks can issue project-scoped requests.
@@ -217,7 +253,16 @@ export function useWorkspace() {
       selectionsRef.current[project] = id;
       setSelectedId(id);
       const cached = streamRef.current?.cache.get(id)?.data;
-      setThread(cached?.projectId === project ? cached : loaded);
+      // An unselected detail cache may predate an archive/restore overview event.
+      const initial =
+        cached?.projectId === project && Boolean(cached.archived) === projectStore.current.archived
+          ? cached
+          : loaded;
+      selectedThreadRef.current = initial;
+      setThread(initial);
+      // Do not replay pre-archive lifecycle events when explicitly opening archived
+      // history (or a restored conversation). The overview already knows its new state.
+      if (cached && initial !== cached) streamRef.current?.cache.invalidateDetail(id);
       streamRef.current?.select(id);
       try {
         localStorage.setItem(`codex-web.selected:${project}`, id);
@@ -261,6 +306,7 @@ export function useWorkspace() {
         return;
       }
       selectedRef.current = undefined;
+      selectedThreadRef.current = undefined;
       setSelectedId(undefined);
       setThread(undefined);
       streamRef.current?.select(undefined);
@@ -661,21 +707,22 @@ export function useWorkspace() {
     setArchiveView: (archived: boolean) => {
       if (archived === projectStore.current.archived) return;
       cancelResultNavigation();
-      selectedRef.current = undefined;
-      setSelectedId(undefined);
-      setThread(undefined);
-      streamRef.current?.select(undefined);
-      delete selectionsRef.current[projectRef.current];
-      try {
-        localStorage.removeItem(`codex-web.selected:${projectRef.current}`);
-      } catch {
-        /* Optional preference. */
-      }
+      clearSelection();
       changeArchiveView(archived);
     },
     archiveThread: async (id: string, archived: boolean) => {
-      await run('archive', id, `/api/threads/${encodeURIComponent(id)}/archive`, { archived });
-      await Promise.all([refreshThread(), refreshProjectsThreads()]);
+      const revision = navigationRevision.current;
+      const operation = await run('archive', id, `/api/threads/${encodeURIComponent(id)}/archive`, {
+        archived,
+      });
+      // Overview events update just this row, preserving loaded pages and scroll.
+      // Only reconcile the original detail if the user has not navigated elsewhere.
+      if (
+        operation?.status === 'acknowledged' &&
+        selectedRef.current === id &&
+        navigationRevision.current === revision
+      )
+        await refreshThread();
     },
     projectThreads,
     threads: projectThreads[projectId]?.data ?? [],

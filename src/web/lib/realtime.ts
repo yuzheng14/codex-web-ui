@@ -24,6 +24,10 @@ export class ProjectionCache {
   get(threadId: string) {
     return this.threads.get(threadId);
   }
+  invalidateDetail(threadId: string) {
+    // Keep overview ordering; only the next detail subscription needs a fresh snapshot.
+    this.threads.delete(threadId);
+  }
   removeProject(projectId: string) {
     for (const [id, entry] of this.threads) {
       if (entry.data.projectId !== projectId) continue;
