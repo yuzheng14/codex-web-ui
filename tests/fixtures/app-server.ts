@@ -580,6 +580,50 @@ function markdownReply(thread: Thread, turn: Turn, safety: boolean): void {
   };
   stream(0);
 }
+/** A failed invocation stays visible while its retry succeeds or the turn itself fails. */
+function activityRetryScenario(thread: Thread, turn: Turn, failTurn: boolean): void {
+  const publish = (item: ThreadItem, started = false) => {
+    const params = { threadId: thread.id, turnId: turn.id, item };
+    if (started) notify({ method: 'item/started', params: { ...params, startedAtMs: Date.now() } });
+    else notify({ method: 'item/completed', params: { ...params, completedAtMs: Date.now() } });
+  };
+  const failed = command(randomUUID(), thread.cwd);
+  failed.command = 'pnpm test';
+  failed.status = 'failed';
+  failed.exitCode = 1;
+  failed.aggregatedOutput = 'Error: test service temporarily unavailable. Retrying…';
+  const succeeded = command(randomUUID(), thread.cwd);
+  succeeded.command = 'git diff --check';
+  succeeded.status = 'completed';
+  succeeded.exitCode = 0;
+  succeeded.aggregatedOutput = 'No whitespace errors.';
+  const retry = command(randomUUID(), thread.cwd);
+  retry.command = 'pnpm test';
+  retry.aggregatedOutput = 'Retrying test service…';
+  turn.items.push(failed, succeeded, retry);
+  publish(failed);
+  publish(succeeded);
+  publish(retry, true);
+  finishes.set(
+    turn.id,
+    setTimeout(() => {
+      if (turn.status !== 'inProgress') return;
+      retry.status = failTurn ? 'failed' : 'completed';
+      retry.exitCode = failTurn ? 1 : 0;
+      retry.aggregatedOutput = failTurn ? 'Error: retry exhausted.' : 'All tests passed on retry.';
+      publish(retry);
+      if (failTurn)
+        turn.error = {
+          message: '任务失败：重试后测试服务仍不可用。',
+          codexErrorInfo: null,
+          additionalDetails: null,
+          misalignment: null,
+        };
+      complete(thread, turn, failTurn ? 'failed' : 'completed');
+    }, 4000),
+  );
+}
+
 /** Real protocol events for long, independent activities and streamed rerenders. */
 function activityScenario(thread: Thread, turn: Turn, streaming: boolean, mixed = false): void {
   const finishedItem = (item: ThreadItem) => {
@@ -1880,6 +1924,8 @@ function receive(request: ClientRequest): void {
           prompt.includes('[activity-stream]'),
           prompt.includes('[activity-mixed]'),
         );
+      else if (prompt.includes('[activity-retry]'))
+        activityRetryScenario(thread, turn, prompt.includes('[turn-failure]'));
       else if (prompt.includes('[context-compact-'))
         contextCompaction(
           thread,

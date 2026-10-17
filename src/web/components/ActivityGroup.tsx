@@ -7,8 +7,6 @@ import './activity-group.css';
 
 export function ActivityGroup({ items, children }: { items: ItemView[]; children: ReactNode }) {
   const status = summarizeActivities(items);
-  const hasError = status.failed > 0 || status.denied > 0;
-  const hasWarning = status.timedOut > 0 || status.interrupted > 0 || status.unknown > 0;
   const last = items.at(-1);
   const preview = last?.autoReview?.actionSummary || last?.command;
   const states = [
@@ -23,15 +21,12 @@ export function ActivityGroup({ items, children }: { items: ItemView[]; children
   const stateLabel = states.map(({ label, count }) => `${label} ${count}`).join('，');
   return (
     <CollapsibleActivity
-      className={`activity-group${hasError ? ' activity-group-error' : hasWarning ? ' activity-group-warning' : ''}`}
+      className="activity-group"
       group
       label={`${status.total} 项活动${stateLabel ? `，${stateLabel}` : ''}`}
       summary={
         <>
-          <Icon
-            name={hasError || hasWarning ? 'alert' : status.running ? 'refresh' : 'terminal'}
-            size={16}
-          />
+          <Icon name={status.running ? 'refresh' : 'terminal'} size={16} />
           <span className="activity-description">
             <span className="activity-label">{status.total} 项活动</span>
             {status.reviews > 0 && (
