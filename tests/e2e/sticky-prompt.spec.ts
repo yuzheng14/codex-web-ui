@@ -10,10 +10,9 @@ import {
 } from './helpers';
 
 const evidence = join(tmpdir(), 'codex-sticky-prompt-evidence');
-const sticky = (page: Page) => page.getByRole('button', { name: '查看完整 Prompt', exact: true });
+const sticky = (page: Page) => page.getByRole('button', { name: '回到 Prompt 原文', exact: true });
 const prompts = (page: Page) => page.locator('.conversation-content .user-message');
 const scrollBox = (page: Page) => page.locator('.conversation-scroll');
-const fullPrompt = (page: Page) => page.getByRole('dialog', { name: '完整 Prompt', exact: true });
 const longPrompt =
   '[sticky-prompt] 请实现用户 Prompt 吸顶，并在吸顶时只显示一行内容。\n' +
   Array.from(
@@ -55,6 +54,22 @@ async function movePrompt(prompt: Locator, offset: number) {
   }, offset);
 }
 
+async function expectPromptDestination(prompt: Locator) {
+  await expect(prompt).toBeFocused();
+  const position = await prompt.evaluate((element) => {
+    const scroll = element.closest('.conversation-scroll')!;
+    const bar = scroll.parentElement!.querySelector('.sticky-prompt');
+    const top = scroll.getBoundingClientRect().top;
+    return {
+      offset: element.getBoundingClientRect().top - top,
+      covered: element.getBoundingClientRect().top < (bar?.getBoundingClientRect().bottom ?? top),
+    };
+  });
+  expect(position.offset).toBeGreaterThanOrEqual(0);
+  expect(position.offset).toBeLessThanOrEqual(60);
+  expect(position.covered).toBe(false);
+}
+
 async function screenshot(page: Page, name: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: join(evidence, `${name}.png`), animations: 'disabled' });
@@ -71,7 +86,7 @@ for (const viewport of [
   { name: 'desktop', width: 1280, height: 900 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
-  test(`${viewport.name} pins one line without moving content and opens the complete long prompt`, async ({
+  test(`${viewport.name} pins one line without moving content and jumps back to the original long prompt`, async ({
     page,
   }) => {
     await page.setViewportSize(viewport);
@@ -108,36 +123,16 @@ for (const viewport of [
           element.getBoundingClientRect().bottom - scroll.getBoundingClientRect().top + 180;
       });
     await screenshot(page, `pinned-${viewport.name}`);
-    const readingPosition = await scrollBox(page).evaluate((element) => element.scrollTop);
-    await sticky(page).focus();
-    await sticky(page).press('Enter');
-    await expect(fullPrompt(page)).toBeVisible();
-    await expect(fullPrompt(page).locator('.user-text')).toHaveJSProperty(
-      'textContent',
-      longPrompt,
-    );
-    expect(
-      await fullPrompt(page)
-        .locator('.prompt-dialog-content')
-        .evaluate((element) => element.scrollHeight > element.clientHeight),
-    ).toBe(true);
-    await fullPrompt(page)
-      .locator('.prompt-dialog-content')
-      .evaluate((element) => {
-        element.scrollTop = element.scrollHeight;
-      });
-    await expect(
-      fullPrompt(page).getByText('完整内容的最后一行', { exact: false }),
-    ).toBeInViewport();
-    await screenshot(page, `full-${viewport.name}`);
-    await fullPrompt(page).press('Escape');
-    await expect(fullPrompt(page)).toHaveCount(0);
-    await expect(sticky(page)).toBeFocused();
-    expect(await scrollBox(page).evaluate((element) => element.scrollTop)).toBe(readingPosition);
-
-    await movePrompt(prompts(page).first(), 1);
+    if (viewport.name === 'desktop') {
+      await sticky(page).focus();
+      await sticky(page).press('Enter');
+    } else await sticky(page).click();
+    await expectPromptDestination(prompts(page).first());
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(sticky(page)).toHaveCount(0);
+    await expect(prompts(page).locator('.user-text')).toHaveJSProperty('textContent', longPrompt);
     expect((await prompts(page).boundingBox())!.height).toBe(originalHeight);
+    await screenshot(page, `jumped-${viewport.name}`);
   });
 
   test(`${viewport.name} replaces the current prompt at each boundary in both directions and clears it on thread changes`, async ({
@@ -163,11 +158,11 @@ for (const viewport of [
     await movePrompt(prompts(page).nth(1), -250);
     await screenshot(page, `second-turn-${viewport.name}`);
     await sticky(page).click();
-    await expect(fullPrompt(page).locator('.user-text')).toHaveText(second);
-    await fullPrompt(page).getByRole('button', { name: '关闭完整 Prompt', exact: true }).click();
+    await expectPromptDestination(prompts(page).nth(1));
+    await expect(prompts(page).nth(1).locator('.user-text')).toHaveText(second);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await newThread(page);
     await expect(sticky(page)).toHaveCount(0);
-    await expect(fullPrompt(page)).toHaveCount(0);
     await expect(prompts(page)).toHaveCount(0);
     await send(page, '[sticky-prompt] 新会话的要求');
     await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
@@ -214,6 +209,25 @@ for (const viewport of [
       .toBeLessThanOrEqual(2);
     await expect(sticky(page)).toBeVisible();
   });
+
+  test(`${viewport.name} stays at the original prompt after jumping back during streaming`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await start(page);
+    await send(page, '[sticky-prompt-stream] 定位到原始要求后继续阅读');
+    await expect(page.locator('.assistant-message')).toContainText('检查项 48');
+    await expect(sticky(page)).toBeVisible();
+    await sticky(page).click();
+    await expectPromptDestination(prompts(page).first());
+    const position = await scrollBox(page).evaluate((element) => element.scrollTop);
+    await expect(page.locator('.assistant-message')).toContainText('流式补充 1');
+    expect(await scrollBox(page).evaluate((element) => element.scrollTop)).toBe(position);
+    await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
+    expect(await scrollBox(page).evaluate((element) => element.scrollTop)).toBe(position);
+    await expect(prompts(page).first()).toBeFocused();
+    await expect(sticky(page)).toHaveCount(0);
+  });
 }
 
 test('uses a later user requirement in the same turn when it reaches the top', async ({ page }) => {
@@ -230,8 +244,12 @@ test('uses a later user requirement in the same turn when it reaches the top', a
   await movePrompt(prompts(page).nth(1), -1);
   await expect(sticky(page)).toContainText('追加要求：只显示一行吸顶内容。');
   await sticky(page).click();
-  await expect(fullPrompt(page).locator('.user-text')).toHaveJSProperty('textContent', requirement);
-  await fullPrompt(page).press('Escape');
+  await expectPromptDestination(prompts(page).nth(1));
+  await expect(prompts(page).nth(1).locator('.user-text')).toHaveJSProperty(
+    'textContent',
+    requirement,
+  );
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await movePrompt(prompts(page).nth(1), 1);
   await expect(sticky(page)).toContainText(original);
   await expect(page.locator('.turn-heading .status')).toHaveText('已完成');

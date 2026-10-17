@@ -313,7 +313,12 @@ function ConversationContent({
         </div>
       )}
       <div className="conversation-viewport">
-        <StickyPrompt thread={thread} />
+        <StickyPrompt
+          thread={thread}
+          onJump={() => {
+            stickToBottom.current = false;
+          }}
+        />
         <div className="conversation-scroll" ref={containerRef} onScroll={updateScrollPosition}>
           <div className="conversation-content">
             {thread?.historyTruncated && (

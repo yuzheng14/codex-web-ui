@@ -2,7 +2,12 @@ import type { ItemView } from '../../shared/types';
 
 export function UserMessage({ item }: { item: ItemView }) {
   return (
-    <article className="message user-message" aria-label="你的消息" data-prompt-id={item.id}>
+    <article
+      className="message user-message"
+      aria-label="你的消息"
+      data-prompt-id={item.id}
+      tabIndex={-1}
+    >
       <div className="message-content">
         <p className="user-text">{item.text}</p>
         {item.images && (

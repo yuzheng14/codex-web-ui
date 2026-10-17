@@ -892,48 +892,6 @@ svg {
   font-size: 12px;
   font-weight: 400;
 }
-.prompt-dialog {
-  width: min(720px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
-  margin: auto;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: #fff;
-  color: #252b32;
-}
-.prompt-dialog[open] {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.prompt-dialog::backdrop {
-  background: #17221db3;
-}
-.prompt-dialog-heading {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.prompt-dialog-heading h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-.prompt-dialog-content {
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-}
-.prompt-dialog-content .user-message {
-  margin: 0;
-}
-.prompt-dialog-content .user-message .message-content {
-  flex: 1;
-  max-width: 100%;
-}
 .context-compaction-pinned {
   flex-shrink: 0;
   width: min(100%, 872px);
@@ -1138,6 +1096,13 @@ svg {
   margin-bottom: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.user-message:focus-visible {
+  outline: none;
+}
+.user-message:focus-visible .message-content {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .markdown {
   color: #48515b;

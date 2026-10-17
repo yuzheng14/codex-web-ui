@@ -1,50 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { ItemView, ThreadView } from '../../shared/types';
+import type { ThreadView } from '../../shared/types';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
-import { UserMessage } from './UserMessage';
-
-function PromptDialog({ item, onClose }: { item: ItemView; onClose: () => void }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  useLayoutEffect(() => {
-    const dialog = dialogRef.current;
-    const trigger = document.activeElement;
-    dialog?.showModal();
-    return () => {
-      dialog?.close();
-      if (trigger instanceof HTMLElement && trigger.isConnected)
-        trigger.focus({ preventScroll: true });
-    };
-  }, []);
-
-  return (
-    <dialog
-      ref={dialogRef}
-      className="prompt-dialog"
-      aria-labelledby="prompt-dialog-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-    >
-      <div className="prompt-dialog-heading">
-        <h2 id="prompt-dialog-title">完整 Prompt</h2>
-        <Button variant="ghost" size="icon" aria-label="关闭完整 Prompt" onClick={onClose}>
-          <Icon name="close" size={17} />
-        </Button>
-      </div>
-      <div className="prompt-dialog-content" tabIndex={0} aria-label="Prompt 内容">
-        <UserMessage item={item} />
-      </div>
-    </dialog>
-  );
-}
 
 /** An overlay keeps the original prompt's geometry unchanged while reading replies. */
-export function StickyPrompt({ thread }: { thread?: ThreadView }) {
+export function StickyPrompt({ thread, onJump }: { thread?: ThreadView; onJump: () => void }) {
   const slotRef = useRef<HTMLDivElement>(null);
   const [activeId, setActiveId] = useState<string>();
-  const [viewing, setViewing] = useState<ItemView>();
   const activePrompt = thread?.turns
     .flatMap((turn) => turn.items)
     .find((item) => item.type === 'userMessage' && item.id === activeId);
@@ -98,19 +60,32 @@ export function StickyPrompt({ thread }: { thread?: ThreadView }) {
         <Button
           variant="ghost"
           className="sticky-prompt"
-          aria-label="查看完整 Prompt"
-          aria-haspopup="dialog"
-          title="查看完整 Prompt"
-          onClick={() => setViewing(activePrompt)}
+          aria-label="回到 Prompt 原文"
+          title="回到 Prompt 原文"
+          onClick={(event) => {
+            const scroll = slotRef.current?.parentElement?.querySelector('.conversation-scroll');
+            const prompt = [
+              ...(scroll?.querySelectorAll<HTMLElement>('[data-prompt-id]') ?? []),
+            ].find((element) => element.dataset.promptId === activePrompt.id);
+            if (!scroll || !prompt) return;
+            // An earlier prompt may remain pinned after jumping back to a later one.
+            const offset = event.currentTarget.getBoundingClientRect().height + 8;
+            onJump();
+            prompt.focus({ preventScroll: true });
+            scroll.scrollTop +=
+              prompt.getBoundingClientRect().top -
+              scroll.getBoundingClientRect().top -
+              scroll.clientTop -
+              offset;
+          }}
         >
           <span className="sticky-prompt-label">你的要求</span>
           <span className="sticky-prompt-text">
             {activePrompt.text?.trim() || (imageCount ? `${imageCount} 张图片` : '用户 Prompt')}
           </span>
-          <Icon name="chevron" size={14} />
+          <Icon name="down" size={14} style={{ transform: 'rotate(180deg)' }} />
         </Button>
       )}
-      {viewing && <PromptDialog item={viewing} onClose={() => setViewing(undefined)} />}
     </div>
   );
 }
