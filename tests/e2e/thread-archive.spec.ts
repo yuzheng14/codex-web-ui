@@ -296,7 +296,9 @@ test('archiving another conversation preserves the current draft, loaded pages a
   });
   await archive(page, target);
   await expect(row(page, target)).toHaveCount(0);
-  await expect(projectGroup(page).locator('.thread-row')).toHaveCount(18);
+  await expect(
+    page.locator([current, ...ids].map((id) => `[data-thread-id="${id}"]`).join(',')),
+  ).toHaveCount(18);
   await expect(row(page, current).locator('.thread-link')).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('textbox', { name: '任务内容' })).toHaveValue('当前会话的未发送草稿');
   expect(await selectedId(page)).toBe(current);
