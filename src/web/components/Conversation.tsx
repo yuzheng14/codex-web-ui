@@ -12,6 +12,8 @@ import { TurnCompletion } from './TurnCompletion';
 
 import { MarkdownContent as TextContent } from './MarkdownContent';
 import { ImagePreviewProvider } from './ImagePreview';
+import { UserMessage } from './UserMessage';
+import { StickyPrompt } from './StickyPrompt';
 
 const activityLabels: Record<string, string> = {
   commandExecution: '执行命令',
@@ -119,34 +121,15 @@ function Item({ item }: { item: ItemView }) {
   if (item.type === 'contextCompaction') {
     return item.status === 'inProgress' ? null : <ContextCompaction item={item} />;
   }
+  if (item.type === 'userMessage') return <UserMessage item={item} />;
   if (item.type === 'autoApprovalReview' && item.autoReview) {
     return <AutoReviewCard review={item.autoReview} />;
   }
-  if (
-    item.type === 'userMessage' ||
-    item.type === 'agentMessage' ||
-    item.type === 'exitedReviewMode'
-  ) {
-    const user = item.type === 'userMessage';
+  if (item.type === 'agentMessage' || item.type === 'exitedReviewMode') {
     return (
-      <article
-        className={user ? 'message user-message' : 'message assistant-message'}
-        aria-label={user ? '你的消息' : 'Codex 的回复'}
-      >
+      <article className="message assistant-message" aria-label="Codex 的回复">
         <div className="message-content">
-          {user ? <p className="user-text">{item.text}</p> : <TextContent text={item.text ?? ''} />}
-          {user && item.images && (
-            <div className="message-images">
-              {item.images.map((image, index) => (
-                <img key={index} src={image} alt={`已发送的图片 ${index + 1}`} loading="lazy" />
-              ))}
-            </div>
-          )}
-          {user && (item.imageCount ?? 0) > (item.images?.length ?? 0) && (
-            <p className="subtle">
-              {(item.imageCount ?? 0) - (item.images?.length ?? 0)} 张图片未提供预览
-            </p>
-          )}
+          <TextContent text={item.text ?? ''} />
           {item.error && <p className="inline-error">{item.error}</p>}
         </div>
       </article>
@@ -200,7 +183,7 @@ interface ConversationProps {
 }
 
 export function Conversation(props: ConversationProps) {
-  // A thread change releases image requests, object URLs and modal focus state.
+  // A thread change releases image requests, sticky prompts and modal focus state.
   return (
     <ImagePreviewProvider key={props.thread?.id ?? 'empty'} threadId={props.thread?.id}>
       <ConversationContent {...props} />
@@ -329,106 +312,114 @@ function ConversationContent({
           <ContextCompaction item={activeCompaction} offline={offline} />
         </div>
       )}
-      <div className="conversation-scroll" ref={containerRef} onScroll={updateScrollPosition}>
-        <div className="conversation-content">
-          {thread?.historyTruncated && (
-            <p className="truncation">
-              <Icon name="alert" size={14} />
-              当前实时快照已省略部分较早历史，以限制传输大小。
-            </p>
-          )}
-          {!thread?.turns.length ? (
-            <div
-              className="empty-state"
-              data-testid="workspace-start"
-              data-thread-ready={Boolean(thread)}
-            >
-              <div className="empty-symbol">
-                <Icon name="code" size={36} />
-              </div>
-              <p className="eyebrow">你的开发工作空间</p>
-              <h1>{needsProject ? '添加项目，开始工作。' : '从一个想法，开始工作。'}</h1>
-              {needsProject ? (
-                <>
-                  <p>
-                    连接服务器上已有的项目目录，继续历史会话或创建新任务。
-                    <br />
-                    项目会保存在服务器上，下次打开即可继续。
-                  </p>
-                  <Button onClick={onAddProject} disabled={!canAddProject}>
-                    <Icon name="plus" size={16} />
-                    添加项目
-                  </Button>
-                </>
-              ) : thread ? (
-                <p>
-                  描述你要完成的任务，也可以粘贴图片、问题或错误信息。
-                  <br />
-                  Codex 在运行服务的电脑上执行，你在这里掌握进展。
-                </p>
-              ) : (
-                <p>
-                  选择会话继续，或在{projectName ? `「${projectName}」` : '项目'}中新建会话。
-                  <br />
-                  Codex 在运行服务的电脑上执行，你在这里掌握进展。
-                </p>
-              )}
-              <div className="empty-features">
-                <span>
-                  <Icon name="terminal" size={16} />
-                  实时执行过程
-                </span>
-                <span>
-                  <Icon name="code" size={16} />
-                  逐轮变更预览
-                </span>
-                <span>
-                  <Icon name="check" size={16} />
-                  随时审批与追加
-                </span>
-              </div>
-            </div>
-          ) : (
-            thread.turns.map((turn, index) => (
-              <section className="turn" key={turn.id} aria-label={`第 ${index + 1} 轮`}>
-                <div className="turn-heading">
-                  <span>第 {index + 1} 轮</span>
-                  <Status status={turn.status} offline={offline} />
+      <div className="conversation-viewport">
+        <StickyPrompt
+          thread={thread}
+          onJump={() => {
+            stickToBottom.current = false;
+          }}
+        />
+        <div className="conversation-scroll" ref={containerRef} onScroll={updateScrollPosition}>
+          <div className="conversation-content">
+            {thread?.historyTruncated && (
+              <p className="truncation">
+                <Icon name="alert" size={14} />
+                当前实时快照已省略部分较早历史，以限制传输大小。
+              </p>
+            )}
+            {!thread?.turns.length ? (
+              <div
+                className="empty-state"
+                data-testid="workspace-start"
+                data-thread-ready={Boolean(thread)}
+              >
+                <div className="empty-symbol">
+                  <Icon name="code" size={36} />
                 </div>
-                {turn.id !== latestTurn?.id && turn.reconnect?.status === 'failed' && (
-                  <CodexReconnectNotice turn={turn} offline={offline} />
+                <p className="eyebrow">你的开发工作空间</p>
+                <h1>{needsProject ? '添加项目，开始工作。' : '从一个想法，开始工作。'}</h1>
+                {needsProject ? (
+                  <>
+                    <p>
+                      连接服务器上已有的项目目录，继续历史会话或创建新任务。
+                      <br />
+                      项目会保存在服务器上，下次打开即可继续。
+                    </p>
+                    <Button onClick={onAddProject} disabled={!canAddProject}>
+                      <Icon name="plus" size={16} />
+                      添加项目
+                    </Button>
+                  </>
+                ) : thread ? (
+                  <p>
+                    描述你要完成的任务，也可以粘贴图片、问题或错误信息。
+                    <br />
+                    Codex 在运行服务的电脑上执行，你在这里掌握进展。
+                  </p>
+                ) : (
+                  <p>
+                    选择会话继续，或在{projectName ? `「${projectName}」` : '项目'}中新建会话。
+                    <br />
+                    Codex 在运行服务的电脑上执行，你在这里掌握进展。
+                  </p>
                 )}
-                {groupConversationItems(turn.items).map((group) =>
-                  group.kind === 'message' ? (
-                    <Item key={group.key} item={group.item} />
-                  ) : (
-                    <ActivityGroup key={group.key} items={group.items}>
-                      {group.items.map((item) => (
-                        <Item key={item.id} item={item} />
-                      ))}
-                    </ActivityGroup>
-                  ),
-                )}
-                {turn.diff && (
-                  <details className="turn-diff">
-                    <summary>
-                      <Icon name="code" size={16} />
-                      本轮变更预览<span className="mono">{turn.id.slice(0, 12)}</span>
-                    </summary>
-                    <p className="subtle">由本轮 Codex 工具提供的变更</p>
-                    <Diff text={turn.diff} />
-                  </details>
-                )}
-                {turn.error &&
-                  turn.reconnect?.status !== 'failed' &&
-                  !turn.items.some(
-                    (item) => item.type === 'contextCompaction' && item.error === turn.error,
-                  ) && <div className="error-banner">{turn.error}</div>}
-                <TurnCompletion turn={turn} />
-              </section>
-            ))
-          )}
-          <div ref={endRef} />
+                <div className="empty-features">
+                  <span>
+                    <Icon name="terminal" size={16} />
+                    实时执行过程
+                  </span>
+                  <span>
+                    <Icon name="code" size={16} />
+                    逐轮变更预览
+                  </span>
+                  <span>
+                    <Icon name="check" size={16} />
+                    随时审批与追加
+                  </span>
+                </div>
+              </div>
+            ) : (
+              thread.turns.map((turn, index) => (
+                <section className="turn" key={turn.id} aria-label={`第 ${index + 1} 轮`}>
+                  <div className="turn-heading">
+                    <span>第 {index + 1} 轮</span>
+                    <Status status={turn.status} offline={offline} />
+                  </div>
+                  {turn.id !== latestTurn?.id && turn.reconnect?.status === 'failed' && (
+                    <CodexReconnectNotice turn={turn} offline={offline} />
+                  )}
+                  {groupConversationItems(turn.items).map((group) =>
+                    group.kind === 'message' ? (
+                      <Item key={group.key} item={group.item} />
+                    ) : (
+                      <ActivityGroup key={group.key} items={group.items}>
+                        {group.items.map((item) => (
+                          <Item key={item.id} item={item} />
+                        ))}
+                      </ActivityGroup>
+                    ),
+                  )}
+                  {turn.diff && (
+                    <details className="turn-diff">
+                      <summary>
+                        <Icon name="code" size={16} />
+                        本轮变更预览<span className="mono">{turn.id.slice(0, 12)}</span>
+                      </summary>
+                      <p className="subtle">由本轮 Codex 工具提供的变更</p>
+                      <Diff text={turn.diff} />
+                    </details>
+                  )}
+                  {turn.error &&
+                    turn.reconnect?.status !== 'failed' &&
+                    !turn.items.some(
+                      (item) => item.type === 'contextCompaction' && item.error === turn.error,
+                    ) && <div className="error-banner">{turn.error}</div>}
+                  <TurnCompletion turn={turn} />
+                </section>
+              ))
+            )}
+            <div ref={endRef} />
+          </div>
         </div>
       </div>
       {showBottom && (

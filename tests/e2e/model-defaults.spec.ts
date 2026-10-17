@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { confirmCompatibility, controlRuntime, createThreadButton, projectGroup } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+  projectGroup,
+  saveConversationHistory,
+} from './helpers';
 
 const model = (page: Page) => page.getByRole('combobox', { name: '模型', exact: true });
 const effort = (page: Page) => page.getByRole('combobox', { name: '推理强度', exact: true });
@@ -25,9 +32,10 @@ test('remembers explicit model and effort choices across new threads, projects a
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await expect(effort(page)).toHaveAttribute('data-value', 'medium');
   const original = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
+  await saveConversationHistory(page);
   await page.locator('.composer-box').screenshot({ path: '/tmp/codex-model-defaults-before.png' });
   await choose(page, '模型', 'simulated-alternative');
   await saved(page);
@@ -95,7 +103,7 @@ test('keeps the current proposal on a rejected save and lets an explicit retry s
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await choose(page, '推理强度', 'high');
   await expect(page.locator('.settings-defaults')).toContainText('未能确认默认值已保存');
   await expect(effort(page)).toHaveAttribute('data-value', 'high');

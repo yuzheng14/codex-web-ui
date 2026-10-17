@@ -817,6 +817,15 @@ svg {
   flex: 1;
   min-height: 100px;
 }
+.conversation-viewport {
+  --conversation-sticky-offset: 0px;
+  --prompt-sticky-height: 40px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 .conversation-scroll {
   flex: 1;
   min-height: 0;
@@ -824,10 +833,64 @@ svg {
   overscroll-behavior: contain;
   scroll-behavior: auto;
 }
-.conversation-content {
+.conversation-content,
+.sticky-prompt-slot {
   width: min(100%, 872px);
   margin: 0 auto;
+}
+.conversation-content {
   padding: 30px 38px 25px;
+}
+.conversation-viewport:has(.sticky-prompt) {
+  --conversation-sticky-offset: var(--prompt-sticky-height);
+}
+.conversation-viewport:has(.sticky-prompt) .conversation-scroll {
+  scroll-padding-top: calc(var(--conversation-sticky-offset) + 8px);
+}
+.sticky-prompt-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  height: 0;
+  padding-inline: 38px;
+}
+.sticky-prompt {
+  width: 100%;
+  height: var(--prompt-sticky-height);
+  min-height: var(--prompt-sticky-height);
+  padding: 0 12px;
+  gap: 10px;
+  border: 1px solid #dce7e0;
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: var(--accent-soft);
+  color: #284d3f;
+  box-shadow: 0 2px 5px #243d2810;
+  text-align: left;
+  line-height: 20px;
+}
+.sticky-prompt:hover {
+  background: #e5eee8;
+}
+.sticky-prompt-label,
+.sticky-prompt > svg {
+  flex-shrink: 0;
+}
+.sticky-prompt-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.sticky-prompt-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 400;
 }
 .context-compaction-pinned {
   flex-shrink: 0;
@@ -1033,6 +1096,13 @@ svg {
   margin-bottom: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.user-message:focus-visible {
+  outline: none;
+}
+.user-message:focus-visible .message-content {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .markdown {
   color: #48515b;
@@ -2686,6 +2756,9 @@ dd {
   }
   .conversation-content {
     padding: 25px 20px;
+  }
+  .sticky-prompt-slot {
+    padding-inline: 20px;
   }
   .context-compaction-pinned,
   .codex-reconnect-pinned {

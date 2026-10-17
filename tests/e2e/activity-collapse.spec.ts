@@ -44,7 +44,10 @@ async function geometry(activity: Locator) {
       headerTop: summary.getBoundingClientRect().top,
       headerBottom: summary.getBoundingClientRect().bottom,
       scrollTop:
-        scroll.getBoundingClientRect().top + (groupHeader?.getBoundingClientRect().height ?? 0),
+        scroll.getBoundingClientRect().top +
+        (scroll.parentElement!.querySelector('.sticky-prompt')?.getBoundingClientRect().height ??
+          0) +
+        (groupHeader?.getBoundingClientRect().height ?? 0),
       scrollBottom: scroll.getBoundingClientRect().bottom,
     };
   });

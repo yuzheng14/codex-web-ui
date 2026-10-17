@@ -45,14 +45,27 @@ async function pinChild(group: Locator, child: Locator) {
   await expect
     .poll(() =>
       header(group).evaluate((element) => {
-        const top = element.closest('.conversation-scroll')!.getBoundingClientRect().top;
+        const scroll = element.closest('.conversation-scroll')!;
+        const top =
+          scroll.getBoundingClientRect().top +
+          (scroll.parentElement!.querySelector('.sticky-prompt')?.getBoundingClientRect().height ??
+            0);
         return Math.abs(element.getBoundingClientRect().top - top);
       }),
     )
     .toBeLessThanOrEqual(2);
   const groupBox = (await header(group).boundingBox())!;
-  const childBox = (await header(child).boundingBox())!;
-  expect(Math.abs(childBox.y - (groupBox.y + groupBox.height))).toBeLessThanOrEqual(2);
+  // Read both headers in one frame: activating the prompt can move both by one bar height.
+  await expect
+    .poll(() =>
+      header(child).evaluate((element) => {
+        const groupHeader = element.closest('.activity-group')!.querySelector(':scope > summary')!;
+        return Math.abs(
+          element.getBoundingClientRect().top - groupHeader.getBoundingClientRect().bottom,
+        );
+      }),
+    )
+    .toBeLessThanOrEqual(2);
   expect(await child.evaluate((element) => element.getBoundingClientRect().top)).toBeLessThan(
     groupBox.y - 500,
   );
@@ -65,9 +78,14 @@ async function expectAnchor(activity: Locator, parentGroup?: Locator) {
       const box = (await header(activity).boundingBox())!;
       const anchor = parentGroup
         ? await header(parentGroup).evaluate((element) => element.getBoundingClientRect().bottom)
-        : await activity.evaluate(
-            (element) => element.closest('.conversation-scroll')!.getBoundingClientRect().top,
-          );
+        : await activity.evaluate((element) => {
+            const scroll = element.closest('.conversation-scroll')!;
+            return (
+              scroll.getBoundingClientRect().top +
+              (scroll.parentElement!.querySelector('.sticky-prompt')?.getBoundingClientRect()
+                .height ?? 0)
+            );
+          });
       return Math.abs(box.y - anchor - 8);
     })
     .toBeLessThanOrEqual(2);
