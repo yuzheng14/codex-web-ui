@@ -297,10 +297,11 @@ test('late creation and first-send receipts do not steal navigation or clear ano
   await input(page).fill('另一个项目的草稿');
   release();
   await expect.poll(() => requests.sends.length).toBe(1);
-  await expect(projectGroup(page).locator('[data-thread-id]')).toHaveCount(1);
+  const id = new URL(requests.sends[0]!.url()).pathname.split('/')[3]!;
+  await expect(page.locator(`[data-thread-id="${id}"]`)).toBeVisible();
   await expect(input(page)).toHaveValue('另一个项目的草稿');
   await expect(page.locator('.breadcrumb')).toContainText('另一个项目');
-  await projectGroup(page).locator('[data-thread-id]').click();
+  await page.locator(`[data-thread-id="${id}"]`).click();
   await complete(page);
   await expect(page.locator('.user-text')).toHaveText('在原项目继续执行的任务');
 });

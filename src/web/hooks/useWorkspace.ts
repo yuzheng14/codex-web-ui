@@ -27,7 +27,11 @@ import { operationNeedsCompatibilityConfirmation } from '../lib/compatibility';
 import { SystemSnapshotGuard } from '../lib/system';
 import { ProjectThreadsStore } from '../lib/project-threads';
 import { readThreadPage } from '../lib/thread-pagination';
-import { ConversationDrafts, type DraftSubmission, type SentDraft } from '../lib/conversation-drafts';
+import {
+  ConversationDrafts,
+  type DraftSubmission,
+  type SentDraft,
+} from '../lib/conversation-drafts';
 
 function preferredProject() {
   try {
@@ -710,7 +714,9 @@ export function useWorkspace() {
       if (busyRef.current.has(key)) return;
       if (
         (kind === 'fork' || kind === 'create' || kind === 'send') &&
-        operationsRef.current.some((entry) => blocksTarget(entry, target))
+        operationsRef.current.some(
+          (entry) => (kind !== 'fork' || entry.kind === 'fork') && blocksTarget(entry, target),
+        )
       )
         return;
       busyRef.current.add(key);

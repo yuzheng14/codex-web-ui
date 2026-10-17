@@ -335,9 +335,13 @@ test.describe('touch navigation', () => {
     await projectGroup(page, '另一个项目')
       .getByRole('button', { name: '另一个项目', exact: true })
       .tap();
+    await expect(page.locator('.sidebar')).not.toHaveClass(/sidebar-open/);
+    await page.getByRole('button', { name: '打开项目与会话' }).tap();
     await projectGroup(page)
       .getByRole('button', { name: /^测试项目(?:\s|$)/ })
       .tap();
+    await expect(page.locator('.sidebar')).not.toHaveClass(/sidebar-open/);
+    await page.getByRole('button', { name: '打开项目与会话' }).tap();
     await expect(link(page, first)).toBeVisible();
     await expect(link(page, second)).toBeVisible();
     await expect(

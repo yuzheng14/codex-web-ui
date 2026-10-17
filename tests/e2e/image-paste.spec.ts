@@ -193,10 +193,10 @@ test('images pasted while a send is in flight remain in the next draft', async (
   await pasteFiles(page);
   let release!: () => void;
   await page.route('**/api/threads/*/turns', async (route) => {
-    const response = await route.fetch();
     await new Promise<void>((resolve) => {
       release = resolve;
     });
+    const response = await route.fetch();
     await route.fulfill({ response });
   });
   await send(page).click();
