@@ -1,11 +1,19 @@
 import type { Operation } from '../../shared/types';
 import { HttpError } from './api';
+import { threadNameError } from '../../shared/thread-name';
 import { readableError } from './utils';
 
 const STORAGE_KEY = 'codex-web.operations.v1';
-export interface ThreadMutation {
-  projectId: string;
-  archived: boolean;
+export type ThreadMutation = { projectId: string } & (
+  { archived: boolean; title?: never } | { title: string; archived?: never }
+);
+
+function readMutation(kind: string, value?: ThreadMutation): ThreadMutation | undefined {
+  if (typeof value?.projectId !== 'string') return;
+  if (kind === 'archive' && typeof value.archived === 'boolean')
+    return { projectId: value.projectId, archived: value.archived };
+  if (kind === 'rename' && typeof value.title === 'string' && !threadNameError(value.title))
+    return { projectId: value.projectId, title: value.title };
 }
 
 export interface SavedOperation {
@@ -73,11 +81,7 @@ export function readOperations(storage?: Pick<Storage, 'getItem'>): SavedOperati
           target,
           createdAt,
           status: 'unknown',
-          ...(kind === 'archive' &&
-          typeof mutation?.projectId === 'string' &&
-          typeof mutation.archived === 'boolean'
-            ? { mutation: { projectId: mutation.projectId, archived: mutation.archived } }
-            : {}),
+          ...(readMutation(kind, mutation) ? { mutation: readMutation(kind, mutation) } : {}),
           ...((kind === 'fork' || kind === 'create') && typeof projectId === 'string'
             ? { projectId, navigateToResult: navigateToResult === true }
             : {}),
@@ -119,7 +123,7 @@ export function saveOperations(operations: SavedOperation[], storage?: Pick<Stor
             target,
             createdAt,
             ...(kind === 'fork' || kind === 'create' ? { projectId, navigateToResult } : {}),
-            ...(kind === 'archive' && mutation ? { mutation } : {}),
+            ...(readMutation(kind, mutation) ? { mutation: readMutation(kind, mutation) } : {}),
             ...(kind === 'fork' && navigationSource ? { navigationSource } : {}),
           }),
         ),

@@ -402,7 +402,14 @@ export class GatewayService {
         this.updateThreadTitle(threadId, actual.title, sequence);
         if (actual.title !== name || this.projection.get(threadId)?.title !== name)
           throw new Error('重命名已发送，但当前名称与请求不一致，请核对提交');
-        return { result: { threadId, name } };
+        return {
+          result: {
+            threadId,
+            name,
+            summary: toThreadSummary(this.threadView(this.projection.get(threadId)!)),
+            cursor: this.events.cursor(),
+          },
+        };
       } finally {
         this.renameChanges.delete(threadId);
       }
