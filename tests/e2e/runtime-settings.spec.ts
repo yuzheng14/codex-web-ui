@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   projectGroup,
   saveConversationHistory,
   expectThreadReady,
@@ -28,7 +28,7 @@ test('direct selectors show reported settings, keep proposals distinct and follo
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
   await expect(model).toHaveAttribute('data-value', 'simulated-model');
   await expect(effort).toHaveAttribute('data-value', 'medium');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await expect(effort).toHaveAttribute('data-value', 'medium');
   await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-direct.png' });
@@ -78,13 +78,13 @@ test('remembers new-thread defaults while keeping each existing session proposal
 }) => {
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   const first = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
   await saveConversationHistory(page);
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
   await chooseEffort(page, 'high');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expect(effort).toHaveAttribute('data-value', 'high');
   await expect(page.locator('.settings-pending')).toHaveCount(0);
   await chooseEffort(page, 'low');
@@ -172,7 +172,7 @@ test('all reported effort levels have distinct gauges, including xhigh, max and 
 }) => {
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
   const gauge = page.locator('.reasoning-gauge');
@@ -338,7 +338,7 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
       .screenshot({ path: `/tmp/codex-toolbar-long-${width}.png` });
   }
   await page.setViewportSize({ width: 1280, height: 844 });
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   const gauge = page.locator('.reasoning-gauge');
   await chooseEffort(page, 'low');

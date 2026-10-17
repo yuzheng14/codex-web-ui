@@ -3,7 +3,7 @@ import { expect, test, type Page, type Request } from '@playwright/test';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 import type { ThreadView } from '../../src/shared/types';
@@ -13,7 +13,7 @@ const origin = 'http://127.0.0.1:8788';
 async function create(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   return (await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture')))!;
 }

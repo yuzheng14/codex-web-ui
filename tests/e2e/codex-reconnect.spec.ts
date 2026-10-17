@@ -7,7 +7,7 @@ import type { ThreadPage, ThreadView } from '../../src/shared/types';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -44,7 +44,7 @@ test.beforeEach(async ({ page, request }) => {
   await page.goto('/');
   await confirmCompatibility(page);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
 });
 test.afterEach(async ({ request }) => {
@@ -105,7 +105,7 @@ test('retry updates survive tool completion, reload and browser disconnection an
   await context.setOffline(false);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await expect(notice(page)).not.toContainText('上次已知');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await start(page, '另一个会话正常执行');
   await expect(turnStatus(page)).toHaveText('已完成');

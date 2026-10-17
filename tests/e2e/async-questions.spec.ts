@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
   testOrigin,
 } from './helpers';
@@ -27,7 +27,7 @@ test.beforeEach(async ({ page, request }) => {
   await controlRuntime(request, { reset: true });
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
 });
 

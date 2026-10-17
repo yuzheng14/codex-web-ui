@@ -5,7 +5,7 @@ import {
   compatibilityDialog,
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   testOrigin,
   expectThreadReady,
 } from './helpers';
@@ -28,7 +28,7 @@ async function newThread(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   return (await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture')))!;
 }
@@ -179,7 +179,7 @@ test('IME candidate confirmation and composition-end-adjacent Enter never submit
   expect(outgoing[0]!.postDataJSON().text).toBe(draft);
 });
 
-test('Enter honors no-thread, blank-draft, offline, compatibility and runtime guards', async ({
+test('Enter honors unavailable-project, blank-draft, offline, compatibility and runtime guards', async ({
   page,
   context,
   request,
@@ -188,12 +188,16 @@ test('Enter honors no-thread, blank-draft, offline, compatibility and runtime gu
   await confirmCompatibility(page);
   const outgoing = submissions(page);
   const input = taskInput(page);
-  await input.fill('还没有选择会话');
+  await page
+    .getByRole('region', { name: '不可用项目', exact: true })
+    .getByRole('button', { name: '不可用项目', exact: true })
+    .click();
+  await input.fill('项目不可用');
   await expect(sendButton(page)).toBeDisabled();
   await input.press('Enter');
   await flushKeyboardEvents(page);
   expect(outgoing).toHaveLength(0);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await input.fill('  \n\t');
   await expect(sendButton(page)).toBeDisabled();

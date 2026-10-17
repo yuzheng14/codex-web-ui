@@ -3,7 +3,7 @@ import type { Operation, ThreadView } from '../../src/shared/types';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -20,7 +20,7 @@ test.beforeEach(async ({ request }) => {
 async function completedThread(page: Page, text = '核对状态回归测试') {
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await input(page).fill(text);
   const response = page.waitForResponse(

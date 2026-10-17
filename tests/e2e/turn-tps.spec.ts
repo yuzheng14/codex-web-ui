@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -26,7 +26,7 @@ test('completed turn TPS survives refresh, reconnect and navigation, with access
   await controlRuntime(request, { reset: true });
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await send(page, '[turn-tps:multi] 验证多次模型响应的平均 TPS');
   await expect(completion(page)).toContainText('耗时 20 秒 · 平均 60.0 TPS');
@@ -51,7 +51,7 @@ test('completed turn TPS survives refresh, reconnect and navigation, with access
   await context.setOffline(false);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await expect(completion(page)).toHaveText(original);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await page.locator(`[data-thread-id="${threadId}"]`).click();
   await expect(completion(page)).toHaveText(original);
   await page.setViewportSize({ width: 390, height: 844 });

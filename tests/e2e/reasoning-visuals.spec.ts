@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -26,7 +26,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await page.setViewportSize({ width: 1280, height: 844 });
       await page.goto('/');
       await confirmCompatibility(page);
-      await createThreadButton(page).click();
+      await createEmptyThread(page);
       await expectThreadReady(page);
       await page.setViewportSize({ width, height: 844 });
       const effort = effortControl(page);

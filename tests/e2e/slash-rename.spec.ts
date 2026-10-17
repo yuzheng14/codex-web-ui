@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import {
   confirmCompatibility,
-  createThreadButton,
+  createEmptyThread,
   projectGroup,
   saveConversationHistory,
   expectThreadReady,
@@ -16,7 +16,7 @@ const selected = (page: Page) =>
 async function create(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   return (await selected(page))!;
 }

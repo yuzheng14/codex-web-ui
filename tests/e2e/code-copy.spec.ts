@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -20,7 +20,7 @@ test.beforeEach(async ({ page, request, context }) => {
   await controlRuntime(request, { reset: true });
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill('[code-copy] 给出示例');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();

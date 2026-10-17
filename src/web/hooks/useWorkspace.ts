@@ -27,6 +27,11 @@ import { operationNeedsCompatibilityConfirmation } from '../lib/compatibility';
 import { SystemSnapshotGuard } from '../lib/system';
 import { ProjectThreadsStore } from '../lib/project-threads';
 import { readThreadPage } from '../lib/thread-pagination';
+import {
+  ConversationDrafts,
+  type DraftSubmission,
+  type SentDraft,
+} from '../lib/conversation-drafts';
 
 function preferredProject() {
   try {
@@ -65,6 +70,10 @@ export function useWorkspace() {
   const streamRef = useRef<ThreadStream | undefined>(undefined);
   const projectRef = useRef(projectId);
   const settingsRef = useRef<Record<string, Settings>>({});
+  const conversationDrafts = useRef(new ConversationDrafts());
+  const [sentDrafts, setSentDrafts] = useState<Record<string, SentDraft>>({});
+  const firstMessagesRef = useRef(new Set<string>());
+  const [firstMessages, setFirstMessages] = useState<string[]>([]);
   const [settingsByScope, setSettingsByScope] = useState(settingsRef.current);
   const [runtimeDefaultsRevision, setRuntimeDefaultsRevision] = useState(0);
   const navigationRevision = useRef(0);
@@ -359,8 +368,9 @@ export function useWorkspace() {
     [activateProject, report, updateThread],
   );
   const selectProject = useCallback(
-    (id: string) => {
+    (id: string, restore = false) => {
       activateProject(id);
+      detailReadSequence.current++;
       selectedRef.current = undefined;
       selectedThreadRef.current = undefined;
       setSelectedId(undefined);
@@ -372,7 +382,15 @@ export function useWorkspace() {
       } catch {
         /* In-memory selections still work when storage is unavailable. */
       }
-      if (id && remembered) {
+      if (!restore) {
+        delete selectionsRef.current[id];
+        try {
+          localStorage.removeItem(`codex-web.selected:${id}`);
+        } catch {
+          /* Preferences are optional. */
+        }
+      }
+      if (restore && id && remembered) {
         const pending = selectThread(remembered, id, true);
         const read = detailReadSequence.current;
         selectionRestoreRef.current = read;
@@ -416,6 +434,7 @@ export function useWorkspace() {
           ids.has(preferred)
             ? preferred
             : (data.find((entry) => entry.available)?.id ?? data[0]?.id ?? ''),
+          !projectsLoadedRef.current,
         );
       }
       projectsLoadedRef.current = true;
@@ -442,6 +461,18 @@ export function useWorkspace() {
         (entry) => entry.clientOperationId === operation.clientOperationId,
       );
       if (!known) return;
+      const draft = conversationDrafts.current.apply(operation);
+      if (draft?.created) {
+        settingsRef.current = {
+          ...settingsRef.current,
+          [`thread:${draft.created.id}`]: draft.created.settings,
+        };
+        setSettingsByScope(settingsRef.current);
+      }
+      if (draft?.sent) {
+        const sent = draft.sent;
+        setSentDrafts((previous) => ({ ...previous, [sent.key]: sent }));
+      }
       if (known.lookupError)
         setError((previous) => (previous === known.lookupError?.message ? undefined : previous));
       track((previous) =>
@@ -660,7 +691,13 @@ export function useWorkspace() {
   }, [authRequired, refreshOperations, refreshSystem]);
 
   const run = useCallback(
-    async (kind: string, target: string, path: string, body: object = {}) => {
+    async (
+      kind: string,
+      target: string,
+      path: string,
+      body: object = {},
+      draft?: DraftSubmission,
+    ) => {
       if (operationNeedsCompatibilityConfirmation(kind, system)) {
         setError('请先确认当前 Codex 版本的兼容性提示，再发起操作。');
         setErrorDetails(undefined);
@@ -676,8 +713,10 @@ export function useWorkspace() {
       }
       if (busyRef.current.has(key)) return;
       if (
-        kind === 'fork' &&
-        operationsRef.current.some((entry) => entry.kind === 'fork' && blocksTarget(entry, target))
+        (kind === 'fork' || kind === 'create' || kind === 'send') &&
+        operationsRef.current.some(
+          (entry) => (kind !== 'fork' || entry.kind === 'fork') && blocksTarget(entry, target),
+        )
       )
         return;
       busyRef.current.add(key);
@@ -685,6 +724,7 @@ export function useWorkspace() {
       setError(undefined);
       setErrorDetails(undefined);
       const clientOperationId = crypto.randomUUID();
+      if (draft) conversationDrafts.current.track(clientOperationId, draft);
       track((previous) => [
         ...previous,
         {
@@ -726,6 +766,7 @@ export function useWorkspace() {
           problem.status !== 408 &&
           problem.problem.code !== 'RESULT_UNKNOWN'
         ) {
+          conversationDrafts.current.discard(clientOperationId);
           track((previous) =>
             previous.filter((entry) => entry.clientOperationId !== clientOperationId),
           );
@@ -814,6 +855,40 @@ export function useWorkspace() {
       }
     },
     projectId,
+    draftKey: conversationDrafts.current.key(projectId, selectedId),
+    sentDrafts,
+    restoringSelection,
+    firstMessages,
+    sendFirstMessage: async (text: string, images?: string[]) => {
+      const project = projectRef.current;
+      if (selectedRef.current || firstMessagesRef.current.has(project)) return false;
+      const key = conversationDrafts.current.key(project);
+      const settings = getProjectSettings(project);
+      firstMessagesRef.current.add(project);
+      setFirstMessages([...firstMessagesRef.current]);
+      try {
+        const created = await run(
+          'create',
+          project,
+          `/api/projects/${encodeURIComponent(project)}/threads`,
+          { settings },
+          { kind: 'create', key, projectId: project, settings },
+        );
+        const id = (created?.result as { threadId?: string } | undefined)?.threadId;
+        if (created?.status !== 'acknowledged' || !id) return false;
+        const sent = await run(
+          'send',
+          id,
+          `/api/threads/${encodeURIComponent(id)}/turns`,
+          { text, images, settings },
+          { kind: 'send', key, text, images },
+        );
+        return sent?.status === 'acknowledged';
+      } finally {
+        firstMessagesRef.current.delete(project);
+        setFirstMessages([...firstMessagesRef.current]);
+      }
+    },
     setProjectId: (id: string) => {
       cancelResultNavigation();
       selectProject(id);
@@ -895,6 +970,7 @@ export function useWorkspace() {
         busyRef.current.has(`${entry.kind}:${entry.target}`)
       )
         return;
+      conversationDrafts.current.discard(id);
       track((previous) => previous.filter((current) => current.clientOperationId !== id));
       setError((previous) => (previous === entry.lookupError?.message ? undefined : previous));
     },

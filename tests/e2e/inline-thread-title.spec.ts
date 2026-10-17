@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import {
   confirmCompatibility,
-  createThreadButton,
+  createEmptyThread,
   saveConversationHistory,
   expectThreadReady,
 } from './helpers';
@@ -18,7 +18,7 @@ const selected = (page: Page) =>
 async function create(page: Page, withHistory = false) {
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   const id = (await selected(page))!;
   if (withHistory) {
@@ -190,7 +190,7 @@ test('live title updates preserve a draft and delayed receipts cannot retarget a
   await expect(nameInput(page)).toHaveValue('本地未保存草稿');
   await cancel(page).click();
   await expect(page.locator('.topbar h1')).toHaveText('另一标签更新的名称');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expect(page.locator('.topbar h1')).toHaveText('新会话');
   const other = (await selected(page))!;
   await saveConversationHistory(page);

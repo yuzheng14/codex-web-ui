@@ -6,6 +6,7 @@ import {
   confirmCompatibility,
   controlRuntime,
   createThreadButton,
+  createEmptyThread,
   expectThreadReady,
   testOrigin,
 } from './helpers';
@@ -73,7 +74,7 @@ test('an unverified version requires explicit confirmation while cancel preserve
   await page.getByRole('button', { name: '查看兼容性提示', exact: true }).click();
   await confirmCompatibility(page);
   expect((await system(request)).compatibilityConfirmation).toBe('confirmed');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await page.getByRole('textbox', { name: '任务内容' }).fill('已明确确认兼容性后执行');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
@@ -170,7 +171,7 @@ test('an existing turn can still be interrupted when a version change requires n
 }) => {
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await page.getByRole('textbox', { name: '任务内容' }).fill('[approval] 等待决定时模拟兼容性变更');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();

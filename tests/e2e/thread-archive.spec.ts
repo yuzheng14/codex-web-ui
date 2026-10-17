@@ -4,7 +4,7 @@ import type { ThreadSummaryPage, ThreadView } from '../../src/shared/types';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   projectGroup,
   testOrigin,
   expectThreadReady,
@@ -22,7 +22,7 @@ async function archive(page: Page, id: string, restore = false) {
 async function create(page: Page, text: string) {
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   const id = (await selectedId(page))!;
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill(text);

@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  createEmptyThread,
+  confirmCompatibility,
+  controlRuntime,
+} from './helpers';
 
 const speed = (page: Page) => page.getByRole('button', { name: 'Fast 模式', exact: true });
 async function chooseSpeed(page: Page, fast: boolean) {
@@ -33,7 +37,7 @@ test('enables and disables Fast with server confirmation, refresh and per-sessio
   await expect(speed(page)).toHaveAttribute('aria-pressed', 'false');
   await chooseSpeed(page, true);
   await expect(page.locator('.settings-pending')).toContainText('新建会话时生效');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expect(speed(page)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.settings-pending')).toHaveCount(0);
   const first = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
@@ -46,7 +50,7 @@ test('enables and disables Fast with server confirmation, refresh and per-sessio
     '速度待生效：Fast 关；当前：Fast 开',
   );
   await page.locator('.composer-box').screenshot({ path: '/tmp/codex-fast-pending.png' });
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expect(speed(page)).toHaveAttribute('aria-pressed', 'false');
   await page.locator(`[data-thread-id="${first}"]`).click();
   await expect(page.locator('.settings-pending')).toContainText(

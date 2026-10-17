@@ -379,17 +379,11 @@ function ConversationContent({
                       添加项目
                     </Button>
                   </>
-                ) : thread ? (
+                ) : (
                   <p>
                     描述你要完成的任务，也可以粘贴图片、问题或错误信息。
                     <br />
-                    Codex 在运行服务的电脑上执行，你在这里掌握进展。
-                  </p>
-                ) : (
-                  <p>
-                    选择会话继续，或在{projectName ? `「${projectName}」` : '项目'}中新建会话。
-                    <br />
-                    Codex 在运行服务的电脑上执行，你在这里掌握进展。
+                    发送后将在{projectName ? `「${projectName}」` : '当前项目'}中开始新会话。
                   </p>
                 )}
                 <div className="empty-features">

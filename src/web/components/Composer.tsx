@@ -20,12 +20,14 @@ import {
   type SlashCommandResult,
 } from '../lib/slash-commands';
 import { ControlHint } from './ControlHint';
+import type { SentDraft } from '../lib/conversation-drafts';
 
 interface Props {
   commands: SlashCommand[];
   thread?: ThreadView;
   threadLoading?: boolean;
   draftKey: string;
+  sentDrafts: Record<string, SentDraft>;
   projectName?: string;
   projectId?: string;
   runtimeKey?: string;
@@ -55,13 +57,23 @@ export function Composer(props: Props) {
   const composingRef = useRef(false);
   const compositionEndedAtRef = useRef(-Infinity);
   const sendingRef = useRef(new Set<string>());
+  const submittedDrafts = useRef(new Map<string, MessageDraft>());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuId = useId();
   const [focused, setFocused] = useState(false);
   const [menu, setMenu] = useState({ key: '', text: '', selectedIndex: 0, dismissed: false });
   const [feedback, setFeedback] = useState<Record<string, SlashCommandResult>>({});
   const [commandPending, setCommandPending] = useState<string[]>([]);
-  const key = props.thread?.id ?? props.draftKey;
+  const key = props.draftKey;
+  const consumedReceipts = useRef(new WeakSet<SentDraft>());
+  useEffect(() => {
+    for (const sent of Object.values(props.sentDrafts)) {
+      if (consumedReceipts.current.has(sent)) continue;
+      consumedReceipts.current.add(sent);
+      if (submittedDrafts.current.get(sent.key)?.text.replace(/^(\s*)\/\//, '$1/') === sent.text)
+        clearSubmittedDraft(sent.key);
+    }
+  }, [props.sentDrafts]);
   useEffect(() => {
     composingRef.current = false;
     compositionEndedAtRef.current = -Infinity;
@@ -137,6 +149,18 @@ export function Composer(props: Props) {
     draftsRef.current = next;
     setDrafts(next);
   }
+  function clearSubmittedDraft(draftKey: string) {
+    const sent = submittedDrafts.current.get(draftKey);
+    if (!sent) return;
+    submittedDrafts.current.delete(draftKey);
+    updateDraft(draftKey, (previous) => ({
+      text: previous.text === sent.text ? '' : previous.text,
+      images: previous.images.filter(
+        (image) => !sent.images.some((entry) => entry.id === image.id),
+      ),
+      error: previous.error === sent.error ? undefined : previous.error,
+    }));
+  }
   function paste(event: ClipboardEvent<HTMLTextAreaElement>) {
     if (event.defaultPrevented) return;
     const files = Array.from(event.clipboardData.files);
@@ -191,7 +215,8 @@ export function Composer(props: Props) {
   const resumeError = external ? props.thread?.resumeError : undefined;
   const occupied = resumeError?.code === 'THREAD_IN_USE';
   const canSend = Boolean(
-    props.thread &&
+    (props.thread || props.projectId) &&
+    !props.threadLoading &&
     !external &&
     (text.trim() || images.length) &&
     !readingImages &&
@@ -209,6 +234,7 @@ export function Composer(props: Props) {
     if (!current.text.trim() && !current.images.length) return;
     if (current.images.some((image) => !image.dataUrl)) return;
     sendingRef.current.add(key);
+    submittedDrafts.current.set(key, current);
     const sent = current.text;
     const sentImages = current.images;
     try {
@@ -219,20 +245,19 @@ export function Composer(props: Props) {
           sentImages.length ? sentImages.map((image) => image.dataUrl!) : undefined,
         )
       )
-        updateDraft(key, (previous) => ({
-          ...previous,
-          error: previous.error === current.error ? undefined : previous.error,
-          text: previous.text === sent ? '' : previous.text,
-          images: previous.images.filter(
-            (image) => !sentImages.some((sentImage) => sentImage.id === image.id),
-          ),
-        }));
+        clearSubmittedDraft(key);
     } finally {
       sendingRef.current.delete(key);
     }
   }
   return (
     <div className="composer-region">
+      {props.submitting && (
+        <p className="composer-resume-status" role="status">
+          <Icon name="refresh" size={14} />
+          {props.thread ? '正在提交消息…' : '正在创建会话并发送首条消息…'}
+        </p>
+      )}
       {external && props.resuming && (
         <p className="composer-resume-status" role="status">
           <Icon name="refresh" size={14} />
@@ -332,11 +357,9 @@ export function Composer(props: Props) {
           placeholder={
             props.thread?.archived
               ? '取消归档后可继续对话…'
-              : !props.thread
-                ? '输入 / 查看命令，或新建会话开始任务…'
-                : active
-                  ? '补充要求或调整方向…'
-                  : '描述任务、粘贴图片，或输入 / 查看命令…'
+              : active
+                ? '补充要求或调整方向…'
+                : '描述任务、粘贴图片，或输入 / 查看命令…'
           }
           maxLength={100000}
           onChange={(event) => {

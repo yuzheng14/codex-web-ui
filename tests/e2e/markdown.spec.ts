@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -37,7 +37,7 @@ test.beforeEach(async ({ page, request }) => {
   await page.goto('/');
   await confirmCompatibility(page);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
 });
 

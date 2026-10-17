@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   saveConversationHistory,
   expectThreadReady,
 } from './helpers';
@@ -18,7 +18,7 @@ const png =
 async function openThread(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   return (await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture')))!;
 }
@@ -133,7 +133,7 @@ test('multiple images can be removed, remain isolated by thread and retain accom
   await expect(input(page)).toHaveValue('before 粘贴文字 after');
   await page.getByRole('button', { name: '移除图片 1', exact: true }).click();
   await expect(previews(page)).toHaveCount(1);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expect(input(page)).toHaveValue('');
   await expect(previews(page)).toHaveCount(0);
   await page.locator(`[data-thread-id="${first}"]`).click();
@@ -193,10 +193,10 @@ test('images pasted while a send is in flight remain in the next draft', async (
   await pasteFiles(page);
   let release!: () => void;
   await page.route('**/api/threads/*/turns', async (route) => {
-    const response = await route.fetch();
     await new Promise<void>((resolve) => {
       release = resolve;
     });
+    const response = await route.fetch();
     await route.fulfill({ response });
   });
   await send(page).click();
@@ -226,7 +226,7 @@ test('pending reads block Enter and finish in the originating draft after switch
   await expect(page.locator('.composer-images')).toContainText('读取中');
   await expect(send(page)).toBeDisabled();
   await input(page).press('Enter');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expect(previews(page)).toHaveCount(0);
   await page.locator(`[data-thread-id="${first}"]`).click();
   await expect(previews(page)).toHaveCount(1);

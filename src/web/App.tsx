@@ -85,11 +85,11 @@ export function App() {
         action.status === 'responding' ||
         (action.kind === 'unsupported' && action.status === 'expired'),
     ) ?? [];
-  const waitingForConfirmation =
-    thread &&
-    ((unsettledFor(thread.id) && !busyFor('resume')) ||
+  const waitingForConfirmation = thread
+    ? (unsettledFor(thread.id) && !busyFor('resume')) ||
       (thread.managed && thread.status === 'unknown') ||
-      (thread.execution && !thread.execution.ended && thread.status === 'unknown'));
+      (thread.execution && !thread.execution.ended && thread.status === 'unknown')
+    : !busyFor('create', workspace.projectId) && unsettledFor(workspace.projectId);
   const resumeBlocked = Boolean(
     thread &&
     (!canOperate ||
@@ -230,7 +230,12 @@ export function App() {
   const renameCommand = slashCommands.find((command) => command.name === 'rename')!;
 
   async function sendMessage(text: string, steer: boolean, images?: string[]) {
-    if (!thread || (steer && !activeTurn)) return false;
+    if (!canOperate || workspace.restoringSelection || workspace.savingModelDefaults) return false;
+    if (!thread) {
+      if (workspace.selectedId) return false;
+      return workspace.sendFirstMessage(text, images);
+    }
+    if (steer && !activeTurn) return false;
     const operation = await workspace.run(
       steer ? 'steer' : 'send',
       thread.id,
@@ -238,6 +243,7 @@ export function App() {
       steer
         ? { text, images, expectedTurnId: activeTurn!.id }
         : { text, images, settings: workspace.settings },
+      { kind: 'send', key: workspace.draftKey, text, images },
     );
     return operation?.status === 'acknowledged';
   }
@@ -277,7 +283,10 @@ export function App() {
         projects={workspace.projects}
         projectsLoaded={workspace.projectsLoaded}
         projectId={workspace.projectId}
-        onProject={workspace.setProjectId}
+        onProject={(id) => {
+          workspace.setProjectId(id);
+          setSidebarOpen(false);
+        }}
         projectThreads={workspace.projectThreads}
         selectedId={workspace.selectedId}
         isUnreadCompletion={isUnreadCompletion}
@@ -305,11 +314,12 @@ export function App() {
         onCreate={(projectId) => {
           workspace.setProjectId(projectId);
           setSidebarOpen(false);
-          void workspace.run('create', projectId, `/api/projects/${encode(projectId)}/threads`, {
-            settings: workspace.getProjectSettings(projectId),
-          });
         }}
-        creating={(projectId) => busyFor('create', projectId) || unsettledFor(projectId)}
+        creating={(projectId) =>
+          workspace.firstMessages.includes(projectId) ||
+          busyFor('create', projectId) ||
+          unsettledFor(projectId)
+        }
         canCreate={(projectId) =>
           canControl &&
           !workspace.savingModelDefaults &&
@@ -336,7 +346,7 @@ export function App() {
               <div className="breadcrumb">
                 {project?.name ?? '工作空间'}
                 <Icon name="chevron" size={12} />
-                <span>{thread ? '会话' : '概览'}</span>
+                <span>{thread ? '会话' : '新会话'}</span>
               </div>
               {thread ? (
                 <ThreadTitle
@@ -543,9 +553,11 @@ export function App() {
             <div className="pending-notice" role="status">
               <Icon name="alert" size={15} />
               <span>
-                {pendingFork
-                  ? 'Fork 结果尚未确认。请核对提交，暂时不能再次 Fork。'
-                  : '提交结果尚未确认。请核对提交，也可以 Fork 已保存的历史为新会话。'}
+                {!thread
+                  ? '新建会话的提交结果尚未确认。请先核对提交，避免重复创建。'
+                  : pendingFork
+                    ? 'Fork 结果尚未确认。请核对提交，暂时不能再次 Fork。'
+                    : '提交结果尚未确认。请核对提交，也可以 Fork 已保存的历史为新会话。'}
               </span>
               <Button
                 variant="ghost"
@@ -560,7 +572,7 @@ export function App() {
               >
                 {checkingStatus ? '正在核对…' : '核对提交'}
               </Button>
-              {!pendingFork && (
+              {thread && !pendingFork && (
                 <Button variant="secondary" size="sm" disabled={!canFork} onClick={forkThread}>
                   Fork 为新会话
                 </Button>
@@ -570,8 +582,9 @@ export function App() {
           <Composer
             commands={slashCommands}
             thread={thread}
-            threadLoading={Boolean(workspace.selectedId && !thread)}
-            draftKey={workspace.selectedId ?? `project:${workspace.projectId}`}
+            threadLoading={workspace.restoringSelection || Boolean(workspace.selectedId && !thread)}
+            draftKey={workspace.draftKey}
+            sentDrafts={workspace.sentDrafts}
             projectName={project?.name}
             projectId={project?.available ? project.id : undefined}
             runtimeKey={
@@ -584,9 +597,18 @@ export function App() {
             onSettings={workspace.setSettings}
             onSaveModelDefaults={workspace.saveModelDefaults}
             savingModelDefaults={workspace.savingModelDefaults}
-            disabled={!canOperate || Boolean(waitingForConfirmation) || Boolean(thread?.archived)}
+            disabled={
+              !canOperate ||
+              workspace.restoringSelection ||
+              Boolean(waitingForConfirmation) ||
+              Boolean(thread?.archived)
+            }
             canInterrupt={canControl && Boolean(thread?.managed && activeTurn)}
-            submitting={busyFor('send') || busyFor('steer')}
+            submitting={
+              workspace.firstMessages.includes(workspace.projectId) ||
+              busyFor('send') ||
+              busyFor('steer')
+            }
             interrupting={busyFor('interrupt')}
             resuming={busyFor('resume')}
             canResume={!resumeBlocked}

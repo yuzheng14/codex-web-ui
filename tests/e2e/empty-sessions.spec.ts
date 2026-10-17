@@ -1,10 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import {
-  confirmCompatibility,
-  controlRuntime,
-  createThreadButton,
-  expectThreadReady,
-} from './helpers';
+import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
 
 const input = (page: Page) => page.getByRole('textbox', { name: '任务内容', exact: true });
 const send = (page: Page) => page.getByRole('button', { name: '发送任务', exact: true });
@@ -13,7 +8,7 @@ const selected = (page: Page) =>
   page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
 async function newThread(page: Page) {
   await createThreadButton(page).click();
-  await expectThreadReady(page);
+  await expect(page.getByTestId('workspace-start')).toHaveAttribute('data-thread-ready', 'false');
 }
 
 test.beforeEach(async ({ page, request }) => {
@@ -33,9 +28,11 @@ test('new drafts stay editable, stay out of both tabs and disappear after reload
   await newThread(page);
   await expect(welcome).toBeVisible();
   await expect(page.locator('.thread-actions')).toHaveCount(0);
-  await expect(page.getByText('描述你要完成的任务，也可以粘贴图片、问题或错误信息。')).toBeVisible();
-  const id = (await selected(page))!;
-  expect(id).toBeTruthy();
+  await expect(
+    page.getByText('描述你要完成的任务，也可以粘贴图片、问题或错误信息。'),
+  ).toBeVisible();
+  expect(await selected(page)).toBeNull();
+  const id = 'uncreated-draft';
   await expect(rows(page, id)).toHaveCount(0);
   await expect(input(page)).toBeEnabled();
   const other = await context.newPage();
@@ -44,8 +41,7 @@ test('new drafts stay editable, stay out of both tabs and disappear after reload
   await expect(other.getByTestId('workspace-start')).toHaveAttribute('data-thread-ready', 'false');
   await other.close();
   await page.screenshot({ path: testInfo.outputPath('draft-before-send.png'), fullPage: true });
-  // Simulate a legacy saved selection as well as the current browser's preference.
-  await page.evaluate((id) => localStorage.setItem('codex-web.selected:fixture', id!), id);
+  await input(page).fill('尚未提交的草稿');
   let resumed = 0;
   page.on('request', (request) => {
     if (request.method() === 'POST' && request.url().endsWith('/resume')) resumed++;
@@ -75,12 +71,13 @@ test('the first accepted message enters history and stays usable after reload', 
 }, testInfo) => {
   await newThread(page);
   await expect(input(page)).toBeEnabled();
-  const id = (await selected(page))!;
   const other = await context.newPage();
   await other.goto('/');
   await expect.poll(() => selected(other)).toBeNull();
   await input(page).fill('保存第一条消息');
   await send(page).click();
+  await expect.poll(() => selected(page)).toBeTruthy();
+  const id = (await selected(page))!;
   await expect(rows(page, id)).toHaveCount(1);
   await expect(other.locator(`[data-thread-id="${id}"]`)).toBeVisible();
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
@@ -118,10 +115,10 @@ test('a definite first-message rejection stays retryable and leaves no history a
   page,
 }) => {
   await newThread(page);
-  const id = (await selected(page))!;
   await input(page).fill('[reject-start] 没有被接受的消息');
   await send(page).click();
   await expect(page.locator('.error-banner.dismissible')).toContainText('模拟首条消息被拒绝');
+  const id = (await selected(page))!;
   await expect(rows(page, id)).toHaveCount(0);
   await expect(input(page)).toHaveValue('[reject-start] 没有被接受的消息');
   await expect(send(page)).toBeEnabled();
@@ -134,9 +131,10 @@ test('refreshing a dispatched first message preserves it before turn creation or
   page,
 }) => {
   await newThread(page);
-  const id = (await selected(page))!;
   await input(page).fill('[delay-start] 发送中刷新');
   await send(page).click();
+  await expect.poll(() => selected(page)).toBeTruthy();
+  const id = (await selected(page))!;
   await expect(rows(page, id)).toHaveCount(1);
   await page.reload();
   await expect(page.locator('.user-text')).toHaveText('[delay-start] 发送中刷新');

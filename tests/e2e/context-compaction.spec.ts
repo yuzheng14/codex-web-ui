@@ -5,7 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -37,7 +37,7 @@ test.beforeEach(async ({ page, request }) => {
   await controlRuntime(request, { reset: true });
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
 });
 for (const viewport of [
@@ -101,7 +101,7 @@ test('reload, disconnect and switching threads retain only the matching known li
   await context.setOffline(false);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await expect(notice(page)).not.toContainText('上次已知');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await expect(notice(page)).toHaveCount(0);
   await page.locator(`[data-thread-id="${id}"]`).click();

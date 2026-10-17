@@ -3,7 +3,7 @@ import type { SystemInfo } from '../../src/shared/types';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -15,7 +15,7 @@ const effortTooltip = (page: Page) => page.getByRole('tooltip').filter({ hasText
 async function newThread(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
 }
 
