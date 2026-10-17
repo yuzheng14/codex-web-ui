@@ -56,77 +56,80 @@ export function Sidebar(props: Props) {
         <button className="sidebar-backdrop" aria-label="关闭会话导航" onClick={props.onClose} />
       )}
       <aside className={cn('sidebar', props.open && 'sidebar-open')} aria-label="项目与会话">
-        <div className="brand">
-          <div className="brand-mark">
-            <Icon name="code" size={21} />
+        <div className="sidebar-header">
+          <div className="brand">
+            <div className="brand-mark">
+              <Icon name="code" size={21} />
+            </div>
+            <div className="brand-name">Codex</div>
+            <Button
+              className="add-project"
+              variant="secondary"
+              size="sm"
+              onClick={props.onAddProject}
+              disabled={!props.canManageProjects}
+            >
+              <Icon name="plus" size={15} />
+              添加项目
+            </Button>
+            <Button
+              className="mobile-only"
+              variant="ghost"
+              size="icon"
+              aria-label="关闭导航"
+              onClick={props.onClose}
+            >
+              <Icon name="close" />
+            </Button>
           </div>
-          <div>
-            Codex <span>workspace</span>
+          <div className="project-search">
+            <label className="sr-only" htmlFor="project-search">
+              项目与会话
+            </label>
+            <input
+              id="project-search"
+              type="search"
+              aria-label="搜索项目与已加载会话"
+              aria-describedby="sidebar-search-summary"
+              placeholder="搜索项目与已加载会话"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <span id="sidebar-search-summary" className="sr-only" role="status">
+              {query ? `搜索结果 · ${groups.length} 个项目` : `全部项目 · ${props.projects.length}`}
+            </span>
           </div>
-          <Button
-            className="mobile-only"
-            variant="ghost"
-            size="icon"
-            aria-label="关闭导航"
-            onClick={props.onClose}
-          >
-            <Icon name="close" />
-          </Button>
+          <div className="sidebar-toolbar">
+            <div className="archive-switch" role="group" aria-label="会话列表范围">
+              <Button
+                variant={props.archiveView ? 'ghost' : 'secondary'}
+                size="sm"
+                aria-pressed={!props.archiveView}
+                onClick={() => props.onArchiveView(false)}
+              >
+                会话
+              </Button>
+              <Button
+                variant={props.archiveView ? 'secondary' : 'ghost'}
+                size="sm"
+                aria-pressed={props.archiveView}
+                onClick={() => props.onArchiveView(true)}
+              >
+                <Icon name="archive" size={14} />
+                已归档会话
+              </Button>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="刷新会话列表"
+              onClick={props.onRefresh}
+              disabled={props.projects.length === 0}
+            >
+              <Icon name="refresh" size={14} />
+            </Button>
+          </div>
         </div>
-        <div className="project-search">
-          <label className="eyebrow" htmlFor="project-search">
-            项目与会话
-          </label>
-          <input
-            id="project-search"
-            type="search"
-            aria-label="搜索项目与已加载会话"
-            placeholder="搜索项目与已加载会话"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-        <div className="archive-switch" aria-label="会话列表范围">
-          <Button
-            variant={props.archiveView ? 'ghost' : 'secondary'}
-            size="sm"
-            aria-pressed={!props.archiveView}
-            onClick={() => props.onArchiveView(false)}
-          >
-            会话
-          </Button>
-          <Button
-            variant={props.archiveView ? 'secondary' : 'ghost'}
-            size="sm"
-            aria-pressed={props.archiveView}
-            onClick={() => props.onArchiveView(true)}
-          >
-            <Icon name="archive" size={14} />
-            已归档会话
-          </Button>
-        </div>
-        <div className="section-label">
-          <span>{query ? '搜索结果' : `全部项目 · ${props.projects.length}`}</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="刷新会话列表"
-            onClick={props.onRefresh}
-            disabled={props.projects.length === 0}
-          >
-            <Icon name="refresh" size={14} />
-          </Button>
-        </div>
-        <Button
-          className="add-project"
-          variant="secondary"
-          size="sm"
-          onClick={props.onAddProject}
-          disabled={!props.canManageProjects}
-        >
-          <Icon name="plus" size={15} />
-          添加项目
-        </Button>
         <nav className="project-list" aria-label="会话历史">
           {groups.map(({ project, state, threads }) => {
             const activeCount = (state?.data ?? []).filter((entry) =>
