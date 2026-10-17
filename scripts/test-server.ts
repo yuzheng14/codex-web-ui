@@ -16,7 +16,10 @@ class ControlledFixture implements CodexClient {
   private seedingExternal = false;
   private readonly externalFailures = new Map<string, AppError>();
   private readonly listeners = new Set<(event: CodexEvent) => void>();
-  constructor(private readonly inner: CodexClient) {
+  constructor(
+    private readonly inner: CodexClient,
+    private readonly historyPath: string,
+  ) {
     inner.onEvent((event) => {
       // History written by another app-server has no live notifications in this gateway.
       if (this.seedingExternal && event.type !== 'runtime') return;
@@ -110,6 +113,7 @@ class ControlledFixture implements CodexClient {
   respond: CodexClient['respond'] = (...args) => this.inner.respond(...args);
   async reset(version = 'fixture-unverified-1') {
     await this.stop();
+    await rm(this.historyPath, { force: true });
     this.version = version;
     this.unavailable = false;
     this.externalFailures.clear();
@@ -128,6 +132,7 @@ class ControlledFixture implements CodexClient {
 const root = await mkdtemp(join(tmpdir(), 'codex-web-e2e-'));
 const project = join(root, 'project');
 const otherProject = join(root, 'other-project');
+const historyPath = join(root, 'history.json');
 const port = Number(process.env.E2E_PORT ?? 8788);
 const origin = `http://127.0.0.1:${port}`;
 await mkdir(project);
@@ -155,12 +160,14 @@ const codex = new ControlledFixture(
         fragmentBytes: 7,
         turnDelayMs: 800,
         titleDelayMs: 1500,
+        historyPath,
         models: ['simulated-model', 'simulated-alternative'],
       }),
     ],
   }),
+  historyPath,
 );
-const runtime = await startGateway(config, { codex, staticDir: resolve('dist/web') });
+let runtime = await startGateway(config, { codex, staticDir: resolve('dist/web') });
 
 // Separate loopback control listener exists only in this explicit test entry. Requests from a
 // browser Origin are refused. It never adds a route or bypass to the production gateway.
@@ -186,6 +193,7 @@ const control = createServer((request, response) => {
     }
     const input = JSON.parse(body) as {
       reset?: boolean;
+      restart?: boolean;
       version?: string;
       unavailable?: boolean;
       external?: 'free' | 'occupied' | 'error';
@@ -204,7 +212,10 @@ const control = createServer((request, response) => {
     }
     let externalThreadId: string | undefined;
     const work = controlling.then(async () => {
-      if (input.reset === true) await codex.reset(input.version);
+      if (input.restart === true) {
+        await runtime.close();
+        runtime = await startGateway(config, { codex, staticDir: resolve('dist/web') });
+      } else if (input.reset === true) await codex.reset(input.version);
       else codex.update(input.version, input.unavailable);
       if (input.releaseThreadId) codex.releaseExternal(input.releaseThreadId);
       if (input.external) externalThreadId = await codex.seedExternal(project, input.external);
