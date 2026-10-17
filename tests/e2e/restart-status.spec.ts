@@ -62,9 +62,11 @@ for (const mobile of [false, true]) {
     await page.goto('/');
     await confirmCompatibility(page);
     if (mobile) await page.getByRole('button', { name: '打开项目与会话' }).click();
+    await expect(projectGroup(page).getByText('已加载全部会话', { exact: true })).toBeVisible();
     await page.screenshot({
       path: testInfo.outputPath('restarted-history-list.png'),
       fullPage: true,
+      animations: 'disabled',
     });
     await page.goto('about:blank');
     expect(summaries.find((thread) => thread.id === completed)?.status).toBe('idle');
@@ -93,13 +95,21 @@ for (const mobile of [false, true]) {
     const input = page.getByRole('textbox', { name: '任务内容', exact: true });
     await input.fill('重启后可以直接继续');
     await expect(page.getByRole('button', { name: '发送任务', exact: true })).toBeEnabled();
-    await page.screenshot({ path: testInfo.outputPath('completed-history.png'), fullPage: true });
+    await page.screenshot({
+      path: testInfo.outputPath('completed-history.png'),
+      fullPage: true,
+      animations: 'disabled',
+    });
 
     if (mobile) await page.getByRole('button', { name: '打开项目与会话' }).click();
     const group = projectGroup(page);
     await expect(group.locator(`[data-thread-id="${other}"]`)).not.toContainText('状态待核对');
     await expect(group.locator(`[data-thread-id="${unfinished}"]`)).toContainText('状态待核对');
-    await page.screenshot({ path: testInfo.outputPath('history-list.png'), fullPage: true });
+    await page.screenshot({
+      path: testInfo.outputPath('history-list.png'),
+      fullPage: true,
+      animations: 'disabled',
+    });
     await group.locator(`[data-thread-id="${unfinished}"]`).click();
     await expect(page.locator('.pending-notice')).toBeVisible();
     await input.fill('仍需核对的旧任务');
@@ -108,6 +118,7 @@ for (const mobile of [false, true]) {
     await page.screenshot({
       path: testInfo.outputPath('unfinished-protected.png'),
       fullPage: true,
+      animations: 'disabled',
     });
   });
 }
