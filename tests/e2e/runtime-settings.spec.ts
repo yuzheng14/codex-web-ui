@@ -38,7 +38,7 @@ test('direct selectors show reported settings, keep proposals distinct and follo
   await expect(page.locator('.settings-pending')).toHaveCount(0);
   await expect(effort).toBeEnabled();
   await chooseEffort(page, 'low');
-  await page.getByRole('button', { name: '撤销修改' }).click();
+  await page.getByRole('button', { name: '撤销本会话修改' }).click();
   await expect(effort).toHaveAttribute('data-value', 'high');
   await page.reload();
   await expect(effort).toHaveAttribute('data-value', 'high');
@@ -66,7 +66,9 @@ test('direct selectors show reported settings, keep proposals distinct and follo
   await page.screenshot({ path: '/tmp/codex-toolbar-mobile-collapsed.png', fullPage: true });
 });
 
-test('isolates unsent edits by session and sends only explicit edits', async ({ page }) => {
+test('remembers new-thread defaults while keeping each existing session proposal separate', async ({
+  page,
+}) => {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
@@ -75,8 +77,9 @@ test('isolates unsent edits by session and sends only explicit edits', async ({ 
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
   await chooseEffort(page, 'high');
   await createThreadButton(page).click();
-  await expect(effort).toHaveAttribute('data-value', 'medium');
+  await expect(effort).toHaveAttribute('data-value', 'high');
   await expect(page.locator('.settings-pending')).toHaveCount(0);
+  await chooseEffort(page, 'low');
   await page.locator(`[data-thread-id="${first}"]`).click();
   await expect(effort).toHaveAttribute('data-value', 'high');
   const sending = page.waitForRequest(

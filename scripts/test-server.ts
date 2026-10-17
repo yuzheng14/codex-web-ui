@@ -64,6 +64,8 @@ class ControlledFixture implements CodexClient {
   listThreads: CodexClient['listThreads'] = (...args) => this.inner.listThreads(...args);
   readRuntimeSettings: CodexClient['readRuntimeSettings'] = (...args) =>
     this.inner.readRuntimeSettings(...args);
+  saveModelDefaults: CodexClient['saveModelDefaults'] = (...args) =>
+    this.inner.saveModelDefaults(...args);
   readThread: CodexClient['readThread'] = (...args) => this.inner.readThread(...args);
   readThreadMetadata: CodexClient['readThreadMetadata'] = (...args) =>
     this.inner.readThreadMetadata(...args);
@@ -147,7 +149,15 @@ config.demo = true;
 const codex = new ControlledFixture(
   new CodexAdapter({
     binary: resolve('tests/fixtures/codex.mjs'),
-    args: ['--options', JSON.stringify({ fragmentBytes: 7, turnDelayMs: 800, titleDelayMs: 1500 })],
+    args: [
+      '--options',
+      JSON.stringify({
+        fragmentBytes: 7,
+        turnDelayMs: 800,
+        titleDelayMs: 1500,
+        models: ['simulated-model', 'simulated-alternative'],
+      }),
+    ],
   }),
 );
 const runtime = await startGateway(config, { codex, staticDir: resolve('dist/web') });

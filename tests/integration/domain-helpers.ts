@@ -5,6 +5,7 @@ import type { CodexClient, CodexDiagnostics, CodexEvent } from '../../src/codex/
 import type {
   ActionResolution,
   Settings,
+  ModelDefaults,
   ThreadPage,
   ThreadView,
   TurnView,
@@ -114,6 +115,9 @@ export class DomainCodex implements CodexClient {
   }
   async readRuntimeSettings(_cwd: string) {
     return { model: 'test-model', reasoningEffort: 'medium' };
+  }
+  async saveModelDefaults(_settings: ModelDefaults) {
+    return { status: 'ok' as const };
   }
   async readThreadMetadata(id: string): Promise<ThreadView> {
     const thread = this.threads.get(id);

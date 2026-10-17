@@ -1,4 +1,10 @@
-import type { ModelInfo, PermissionMode, RuntimeSettings, Settings } from '../../shared/types';
+import type {
+  ModelDefaults,
+  ModelInfo,
+  PermissionMode,
+  RuntimeSettings,
+  Settings,
+} from '../../shared/types';
 import { permissionModes } from '../../shared/permissions';
 
 export function reportedPermissionMode(current?: RuntimeSettings) {
@@ -42,20 +48,31 @@ export function pendingSettings(settings: Settings, current?: RuntimeSettings): 
   );
 }
 
+export function selectedModelDefaults(
+  settings: Settings,
+  current: RuntimeSettings | undefined,
+  model: ModelInfo,
+): ModelDefaults {
+  const effort = settings.reasoningEffort ?? current?.reasoningEffort;
+  return {
+    model: model.id,
+    reasoningEffort:
+      effort && model.reasoningEfforts.includes(effort)
+        ? effort
+        : model.reasoningEfforts.includes(model.defaultReasoningEffort ?? '')
+          ? (model.defaultReasoningEffort ?? null)
+          : (model.reasoningEfforts[0] ?? null),
+  };
+}
+
 export function chooseModel(
   settings: Settings,
   current: RuntimeSettings | undefined,
   model: ModelInfo,
 ): Settings {
-  const next: Settings = { ...settings, model: model.id };
-  const effort = settings.reasoningEffort ?? current?.reasoningEffort;
-  if (effort && model.reasoningEfforts.includes(effort)) next.reasoningEffort = effort;
-  else {
-    // This is an explicit proposed choice, not an assertion about the running session.
-    next.reasoningEffort = model.reasoningEfforts.includes(model.defaultReasoningEffort ?? '')
-      ? model.defaultReasoningEffort
-      : model.reasoningEfforts[0];
-    if (!next.reasoningEffort) delete next.reasoningEffort;
-  }
+  const selected = selectedModelDefaults(settings, current, model);
+  const next: Settings = { ...settings, model: selected.model };
+  if (selected.reasoningEffort === null) delete next.reasoningEffort;
+  else next.reasoningEffort = selected.reasoningEffort;
   return pendingSettings(next, current);
 }

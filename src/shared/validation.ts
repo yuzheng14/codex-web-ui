@@ -29,6 +29,14 @@ export const settingsSchema = z
     '权限模式不能与独立的权限、审批策略或审核方同时设置',
   );
 export const operationSchema = z.object({ clientOperationId: z.string().uuid() }).strict();
+export const saveModelDefaultsSchema = operationSchema.extend({
+  settings: z
+    .object({
+      model: z.string().min(1).max(200),
+      reasoningEffort: z.string().min(1).max(40).nullable(),
+    })
+    .strict(),
+});
 export const startReviewSchema = operationSchema;
 export const confirmCompatibilitySchema = operationSchema.extend({
   codexEpoch: idSchema,

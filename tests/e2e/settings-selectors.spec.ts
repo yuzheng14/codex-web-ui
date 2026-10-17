@@ -265,11 +265,13 @@ test('model and effort menus fit a 320px viewport with long model names', async 
   expect(modelBox!.y + modelBox!.height).toBeLessThanOrEqual(844);
   expect(await menu.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.screenshot({ path: '/tmp/codex-shadcn-mobile-menu.png', fullPage: true });
+  await page.unroute('**/api/projects/fixture/runtime-settings');
   await page.getByRole('option', { name: 'simulated-model', exact: true }).click();
   await expect(menu).toHaveCount(0);
   await expect(model).toHaveAttribute('data-value', 'simulated-model');
   await expect(model).toContainText('simulated-model');
-  await expect(page.locator('.settings-pending')).toContainText(`当前 ${longModel} / medium`);
+  await expect(page.locator('.settings-defaults')).toHaveText('已保存为 Codex 新会话默认值');
+  await expect(page.locator('.settings-pending')).toHaveCount(0);
   await effort.click();
   await expect(menu).toBeVisible();
   await expect(effortTooltip(page)).toHaveCount(0);

@@ -109,6 +109,93 @@ async function setup(
   }
   return { origin, origins, runtime, post, connect };
 }
+it('saves only a complete model pair through a durable operation and new threads inherit it', async () => {
+  const { post, origin } = await setup();
+  const previous = (await (
+    await post('/api/projects/test/threads', { clientOperationId: randomUUID() })
+  ).json()) as Operation;
+  const previousId = (previous.result as { threadId: string }).threadId;
+  const input = {
+    clientOperationId: randomUUID(),
+    settings: { model: 'simulated-model', reasoningEffort: 'high' },
+  };
+  const response = await post('/api/projects/test/model-defaults', input);
+  expect(response.status).toBe(200);
+  const saved = (await response.json()) as Operation;
+  expect(saved).toMatchObject({
+    kind: 'config.modelDefaults',
+    status: 'acknowledged',
+    result: { status: 'ok' },
+  });
+  expect(saved.result).toEqual({ status: 'ok' });
+  expect(await (await post('/api/projects/test/model-defaults', input)).json()).toEqual(saved);
+  expect(
+    (
+      await post('/api/projects/test/model-defaults', {
+        ...input,
+        settings: { ...input.settings, reasoningEffort: 'low' },
+      })
+    ).status,
+  ).toBe(409);
+  const created = (await (
+    await post('/api/projects/test/threads', { clientOperationId: randomUUID() })
+  ).json()) as Operation;
+  const id = (created.result as { threadId: string }).threadId;
+  expect(await (await fetch(`${origin}/api/threads/${id}`)).json()).toMatchObject({
+    runtimeSettings: {
+      model: 'simulated-model',
+      reasoningEffort: 'high',
+      permissionMode: 'read-only',
+    },
+  });
+  expect(await (await fetch(`${origin}/api/threads/${previousId}`)).json()).toMatchObject({
+    runtimeSettings: { reasoningEffort: 'medium' },
+  });
+});
+
+it('rejects config paths, permission settings, incomplete pairs and unknown projects at the model defaults endpoint', async () => {
+  const { post, origin } = await setup();
+  const settings = { model: 'simulated-model', reasoningEffort: 'high' };
+  for (const input of [
+    { settings, filePath: '/tmp/other-config.toml' },
+    { settings: { ...settings, permissionMode: 'full-access' } },
+    { settings: { model: 'simulated-model' } },
+    { settings: { model: 'missing', reasoningEffort: 'high' } },
+  ])
+    expect(
+      (
+        await post('/api/projects/test/model-defaults', {
+          clientOperationId: randomUUID(),
+          ...input,
+        })
+      ).status,
+    ).toBe(400);
+  expect(
+    (
+      await post('/api/projects/missing/model-defaults', {
+        clientOperationId: randomUUID(),
+        settings,
+      })
+    ).status,
+  ).toBe(404);
+  expect(await (await fetch(`${origin}/api/projects/test/runtime-settings`)).json()).toMatchObject({
+    reasoningEffort: 'medium',
+    sandbox: 'read-only',
+  });
+});
+
+it('requires compatibility confirmation before writing model defaults', async () => {
+  const { post, origin } = await setup({ confirmCompatibility: false });
+  const response = await post('/api/projects/test/model-defaults', {
+    clientOperationId: randomUUID(),
+    settings: { model: 'simulated-model', reasoningEffort: 'high' },
+  });
+  expect(response.status).toBe(409);
+  expect(await (await fetch(`${origin}/api/projects/test/runtime-settings`)).json()).toMatchObject({
+    reasoningEffort: 'medium',
+  });
+});
+
 // Simulate the Host and Origin preserved by an HTTP reverse proxy such as Tailscale Serve.
 // These requests use a real loopback listener; they do not test a live Tailscale deployment.
 function proxyRequest(

@@ -4,6 +4,8 @@ import type {
   Operation,
   Project,
   Settings,
+  ModelDefaults,
+  ModelDefaultsResult,
   SystemInfo,
   ThreadSummary,
   ThreadView,
@@ -62,6 +64,7 @@ export function useWorkspace() {
   const projectRef = useRef(projectId);
   const settingsRef = useRef<Record<string, Settings>>({});
   const [settingsByScope, setSettingsByScope] = useState(settingsRef.current);
+  const [runtimeDefaultsRevision, setRuntimeDefaultsRevision] = useState(0);
   const navigationRevision = useRef(0);
   const detailReadSequence = useRef(0);
   const getProjectSettings = useCallback(
@@ -349,6 +352,21 @@ export function useWorkspace() {
         )
           return;
         if (known.kind === 'confirmCompatibility') void refreshSystem();
+        if (known.kind === 'saveModelDefaults') {
+          // Project drafts must not keep overriding a newer saved global preference.
+          // Existing threads retain their explicit pending choices until they are applied.
+          settingsRef.current = Object.fromEntries(
+            Object.entries(settingsRef.current).map(([scope, settings]) => {
+              if (!scope.startsWith('project:')) return [scope, settings];
+              const next = { ...settings };
+              delete next.model;
+              delete next.reasoningEffort;
+              return [scope, next];
+            }),
+          );
+          setSettingsByScope(settingsRef.current);
+          setRuntimeDefaultsRevision((revision) => revision + 1);
+        }
         const result = operation.result as
           { threadId?: string; id?: string; thread?: { id?: string } } | undefined;
         const id =
@@ -527,6 +545,13 @@ export function useWorkspace() {
         return undefined;
       }
       const key = `${kind}:${target}`;
+      if (
+        (kind === 'create' || kind === 'saveModelDefaults') &&
+        [...busyRef.current].some((entry) => entry.startsWith('saveModelDefaults:'))
+      ) {
+        setError('正在保存模型默认值，请完成后再操作。');
+        return undefined;
+      }
       if (busyRef.current.has(key)) return;
       if (
         kind === 'fork' &&
@@ -701,6 +726,22 @@ export function useWorkspace() {
     settings: settingsByScope[selectedId ? `thread:${selectedId}` : `project:${projectId}`] ?? {},
     setSettings,
     getProjectSettings,
+    runtimeDefaultsRevision,
+    savingModelDefaults: busy.some((entry) => entry.startsWith('saveModelDefaults:')),
+    saveModelDefaults: async (
+      settings: ModelDefaults,
+    ): Promise<ModelDefaultsResult | undefined> => {
+      const project = projectRef.current;
+      const operation = await run(
+        'saveModelDefaults',
+        `model-defaults:${project}`,
+        `/api/projects/${encodeURIComponent(project)}/model-defaults`,
+        { settings },
+      );
+      return operation?.status === 'acknowledged'
+        ? (operation.result as ModelDefaultsResult)
+        : undefined;
+    },
     run,
     loadThreads,
     loadProjectThreads,

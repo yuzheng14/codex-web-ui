@@ -23,6 +23,8 @@ import type {
   RuntimeSettings,
   PendingAction,
   Settings,
+  ModelDefaults,
+  ModelDefaultsResult,
   ThreadPage,
   ThreadView,
   TurnView,
@@ -34,6 +36,7 @@ import type { InitializeResponse } from './generated/InitializeResponse.js';
 import type { GetAccountResponse } from './generated/v2/GetAccountResponse.js';
 import type { ModelListResponse } from './generated/v2/ModelListResponse.js';
 import type { ConfigReadResponse } from './generated/v2/ConfigReadResponse.js';
+import type { ConfigWriteResponse } from './generated/v2/ConfigWriteResponse.js';
 import type { ConfigRequirementsReadResponse } from './generated/v2/ConfigRequirementsReadResponse.js';
 import type { ExperimentalFeatureListResponse } from './generated/v2/ExperimentalFeatureListResponse.js';
 import type { Thread } from './generated/v2/Thread.js';
@@ -108,6 +111,7 @@ const CAPABILITIES = [
   'turn/interrupt',
   'model/list',
   'config/read',
+  'config/batchWrite',
   'configRequirements/read',
   'experimentalFeature/list',
   'account/read',
@@ -118,6 +122,7 @@ type Responses = {
   'account/read': GetAccountResponse;
   'model/list': ModelListResponse;
   'config/read': ConfigReadResponse;
+  'config/batchWrite': ConfigWriteResponse;
   'configRequirements/read': ConfigRequirementsReadResponse;
   'experimentalFeature/list': ExperimentalFeatureListResponse;
   'thread/list': ThreadListResponse;
@@ -701,6 +706,26 @@ export class CodexAdapter implements CodexClient {
       ...mapThread(result.thread),
       runtimeSettings: await this.responseRuntimeSettings(result),
     };
+  }
+  async saveModelDefaults(settings: ModelDefaults): Promise<ModelDefaultsResult> {
+    this.validateSettings({
+      model: settings.model,
+      ...(settings.reasoningEffort === null ? {} : { reasoningEffort: settings.reasoningEffort }),
+    });
+    // Match the CLI picker: write a complete pair to the owning server's user/profile config.
+    // No file path or permission fields can be supplied by the browser.
+    const result = await this.call('config/batchWrite', {
+      edits: [
+        { keyPath: 'model', value: settings.model, mergeStrategy: 'replace' },
+        {
+          keyPath: 'model_reasoning_effort',
+          value: settings.reasoningEffort,
+          mergeStrategy: 'replace',
+        },
+      ],
+      reloadUserConfig: true,
+    });
+    return { status: result.status };
   }
   async readRuntimeSettings(cwd: string): Promise<RuntimeSettings> {
     const { config } = await this.call('config/read', { cwd, includeLayers: false });

@@ -260,6 +260,7 @@ export function App() {
         creating={(projectId) => busyFor('create', projectId) || unsettledFor(projectId)}
         canCreate={(projectId) =>
           canControl &&
+          !workspace.savingModelDefaults &&
           !compatibilityConfirmationRequired(system) &&
           Boolean(workspace.projects.find((entry) => entry.id === projectId)?.available)
         }
@@ -523,11 +524,15 @@ export function App() {
             projectName={project?.name}
             projectId={project?.available ? project.id : undefined}
             runtimeKey={
-              system?.ready && workspace.connection === 'connected' ? system.codexEpoch : undefined
+              system?.ready && workspace.connection === 'connected'
+                ? `${system.codexEpoch}:${workspace.runtimeDefaultsRevision}`
+                : undefined
             }
             settings={workspace.settings}
             models={system?.models ?? []}
             onSettings={workspace.setSettings}
+            onSaveModelDefaults={workspace.saveModelDefaults}
+            savingModelDefaults={workspace.savingModelDefaults}
             disabled={!canOperate || Boolean(waitingForConfirmation) || Boolean(thread?.archived)}
             canInterrupt={canControl && Boolean(thread?.managed && activeTurn)}
             submitting={busyFor('send') || busyFor('steer')}
