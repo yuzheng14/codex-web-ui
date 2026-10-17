@@ -568,6 +568,7 @@ describe('verified protocol adapter with a real subprocess', () => {
         historyPageSize: 1,
         historyItemSummaries: true,
         turnDelayMs: 10,
+        titleOutput: JSON.stringify({ title: 'Persisted source title' }),
       });
       const source = await adapter.createThread('/tmp/project');
       expect(source).not.toHaveProperty('forkedFromId');
@@ -582,6 +583,15 @@ describe('verified protocol adapter with a real subprocess', () => {
           ),
         );
       }
+      // Auto-naming finishes after the user turn; compare stable persisted snapshots.
+      await waitFor(() =>
+        events.find(
+          (event) =>
+            event.type === 'threadName' &&
+            event.threadId === source.id &&
+            event.name === 'Persisted source title',
+        ),
+      );
       const before = await adapter.readThread(source.id);
       const fork = await adapter.forkThread(source.id, source.cwd, {
         model: 'simulated-model',
