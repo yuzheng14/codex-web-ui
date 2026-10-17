@@ -1,5 +1,4 @@
 import { expect, test, type Page } from '@playwright/test';
-import { mkdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import {
   confirmCompatibility,
@@ -15,7 +14,6 @@ import {
 } from '../../src/shared/async-questions';
 import type { ThreadView } from '../../src/shared/types';
 
-const evidence = '/private/tmp/codex-async-question-evidence';
 const card = (page: Page) => page.getByRole('region', { name: 'Codex 的提问' });
 const freeName = (page: Page) =>
   card(page).getByRole('textbox', { name: '项目名称是什么？：自由回答' });
@@ -25,9 +23,6 @@ const send = async (page: Page, prompt: string) => {
   await expect(card(page).first()).toBeVisible();
 };
 
-test.beforeAll(async () => {
-  await mkdir(evidence, { recursive: true });
-});
 test.beforeEach(async ({ page, request }) => {
   await controlRuntime(request, { reset: true });
   await page.goto('/');
@@ -39,7 +34,7 @@ test.beforeEach(async ({ page, request }) => {
 test('async questions survive reload and send native answers after the turn ends', async ({
   page,
   context,
-}) => {
+}, testInfo) => {
   await page.setViewportSize({ width: 1360, height: 1050 });
   await send(page, '[async-questions] 帮我确认项目偏好');
   await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
@@ -57,7 +52,7 @@ test('async questions survive reload and send native answers after the turn ends
   await expect(card(page).getByRole('button', { name: '发送回答', exact: true })).toBeEnabled();
   await expect(freeName(page)).toHaveValue('我的项目');
   await page.screenshot({
-    path: `${evidence}/questions-desktop.png`,
+    path: testInfo.outputPath('questions-desktop.png'),
     fullPage: true,
     animations: 'disabled',
   });
@@ -73,7 +68,7 @@ test('async questions survive reload and send native answers after the turn ends
   );
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
-    path: `${evidence}/questions-mobile.png`,
+    path: testInfo.outputPath('questions-mobile.png'),
     fullPage: true,
     animations: 'disabled',
   });
@@ -103,7 +98,7 @@ test('async questions survive reload and send native answers after the turn ends
     element.scrollIntoView({ block: 'center', behavior: 'instant' }),
   );
   await page.screenshot({
-    path: `${evidence}/answered-desktop.png`,
+    path: testInfo.outputPath('answered-desktop.png'),
     fullPage: true,
     animations: 'disabled',
   });
