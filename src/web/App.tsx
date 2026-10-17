@@ -253,7 +253,10 @@ export function App() {
           void workspace.loadProjectThreads(projectId, cursor);
         }}
         onRetry={(projectId) => {
-          void workspace.loadProjectThreads(projectId);
+          void workspace.loadProjectThreads(
+            projectId,
+            workspace.projectThreads[projectId]?.retryCursor,
+          );
         }}
         onRefresh={() => {
           void workspace.refreshProjects().then(workspace.refreshProjectsThreads);

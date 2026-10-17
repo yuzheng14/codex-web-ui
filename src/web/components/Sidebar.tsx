@@ -1,17 +1,12 @@
 import { useState } from 'react';
 import type { Project, ThreadSummary } from '../../shared/types';
+import type { ProjectThreads } from '../lib/project-threads';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { isActive } from './Status';
 import { ThreadLink } from './ThreadLink';
 
-interface ProjectThreads {
-  data: ThreadSummary[];
-  nextCursor: string | null;
-  loading: boolean;
-  error?: string;
-}
 interface Props {
   archiveView: boolean;
   onArchiveView: (archived: boolean) => void;
@@ -226,12 +221,22 @@ export function Sidebar(props: Props) {
                             : '暂无会话。创建一个，开始工作。'}
                       </p>
                     )}
-                  {state?.loading && (
+                  {state?.loading && !state.nextCursor && (
                     <p className="sidebar-empty" role="status">
                       正在读取会话…
                     </p>
                   )}
-                  {state?.nextCursor && (
+                  {state?.loaded &&
+                    !state.loading &&
+                    !state.error &&
+                    !state.nextCursor &&
+                    state.data.length > 0 &&
+                    !query && (
+                      <p className="sidebar-empty" role="status">
+                        已加载全部会话
+                      </p>
+                    )}
+                  {state?.nextCursor && !state.error && (
                     <Button
                       variant="ghost"
                       className="load-more"
@@ -239,7 +244,7 @@ export function Sidebar(props: Props) {
                       disabled={state.loading}
                       onClick={() => props.onMore(project.id, state.nextCursor!)}
                     >
-                      加载更多会话
+                      {state.loading ? '正在加载更多会话…' : '加载更多会话'}
                     </Button>
                   )}
                 </div>

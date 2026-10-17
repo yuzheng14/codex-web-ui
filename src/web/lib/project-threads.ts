@@ -5,6 +5,8 @@ export interface ProjectThreads {
   nextCursor: string | null;
   loading: boolean;
   error?: string;
+  retryCursor?: string;
+  loaded?: boolean;
 }
 
 interface Read {
@@ -67,12 +69,21 @@ export class ProjectThreadsStore {
   beginRead(projectId: string, append = false): Read {
     const sequence = (this.sequences.get(projectId) ?? 0) + 1;
     this.sequences.set(projectId, sequence);
-    this.set(projectId, { ...this.get(projectId), loading: true, error: undefined });
+    this.set(projectId, {
+      ...this.get(projectId),
+      loading: true,
+      error: undefined,
+      retryCursor: undefined,
+    });
     return { projectId, sequence, revision: this.revision, append };
   }
 
+  isCurrent(read: Read) {
+    return this.sequences.get(read.projectId) === read.sequence;
+  }
+
   finishRead(read: Read, page: ThreadSummaryPage) {
-    if (this.sequences.get(read.projectId) !== read.sequence) return false;
+    if (!this.isCurrent(read)) return false;
     const previous = this.get(read.projectId);
     const data = new Map<string, ThreadSummary>(
       (read.append ? previous.data : []).map((entry) => [entry.id, entry]),
@@ -103,13 +114,14 @@ export class ProjectThreadsStore {
       data: sort([...data.values()]),
       nextCursor: page.nextCursor,
       loading: false,
+      loaded: true,
     });
     return true;
   }
 
-  failRead(read: Read, error: string) {
-    if (this.sequences.get(read.projectId) !== read.sequence) return false;
-    this.set(read.projectId, { ...this.get(read.projectId), loading: false, error });
+  failRead(read: Read, error: string, retryCursor?: string) {
+    if (!this.isCurrent(read)) return false;
+    this.set(read.projectId, { ...this.get(read.projectId), loading: false, error, retryCursor });
     return true;
   }
 
