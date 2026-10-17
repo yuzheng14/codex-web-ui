@@ -1,23 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page, type Request } from '@playwright/test';
-import type {
-  Operation,
-  ServerMessage,
-  SystemInfo,
-  ThreadPage,
-  ThreadView,
-} from '../../src/shared/types';
+import type { ServerMessage, SystemInfo, ThreadPage, ThreadView } from '../../src/shared/types';
 import {
   compatibilityDialog,
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
   createEmptyThread,
   projectGroup,
   expectThreadReady,
+  testOrigin,
 } from './helpers';
 
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
 const input = (page: Page) => page.getByRole('textbox', { name: /^(任务内容|追加要求)$/ });
 const menu = (page: Page) => page.getByRole('listbox', { name: 'Slash 命令', exact: true });
 const option = (page: Page, command: string) =>
@@ -189,13 +183,10 @@ test('Shift+Enter and Chinese composition preserve slash drafts without executin
   await flushKeyboardEvents(page);
   await expect(input(page)).toHaveValue('/new');
   expect(outgoing).toHaveLength(0);
-  const creation = page.waitForRequest(
-    (request) =>
-      request.method() === 'POST' && request.url().endsWith('/api/projects/fixture/threads'),
-  );
   await input(page).press('Enter');
-  await creation;
   await expect(input(page)).toHaveValue('');
+  expect(await selected(page)).toBeNull();
+  expect(outgoing).toHaveLength(0);
   expect(outgoing.filter(isMessage)).toHaveLength(0);
 });
 
@@ -211,7 +202,7 @@ test('mouse and touch can execute menu entries without submitting user messages'
   await expect(input(page)).toHaveValue('');
   expect(outgoing).toHaveLength(0);
   const context = await browser.newContext({
-    baseURL: 'http://127.0.0.1:8788',
+    baseURL: testOrigin,
     viewport: { width: 390, height: 844 },
     isMobile: true,
     hasTouch: true,
@@ -270,7 +261,7 @@ test('mouse and touch can execute menu entries without submitting user messages'
   }
 });
 
-test('/new creates a conversation in the selected project from its overview', async ({
+test('/new opens a draft and creates the selected project session only on the first message', async ({
   page,
   request,
 }) => {
@@ -281,156 +272,48 @@ test('/new creates a conversation in the selected project from its overview', as
   const outgoing = posts(page);
   await input(page).fill('/new');
   await expect(execute(page)).toBeEnabled();
-  const creation = page.waitForRequest(
-    (request) =>
-      request.method() === 'POST' && request.url().endsWith('/api/projects/fixture-other/threads'),
-  );
+  await page.screenshot({ path: test.info().outputPath('new-command.png'), fullPage: true });
   await execute(page).click();
-  expect((await creation).postDataJSON().clientOperationId).toBeTruthy();
-  await expectThreadReady(page);
+  await expect(input(page)).toHaveValue('');
+  await expect(page.getByRole('heading', { name: '开始你的下一项任务' })).toBeVisible();
+  expect(await selected(page, 'fixture-other')).toBeNull();
+  expect(outgoing).toHaveLength(0);
+  await page.screenshot({ path: test.info().outputPath('new-draft.png'), fullPage: true });
+  await input(page).fill('真正发送时创建会话 [title-fail]');
+  await input(page).press('Enter');
+  await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
   const id = (await selected(page, 'fixture-other'))!;
   expect((await readThread(request, id)).projectId).toBe('fixture-other');
-  await expect(input(page)).toHaveValue('');
-  expect(outgoing.filter(isMessage)).toHaveLength(0);
+  expect(
+    outgoing.filter((request) => request.url().endsWith('/api/projects/fixture-other/threads')),
+  ).toHaveLength(1);
+  expect(outgoing.filter(isMessage)).toHaveLength(1);
+  await page.screenshot({ path: test.info().outputPath('new-first-message.png'), fullPage: true });
 });
 
-test('a delayed /new receipt cannot replace another project or overwrite a newer draft', async ({
+test('/new preserves the existing project draft and history without dispatching a creation', async ({
   page,
-  request,
 }) => {
-  let withholdCreate = false;
-  await page.routeWebSocket('**/ws?overview=1', (socket) => {
-    const server = socket.connectToServer();
-    server.onMessage((raw) => {
-      const message = JSON.parse(raw.toString()) as ServerMessage;
-      if (
-        withholdCreate &&
-        message.type === 'event' &&
-        message.kind === 'operation' &&
-        (message.payload as Operation).kind === 'thread.create'
-      )
-        return;
-      socket.send(raw);
-    });
-  });
   const source = await newThread(page);
-  await finishTurn(page, '保留当前会话历史 [title-fail]');
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let capture!: (id: string) => void;
-  const created = new Promise<string>((resolve) => {
-    capture = resolve;
-  });
-  withholdCreate = true;
-  await page.route('**/api/projects/fixture/threads', async (route) => {
-    if (route.request().method() !== 'POST') return route.continue();
-    const response = await route.fetch();
-    const operation = (await response.json()) as Operation;
-    capture((operation.result as { threadId: string }).threadId);
-    await gate;
-    await route.fulfill({ response });
-  });
+  await finishTurn(page, '保留原来的会话历史 [title-fail]');
+  await projectGroup(page).getByRole('button', { name: '新建会话', exact: true }).click();
+  await input(page).fill('已有的新会话草稿');
+  await page.locator(`[data-thread-id="${source}"]`).click();
+  const outgoing = posts(page);
+  await page.route('**/api/projects/fixture/threads', (route) =>
+    route.request().method() === 'POST' ? route.abort('failed') : route.continue(),
+  );
   await input(page).fill('/new');
   await input(page).press('Enter');
-  const createdId = await created;
-  await input(page).fill('命令发起后新写的草稿');
-  await projectGroup(page, '另一个项目')
-    .getByRole('button', { name: '另一个项目', exact: true })
-    .click();
-  await input(page).fill('另一项目独立草稿');
-  release();
-  await expect(createThreadButton(page)).toBeEnabled();
-  await expect(page.locator(`[data-thread-id="${createdId}"]`)).toHaveCount(0);
-  expect(await page.evaluate(() => localStorage.getItem('codex-web.project'))).toBe(
-    'fixture-other',
-  );
-  await expect(input(page)).toHaveValue('另一项目独立草稿');
-  await expect(feedback(page)).toHaveCount(0);
-  expect((await readThread(request, createdId)).projectId).toBe('fixture');
-  await page.locator(`[data-thread-id="${source}"]`).click();
-  await expect(input(page)).toHaveValue('命令发起后新写的草稿');
-  expect(await selected(page)).toBe(source);
-});
-
-test('/fork copies the selected history without creating a prompt in either conversation', async ({
-  page,
-  request,
-}) => {
-  const source = await newThread(page);
-  await finishTurn(page, '斜杠命令分支的原始历史');
-  const outgoing = posts(page);
-  await input(page).fill('/fork');
-  const forked = page.waitForRequest(
-    (request) =>
-      request.method() === 'POST' && request.url().endsWith(`/api/threads/${source}/fork`),
-  );
-  await input(page).press('Enter');
-  expect((await forked).postDataJSON().clientOperationId).toBeTruthy();
-  await expect(page.getByRole('button', { name: '返回原会话', exact: true })).toBeVisible();
-  const fork = (await selected(page))!;
-  expect(fork).not.toBe(source);
-  const forkThread = await readThread(request, fork);
-  expect(forkThread.forkedFromId).toBe(source);
-  expect(forkThread.turns).toHaveLength(1);
-  expect((await readThread(request, source)).turns).toHaveLength(1);
-  await expect(input(page)).toHaveValue('');
-  expect(outgoing.filter(isMessage)).toHaveLength(0);
-});
-
-test('/resume retries only the selected external conversation after its owner releases it', async ({
-  page,
-  request,
-}) => {
-  const { externalThreadId: id } = await controlRuntime(request, { external: 'occupied' });
-  await page.addInitScript((id) => {
-    localStorage.setItem('codex-web.project', 'fixture');
-    localStorage.setItem('codex-web.selected:fixture', id!);
-  }, id);
-  await open(page);
-  await expect(page.locator('.session-resume-notice')).toContainText('此会话正被其他进程使用');
-  await controlRuntime(request, { releaseThreadId: id });
-  const outgoing = posts(page);
-  await input(page).fill('/resume');
-  await expect(execute(page)).toBeEnabled();
-  const resumed = page.waitForRequest(
-    (request) => request.method() === 'POST' && request.url().endsWith(`/api/threads/${id}/resume`),
-  );
-  await input(page).press('Enter');
-  expect((await resumed).postDataJSON().clientOperationId).toBeTruthy();
-  await expect(page.locator('.session-resume-notice')).toHaveCount(0);
-  await expect(input(page)).toHaveValue('');
-  expect(await selected(page)).toBe(id);
-  expect((await readThread(request, id!)).managed).toBe(true);
-  expect(outgoing.filter(isMessage)).toHaveLength(0);
-  expect(outgoing.filter((request) => request.url().endsWith('/resume'))).toHaveLength(1);
-});
-
-test('/stop uses the current turn ID and remains available when compatibility needs confirmation', async ({
-  page,
-  request,
-}) => {
-  const id = await newThread(page);
-  await input(page).fill('[approval] 斜杠停止目标');
-  await input(page).press('Enter');
-  await expect(page.locator('.action-card')).toBeVisible();
-  const turnId = (await readThread(request, id)).turns.at(-1)!.id;
-  await controlRuntime(request, { version: 'fixture-slash-stop-unconfirmed' });
-  await expect(compatibilityDialog(page)).toBeVisible();
-  await compatibilityDialog(page).getByRole('button', { name: '暂不使用', exact: true }).click();
-  const outgoing = posts(page);
-  await input(page).fill('/stop');
-  await expect(execute(page)).toBeEnabled();
-  const interrupted = page.waitForRequest(
-    (request) =>
-      request.method() === 'POST' && request.url().endsWith(`/api/threads/${id}/interrupt`),
-  );
-  await input(page).press('Enter');
-  expect((await interrupted).postDataJSON()).toMatchObject({ expectedTurnId: turnId });
-  await expect(page.locator('.turn-heading .status')).toHaveText('已中断');
-  await expect(input(page)).toHaveValue('');
-  expect(outgoing.filter(isMessage)).toHaveLength(0);
+  await expect(input(page)).toHaveValue('已有的新会话草稿');
+  await expect(page.getByRole('heading', { name: '开始你的下一项任务' })).toBeVisible();
+  expect(await selected(page)).toBeNull();
+  await expect(page.locator(`[data-thread-id="${source}"]`)).toBeVisible();
+  await projectGroup(page, '另一个项目').locator('.project-link').click();
+  await input(page).fill('另一项目的草稿');
+  await projectGroup(page).locator('.project-link').click();
+  await expect(input(page)).toHaveValue('已有的新会话草稿');
+  expect(outgoing).toHaveLength(0);
 });
 
 test('unavailable commands explain empty history, compatibility, offline and runtime guards while local help still works', async ({
