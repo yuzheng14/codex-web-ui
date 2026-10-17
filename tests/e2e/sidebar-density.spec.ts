@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
-import type { Operation, RunStatus, ThreadSummary } from '../../src/shared/types';
+import type { Operation, RunStatus, ThreadSummary, ThreadView } from '../../src/shared/types';
 import { confirmCompatibility, controlRuntime, projectGroup } from './helpers';
 
 const headers = { Origin: 'http://127.0.0.1:8788' };
@@ -22,6 +22,13 @@ async function create(request: APIRequestContext, title: string, project = 'fixt
   const operation = await submit(request, `/api/projects/${project}/threads`);
   const { threadId } = operation.result as { threadId: string };
   await submit(request, `/api/threads/${threadId}/rename`, { name: title });
+  await submit(request, `/api/threads/${threadId}/turns`, { text: '已有会话历史 [title-fail]' });
+  await expect
+    .poll(async () => {
+      const response = await request.get(`/api/threads/${threadId}`);
+      return ((await response.json()) as ThreadView).turns.at(-1)?.status;
+    })
+    .toBe('completed');
   return threadId;
 }
 
@@ -40,12 +47,15 @@ test('compact rows retain keyboard-accessible full titles and creation details',
   request,
 }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 });
+  test.setTimeout(90_000);
   await open(page);
+  const ids: string[] = [];
   for (let index = 0; index < 34; index++)
-    await create(request, `会话 ${index + 1}：检查项目配置与运行结果`);
+    ids.push(await create(request, `会话 ${index + 1}：检查项目配置与运行结果`));
   const id = await create(request, longTitle);
+  ids.push(id);
   await page.getByRole('button', { name: '刷新会话列表' }).click();
-  await expect(projectGroup(page).locator('[data-thread-id]')).toHaveCount(35);
+  await expect(page.locator(ids.map((id) => `[data-thread-id="${id}"]`).join(','))).toHaveCount(35);
   await page.locator('.project-list').evaluate((element) => {
     element.scrollTop = 0;
   });
@@ -94,7 +104,7 @@ test('compact rows retain keyboard-accessible full titles and creation details',
   await expect(details).toContainText(longTitle);
   await expect(details).toContainText('Web');
   await expect(details).toContainText('由 Codex Web UI（本网页）创建。');
-  await expect(details).toContainText('就绪');
+  await expect(details).toContainText('已完成');
   await expect(link(page, id)).not.toHaveAttribute('aria-current', 'page');
   const expanded = testInfo.outputPath('sidebar-details-keyboard.png');
   await page.screenshot({ path: expanded, animations: 'disabled' });
