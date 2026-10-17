@@ -5,8 +5,11 @@ on:
     branches: [main]
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  verify:
+  quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -16,10 +19,43 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      - run: pnpm build
       - run: node --import tsx scripts/verify-production.ts
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      # Each runner has its own fixture server; tests within a shard stay serial.
+      - run: pnpm test:e2e --shard=${{ matrix.shard }}/3
+  # Keep the existing required check green only when every job passed.
+  verify:
+    if: ${{ always() }}
+    needs: [quality, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require all checks to pass
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+        run: |
+          echo "quality: $QUALITY_RESULT; e2e: $E2E_RESULT"
+          [[ "$QUALITY_RESULT" == success && "$E2E_RESULT" == success ]]
