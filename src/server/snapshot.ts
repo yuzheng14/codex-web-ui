@@ -6,6 +6,8 @@ const truncated = '[内容已截断；可通过 HTTP 历史读取完整的已保
 const bytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
 const preview = (value: string, length = 512): string =>
   value.length > length ? `${value.slice(0, length)}\n${truncated}` : value;
+const hasQuestionState = (item: ItemView) =>
+  Boolean(item.questions?.length || item.questionReplies?.length);
 
 /** A bounded transport copy; the server's authoritative projection stays intact. */
 export function compactThreadForTransport(thread: ThreadView, maxBytes: number): ThreadView {
@@ -58,7 +60,12 @@ export function compactThreadForTransport(thread: ThreadView, maxBytes: number):
   const lastTurnId = result.turns.at(-1)?.id;
   for (let index = 0; size > maxBytes && index < result.turns.length;) {
     const turn = result.turns[index]!;
-    if (turn.id !== lastTurnId && !isActive(turn.status) && turn.status !== 'unknown') {
+    if (
+      turn.id !== lastTurnId &&
+      !isActive(turn.status) &&
+      turn.status !== 'unknown' &&
+      !turn.items.some(hasQuestionState)
+    ) {
       mutate(result.turns, () => {
         result.turns.splice(index, 1);
       });
@@ -68,7 +75,9 @@ export function compactThreadForTransport(thread: ThreadView, maxBytes: number):
     while (size > maxBytes && turn.items.length > 0) {
       // A live compaction is small but is the only evidence for the pinned status on reconnect.
       const removable = turn.items.findIndex(
-        (item) => item.type !== 'contextCompaction' || item.status !== 'inProgress',
+        (item) =>
+          !hasQuestionState(item) &&
+          (item.type !== 'contextCompaction' || item.status !== 'inProgress'),
       );
       if (removable < 0) break;
       mutate(turn.items, () => {

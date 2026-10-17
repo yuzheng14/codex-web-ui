@@ -17,6 +17,7 @@ import type { ThreadStartParams } from './generated/v2/ThreadStartParams.js';
 import type { TurnStartParams } from './generated/v2/TurnStartParams.js';
 import type { ReasoningEffort } from './generated/ReasoningEffort.js';
 import type { UserInput } from './generated/v2/UserInput.js';
+import { parseQuestionReplies } from '../shared/async-questions.js';
 import { imageDataBytes, MAX_IMAGES, MAX_IMAGE_BYTES } from '../shared/images.js';
 import { CodexError, isRecord } from './transport.js';
 
@@ -102,6 +103,11 @@ export function mapItem(item: ThreadItem): ItemView {
     throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Codex item has no type', true);
   switch (item.type) {
     case 'userMessage': {
+      const content = item.content.filter((input) => !['skill', 'mention'].includes(input.type));
+      const replies =
+        content.length === 1 && content[0]?.type === 'text'
+          ? parseQuestionReplies(content[0].text)
+          : undefined;
       const imageInputs = item.content.filter(
         (input) => input.type === 'image' || input.type === 'localImage',
       );
@@ -116,15 +122,24 @@ export function mapItem(item: ThreadItem): ItemView {
       return {
         id: item.id,
         type: item.type,
-        text: item.content
-          .filter((input) => input.type !== 'image' && input.type !== 'localImage')
-          .map((input) => (input.type === 'text' ? input.text : `[${input.type}]`))
-          .join('\n'),
+        text: replies
+          ? replies.map((reply) => `${reply.question}\n${reply.answer}`).join('\n\n')
+          : item.content
+              .filter((input) => input.type !== 'image' && input.type !== 'localImage')
+              .map((input) => (input.type === 'text' ? input.text : `[${input.type}]`))
+              .join('\n'),
+        ...(replies ? { questionReplies: replies } : {}),
         ...(imageInputs.length ? { images, imageCount: imageInputs.length } : {}),
       };
     }
     case 'agentMessage':
-      return { id: item.id, type: item.type, text: item.text };
+      return {
+        id: item.id,
+        type: item.type,
+        text: item.text,
+        ...(item.delivery ? { delivery: item.delivery } : {}),
+        ...(item.questions?.length ? { questions: structuredClone(item.questions) } : {}),
+      };
     case 'reasoning':
       return { id: item.id, type: item.type, text: [...item.summary, ...item.content].join('\n') };
     case 'plan':

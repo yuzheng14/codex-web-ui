@@ -13,6 +13,7 @@ import { Button } from './components/ui/button';
 import { blocksTarget } from './lib/operations';
 import { createSlashCommands, type SlashCommandContext } from './lib/slash-commands';
 import { downloadThreadExport } from './lib/thread-export';
+import { encodeQuestionReplies } from '../shared/async-questions';
 import { CompatibilityNotice } from './components/CompatibilityNotice';
 import { ProjectDialog } from './components/ProjectDialog';
 import {
@@ -199,6 +200,19 @@ export function App() {
   slashContextRef.current = slashContext;
   const slashCommands = createSlashCommands(() => slashContextRef.current);
   const renameCommand = slashCommands.find((command) => command.name === 'rename')!;
+
+  async function sendMessage(text: string, steer: boolean, images?: string[]) {
+    if (!thread || (steer && !activeTurn)) return false;
+    const operation = await workspace.run(
+      steer ? 'steer' : 'send',
+      thread.id,
+      `/api/threads/${encode(thread.id)}/${steer ? 'steer' : 'turns'}`,
+      steer
+        ? { text, images, expectedTurnId: activeTurn!.id }
+        : { text, images, settings: workspace.settings },
+    );
+    return operation?.status === 'acknowledged';
+  }
 
   return (
     <div className="app-shell">
@@ -461,6 +475,18 @@ export function App() {
           needsProject={workspace.projectsLoaded && workspace.projects.length === 0}
           canAddProject={!workspace.authRequired}
           onAddProject={openAddProject}
+          questionControls={{
+            disabled:
+              !canOperate ||
+              !thread?.managed ||
+              Boolean(thread.archived) ||
+              Boolean(waitingForConfirmation) ||
+              busyFor('send') ||
+              busyFor('steer') ||
+              busyFor('resume'),
+            onReply: async (replies) =>
+              sendMessage(encodeQuestionReplies(replies), Boolean(activeTurn)),
+          }}
         />
         <div className="bottom-region">
           {actions.length > 0 && (
@@ -551,18 +577,7 @@ export function App() {
                   { expectedTurnId: activeTurn.id },
                 );
             }}
-            onSend={async (text, steer, images) => {
-              if (!thread || (steer && !activeTurn)) return false;
-              const operation = await workspace.run(
-                steer ? 'steer' : 'send',
-                thread.id,
-                `/api/threads/${encode(thread.id)}/${steer ? 'steer' : 'turns'}`,
-                steer
-                  ? { text, images, expectedTurnId: activeTurn!.id }
-                  : { text, images, settings: workspace.settings },
-              );
-              return operation?.status === 'acknowledged';
-            }}
+            onSend={sendMessage}
           />
         </div>
       </main>

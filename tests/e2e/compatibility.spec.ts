@@ -7,9 +7,16 @@ import {
   controlRuntime,
   createThreadButton,
   expectThreadReady,
+  testOrigin,
 } from './helpers';
 
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
+async function threadIds(request: APIRequestContext): Promise<string[]> {
+  const response = await request.get('/api/threads?projectId=fixture');
+  expect(response.ok()).toBe(true);
+  const { data } = (await response.json()) as { data: { id: string }[] };
+  return data.map(({ id }) => id).sort();
+}
 async function system(request: APIRequestContext): Promise<SystemInfo> {
   const response = await request.get('/api/system');
   expect(response.ok()).toBe(true);
@@ -182,6 +189,7 @@ test('an unsent confirmation can be explicitly authorized again after refreshing
   page,
   request,
 }) => {
+  const existingThreads = await threadIds(request);
   await page.goto('/');
   await expect(compatibilityDialog(page)).toBeVisible();
   const attempts: string[] = [];
@@ -221,6 +229,6 @@ test('an unsent confirmation can be explicitly authorized again after refreshing
   expect(systemReads).toBeGreaterThan(readsBeforeRetry);
   expect(taskSubmissions).toBe(0);
   expect((await system(request)).compatibilityConfirmation).toBe('confirmed');
-  const threads = await request.get('/api/threads?projectId=fixture');
-  expect(await threads.json()).toMatchObject({ data: [] });
+  // Runtime resets retain gateway history from earlier tests; confirmation must not add to it.
+  expect(await threadIds(request)).toEqual(existingThreads);
 });

@@ -9,9 +9,10 @@ import {
   controlRuntime,
   createThreadButton,
   expectThreadReady,
+  testOrigin,
 } from './helpers';
 
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
 const evidence = join(tmpdir(), 'codex-permissions-evidence');
 const labelEvidence = join(tmpdir(), 'codex-issue-67-evidence');
 test.use({ viewport: { width: 1280, height: 1400 } });

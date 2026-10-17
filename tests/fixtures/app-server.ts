@@ -398,6 +398,43 @@ function complete(
     });
   }
 }
+function asyncQuestions(thread: Thread, turn: Turn, running: boolean, multiple: boolean): void {
+  const groups = [
+    [
+      { title: '界面使用哪种主题？', options: ['深色（推荐）', '浅色'] },
+      { title: '项目名称是什么？', options: null },
+    ],
+    ...(multiple ? [[{ title: '需要哪些补充说明？', options: null }]] : []),
+  ];
+  for (const questions of groups) {
+    const item: ThreadItem = {
+      id: randomUUID(),
+      type: 'agentMessage',
+      phase: 'final_answer',
+      memoryCitation: null,
+      delivery: 'async',
+      questions,
+      text: questions
+        .map((q) => [q.title, ...(q.options ?? []).map((option) => `- ${option}`)].join('\n'))
+        .join('\n\n'),
+    };
+    turn.items.push(item);
+    notify({
+      method: 'item/started',
+      params: { threadId: thread.id, turnId: turn.id, item, startedAtMs: Date.now() },
+    });
+    notify({
+      method: 'item/completed',
+      params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
+    });
+  }
+  if (running)
+    finishes.set(
+      turn.id,
+      setTimeout(() => complete(thread, turn), 60_000),
+    );
+  else complete(thread, turn);
+}
 function execute(thread: Thread, turn: Turn, cmd = command(randomUUID(), thread.cwd)): void {
   if (turn.items.some((item) => item.type === 'enteredReviewMode')) {
     finishes.set(
@@ -2032,6 +2069,8 @@ function receive(request: ClientRequest): void {
               : 'recover',
         );
       else if (reconnect) codexReconnect(thread, turn, reconnect);
+      else if (prompt.includes('[async-questions'))
+        asyncQuestions(thread, turn, prompt.includes('-running]'), prompt.includes('-multiple]'));
       else if (prompt.includes('[codex-thinking]')) thinking(thread, turn);
       else if (prompt.includes('[mode-approval]') && policy(thread).approvalPolicy !== 'never') {
         if (policy(thread).approvalsReviewer === 'auto_review')
@@ -2077,6 +2116,10 @@ function receive(request: ClientRequest): void {
         params: { threadId: thread!.id, turnId: turn.id, item, completedAtMs: Date.now() },
       });
       reply(request.id, { turnId: turn.id });
+      if (turn.items.some((entry) => entry.type === 'agentMessage' && entry.delivery === 'async')) {
+        clearTimeout(finishes.get(turn.id));
+        execute(thread!, turn);
+      }
       break;
     }
     case 'turn/interrupt': {
