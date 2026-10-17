@@ -364,22 +364,22 @@ for (const viewport of [
       await details.press('Tab');
       await expect(model).toBeFocused();
       await model.press('Tab');
+      await expect(effort).toBeFocused();
+      await effort.press('Tab');
       const speed = page.getByRole('button', { name: 'Fast 模式', exact: true });
       await expect(speed).toBeFocused();
       await speed.press('Tab');
-      await expect(effort).toBeFocused();
-      await effort.press('Tab');
       await expect(sendButton(page)).toBeFocused();
       await expect(tooltip).toBeVisible();
       await sendButton(page).press('Escape');
       await expect(tooltip).toHaveCount(0);
       await expect(sendButton(page)).toBeFocused();
       await sendButton(page).press('Shift+Tab');
-      await expect(effort).toBeFocused();
-      await effort.press('Tab');
+      await expect(speed).toBeFocused();
+      await speed.press('Tab');
       await expect(tooltip).toBeVisible();
       await sendButton(page).press('Shift+Tab');
-      await expect(effort).toBeFocused();
+      await expect(speed).toBeFocused();
       await expect(tooltip).toHaveCount(0);
     }
     await sendButton(page).click();

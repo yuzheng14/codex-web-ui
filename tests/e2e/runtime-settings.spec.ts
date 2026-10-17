@@ -308,8 +308,17 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
   );
   for (const width of [1280, 390, 320]) {
     await page.setViewportSize({ width, height: 844 });
-    const elements = [model, row.getByRole('button', { name: 'Fast 模式' }), effort, send];
+    const elements = [
+      page.locator('.composer-target'),
+      row.getByRole('combobox', { name: '权限模式' }),
+      row.getByRole('button', { name: '权限详情' }),
+      model,
+      effort,
+      row.getByRole('button', { name: 'Fast 模式' }),
+      send,
+    ];
     const boxes = await Promise.all(elements.map((element) => element.boundingBox()));
+    expect(boxes[elements.indexOf(model)]!.width).toBeGreaterThanOrEqual(50);
     const centers = boxes.map((box) => box!.y + box!.height / 2);
     expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
     for (let index = 1; index < boxes.length; index++)
@@ -342,13 +351,17 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     const elements = [
+      page.locator('.composer-target'),
+      row.getByRole('combobox', { name: '权限模式' }),
+      row.getByRole('button', { name: '权限详情' }),
       model,
-      row.getByRole('button', { name: 'Fast 模式' }),
       effort,
+      row.getByRole('button', { name: 'Fast 模式' }),
       row.getByRole('button', { name: '中断', exact: true }),
       row.getByRole('button', { name: '追加要求', exact: true }),
     ];
     const boxes = await Promise.all(elements.map((element) => element.boundingBox()));
+    expect(boxes[elements.indexOf(model)]!.width).toBeGreaterThanOrEqual(50);
     const centers = boxes.map((box) => box!.y + box!.height / 2);
     expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
     for (let index = 1; index < boxes.length; index++)
@@ -356,7 +369,7 @@ test('controls stay grouped on desktop and narrow screens, with distinct effort 
     expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     await page
       .locator('.composer-box')
-      .screenshot({ path: `/tmp/codex-toolbar-active-${width}.png` });
+      .screenshot({ path: `/tmp/codex-toolbar-active-${width}.png`, animations: 'disabled' });
   }
   await row.getByRole('button', { name: '中断', exact: true }).click();
   await expect(row.getByRole('button', { name: '中断', exact: true })).toHaveCount(0);

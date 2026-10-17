@@ -2155,58 +2155,60 @@ svg {
 }
 @container (max-width: 430px) {
   .composer-actions {
-    flex-wrap: wrap;
+    gap: 4px;
+    flex-wrap: nowrap;
   }
-  .composer-context,
-  .composer-send-controls {
-    flex: 1 1 100%;
+  .composer-context {
+    flex: 0 0 auto;
   }
   .composer-send-controls {
-    margin-left: 0;
+    flex: 1 1 0;
   }
   .settings-policy > span,
   .settings-policy > svg:last-child {
     display: none;
   }
   .settings-policy {
-    width: 44px;
-    min-height: 44px;
+    width: 28px;
+    min-height: 32px;
     padding: 6px;
     justify-content: center;
   }
   .settings-details-toggle {
-    width: 44px;
-    min-height: 44px;
+    width: 28px;
+    min-height: 32px;
   }
   .permission-values {
     grid-template-columns: minmax(0, 1fr);
   }
   .composer-context,
   .composer-send-controls {
-    gap: 5px;
+    gap: 3px;
   }
   .composer-target > span {
-    max-width: 62px;
+    display: none;
   }
   .settings-model {
+    flex: 1 1 0;
     max-width: 170px;
-    margin-right: auto;
+    gap: 3px;
+    padding: 6px 5px;
+  }
+  .settings-model .select-chevron {
+    width: 12px;
+    flex-shrink: 0;
+  }
+  .settings-effort {
+    width: 28px;
+    padding: 2px;
+  }
+  .settings-speed {
+    width: 24px;
+    padding: 3px;
   }
   .settings-fields {
     grid-template-columns: minmax(0, 1fr);
     padding: 12px;
-  }
-}
-@container (max-width: 330px) {
-  .composer-target > span {
-    max-width: 62px;
-  }
-  .composer-target {
-    flex-shrink: 0;
-    padding: 4px;
-  }
-  .settings-model {
-    max-width: 150px;
   }
 }
 .pending-actions {

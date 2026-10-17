@@ -244,47 +244,6 @@ export function SettingsPanel({
               ))}
             </SelectContent>
           </Select>
-          <ControlHint
-            id={speedHintId}
-            content={
-              <>
-                <span>{speedLabel(tier, unknown)}</span>
-                <span>
-                  {fast
-                    ? '点击关闭 Fast'
-                    : fastAvailable
-                      ? '点击开启 Fast · 更快响应，增加用量'
-                      : '当前模型未提供 Fast'}
-                </span>
-                {changes.serviceTier !== undefined && (
-                  <span>待应用 · 当前 {speedLabel(current?.serviceTier, unknown)}</span>
-                )}
-              </>
-            }
-          >
-            <button
-              type="button"
-              className="settings-choice settings-speed"
-              aria-label="Fast 模式"
-              aria-describedby={speedHintId}
-              aria-pressed={tier === undefined ? 'mixed' : fast}
-              disabled={disabled || Boolean(threadLoading) || (!fast && !fastAvailable)}
-              data-fast={fast}
-              data-pending={changes.serviceTier !== undefined}
-              onClick={() =>
-                onChange(
-                  pendingSettings({ ...settings, serviceTier: fast ? null : 'fast' }, current),
-                )
-              }
-            >
-              <Zap
-                size={18}
-                strokeWidth={1.7}
-                fill={fast ? 'currentColor' : 'none'}
-                aria-hidden="true"
-              />
-            </button>
-          </ControlHint>
           <Select
             value={effort}
             disabled={disabled || !selectedModel?.reasoningEfforts.length}
@@ -347,6 +306,47 @@ export function SettingsPanel({
               ))}
             </SelectContent>
           </Select>
+          <ControlHint
+            id={speedHintId}
+            content={
+              <>
+                <span>{speedLabel(tier, unknown)}</span>
+                <span>
+                  {fast
+                    ? '点击关闭 Fast'
+                    : fastAvailable
+                      ? '点击开启 Fast · 更快响应，增加用量'
+                      : '当前模型未提供 Fast'}
+                </span>
+                {changes.serviceTier !== undefined && (
+                  <span>待应用 · 当前 {speedLabel(current?.serviceTier, unknown)}</span>
+                )}
+              </>
+            }
+          >
+            <button
+              type="button"
+              className="settings-choice settings-speed"
+              aria-label="Fast 模式"
+              aria-describedby={speedHintId}
+              aria-pressed={tier === undefined ? 'mixed' : fast}
+              disabled={disabled || Boolean(threadLoading) || (!fast && !fastAvailable)}
+              data-fast={fast}
+              data-pending={changes.serviceTier !== undefined}
+              onClick={() =>
+                onChange(
+                  pendingSettings({ ...settings, serviceTier: fast ? null : 'fast' }, current),
+                )
+              }
+            >
+              <Zap
+                size={18}
+                strokeWidth={1.7}
+                fill={fast ? 'currentColor' : 'none'}
+                aria-hidden="true"
+              />
+            </button>
+          </ControlHint>
           {children}
         </div>
       </div>
