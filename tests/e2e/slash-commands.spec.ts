@@ -12,6 +12,7 @@ import {
   confirmCompatibility,
   controlRuntime,
   createThreadButton,
+  createEmptyThread,
   projectGroup,
   expectThreadReady,
 } from './helpers';
@@ -41,7 +42,7 @@ async function open(page: Page) {
 }
 async function newThread(page: Page) {
   await open(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   return (await selected(page))!;
 }
@@ -555,7 +556,7 @@ test('switching conversations resets the menu selection while keeping each draft
   await input(page).fill('/');
   await input(page).press('ArrowDown');
   await expect(option(page, 'new')).toHaveAttribute('aria-selected', 'true');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await expect(input(page)).toHaveValue('');
   await expect(menu(page)).toHaveCount(0);

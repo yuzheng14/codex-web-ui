@@ -7,7 +7,7 @@ import type { PendingAction, ThreadView } from '../../src/shared/types';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
   testOrigin,
 } from './helpers';
@@ -20,7 +20,7 @@ const isResolution = (request: Request) =>
 async function pendingTask(page: Page, kind: string) {
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await page
     .getByRole('textbox', { name: '任务内容', exact: true })

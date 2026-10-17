@@ -8,6 +8,7 @@ import {
   saveConversationHistory,
   testOrigin,
   expectThreadReady,
+  createEmptyThread,
 } from './helpers';
 
 const headers = { Origin: testOrigin };
@@ -52,7 +53,8 @@ async function create(request: APIRequestContext, projectId: string, withHistory
   return id;
 }
 async function createInPage(page: Page, projectId: string, name: string) {
-  await projectGroup(page, name).getByRole('button', { name: '新建会话', exact: true }).click();
+  await projectGroup(page, name).getByRole('button', { name, exact: true }).click();
+  await createEmptyThread(page, name);
   await expectThreadReady(page);
   await expect.poll(() => currentProject(page)).toBe(projectId);
   await expect.poll(() => selected(page, projectId)).toBeTruthy();
@@ -373,8 +375,10 @@ test('a late create receipt updates its project without stealing navigation back
     await route.fulfill({ response });
   });
   await projectGroup(page, '另一个项目')
-    .getByRole('button', { name: '新建会话', exact: true })
+    .getByRole('button', { name: '另一个项目', exact: true })
     .click();
+  await page.locator('.composer-box textarea').fill('/new');
+  await page.locator('.composer-box textarea').press('Enter');
   const b = await created;
   await row(page, a).click();
   await expect.poll(() => currentProject(page)).toBe(first);

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -29,7 +29,7 @@ async function openNavigation(page: Page) {
 
 async function newThread(page: Page) {
   await openNavigation(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
 }
 

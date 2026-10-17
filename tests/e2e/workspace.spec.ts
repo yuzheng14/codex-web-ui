@@ -4,7 +4,7 @@ import type { ThreadPage } from '../../src/shared/types';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -33,7 +33,7 @@ async function newThread(page: Page) {
   await confirmCompatibility(page);
   await expect(page.getByText('模拟测试模式', { exact: false })).toBeVisible();
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
 }
 
@@ -123,7 +123,7 @@ test('mobile navigation and input shortcuts preserve a draft during IME composit
   await page.goto('/');
   await confirmCompatibility(page);
   await page.getByRole('button', { name: '打开项目与会话' }).click();
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expect(page.locator('.sidebar')).not.toHaveClass(/sidebar-open/);
   await expectThreadReady(page);
   const input = page.getByRole('textbox', { name: '任务内容' });

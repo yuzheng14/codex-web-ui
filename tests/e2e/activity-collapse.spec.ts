@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -18,7 +18,7 @@ async function startScenario(page: Page, streaming = false) {
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   const navigation = page.getByRole('button', { name: '打开项目与会话', exact: true });
   if (await navigation.isVisible()) await navigation.click();
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await page
     .getByRole('textbox', { name: '任务内容', exact: true })

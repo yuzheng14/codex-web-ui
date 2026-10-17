@@ -4,7 +4,7 @@ import type { Operation, ThreadPage } from '../../src/shared/types';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -13,7 +13,7 @@ test.beforeEach(async ({ page, request }) => {
   await controlRuntime(request, { reset: true });
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
 });
 test.afterEach(async ({ request }) => {
@@ -42,7 +42,7 @@ test('runs two conversations in one directory and interrupts them independently'
   });
   expect(response.ok()).toBe(true);
   await expect(page.locator('.action-card')).toHaveCount(1);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   const target = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
   await page
@@ -107,7 +107,7 @@ for (const destination of ['same', 'new'] as const) {
     await expect(page.locator('.topbar .status')).toHaveText('就绪');
     await expect(page.locator('.turn-heading .status').last()).toHaveText('执行中');
     if (destination === 'new') {
-      await createThreadButton(page).click();
+      await createEmptyThread(page);
       await expectThreadReady(page);
     }
     await page.getByRole('textbox', { name: '任务内容', exact: true }).fill('继续检查');

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -15,7 +15,7 @@ test('replaces the first prompt with an AI title in both tabs and retains it aft
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   const id = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
   const title = page.locator(`[data-thread-id="${id}"] .thread-title`);
@@ -67,7 +67,7 @@ test('keeps the preview on failure and generates a title after the next user mes
   await controlRuntime(request, { reset: true });
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   const prompt = '命名失败时仍能继续对话 [title-fail]';
   await expectThreadReady(page);
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill(prompt);

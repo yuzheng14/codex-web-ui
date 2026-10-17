@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -14,7 +14,7 @@ test('compact uses its own task and the same conversation remains usable', async
   await controlRuntime(request, { reset: true });
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   const input = page.getByRole('textbox', { name: /^(任务内容|追加要求)$/ });
   await input.fill('请概括这个项目的主要结构。');

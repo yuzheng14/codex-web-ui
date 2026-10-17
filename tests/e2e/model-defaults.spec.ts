@@ -3,6 +3,7 @@ import {
   confirmCompatibility,
   controlRuntime,
   createThreadButton,
+  createEmptyThread,
   expectThreadReady,
   projectGroup,
   saveConversationHistory,
@@ -31,7 +32,7 @@ test('remembers explicit model and effort choices across new threads, projects a
   });
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await expect(effort(page)).toHaveAttribute('data-value', 'medium');
   const original = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
@@ -47,7 +48,7 @@ test('remembers explicit model and effort choices across new threads, projects a
     { model: 'simulated-alternative', reasoningEffort: 'medium' },
     { model: 'simulated-alternative', reasoningEffort: 'high' },
   ]);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expect(model(page)).toHaveAttribute('data-value', 'simulated-alternative');
   await expect(effort(page)).toHaveAttribute('data-value', 'high');
   await expect(page.locator('.settings-pending')).toHaveCount(0);
@@ -86,7 +87,7 @@ test('waits for a save before allowing another selection or a new thread', async
   await expect(createThreadButton(page)).toBeDisabled();
   release();
   await saved(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expect(effort(page)).toHaveAttribute('data-value', 'high');
   await expect(page.locator('.settings-pending')).toHaveCount(0);
 });
@@ -102,7 +103,7 @@ test('keeps the current proposal on a rejected save and lets an explicit retry s
   );
   await page.goto('/');
   await confirmCompatibility(page);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await choose(page, '推理强度', 'high');
   await expect(page.locator('.settings-defaults')).toContainText('未能确认默认值已保存');
@@ -124,7 +125,7 @@ test('keeps the current proposal on a rejected save and lets an explicit retry s
   await page.getByRole('button', { name: '重新保存默认值', exact: true }).click();
   await saved(page);
   await page.setViewportSize({ width: 1280, height: 844 });
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expect(effort(page)).toHaveAttribute('data-value', 'high');
 });
 

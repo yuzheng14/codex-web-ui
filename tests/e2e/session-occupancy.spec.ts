@@ -2,7 +2,7 @@ import { expect, test, type Page, type APIRequestContext } from '@playwright/tes
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -141,7 +141,7 @@ test('switching during automatic resume cannot replace the newly selected thread
   });
   const id = await openExternal(page, request, 'free');
   await expect(page.getByText('正在恢复会话…', { exact: true })).toBeVisible();
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await input(page).fill('新会话草稿');
   release();

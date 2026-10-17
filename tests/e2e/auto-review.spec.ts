@@ -7,7 +7,7 @@ import type { ThreadPage, ThreadView } from '../../src/shared/types';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -23,7 +23,7 @@ async function startReview(page: Page, prompt: string) {
   await page.goto('/');
   await confirmCompatibility(page);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill(prompt);
   await page.getByRole('button', { name: '发送任务', exact: true }).click();

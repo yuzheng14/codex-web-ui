@@ -4,7 +4,7 @@ import type { Operation, ServerMessage, ThreadPage, ThreadView } from '../../src
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
   testOrigin,
 } from './helpers';
@@ -21,7 +21,7 @@ async function newThread(page: Page) {
   await confirmCompatibility(page);
   if (await page.getByRole('button', { name: '打开项目与会话' }).isVisible())
     await page.getByRole('button', { name: '打开项目与会话' }).click();
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   return (await selectedId(page))!;
 }

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 
@@ -22,7 +22,7 @@ async function startScenario(page: Page, prompt = '[activity-collapse] 检查执
   await page.goto('/');
   await confirmCompatibility(page);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
   await sendTask(page, prompt);
   await expect(groups(page).first()).toBeVisible();

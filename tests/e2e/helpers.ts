@@ -43,3 +43,15 @@ export async function saveConversationHistory(page: Page) {
   await expect(page.locator('.turn')).toHaveCount(turns + 1);
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
 }
+
+/** Regression setup for features that require an already-created empty native session.
+ * The New conversation button now opens a draft; /new remains an explicit native creation. */
+export async function createEmptyThread(page: Page, projectName = '测试项目') {
+  await projectGroup(page, projectName)
+    .getByRole('button', { name: '新建会话', exact: true })
+    .click();
+  const input = page.locator('.composer-box textarea');
+  await input.fill('/new');
+  await input.press('Enter');
+  await expectThreadReady(page);
+}

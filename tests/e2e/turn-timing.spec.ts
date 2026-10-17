@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import {
   confirmCompatibility,
   controlRuntime,
-  createThreadButton,
+  createEmptyThread,
   expectThreadReady,
 } from './helpers';
 import type { ThreadView } from '../../src/shared/types';
@@ -26,7 +26,7 @@ test.beforeEach(async ({ page, request }) => {
   await page.goto('/');
   await confirmCompatibility(page);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expectThreadReady(page);
 });
 
@@ -68,7 +68,7 @@ test('each completed turn retains upstream timing through refresh, reconnect and
   await context.setOffline(false);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await expect(completion(page)).toHaveText(original);
-  await createThreadButton(page).click();
+  await createEmptyThread(page);
   await expect(completion(page)).toHaveCount(0);
   // Selecting the saved thread uses the same UI path as normal navigation.
   await page.locator(`[data-thread-id="${threadId}"]`).click();
