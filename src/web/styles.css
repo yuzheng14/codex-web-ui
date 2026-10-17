@@ -1170,6 +1170,44 @@ svg {
   padding: 0;
   background: transparent;
 }
+.markdown-code-block {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #f7f8f8;
+}
+.markdown-code-block:last-child {
+  margin-bottom: 0;
+}
+.markdown-code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 4px 6px 0 12px;
+}
+.code-copy-feedback {
+  min-width: 0;
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.code-copy-failed {
+  color: #ae3e39;
+}
+.code-copy-button {
+  flex-shrink: 0;
+}
+.markdown .markdown-code-block pre {
+  margin: 0;
+  padding-top: 4px;
+  border: 0;
+  white-space: pre;
+  overflow-wrap: normal;
+  outline-offset: -3px;
+}
 .markdown blockquote {
   margin-left: 0;
   border-left: 3px solid #d4dfd6;
