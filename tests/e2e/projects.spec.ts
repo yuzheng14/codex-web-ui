@@ -7,6 +7,7 @@ import {
   projectGroup,
   saveConversationHistory,
   testOrigin,
+  expectThreadReady,
 } from './helpers';
 
 const headers = { Origin: testOrigin };
@@ -52,7 +53,7 @@ async function create(request: APIRequestContext, projectId: string, withHistory
 }
 async function createInPage(page: Page, projectId: string, name: string) {
   await projectGroup(page, name).getByRole('button', { name: '新建会话', exact: true }).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await expect.poll(() => currentProject(page)).toBe(projectId);
   await expect.poll(() => selected(page, projectId)).toBeTruthy();
   return (await selected(page, projectId))!;

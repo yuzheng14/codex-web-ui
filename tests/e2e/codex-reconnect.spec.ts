@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import type { ThreadPage, ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const evidence = join(tmpdir(), 'codex-reconnect-evidence');
 const headers = { Origin: 'http://127.0.0.1:8788' };
@@ -40,7 +45,7 @@ test.beforeEach(async ({ page, request }) => {
   await confirmCompatibility(page);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
 });
 test.afterEach(async ({ request }) => {
   const response = await request.get('/api/threads?projectId=fixture');
@@ -101,7 +106,7 @@ test('retry updates survive tool completion, reload and browser disconnection an
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await expect(notice(page)).not.toContainText('上次已知');
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await start(page, '另一个会话正常执行');
   await expect(turnStatus(page)).toHaveText('已完成');
   await expect(notice(page)).toHaveCount(0);

@@ -1,5 +1,10 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const reply = (page: Page) => page.getByRole('article', { name: 'Codex 的回复' });
 const turnStatus = (page: Page) => page.locator('.turn-heading .status');
@@ -33,7 +38,7 @@ test.beforeEach(async ({ page, request }) => {
   await confirmCompatibility(page);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
 });
 
 test('GFM tables render during streaming and preserve cells, formatting and alignment after reload', async ({

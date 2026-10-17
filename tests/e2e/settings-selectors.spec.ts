@@ -1,6 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { SystemInfo } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const effortControl = (page: Page) => page.getByRole('combobox', { name: '推理强度', exact: true });
 const effortHint = (page: Page) =>
@@ -11,7 +16,7 @@ async function newThread(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
 }
 
 test.beforeEach(async ({ request }) => {

@@ -1,7 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const evidence = '/tmp/codex-activity-evidence';
 const groups = (page: Page) => page.locator('details.activity-group');
@@ -18,7 +23,7 @@ async function startScenario(page: Page, prompt = '[activity-collapse] 检查执
   await confirmCompatibility(page);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await sendTask(page, prompt);
   await expect(groups(page).first()).toBeVisible();
 }

@@ -6,6 +6,7 @@ import {
   controlRuntime,
   createThreadButton,
   saveConversationHistory,
+  expectThreadReady,
 } from './helpers';
 
 const input = (page: Page) => page.locator('.composer-box textarea');
@@ -18,7 +19,7 @@ async function openThread(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   return (await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture')))!;
 }
 

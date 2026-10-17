@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { confirmCompatibility, createThreadButton, saveConversationHistory } from './helpers';
+import {
+  confirmCompatibility,
+  createThreadButton,
+  saveConversationHistory,
+  expectThreadReady,
+} from './helpers';
 import type { ThreadView } from '../../src/shared/types';
 
 const rename = (page: Page) => page.getByRole('button', { name: '重命名会话', exact: true });
@@ -14,7 +19,7 @@ async function create(page: Page, withHistory = false) {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   const id = (await selected(page))!;
   if (withHistory) {
     await saveConversationHistory(page);

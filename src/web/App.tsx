@@ -395,7 +395,7 @@ export function App() {
             </Button>
           </div>
         )}
-        {thread && (
+        {thread && thread.turns.length > 0 && (
           <div className="thread-actions">
             <div className="thread-actions-description">
               {thread.forkedFromId && (
@@ -412,9 +412,7 @@ export function App() {
               <span>
                 {!supportsFork
                   ? '当前 Codex 版本不支持 Fork 会话。'
-                  : thread.turns.length === 0
-                    ? '发送首条消息后可 Fork 已保存的历史。'
-                    : 'Fork 复制已保存的历史，新会话可与原会话同时执行。'}
+                  : 'Fork 复制已保存的历史，新会话可与原会话同时执行。'}
               </span>
             </div>
             <Button variant="secondary" size="sm" disabled={!canFork} onClick={forkThread}>

@@ -1,5 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const input = (page: Page) => page.getByRole('textbox', { name: '任务内容', exact: true });
 const send = (page: Page) => page.getByRole('button', { name: '发送任务', exact: true });
@@ -8,7 +13,7 @@ const selected = (page: Page) =>
   page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
 async function newThread(page: Page) {
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
 }
 
 test.beforeEach(async ({ page, request }) => {
@@ -22,7 +27,13 @@ test('new drafts stay editable, stay out of both tabs and disappear after reload
   context,
 }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 });
+  const welcome = page.getByRole('heading', { name: '从一个想法，开始工作。', exact: true });
+  await expect(welcome).toBeVisible();
+  await expect(page.getByTestId('workspace-start')).toHaveAttribute('data-thread-ready', 'false');
   await newThread(page);
+  await expect(welcome).toBeVisible();
+  await expect(page.locator('.thread-actions')).toHaveCount(0);
+  await expect(page.getByText('描述你要完成的任务，也可以粘贴图片、问题或错误信息。')).toBeVisible();
   const id = (await selected(page))!;
   expect(id).toBeTruthy();
   await expect(rows(page, id)).toHaveCount(0);
@@ -30,7 +41,7 @@ test('new drafts stay editable, stay out of both tabs and disappear after reload
   const other = await context.newPage();
   await other.goto('/');
   await expect(rows(other, id)).toHaveCount(0);
-  await expect(other.getByText('这个会话准备好了')).not.toBeVisible();
+  await expect(other.getByTestId('workspace-start')).toHaveAttribute('data-thread-ready', 'false');
   await other.close();
   await page.screenshot({ path: testInfo.outputPath('draft-before-send.png'), fullPage: true });
   // Simulate a legacy saved selection as well as the current browser's preference.
@@ -41,7 +52,8 @@ test('new drafts stay editable, stay out of both tabs and disappear after reload
   });
   await page.reload();
   await expect(rows(page, id)).toHaveCount(0);
-  await expect(page.getByText('这个会话准备好了')).not.toBeVisible();
+  await expect(welcome).toBeVisible();
+  await expect(page.getByTestId('workspace-start')).toHaveAttribute('data-thread-ready', 'false');
   await expect.poll(() => selected(page)).toBeNull();
   expect(resumed).toBe(0);
   await page.screenshot({

@@ -7,6 +7,7 @@ import {
   createThreadButton,
   projectGroup,
   testOrigin,
+  expectThreadReady,
 } from './helpers';
 
 const selectedId = (page: Page) =>
@@ -22,7 +23,7 @@ async function create(page: Page, text: string) {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   const id = (await selectedId(page))!;
   await page.getByRole('textbox', { name: '任务内容', exact: true }).fill(text);
   await page.getByRole('button', { name: '发送任务', exact: true }).click();

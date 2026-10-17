@@ -7,6 +7,10 @@ export const projectGroup = (page: Page, name = '测试项目') =>
   page.getByRole('region', { name, exact: true, includeHidden: true });
 export const createThreadButton = (page: Page) =>
   projectGroup(page).getByRole('button', { name: '新建会话', exact: true, includeHidden: true });
+/** The shared welcome page also appears before creation; wait for the selected thread. */
+export async function expectThreadReady(page: Page) {
+  await expect(page.getByTestId('workspace-start')).toHaveAttribute('data-thread-ready', 'true');
+}
 export async function controlRuntime(
   request: APIRequestContext,
   input: {

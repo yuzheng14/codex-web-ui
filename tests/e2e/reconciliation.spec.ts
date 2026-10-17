@@ -1,6 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { Operation, ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const panel = (page: Page) => page.getByRole('region', { name: '状态诊断详情' });
 const checkButton = (page: Page) =>
@@ -16,7 +21,7 @@ async function completedThread(page: Page, text = '核对状态回归测试') {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await input(page).fill(text);
   const response = page.waitForResponse(
     (entry) => entry.request().method() === 'POST' && entry.url().endsWith('/turns'),

@@ -5,6 +5,7 @@ import {
   createThreadButton,
   projectGroup,
   saveConversationHistory,
+  expectThreadReady,
 } from './helpers';
 import type { ThreadView } from '../../src/shared/types';
 
@@ -16,7 +17,7 @@ async function create(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   return (await selected(page))!;
 }
 

@@ -3,7 +3,7 @@ import { mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import type { ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, createThreadButton } from './helpers';
+import { confirmCompatibility, createThreadButton, expectThreadReady } from './helpers';
 
 const evidence = '/tmp/codex-local-images-evidence';
 const dialog = (page: Page) => page.getByRole('dialog', { name: '图片预览', exact: true });
@@ -29,7 +29,7 @@ test.beforeEach(async ({ page, request, baseURL }) => {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   const threadId = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
   const thread = (await (await request.get(`/api/threads/${threadId}`)).json()) as ThreadView;
   const assets = join(thread.cwd, 'assets');

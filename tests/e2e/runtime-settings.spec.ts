@@ -5,6 +5,7 @@ import {
   createThreadButton,
   projectGroup,
   saveConversationHistory,
+  expectThreadReady,
 } from './helpers';
 
 async function chooseEffort(page: Page, value: string) {
@@ -28,7 +29,7 @@ test('direct selectors show reported settings, keep proposals distinct and follo
   await expect(model).toHaveAttribute('data-value', 'simulated-model');
   await expect(effort).toHaveAttribute('data-value', 'medium');
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await expect(effort).toHaveAttribute('data-value', 'medium');
   await page.locator('.composer-box').screenshot({ path: '/tmp/codex-toolbar-direct.png' });
   await chooseEffort(page, 'high');
@@ -76,7 +77,7 @@ test('isolates unsent edits by session and sends only explicit edits', async ({ 
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   const first = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
   await saveConversationHistory(page);
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
@@ -169,7 +170,7 @@ test('all reported effort levels have distinct gauges, including xhigh, max and 
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   const effort = page.getByRole('combobox', { name: '推理强度', exact: true });
   const gauge = page.locator('.reasoning-gauge');
   let previousProgress = -1;
@@ -321,7 +322,7 @@ test('one-row controls stay grouped on desktop and narrow screens, with distinct
   }
   await page.setViewportSize({ width: 1280, height: 844 });
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   const gauge = page.locator('.reasoning-gauge');
   await chooseEffort(page, 'low');
   const low = Number(await gauge.getAttribute('data-progress'));

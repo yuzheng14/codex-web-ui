@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 test('compact uses its own task and the same conversation remains usable', async ({
   page,
@@ -10,7 +15,7 @@ test('compact uses its own task and the same conversation remains usable', async
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   const input = page.getByRole('textbox', { name: /^(任务内容|追加要求)$/ });
   await input.fill('请概括这个项目的主要结构。');
   await input.press('Enter');

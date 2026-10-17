@@ -7,6 +7,7 @@ import {
   controlRuntime,
   createThreadButton,
   testOrigin,
+  expectThreadReady,
 } from './helpers';
 
 const headers = { Origin: testOrigin };
@@ -28,7 +29,7 @@ async function newThread(page: Page) {
   await confirmCompatibility(page);
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   return (await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture')))!;
 }
 async function flushKeyboardEvents(page: Page) {
@@ -193,7 +194,7 @@ test('Enter honors no-thread, blank-draft, offline, compatibility and runtime gu
   await flushKeyboardEvents(page);
   expect(outgoing).toHaveLength(0);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await input.fill('  \n\t');
   await expect(sendButton(page)).toBeDisabled();
   await input.press('Enter');

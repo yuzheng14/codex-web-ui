@@ -13,6 +13,7 @@ import {
   controlRuntime,
   createThreadButton,
   projectGroup,
+  expectThreadReady,
 } from './helpers';
 
 const headers = { Origin: 'http://127.0.0.1:8788' };
@@ -41,7 +42,7 @@ async function open(page: Page) {
 async function newThread(page: Page) {
   await open(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   return (await selected(page))!;
 }
 async function readThread(request: APIRequestContext, id: string): Promise<ThreadView> {
@@ -285,7 +286,7 @@ test('/new creates a conversation in the selected project from its overview', as
   );
   await execute(page).click();
   expect((await creation).postDataJSON().clientOperationId).toBeTruthy();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   const id = (await selected(page, 'fixture-other'))!;
   expect((await readThread(request, id)).projectId).toBe('fixture-other');
   await expect(input(page)).toHaveValue('');
@@ -555,7 +556,7 @@ test('switching conversations resets the menu selection while keeping each draft
   await input(page).press('ArrowDown');
   await expect(option(page, 'new')).toHaveAttribute('aria-selected', 'true');
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await expect(input(page)).toHaveValue('');
   await expect(menu(page)).toHaveCount(0);
   await finishTurn(page, '第二个会话的历史 [title-fail]');

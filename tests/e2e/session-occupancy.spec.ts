@@ -1,5 +1,10 @@
 import { expect, test, type Page, type APIRequestContext } from '@playwright/test';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const notice = (page: Page) => page.locator('.session-resume-notice');
 const input = (page: Page) => page.getByRole('textbox', { name: '任务内容', exact: true });
@@ -137,7 +142,7 @@ test('switching during automatic resume cannot replace the newly selected thread
   const id = await openExternal(page, request, 'free');
   await expect(page.getByText('正在恢复会话…', { exact: true })).toBeVisible();
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   await input(page).fill('新会话草稿');
   release();
   await expect

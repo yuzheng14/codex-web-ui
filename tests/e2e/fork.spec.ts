@@ -1,7 +1,12 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import type { Operation, ServerMessage, ThreadPage, ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, createThreadButton } from './helpers';
+import {
+  confirmCompatibility,
+  controlRuntime,
+  createThreadButton,
+  expectThreadReady,
+} from './helpers';
 
 const headers = { Origin: 'http://127.0.0.1:8788' };
 const forkButton = (page: Page) => page.getByRole('button', { name: 'Fork 会话', exact: true });
@@ -11,7 +16,7 @@ async function newThread(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
   await createThreadButton(page).click();
-  await expect(page.getByText('这个会话准备好了')).toBeVisible();
+  await expectThreadReady(page);
   return (await selectedId(page))!;
 }
 async function finishTurn(page: Page, text: string) {
@@ -65,8 +70,7 @@ test('fork preserves history and the source draft, then continues independently'
   request,
 }) => {
   const source = await newThread(page);
-  await expect(forkButton(page)).toBeDisabled();
-  await expect(page.getByText('发送首条消息后可 Fork 已保存的历史。')).toBeVisible();
+  await expect(forkButton(page)).toHaveCount(0);
   await finishTurn(page, '用于 Fork 的原始历史');
   await page.getByRole('textbox', { name: '任务内容' }).fill('原会话尚未发送的草稿');
   await forkButton(page).click();
