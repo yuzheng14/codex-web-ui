@@ -24,6 +24,7 @@ const paths = {
   shield: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6ZM8 12l3 3 5-6',
   settings: 'M4 7h16M4 17h16M8 4v6M16 14v6',
   check: 'm5 12 4 4L19 6',
+  copy: 'M9 9h12v12H9ZM5 15H3V3h12v2',
   alert: 'M12 3 2 21h20ZM12 9v5M12 17v1',
   code: 'm8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18',
 } as const;

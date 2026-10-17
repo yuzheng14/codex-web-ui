@@ -3,6 +3,7 @@ import Markdown, { defaultUrlTransform, type Components, type UrlTransform } fro
 import remarkGfm from 'remark-gfm';
 import { localImagePath, localImageUrl } from '../lib/local-images';
 import { LocalImage, useImagePreview } from './ImagePreview';
+import { MarkdownCodeBlock } from './MarkdownCodeBlock';
 
 // Preserve the default protocol allowlist for ordinary links and remote images.
 const transformUrl: UrlTransform = (url, key) =>
@@ -12,6 +13,7 @@ const ImageLinkContext = createContext(false);
 
 // Stable renderer identities preserve table focus and image state while streaming.
 const markdownComponents: Components = {
+  pre: MarkdownCodeBlock,
   a: function ImageLink({ children, href, title }) {
     const { threadId, open } = useImagePreview();
     const path = href ? localImagePath(href) : undefined;

@@ -573,7 +573,7 @@ function localImageReply(
   );
 }
 
-function markdownReply(thread: Thread, turn: Turn, safety: boolean): void {
+function markdownReply(thread: Thread, turn: Turn, kind: 'table' | 'security' | 'code'): void {
   const item: Extract<ThreadItem, { type: 'agentMessage' }> = {
     id: randomUUID(),
     type: 'agentMessage',
@@ -583,25 +583,36 @@ function markdownReply(thread: Thread, turn: Turn, safety: boolean): void {
     delivery: null,
     questions: null,
   };
-  const chunks = safety
-    ? [
-        '~~已替换的方案~~\n\n- [x] 表格渲染\n- [ ] 后续优化\n\n' +
-          '[正常链接](https://example.com/docs)\n\n' +
-          '[危险链接](javascript:alert%281%29)\n\n' +
-          '<script>window.markdownInjected = true</script>\n\n' +
-          '<img src="x" onerror="window.markdownInjected = true">\n\n' +
-          '```text\n| 这不是 | 表格 |\n| --- | --- |\n```',
-      ]
-    : [
-        '我建议优先做下面几组，按当前支持情况排序：\n\n' + '| 优先级 | 命令 | 为什么值得做 |\n| :',
-        '--- | :---: | ---: |\n' +
-          '| **第一批** | `/rename` | 会话多了很实用，已有标题写入基础。 |\n',
-        '| **第一批** | `/model`、`/permissions` | 高频操作，可复用现有设置控件。 |\n' +
-          '| **第一批** | `/copy`、`/export` | Copy & export，保存和分享对话，尤其适合手机端。 |\n' +
-          '| 第二批 | `/review`、`/diff` | 补齐“修改代码 → 查看改动 → 审查”的工作流程。 |\n' +
-          '| 后续 | `a\\|b` | 支持转义管道 A\\|B，并保留 **重点** 与 [说明](https://example.com/docs)。 |\n\n' +
-          '下一轮我会先选 `/rename`、`/model`、`/copy`，范围清楚，收益直接。',
-      ];
+  const chunks =
+    kind === 'code'
+      ? [
+          '下面的路径、命令和 Markdown 原文都可以直接复制。行内代码 `pnpm test` 保持原样。\n\n' +
+            '```\n/Users/demo/projects/codex-web-ui/src/main.ts\n```\n\n' +
+            '```bash\npnpm build\n',
+          '  pnpm test -- --run\n\tprintf "你好 & <Codex>"\n\n```\n\n' +
+            '````markdown\n# 部署步骤\n\n- **保留 Markdown 原文**\n\n```sh\npnpm start\n```\n````\n\n',
+          '```ts\nconst endpoint = "https://example.com/api/projects/abcdefghijklmnopqrstuvwxyz/threads/abcdefghijklmnopqrstuvwxyz/messages?include=content&format=markdown";\n```',
+        ]
+      : kind === 'security'
+        ? [
+            '~~已替换的方案~~\n\n- [x] 表格渲染\n- [ ] 后续优化\n\n' +
+              '[正常链接](https://example.com/docs)\n\n' +
+              '[危险链接](javascript:alert%281%29)\n\n' +
+              '<script>window.markdownInjected = true</script>\n\n' +
+              '<img src="x" onerror="window.markdownInjected = true">\n\n' +
+              '```text\n| 这不是 | 表格 |\n| --- | --- |\n```',
+          ]
+        : [
+            '我建议优先做下面几组，按当前支持情况排序：\n\n' +
+              '| 优先级 | 命令 | 为什么值得做 |\n| :',
+            '--- | :---: | ---: |\n' +
+              '| **第一批** | `/rename` | 会话多了很实用，已有标题写入基础。 |\n',
+            '| **第一批** | `/model`、`/permissions` | 高频操作，可复用现有设置控件。 |\n' +
+              '| **第一批** | `/copy`、`/export` | Copy & export，保存和分享对话，尤其适合手机端。 |\n' +
+              '| 第二批 | `/review`、`/diff` | 补齐“修改代码 → 查看改动 → 审查”的工作流程。 |\n' +
+              '| 后续 | `a\\|b` | 支持转义管道 A\\|B，并保留 **重点** 与 [说明](https://example.com/docs)。 |\n\n' +
+              '下一轮我会先选 `/rename`、`/model`、`/copy`，范围清楚，收益直接。',
+          ];
   turn.items.push(item);
   notify({
     method: 'item/started',
@@ -2121,8 +2132,9 @@ function receive(request: ClientRequest): void {
               ? 'errors'
               : 'normal',
         );
+      else if (prompt.includes('[code-copy]')) markdownReply(thread, turn, 'code');
       else if (prompt.includes('[markdown]') || prompt.includes('[markdown-security]'))
-        markdownReply(thread, turn, prompt.includes('[markdown-security]'));
+        markdownReply(thread, turn, prompt.includes('[markdown-security]') ? 'security' : 'table');
       else execute(thread, turn);
       break;
     }

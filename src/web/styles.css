@@ -1149,6 +1149,54 @@ svg {
   padding: 0;
   background: transparent;
 }
+.markdown-code-block {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #f7f8f8;
+}
+.markdown-code-block:last-child {
+  margin-bottom: 0;
+}
+.markdown-code-toolbar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.code-copy-feedback {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 1;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 64px));
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 2px 8px #0000000d;
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+.code-copy-feedback:empty {
+  opacity: 0;
+}
+.code-copy-failed {
+  color: #ae3e39;
+}
+.markdown .markdown-code-block pre {
+  /* Reserve only horizontal space: the floating button never covers scrolling code. */
+  margin: 0 44px 0 0;
+  border: 0;
+  white-space: pre;
+  overflow-wrap: normal;
+  outline-offset: -3px;
+}
 .markdown blockquote {
   margin-left: 0;
   border-left: 3px solid #d4dfd6;
