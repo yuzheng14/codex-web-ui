@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, Pencil } from 'lucide-react';
 import type { ThreadSummary } from '../shared/types';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useThreadReadState } from './hooks/useThreadReadState';
 import { Sidebar } from './components/Sidebar';
+import { MarkdownPreviewProvider } from './components/MarkdownFilePreview';
 import { Conversation } from './components/Conversation';
 import { ThreadTitle } from './components/ThreadTitle';
 import { Composer } from './components/Composer';
@@ -28,6 +29,14 @@ import {
 } from './lib/compatibility';
 
 const encode = encodeURIComponent;
+
+function WorkspaceLayout({ threadId, children }: { threadId?: string; children: ReactNode }) {
+  return (
+    <div className="app-shell">
+      <MarkdownPreviewProvider threadId={threadId}>{children}</MarkdownPreviewProvider>
+    </div>
+  );
+}
 
 export function App() {
   const workspace = useWorkspace();
@@ -251,7 +260,7 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
+    <WorkspaceLayout threadId={thread?.id}>
       <Sidebar
         onNotificationSettings={() => {
           setSidebarOpen(false);
@@ -702,6 +711,6 @@ export function App() {
           onClose={() => setNotificationSettingsOpen(false)}
         />
       )}
-    </div>
+    </WorkspaceLayout>
   );
 }

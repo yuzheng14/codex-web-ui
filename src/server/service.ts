@@ -44,7 +44,9 @@ import { TurnUsageStore } from './db/turn-usage.js';
 import { Projection, isActive, isTerminal } from './projection.js';
 import { ProjectRegistry } from './projects.js';
 import { renderThreadExport } from './thread-export.js';
-import { readLocalImage, temporaryImageRoots } from './images.js';
+import { readLocalImage } from './images.js';
+import { temporaryFileRoots, type FileScope } from './local-files.js';
+import { readLocalMarkdown } from './markdown.js';
 
 export interface GatewayOptions {
   store: OperationStore;
@@ -64,7 +66,7 @@ export class GatewayService {
   private readonly projects: ProjectRegistry;
   private readonly codex: CodexClient;
   private readonly removeListener: () => void;
-  private readonly imageTemporaryRoots = temporaryImageRoots();
+  private readonly fileTemporaryRoots = temporaryFileRoots();
   private accepting = true;
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
@@ -517,8 +519,20 @@ export class GatewayService {
     });
   }
 
-  async getThreadImage(threadId: string, path: string | undefined) {
-    // Persisted ownership also authorizes saved/archived image previews after a
+  getThreadImage(threadId: string, path: string | undefined) {
+    return this.readThreadFile(threadId, path, readLocalImage);
+  }
+
+  getThreadMarkdown(threadId: string, path: string | undefined) {
+    return this.readThreadFile(threadId, path, readLocalMarkdown);
+  }
+
+  private async readThreadFile<T>(
+    threadId: string,
+    path: string | undefined,
+    read: (path: string | undefined, scope: FileScope) => Promise<T>,
+  ): Promise<T> {
+    // Persisted ownership also authorizes saved/archived file previews after a
     // gateway restart while Codex is offline. Never accept a cwd from the browser.
     let link = this.store.getThreadLink(threadId);
     if (!link) {
@@ -526,16 +540,16 @@ export class GatewayService {
       link = this.store.getThreadLink(threadId)!;
     }
     const { project, cwd } = this.projects.assertOwnership(link.projectId, link.cwd);
-    const image = await readLocalImage(path, {
+    const file = await read(path, {
       cwd,
       roots: [
         { canonicalRoot: project.canonicalRoot, aliases: [project.rootPath] },
-        ...this.imageTemporaryRoots,
+        ...this.fileTemporaryRoots,
       ],
     });
     // The project may have been removed or its directory replaced during the read.
     this.projects.assertOwnership(link.projectId, link.cwd);
-    return image;
+    return file;
   }
 
   private async loadThread(threadId: string): Promise<ThreadView> {
