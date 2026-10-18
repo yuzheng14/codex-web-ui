@@ -705,25 +705,38 @@ describe('verified protocol adapter with a real subprocess', () => {
       'model/list',
     ]);
     expect(list?.params.sourceKinds).toEqual(['cli', 'appServer', 'vscode']);
-    expect(list?.params).not.toHaveProperty('cwd');
+    expect(list?.params.cwd).toBe('/tmp');
     expect(adapter.diagnostics().authenticated).toBe(true);
     expect(adapter.diagnostics().compatibility).toBe('unverified'); // Node's version must not pretend to be Codex.
   });
-  it('leaves exact-path filtering to the service so alias and subdirectory history remain discoverable', async () => {
-    const { adapter, requests } = await fixture();
-    const alias = await adapter.createThread('/tmp/project-alias');
-    const nested = await adapter.createThread('/tmp/project/nested');
-    const page = await adapter.listThreads('/tmp/project', 'opaque-cursor');
-    expect(page.data.map((thread) => thread.id)).toEqual([alias.id, nested.id]);
-    const request = (await requests()).find(
-      (entry) => entry.method === 'thread/list' && !entry.params.archived,
-    );
-    expect(request?.params).toMatchObject({
-      cursor: 'opaque-cursor',
-      sourceKinds: ['cli', 'appServer', 'vscode'],
-    });
-    expect(request?.params).not.toHaveProperty('cwd');
-  });
+  it.each([false, true])(
+    'filters history upstream by exact CWD without scanning aliases, subdirectories or other projects (archived: %s)',
+    async (archived) => {
+      const { adapter, requests } = await fixture();
+      const matching = await adapter.createThread('/tmp/project');
+      const alias = await adapter.createThread('/tmp/project-alias');
+      const nested = await adapter.createThread('/tmp/project/nested');
+      const other = await adapter.createThread('/tmp/other-project');
+      if (archived)
+        for (const thread of [matching, alias, nested, other])
+          await adapter.archiveThread(thread.id);
+
+      const page = await adapter.listThreads('/tmp/project', 'opaque-cursor', archived);
+      expect(page.data.map((thread) => thread.id)).toEqual([matching.id]);
+      expect(page.nextCursor).toBeNull();
+      const reads = (await requests()).filter((entry) => entry.method === 'thread/list');
+      expect(reads).toHaveLength(1);
+      expect(reads[0]?.params).toMatchObject({
+        cwd: '/tmp/project',
+        cursor: 'opaque-cursor',
+        limit: 30,
+        archived,
+        sourceKinds: ['cli', 'appServer', 'vscode'],
+        sortKey: 'updated_at',
+        sortDirection: 'desc',
+      });
+    },
+  );
   it('allows events before delayed acknowledgement; a timeout never resends a prompt', async () => {
     const { adapter, events, requests } = await fixture({ ackDelayMs: 800, turnDelayMs: 10 }, 500);
     const thread = await adapter.createThread('/tmp');

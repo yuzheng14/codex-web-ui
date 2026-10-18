@@ -515,10 +515,10 @@ export class CodexAdapter implements CodexClient {
     )
       throw new AppError('VALIDATION_ERROR', '所选推理强度不受当前模型支持');
   }
-  async listThreads(_cwd: string, cursor?: string, archived = false): Promise<ThreadPage> {
+  async listThreads(cwd: string, cursor?: string, archived = false): Promise<ThreadPage> {
     const sequence = ++this.archiveSequence;
-    // Gateway resolves real paths, so aliases of the same cwd remain discoverable.
     const result = await this.call('thread/list', {
+      cwd,
       cursor,
       limit: 30,
       archived,
