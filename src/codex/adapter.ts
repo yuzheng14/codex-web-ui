@@ -415,7 +415,8 @@ export class CodexAdapter implements CodexClient {
       this.state.connection = 'unavailable';
       this.state.error = failure.message;
       this.publishRuntime();
-      await this.stopProcess();
+      await this.stopProcess(failure);
+      this.scheduleRestart();
       throw failure;
     }
   }
@@ -448,14 +449,14 @@ export class CodexAdapter implements CodexClient {
     }, delay);
     this.restartTimer.unref();
   }
-  private async stopProcess(): Promise<void> {
+  private async stopProcess(
+    reason = new CodexError('CODEX_UNAVAILABLE', 'Codex connection closed by this service', true),
+  ): Promise<void> {
     const child = this.child;
     this.state.ready = false;
     this.state.connection = 'unavailable';
     this.expireActions();
-    this.rpc?.fail(
-      new CodexError('CODEX_UNAVAILABLE', 'Codex connection closed by this service', true),
-    );
+    this.rpc?.fail(reason);
     if (!child || child.exitCode !== null || child.signalCode !== null) return;
     child.stdin.end();
     await new Promise<void>((resolve) => {
@@ -489,7 +490,8 @@ export class CodexAdapter implements CodexClient {
     try {
       return await this.rpc.request<Responses[M]>(method, params);
     } catch (error) {
-      if (error instanceof CodexError && error.rpcCode === -32601) {
+      // Concurrent startup calls can inherit the same error when cleanup fails the transport.
+      if (!initializing && error instanceof CodexError && error.rpcCode === -32601) {
         this.disabled.add(method);
         this.state.capabilities = this.state.capabilities.filter((name) => name !== method);
         this.state.error = `当前 Codex 缺少 ${method} 能力`;

@@ -74,6 +74,94 @@ async function waitFor<T>(get: () => T | undefined): Promise<T> {
 }
 
 describe('verified protocol adapter with a real subprocess', () => {
+  it.each(['account/read', 'model/list'])(
+    'preserves the %s startup error in diagnostics after process cleanup',
+    async (method) => {
+      const adapter = new CodexAdapter({
+        binary: process.execPath,
+        args: [
+          '--import',
+          'tsx',
+          resolve('tests/fixtures/app-server.ts'),
+          '--options',
+          JSON.stringify({ unsupportedMethod: method }),
+        ],
+      });
+      adapters.push(adapter);
+      const events: AdapterEvent[] = [];
+      adapter.onEvent((event) => events.push(event));
+
+      await expect(adapter.start()).rejects.toMatchObject({
+        code: 'PROTOCOL_INCOMPATIBLE',
+        message: 'Method not found',
+      });
+      expect(adapter.pid).toBeUndefined();
+      expect(adapter.diagnostics()).toMatchObject({
+        ready: false,
+        connection: 'unavailable',
+        error: 'Method not found',
+      });
+      expect(events.findLast((event) => event.type === 'runtime')).toMatchObject({
+        diagnostics: { ready: false, error: 'Method not found' },
+      });
+      await adapter.stop();
+      expect(adapter.diagnostics().error).toBe('Method not found');
+    },
+  );
+  it.each([false, true])(
+    'retries an initial handshake failure unless explicitly stopped (stop: %s)',
+    async (stop) => {
+      const dir = await mkdtemp(join(tmpdir(), 'codex-startup-'));
+      dirs.push(dir);
+      const logPath = join(dir, 'requests.jsonl');
+      const adapter = new CodexAdapter({
+        binary: process.execPath,
+        args: [
+          '--import',
+          'tsx',
+          resolve('tests/fixtures/app-server.ts'),
+          '--options',
+          JSON.stringify({ initializeFailureOncePath: join(dir, 'failed'), logPath }),
+        ],
+      });
+      adapters.push(adapter);
+      await expect(adapter.start()).rejects.toMatchObject({
+        code: 'CODEX_REQUEST_FAILED',
+        message: 'Temporary initialization failure',
+      });
+      expect(adapter.diagnostics().error).toBe('Temporary initialization failure');
+      const epoch = adapter.epoch;
+      if (stop) {
+        await adapter.stop();
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        expect(adapter.ready).toBe(false);
+        expect(adapter.epoch).toBe(epoch);
+      } else {
+        await expect.poll(() => adapter.ready, { timeout: 5000 }).toBe(true);
+        expect(adapter.epoch).not.toBe(epoch);
+        expect(adapter.diagnostics()).toMatchObject({ connection: 'ready', error: undefined });
+      }
+      const requests = (await readFile(logPath, 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { method: string });
+      expect(requests.filter((request) => request.method === 'initialize')).toHaveLength(
+        stop ? 1 : 2,
+      );
+      expect(requests.some((request) => request.method === 'turn/start')).toBe(false);
+    },
+  );
+  it('does not restart a healthy process when a duplicate start is rejected', async () => {
+    const { adapter, requests } = await fixture();
+    const pid = adapter.pid;
+    const epoch = adapter.epoch;
+    await expect(adapter.start()).rejects.toMatchObject({ code: 'CODEX_BUSY' });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(adapter.ready).toBe(true);
+    expect(adapter.pid).toBe(pid);
+    expect(adapter.epoch).toBe(epoch);
+    expect((await requests()).filter((request) => request.method === 'initialize')).toHaveLength(1);
+  });
   it('waits for terminal evidence after an interrupt receipt and rejects steering the finished turn', async () => {
     const { adapter, events, requests } = await fixture({
       approval: 'command',

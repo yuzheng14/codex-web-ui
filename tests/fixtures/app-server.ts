@@ -44,6 +44,7 @@ export interface SimulatorOptions {
   outputBytes?: number;
   crashAfterDispatch?: boolean;
   unsupportedMethod?: string;
+  initializeFailureOncePath?: string;
   logPath?: string;
   historyPath?: string;
   paginated?: boolean;
@@ -1494,6 +1495,11 @@ const model: Model = {
 const delayedStarts = new WeakSet<ClientRequest>();
 function receive(request: ClientRequest): void {
   if (request.method === 'initialize') {
+    if (options.initializeFailureOncePath && !existsSync(options.initializeFailureOncePath)) {
+      writeFileSync(options.initializeFailureOncePath, 'failed');
+      error(request.id, 'Temporary initialization failure', -32000);
+      return;
+    }
     initialized = true;
     reply(request.id, {
       userAgent: 'codex/0.163.0',
