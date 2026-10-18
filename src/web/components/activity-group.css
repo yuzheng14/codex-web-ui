@@ -1,7 +1,7 @@
 .activity-group {
   --activity-surface: #f5f8f6;
   min-width: 0;
-  margin: 10px 0 10px 40px;
+  margin: 10px 0;
   border: 1px solid #e8ebea;
   border-radius: 7px;
   background: #fbfcfb;
@@ -104,9 +104,6 @@
   font-size: 11px;
 }
 @media (max-width: 760px) {
-  .activity-group {
-    margin-left: 0;
-  }
   .activity-group-reviews,
   .activity-group > summary .command-summary {
     display: none;
