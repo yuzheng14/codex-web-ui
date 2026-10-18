@@ -1589,7 +1589,7 @@ svg {
   background: #eff5f8;
 }
 .turn-diff {
-  margin: 18px 0 0 40px;
+  margin: 18px 0 0;
   border: 1px solid #e5e9e6;
   border-radius: 7px;
   overflow: hidden;
