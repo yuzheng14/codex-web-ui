@@ -141,7 +141,7 @@ export function Sidebar(props: Props) {
             return (
               <section
                 key={project.id}
-                className={cn('project-group', props.projectId === project.id && 'project-active')}
+                className="project-group"
                 aria-label={project.name}
                 data-project-id={project.id}
               >

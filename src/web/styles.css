@@ -225,6 +225,7 @@ svg {
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
+  scroll-padding-top: 40px;
   margin: 4px -6px;
   padding: 0 6px;
 }
@@ -239,11 +240,15 @@ svg {
   border-top: 0;
 }
 .project-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 3px;
   margin: 0;
   font-size: 13px;
+  background: var(--sidebar);
 }
 .project-heading > .button {
   flex-shrink: 0;
@@ -377,10 +382,6 @@ svg {
 }
 .project-link:hover {
   background: #eef0f2;
-}
-.project-active .project-link {
-  background: #e9efeb;
-  color: #244734;
 }
 .project-activity {
   flex-shrink: 0;
