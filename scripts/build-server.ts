@@ -1,6 +1,6 @@
 import { cp, readdir } from 'node:fs/promises';
 import { build } from 'esbuild';
-const directories = ['src/server', 'src/shared', 'src/codex', 'src/cli'];
+const directories = ['src/server', 'src/shared', 'src/codex', 'src/cli', 'src/updates'];
 const entries: string[] = [];
 for (const directory of directories) {
   for (const entry of await readdir(directory, { recursive: true, withFileTypes: true })) {
@@ -18,3 +18,11 @@ await build({
   sourcemap: true,
 });
 await cp('drizzle', 'dist/drizzle', { recursive: true });
+await build({
+  entryPoints: ['src/updates/worker.ts'],
+  outfile: 'dist/update-worker.cjs',
+  bundle: true,
+  platform: 'node',
+  target: 'node24',
+  format: 'cjs',
+});

@@ -1,5 +1,7 @@
 import { request } from 'node:http';
 import type { CovroPaths } from './paths.js';
+import lockfile from 'proper-lockfile';
+import { setTimeout } from 'node:timers/promises';
 
 /** Local owner control uses a private socket, never the public HTTP authentication boundary. */
 export function control<T = unknown>(
@@ -45,4 +47,21 @@ export function control<T = unknown>(
 }
 export function isNotRunning(error: unknown) {
   return ['ENOENT', 'ECONNREFUSED'].includes((error as NodeJS.ErrnoException).code ?? '');
+}
+export async function stopAndWait(location: CovroPaths) {
+  try {
+    await control(location, 'stop');
+  } catch (error) {
+    if (!isNotRunning(error)) throw error;
+  }
+  for (let attempt = 0; attempt < 120; attempt++) {
+    try {
+      if (!(await lockfile.check(location.state, { stale: 10_000 }))) return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw error;
+    }
+    await setTimeout(100);
+  }
+  throw new Error('Covro 尚未完成关闭，请稍后重试');
 }

@@ -3,7 +3,8 @@ import { promisify } from 'node:util';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { control, isNotRunning } from './control.js';
+import { stopAndWait } from './control.js';
+import { saveJson } from '../updates/files.js';
 import { packageRoot, type CovroPaths } from './paths.js';
 
 const exec = promisify(execFile);
@@ -24,11 +25,7 @@ export async function service(location: CovroPaths, install: boolean) {
   const label = `dev.covro.${location.key}`;
   const entry = join(packageRoot, 'bin/covro.mjs');
   if (install) {
-    try {
-      await control(location, 'stop');
-    } catch (error) {
-      if (!isNotRunning(error)) throw error;
-    }
+    await stopAndWait(location);
     await mkdir(location.state, { recursive: true, mode: 0o700 });
   }
   if (process.platform === 'darwin') {
@@ -38,6 +35,7 @@ export async function service(location: CovroPaths, install: boolean) {
     if (!install) {
       await exec('launchctl', ['bootout', domain, filename]);
       await rm(filename);
+      await rm(join(location.state, 'service.json'), { force: true });
       return;
     }
     await mkdir(directory, { recursive: true });
@@ -55,6 +53,7 @@ export async function service(location: CovroPaths, install: boolean) {
     );
     await exec('launchctl', ['enable', `${domain}/${label}`]);
     await exec('launchctl', ['bootstrap', domain, filename]);
+    await saveJson(join(location.state, 'service.json'), { platform: 'darwin', label });
   } else {
     const directory = join(homedir(), '.config/systemd/user');
     const filename = join(directory, `${label}.service`);
@@ -69,9 +68,11 @@ export async function service(location: CovroPaths, install: boolean) {
       );
       await exec('systemctl', ['--user', 'daemon-reload']);
       await exec('systemctl', ['--user', 'enable', '--now', `${label}.service`]);
+      await saveJson(join(location.state, 'service.json'), { platform: 'linux', label });
     } else {
       await exec('systemctl', ['--user', 'disable', '--now', `${label}.service`]);
       await rm(filename);
+      await rm(join(location.state, 'service.json'), { force: true });
       await exec('systemctl', ['--user', 'daemon-reload']);
     }
   }

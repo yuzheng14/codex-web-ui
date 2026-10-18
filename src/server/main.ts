@@ -14,13 +14,22 @@ import { ProjectRegistry } from './projects.js';
 import { GatewayService } from './service.js';
 import { createApp } from './http.js';
 import { startHeartbeat } from './websocket.js';
+import { UpdateManager } from '../updates/manager.js';
+import type { UpdateController } from '../shared/updates.js';
 export async function startGateway(
   config: AppConfig,
-  overrides: { codex?: CodexClient; staticDir?: string; migrationsDir?: string } = {},
+  overrides: {
+    codex?: CodexClient;
+    staticDir?: string;
+    migrationsDir?: string;
+    updates?: UpdateController;
+    maintenance?: boolean;
+  } = {},
 ) {
   const release = await acquireInstanceLock(config.dataDir);
   let closeDatabase: (() => void) | undefined;
   let codex: CodexClient | undefined;
+  const updates = overrides.updates ?? new UpdateManager();
   try {
     const db = openDatabase(join(config.dataDir, 'app.sqlite'));
     closeDatabase = db.close;
@@ -38,6 +47,7 @@ export async function startGateway(
       authMode: config.auth.mode,
       demo: config.demo,
     });
+    service.setMaintenance(overrides.maintenance ?? false);
     try {
       await codex.start();
     } catch {
@@ -48,6 +58,7 @@ export async function startGateway(
       config,
       service,
       staticDir: overrides.staticDir ?? fileURLToPath(new URL('../web', import.meta.url)),
+      updates,
     });
     const server = serve({
       fetch: app.fetch,
@@ -64,6 +75,7 @@ export async function startGateway(
     const close = (): Promise<void> =>
       (closing ??= (async () => {
         stopHeartbeat();
+        updates.close();
         const closed = new Promise<void>((resolveClosed) => server.close(() => resolveClosed()));
         for (const ws of wss.clients) {
           ws.close(1001, 'Gateway stopping');
@@ -82,8 +94,9 @@ export async function startGateway(
           }
         }
       })());
-    return { app, server, service, codex, close };
+    return { app, server, service, codex, close, updates };
   } catch (error) {
+    updates.close();
     try {
       await codex?.stop();
     } finally {
