@@ -27,6 +27,6 @@ gh workflow run publish.yml --ref main -f channel=beta -f version=0.2.0-beta.1 -
 
 首次发布、Trusted Publisher 绑定及权限设置需要 npm/GitHub 维护者完成；工作流未合并到 main 前，不执行真实发布。整个 Stack 的合并入口是栈顶发版 PR，所有层先审查并通过检查。
 
-发布验证包括锁定依赖安装、生产启动检查和 npm 包文件白名单。`scripts/verify-package.ts` 确认 CLI、页面、迁移和升级工作进程均入包，并排除本地配置、数据库、测试和源码目录。`scripts/verify-upgrade.ts` 使用真实后台服务、升级工作进程与 SQLite，配合明确的本地 npm 分发夹具，验证成功切换、迁移后启动失败回滚、激活中断后的修复、仍在运行的旧服务修复，以及恢复写入后拒绝快照覆盖；它不访问或发布 npm。版本号与 commit 在构建前写入临时发布工作区，不回写开发分支。
+发布验证包括锁定依赖安装、生产启动检查和 npm 包文件白名单。`scripts/verify-package.ts` 确认 CLI、页面、迁移和升级工作进程均入包，并排除本地配置、数据库、测试和源码目录。`scripts/verify-upgrade.ts` 使用真实后台服务、升级工作进程与 SQLite，配合明确的本地 npm 分发夹具，验证成功切换、迁移后启动失败回滚、激活中断后的修复、仍在运行的旧服务修复，以及恢复写入后拒绝快照覆盖；候选包安装由夹具提供，不执行真实 npm 安装或发布。版本号与 commit 在构建前写入临时发布工作区，不回写开发分支。
 
 参考：[release-please Action](https://github.com/googleapis/release-please-action)、[npm Trusted Publishers](https://docs.npmjs.com/trusted-publishers/)。
