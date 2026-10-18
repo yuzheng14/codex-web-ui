@@ -3,12 +3,16 @@ import { formatTurnCompletedAt, formatTurnDuration } from '../lib/turn-timing';
 import { formatTurnTps } from '../lib/turn-tps';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Icon } from './Icon';
+import { ReplyCopyButton } from './ReplyCopyButton';
 
 export function TurnCompletion({ turn }: { turn: TurnView }) {
   if (turn.status !== 'completed') return null;
   const duration = formatTurnDuration(turn.durationMs);
   const completed = formatTurnCompletedAt(turn.completedAt);
   const tps = formatTurnTps(turn.outputTokens, turn.durationMs);
+  const reply = turn.items.findLast(
+    (item) => item.type === 'agentMessage' && item.text?.trim(),
+  )?.text;
   return (
     <div className="turn-completion" role="group" aria-label="本轮完成信息">
       <span className="turn-completion-status">
@@ -43,6 +47,7 @@ export function TurnCompletion({ turn }: { turn: TurnView }) {
           '完成时间未知'
         )}
       </span>
+      {reply && <ReplyCopyButton text={reply} />}
     </div>
   );
 }
