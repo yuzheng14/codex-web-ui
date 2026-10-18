@@ -393,25 +393,9 @@ svg {
   font-size: 10px;
   text-align: center;
 }
-.project-path {
-  font-family: monospace;
-  font-size: 10px;
-  color: #89929a;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  margin: 5px 8px 10px 32px;
-  line-height: 1.5;
-}
 .project-error {
   margin: 8px;
   overflow-wrap: anywhere;
-}
-.new-thread {
-  justify-content: flex-start;
-  padding-left: 9px;
-  min-height: 32px;
-  margin: 0 8px 9px;
 }
 .thread-list {
   min-width: 0;
