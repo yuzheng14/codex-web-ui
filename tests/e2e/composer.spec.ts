@@ -199,6 +199,8 @@ test('Enter honors unavailable-project, blank-draft, offline, compatibility and 
   expect(outgoing).toHaveLength(0);
   await createEmptyThread(page);
   await expectThreadReady(page);
+  // Exclude the fixture-only setup send from guarded user submissions.
+  outgoing.length = 0;
   await input.fill('  \n\t');
   await expect(sendButton(page)).toBeDisabled();
   await input.press('Enter');

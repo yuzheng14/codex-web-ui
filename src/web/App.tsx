@@ -215,7 +215,7 @@ export function App() {
     connection: workspace.connection,
     authRequired: workspace.authRequired,
     settings: workspace.settings,
-    projectSettings: workspace.getProjectSettings(workspace.projectId),
+    openDraft: workspace.openDraft,
     busy: workspace.busy,
     operations: workspace.operations,
     run: workspace.run,

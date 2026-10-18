@@ -45,7 +45,7 @@ function context(): SlashCommandContext {
     connection: 'connected',
     authRequired: false,
     settings: { model: 'unsent-override' },
-    projectSettings: {},
+    openDraft: vi.fn().mockReturnValue('project-draft'),
     busy: [],
     operations: [],
     run: vi.fn().mockResolvedValue({

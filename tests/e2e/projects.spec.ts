@@ -377,7 +377,7 @@ test('a late create receipt updates its project without stealing navigation back
   await projectGroup(page, '另一个项目')
     .getByRole('button', { name: '另一个项目', exact: true })
     .click();
-  await page.locator('.composer-box textarea').fill('/new');
+  await page.locator('.composer-box textarea').fill('首条消息等待创建回执 [title-fail]');
   await page.locator('.composer-box textarea').press('Enter');
   const b = await created;
   await row(page, a).click();
@@ -386,7 +386,7 @@ test('a late create receipt updates its project without stealing navigation back
   await expect(
     projectGroup(page, '另一个项目').getByRole('button', { name: '新建会话', exact: true }),
   ).toBeEnabled();
-  await expect(row(page, b)).toHaveCount(0);
+  await expect(row(page, b)).toBeVisible();
   await expect.poll(() => currentProject(page)).toBe(first);
   await expect(page.getByRole('textbox', { name: '任务内容', exact: true })).toHaveValue(
     '当前会话的草稿',

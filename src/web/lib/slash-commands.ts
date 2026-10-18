@@ -78,7 +78,7 @@ export interface SlashCommandContext {
   connection: ConnectionState;
   authRequired: boolean;
   settings: Settings;
-  projectSettings: Settings;
+  openDraft: () => string;
   busy: string[];
   operations: SavedOperation[];
   run: (
@@ -95,7 +95,7 @@ export interface SlashCommandContext {
 
 const definitions: { name: SlashCommandName; description: string }[] = [
   { name: 'help', description: '查看本网页支持的命令和使用方式' },
-  { name: 'new', description: '在当前项目新建会话' },
+  { name: 'new', description: '打开当前项目的新建会话输入页' },
   { name: 'fork', description: '复制当前会话已保存的历史为新会话' },
   { name: 'resume', description: '恢复当前选中的历史会话（不是 CLI 会话选择器）' },
   { name: 'review', description: '审查当前项目的未提交改动（使用会话当前配置）' },
@@ -122,17 +122,16 @@ function unavailableReason(name: SlashCommandName, context: SlashCommandContext)
   }
   if (name !== 'stop' && compatibilityConfirmationRequired(context.system))
     return '请先确认当前 Codex 版本的兼容性提示。';
-  const capability = {
-    new: 'thread/start',
+  const capabilities = {
     fork: 'thread/fork',
     resume: 'thread/resume',
     review: 'review/start',
     rename: 'thread/name/set',
     stop: 'turn/interrupt',
     compact: 'thread/compact/start',
-  }[name];
-  if (!context.system.capabilities.includes(capability))
-    return `当前 Codex 未提供 ${capability} 能力。`;
+  };
+  if (name !== 'new' && !context.system.capabilities.includes(capabilities[name]))
+    return `当前 Codex 未提供 ${capabilities[name]} 能力。`;
   const busy = (kind: string, target: string) => context.busy.includes(`${kind}:${target}`);
   const unsettled = (target: string, kind?: string) =>
     context.operations.some(
@@ -143,6 +142,8 @@ function unavailableReason(name: SlashCommandName, context: SlashCommandContext)
     if (!context.project.available) return '当前项目目录不可用，请先检查项目配置。';
   }
   if (name === 'new') {
+    if (context.busy.some((entry) => entry.startsWith('saveModelDefaults:')))
+      return '正在保存模型默认值，请完成后再操作。';
     if (busy('create', context.project!.id)) return '正在新建会话，请等待回执。';
     if (unsettled(context.project!.id)) return '新建会话的请求尚未确认，请先用 /status 核对提交。';
     return undefined;
@@ -236,16 +237,16 @@ function operationResult(name: SlashCommandName, operation?: Operation): SlashCo
       ? { message: `会话已重命名为「${result.name}」。` }
       : { error: true, message: '重命名已被接受，但无法确认名称，请用 /status 核对提交。' };
   }
-  if (name === 'new' || name === 'fork') {
+  if (name === 'fork') {
     const result = operation.result as
       { threadId?: unknown; id?: unknown; thread?: { id?: unknown } } | undefined;
-    const id = result?.threadId ?? result?.thread?.id ?? (name === 'new' ? result?.id : undefined);
+    const id = result?.threadId ?? result?.thread?.id;
     if (typeof id !== 'string' || !id)
       return {
         error: true,
         message: '请求已被接受，但尚未获得新会话标识，请用 /status 核对提交。',
       };
-    return { message: name === 'new' ? '已新建会话。' : '已 Fork 为新会话。', draftKey: id };
+    return { message: '已 Fork 为新会话。', draftKey: id };
   }
   return {
     message:
@@ -296,15 +297,10 @@ export function createSlashCommands(getContext: () => SlashCommandContext): Slas
         }
         let operation: Operation | undefined;
         if (name === 'new') {
-          const projectId = context.project!.id;
-          operation = await context.run(
-            'create',
-            projectId,
-            `/api/projects/${encodeURIComponent(projectId)}/threads`,
-            {
-              settings: context.projectSettings,
-            },
-          );
+          return {
+            draftKey: context.openDraft(),
+            message: '已打开新会话输入页，发送首条消息时创建会话。',
+          };
         } else if (name === 'fork') {
           operation = await context.run('fork', thread!.id, `${path}/fork`, {
             settings: context.settings,

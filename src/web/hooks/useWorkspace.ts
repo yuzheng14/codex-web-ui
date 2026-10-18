@@ -1040,6 +1040,11 @@ export function useWorkspace() {
         setFirstMessages([...firstMessagesRef.current]);
       }
     },
+    openDraft: () => {
+      cancelResultNavigation();
+      selectProject(projectRef.current);
+      return conversationDrafts.current.key(projectRef.current);
+    },
     setProjectId: (id: string) => {
       cancelResultNavigation();
       selectProject(id);
