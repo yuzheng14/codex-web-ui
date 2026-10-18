@@ -84,24 +84,26 @@ test('leaves the archived conversation without creating a new one, then explicit
   await expect(row(page, id)).toContainText('Codex 配置继承与运行设置');
   await page.getByRole('textbox', { name: '任务内容' }).fill('取消归档后保留的草稿');
   const action = row(page, id).getByRole('button', { name: '归档会话', exact: true });
-  const hint = row(page, id).getByRole('tooltip', { includeHidden: true });
-  await expect(hint).toHaveCount(1);
+  const hint = page.getByRole('tooltip').filter({ hasText: /^归档会话$/ });
+  await expect(hint).toHaveCount(0);
   await expect(hint).toBeHidden();
   await action.hover();
   await expect(hint).toBeVisible();
   await expect(hint).toHaveText('归档会话');
   const actionBox = (await action.boundingBox())!;
-  const hintBox = (await hint.boundingBox())!;
+  const hintBox = (await page.locator('[data-slot="tooltip-content"]').boundingBox())!;
   expect(hintBox.y).toBeGreaterThanOrEqual(actionBox.y + actionBox.height);
-  expect(hintBox.y).toBeLessThanOrEqual(actionBox.y + actionBox.height + 8);
+  expect(hintBox.y).toBeLessThanOrEqual(actionBox.y + actionBox.height + 16);
   expect(Math.abs(hintBox.x + hintBox.width - actionBox.x - actionBox.width)).toBeLessThan(1);
-  await page.getByRole('textbox', { name: '任务内容' }).hover();
+  await page.mouse.move(0, 0, { steps: 5 });
   await expect(hint).toBeHidden();
   await action.hover();
   await expect(hint).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(hint).toBeHidden();
   await action.focus();
+  await action.press('Shift+Tab');
+  await page.keyboard.press('Tab');
   await expect(hint).toBeVisible();
   await expect(hint).toHaveText('归档会话');
   await page.screenshot({
@@ -153,13 +155,21 @@ test('leaves the archived conversation without creating a new one, then explicit
   await expect(row(page, id)).toHaveCount(0);
   await page.getByRole('button', { name: '已归档会话', exact: true }).click();
   await row(page, id).locator('.thread-link').click();
+  const restored = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/threads/${id}/archive`) &&
+      response.request().postDataJSON()?.archived === false &&
+      response.ok(),
+  );
   await page.locator('.archive-notice').getByRole('button', { name: '取消归档' }).click();
+  await restored;
   await expect(page.getByRole('button', { name: '会话', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
   await page.getByRole('textbox', { name: '任务内容' }).fill('继续原来的对话');
   await page.getByRole('button', { name: '发送任务', exact: true }).click();
+  await expect(page.locator('.turn')).toHaveCount(2);
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
   const thread = await (await request.get(`/api/threads/${id}`)).json();
   expect(thread.archived).toBe(false);
@@ -201,14 +211,20 @@ test('disables archive for running approvals and synchronizes completed archive 
   const action = row(page, id).getByRole('button', { name: '归档会话', exact: true });
   await expect(action).toBeDisabled();
   await action.focus();
-  await expect(row(page, id).getByRole('tooltip')).toHaveText('任务结束并处理完待办后可归档');
+  await action.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(
+    page.getByRole('tooltip').filter({ hasText: '任务结束并处理完待办后可归档' }),
+  ).toHaveText('任务结束并处理完待办后可归档');
   await page.screenshot({
     path: test.info().outputPath('archive-active.png'),
     fullPage: true,
     animations: 'disabled',
   });
   await page.keyboard.press('Escape');
-  await expect(row(page, id).getByRole('tooltip')).toBeHidden();
+  await expect(
+    page.getByRole('tooltip').filter({ hasText: '任务结束并处理完待办后可归档' }),
+  ).toBeHidden();
   await page.locator('.action-card').getByRole('button', { name: '允许本次', exact: true }).click();
   await expect(other.locator('.turn-heading .status')).toHaveText('已完成');
   await archive(page, id);

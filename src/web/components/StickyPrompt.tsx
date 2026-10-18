@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ThreadView } from '../../shared/types';
 import { Button } from './ui/button';
+import { ControlHint } from './ControlHint';
 import { Icon } from './Icon';
 
 /** An overlay keeps the original prompt's geometry unchanged while reading replies. */
@@ -57,34 +58,35 @@ export function StickyPrompt({ thread, onJump }: { thread?: ThreadView; onJump: 
   return (
     <div className="sticky-prompt-slot" ref={slotRef}>
       {activePrompt && (
-        <Button
-          variant="ghost"
-          className="sticky-prompt"
-          aria-label="回到 Prompt 原文"
-          title="回到 Prompt 原文"
-          onClick={(event) => {
-            const scroll = slotRef.current?.parentElement?.querySelector('.conversation-scroll');
-            const prompt = [
-              ...(scroll?.querySelectorAll<HTMLElement>('[data-prompt-id]') ?? []),
-            ].find((element) => element.dataset.promptId === activePrompt.id);
-            if (!scroll || !prompt) return;
-            // An earlier prompt may remain pinned after jumping back to a later one.
-            const offset = event.currentTarget.getBoundingClientRect().height + 8;
-            onJump();
-            prompt.focus({ preventScroll: true });
-            scroll.scrollTop +=
-              prompt.getBoundingClientRect().top -
-              scroll.getBoundingClientRect().top -
-              scroll.clientTop -
-              offset;
-          }}
-        >
-          <span className="sticky-prompt-label">你的要求</span>
-          <span className="sticky-prompt-text">
-            {activePrompt.text?.trim() || (imageCount ? `${imageCount} 张图片` : '用户 Prompt')}
-          </span>
-          <Icon name="down" size={14} style={{ transform: 'rotate(180deg)' }} />
-        </Button>
+        <ControlHint asChild content="回到 Prompt 原文">
+          <Button
+            variant="ghost"
+            className="sticky-prompt"
+            aria-label="回到 Prompt 原文"
+            onClick={(event) => {
+              const scroll = slotRef.current?.parentElement?.querySelector('.conversation-scroll');
+              const prompt = [
+                ...(scroll?.querySelectorAll<HTMLElement>('[data-prompt-id]') ?? []),
+              ].find((element) => element.dataset.promptId === activePrompt.id);
+              if (!scroll || !prompt) return;
+              // An earlier prompt may remain pinned after jumping back to a later one.
+              const offset = event.currentTarget.getBoundingClientRect().height + 8;
+              onJump();
+              prompt.focus({ preventScroll: true });
+              scroll.scrollTop +=
+                prompt.getBoundingClientRect().top -
+                scroll.getBoundingClientRect().top -
+                scroll.clientTop -
+                offset;
+            }}
+          >
+            <span className="sticky-prompt-label">你的要求</span>
+            <span className="sticky-prompt-text">
+              {activePrompt.text?.trim() || (imageCount ? `${imageCount} 张图片` : '用户 Prompt')}
+            </span>
+            <Icon name="down" size={14} style={{ transform: 'rotate(180deg)' }} />
+          </Button>
+        </ControlHint>
       )}
     </div>
   );

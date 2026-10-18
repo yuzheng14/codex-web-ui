@@ -123,7 +123,7 @@ test('a failed append is retryable from the same cursor without losing earlier p
   await more(page).click();
   await expect(
     projectGroup(page).getByRole('button', { name: '加载失败，重试', exact: true }),
-  ).toHaveAttribute('title', '会话读取暂时失败');
+  ).toHaveAccessibleDescription('会话读取暂时失败');
   await expect(more(page)).toHaveCount(0);
   await expect(projectGroup(page).getByText('正在读取会话…')).toHaveCount(0);
   await expect(row(page, 'one')).toBeVisible();
@@ -149,7 +149,7 @@ test('a repeated cursor ends loading with an error instead of offering endless e
   await more(page).click();
   await expect(
     projectGroup(page).getByRole('button', { name: '加载失败，重试', exact: true }),
-  ).toHaveAttribute('title', '会话分页游标未前进，请重试或刷新会话列表。');
+  ).toHaveAccessibleDescription('会话分页游标未前进，请重试或刷新会话列表。');
   await expect(projectGroup(page).getByRole('button', { name: '加载失败，重试' })).toBeEnabled();
   await expect(more(page)).toHaveCount(0);
   await expect(projectGroup(page).getByText('已加载全部会话')).toHaveCount(0);

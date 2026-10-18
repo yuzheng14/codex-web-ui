@@ -241,7 +241,7 @@ test('project loading errors are isolated and navigation stays usable with unava
   await open(page);
   await expect(
     projectGroup(page, '另一个项目').getByRole('button', { name: '加载失败，重试' }),
-  ).toHaveAttribute('title', '此项目暂时读取失败');
+  ).toHaveAccessibleDescription('此项目暂时读取失败');
   await expect(projectGroup(page, '不可用项目').locator('.project-error')).toBeVisible();
   await createInPage(page, first, '测试项目');
   fail = false;

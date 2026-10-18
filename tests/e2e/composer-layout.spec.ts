@@ -144,8 +144,10 @@ for (const model of ['gpt-5', longModel]) {
       const projectText = target.locator('span');
       const composer = page.locator('.composer-box');
       await expect(modelControl).toHaveAttribute('data-value', model);
-      await expect(modelControl).toHaveAttribute('title', `模型：${model}`);
-      await expect(target).toHaveAttribute('title', projectName);
+      await expect(modelControl).toHaveAccessibleDescription(`模型：${model}`);
+      await target.hover();
+      await expect(page.getByRole('tooltip')).toHaveText(projectName);
+      await page.keyboard.press('Escape');
       await expect(projectText).toHaveText(projectName);
 
       for (const width of [1440, 1000, 900, 760, 430, 375, 320]) {

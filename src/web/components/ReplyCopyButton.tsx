@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ControlHint } from './ControlHint';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 
@@ -28,16 +29,17 @@ export function ReplyCopyButton({ text }: { text: string }) {
 
   return (
     <span className="reply-copy-controls">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="reply-copy-button"
-        aria-label="复制回答"
-        title="复制回答（Markdown）"
-        onClick={() => void copy()}
-      >
-        <Icon name={feedback === 'copied' ? 'check' : 'copy'} size={14} />
-      </Button>
+      <ControlHint asChild content={'复制回答（Markdown）'}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="reply-copy-button"
+          aria-label="复制回答"
+          onClick={() => void copy()}
+        >
+          <Icon name={feedback === 'copied' ? 'check' : 'copy'} size={14} />
+        </Button>
+      </ControlHint>
       <span className={`reply-copy-feedback reply-copy-${feedback}`} role="status">
         {feedback === 'copied' && '已复制'}
         {feedback === 'failed' && '复制失败，请手动选择回答复制。'}

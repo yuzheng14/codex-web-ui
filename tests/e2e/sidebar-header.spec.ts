@@ -90,11 +90,11 @@ for (const viewport of [
       expect(control.height).toBeGreaterThanOrEqual(32);
     }
     const project = sidebar.getByRole('region', { name: longName, exact: true });
-    await expect(project.locator('.project-link')).toHaveAttribute('title', longName);
+    await expect(project.locator('.project-link')).toHaveAccessibleDescription(longName);
     await expect(project).not.toContainText(longPath);
     const heading = project.locator('.project-heading');
     const create = project.getByRole('button', { name: '新建会话', exact: true });
-    await expect(create).toHaveAttribute('title', '新建会话');
+    await expect(create).toHaveAccessibleDescription('新建会话');
     await expect(create).toHaveText('');
     // Read every bound in one frame, including while the mobile drawer slides in.
     const headingMetrics = await heading.evaluate((element) => {
