@@ -1,6 +1,6 @@
 import { cp, readdir } from 'node:fs/promises';
 import { build } from 'esbuild';
-const directories = ['src/server', 'src/shared', 'src/codex'];
+const directories = ['src/server', 'src/shared', 'src/codex', 'src/cli'];
 const entries: string[] = [];
 for (const directory of directories) {
   for (const entry of await readdir(directory, { recursive: true, withFileTypes: true })) {

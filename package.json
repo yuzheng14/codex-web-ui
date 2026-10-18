@@ -1,7 +1,22 @@
 {
-  "name": "codex-web-ui",
+  "name": "covro",
   "version": "0.1.0",
-  "private": true,
+  "description": "A self-hosted browser workspace for your local Codex",
+  "bin": {
+    "covro": "bin/covro.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuzheng14/codex-web-ui.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "packageManager": "pnpm@12.11.2",
   "engines": {
