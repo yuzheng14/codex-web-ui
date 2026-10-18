@@ -174,6 +174,8 @@ async function worker(directory: string) {
         join(paths.previous, 'package.json'),
       );
       if (previous) {
+        if (active && !active.maintenance)
+          throw new Error('旧服务已恢复业务写入；拒绝用升级前快照覆盖现有数据，请保留现场检查。');
         if (previous.name !== 'covro' || previous.version !== record.from)
           throw new Error('旧版备份身份不匹配');
         const snapshot = await readJson<{ complete: boolean }>(join(paths.backup, 'snapshot.json'));

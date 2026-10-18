@@ -10,6 +10,9 @@ import {
 } from '../../src/updates/transaction.js';
 import { compareVersions, validVersion } from '../../src/updates/registry.js';
 import { harness, operationId } from './domain-helpers.js';
+import { paths as cliPaths, packageInfo } from '../../src/cli/paths.js';
+import { UpdateManager } from '../../src/updates/manager.js';
+import { saveJson } from '../../src/updates/files.js';
 
 const cleanups: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
@@ -131,4 +134,29 @@ it('restarts the original service when stopping fails after the process has exit
   expect(await readFile(join(paths.root, 'version'), 'utf8')).toBe('old');
   expect(effects.start).toHaveBeenCalledWith(false);
   expect(phases.at(-1)).toBe('rolledBack');
+});
+
+it('refuses to start an uncommitted candidate after interrupted rollback', async () => {
+  const { paths } = await fixture();
+  const manager = new UpdateManager(
+    { ...cliPaths(paths.config), home: paths.backup },
+    paths.dataDir,
+  );
+  const run = {
+    id: operationId(),
+    from: '0.0.0',
+    target: packageInfo.version,
+    channel: 'stable',
+    phase: 'failed',
+    message: 'recovery interrupted',
+    startedAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  await saveJson(join(manager.context!.directory, 'run.json'), run);
+  await expect(manager.activationPending()).rejects.toThrow('covro update repair');
+  await saveJson(join(manager.context!.directory, 'run.json'), {
+    ...run,
+    from: packageInfo.version,
+  });
+  expect(await manager.activationPending()).toBe(false);
 });

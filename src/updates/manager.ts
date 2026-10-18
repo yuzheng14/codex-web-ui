@@ -121,6 +121,10 @@ export class UpdateManager implements UpdateController {
   }
   async activationPending() {
     const run = (await this.status()).run;
+    if (run && !run.committed && run.phase === 'failed' && run.from !== packageInfo.version)
+      throw new Error(
+        '上次升级尚未完成恢复；请运行 covro update repair 后再启动，避免写入未激活版本。',
+      );
     if (run && !run.committed && run.phase === 'stopping')
       throw new Error('升级正在切换安装，请等待升级完成；不要并行启动服务。');
     if (run && !run.committed && run.phase === 'verifying') {
