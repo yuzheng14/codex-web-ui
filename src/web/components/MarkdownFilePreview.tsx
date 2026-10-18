@@ -90,7 +90,11 @@ function MarkdownFilePreview({
     compact.addEventListener('change', updateMode);
     const escape = (event: KeyboardEvent) => {
       // An image opened from the file gets its own modal Escape handling first.
-      if (event.key === 'Escape' && !document.querySelector('.image-preview-dialog[open]')) {
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        !document.querySelector('dialog[open]:modal:not(.markdown-file-preview)')
+      ) {
         event.preventDefault();
         onClose();
       }
@@ -155,6 +159,8 @@ function MarkdownFilePreview({
       className="markdown-file-preview"
       aria-label="Markdown 文件预览"
       onCancel={(event) => {
+        // React also bubbles cancellation from a nested image dialog.
+        if (event.target !== event.currentTarget) return;
         event.preventDefault();
         onClose();
       }}
