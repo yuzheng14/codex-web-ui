@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -8,7 +8,11 @@ import {
   transactionPaths,
   type UpdateEffects,
 } from '../../src/updates/transaction.js';
-import { compareVersions, validVersion } from '../../src/updates/registry.js';
+import {
+  compareVersions,
+  validVersion,
+  inspectPackageDirectory,
+} from '../../src/updates/registry.js';
 import { harness, operationId } from './domain-helpers.js';
 import { paths as cliPaths, packageInfo } from '../../src/cli/paths.js';
 import { UpdateManager } from '../../src/updates/manager.js';
@@ -159,4 +163,19 @@ it('refuses to start an uncommitted candidate after interrupted rollback', async
     from: packageInfo.version,
   });
   expect(await manager.activationPending()).toBe(false);
+});
+
+it('rejects npm-linked source checkouts and Git workspaces before replacing an installation', async () => {
+  const { paths } = await fixture();
+  const globalRoot = join(paths.backup, 'node_modules');
+  const installation = join(globalRoot, 'covro');
+  await mkdir(globalRoot, { recursive: true });
+  await symlink(paths.root, installation, 'dir');
+  expect(await inspectPackageDirectory(paths.root, globalRoot)).toContain('链接');
+  await rm(installation);
+  await mkdir(installation);
+  expect(await inspectPackageDirectory(installation, globalRoot)).toBeUndefined();
+  await writeFile(join(installation, '.git'), 'gitdir: /source/worktree');
+  expect(await inspectPackageDirectory(installation, globalRoot)).toContain('Git 工作区');
+  expect(await readFile(join(paths.root, 'version'), 'utf8')).toBe('old');
 });

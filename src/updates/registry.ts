@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { realpath, access } from 'node:fs/promises';
+import { realpath, access, lstat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -75,12 +75,24 @@ export async function lookupRelease(channel: ReleaseChannel, signal?: AbortSigna
 export async function inspectInstallation(root: string): Promise<string | undefined> {
   try {
     const { stdout } = await run('npm', ['root', '--global'], { timeout: 15_000 });
-    const expected = await realpath(join(stdout.trim(), 'covro'));
-    if ((await realpath(root)) !== expected)
-      return '当前为源码或非 npm 全局安装；请使用原部署方式更新。';
-    await access(root, constants.W_OK);
-    return undefined;
+    return await inspectPackageDirectory(root, stdout.trim());
   } catch {
     return '无法确认可写的 npm 全局安装；请检查 npm、安装目录权限及后台 PATH。';
   }
+}
+
+export async function inspectPackageDirectory(root: string, globalRoot: string) {
+  const expected = join(await realpath(globalRoot), 'covro');
+  // npm link and pnpm global point outside the package directory. Following
+  // that link would let the worker rename a developer's source checkout.
+  if ((await lstat(expected)).isSymbolicLink() || (await realpath(root)) !== expected)
+    return '当前为源码、链接或非 npm 全局安装；请使用原部署方式更新。';
+  try {
+    await lstat(join(expected, '.git'));
+    return '当前安装包含 Git 工作区；请使用原部署方式更新。';
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  await access(root, constants.W_OK);
+  return undefined;
 }
