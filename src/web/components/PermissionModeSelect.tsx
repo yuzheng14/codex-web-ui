@@ -3,6 +3,7 @@ import { permissionModes, permissionModeUnavailable } from '../../shared/permiss
 import type { PermissionMode, RuntimeSettings, Settings } from '../../shared/types';
 import { choosePermissionMode, permissionLabel, reportedPermissionMode } from '../lib/settings';
 import { Icon } from './Icon';
+import { ControlHint } from './ControlHint';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 export function PermissionModeSelect({
@@ -45,18 +46,20 @@ export function PermissionModeSelect({
           onChange(choosePermissionMode(settings, current, mode));
       }}
     >
-      <SelectTrigger
-        className="settings-policy"
-        aria-label="权限模式"
-        title={`权限模式：${label}${settings.permissionMode ? '（待生效）' : ''}`}
-        data-value={value}
+      <ControlHint
+        content={`权限模式：${label}${settings.permissionMode ? '（待生效）' : ''}`}
+        suppressed={open}
       >
-        <Icon name="shield" size={16} />
-        <span className="permission-mode-label">
-          <SelectValue placeholder={unknown}>{label}</SelectValue>
-        </span>
-        {settings.permissionMode && <span className="permission-pending-dot" aria-label="待生效" />}
-      </SelectTrigger>
+        <SelectTrigger className="settings-policy" aria-label="权限模式" data-value={value}>
+          <Icon name="shield" size={16} />
+          <span className="permission-mode-label">
+            <SelectValue placeholder={unknown}>{label}</SelectValue>
+          </span>
+          {settings.permissionMode && (
+            <span className="permission-pending-dot" aria-label="待生效" />
+          )}
+        </SelectTrigger>
+      </ControlHint>
       <SelectContent
         className="permission-mode-menu"
         side="top"

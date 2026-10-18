@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from './ui/button';
+import { ControlHint } from './ControlHint';
 import { Icon } from './Icon';
 
 export function MarkdownCodeBlock({ children }: { children?: ReactNode }) {
@@ -35,16 +36,17 @@ export function MarkdownCodeBlock({ children }: { children?: ReactNode }) {
           {feedback === 'copied' && '已复制'}
           {feedback === 'failed' && '复制失败，请手动选择代码复制。'}
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="code-copy-button"
-          aria-label="复制代码块"
-          title="复制代码块"
-          onClick={() => void copy()}
-        >
-          <Icon name={feedback === 'copied' ? 'check' : 'copy'} size={16} />
-        </Button>
+        <ControlHint asChild content="复制代码块">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="code-copy-button"
+            aria-label="复制代码块"
+            onClick={() => void copy()}
+          >
+            <Icon name={feedback === 'copied' ? 'check' : 'copy'} size={16} />
+          </Button>
+        </ControlHint>
       </div>
       <pre ref={content} tabIndex={0} aria-label="代码块">
         {children}

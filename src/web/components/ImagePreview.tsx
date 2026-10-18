@@ -10,6 +10,7 @@ import {
 import { fetchLocalImage } from '../lib/local-images';
 import { readableError } from '../lib/utils';
 import { Button } from './ui/button';
+import { ControlHint } from './ControlHint';
 import { Icon } from './Icon';
 
 type ImageSource = { path: string; url?: never } | { url: string; path?: never };
@@ -167,19 +168,20 @@ function ReplyImage({
         />
       ) : image.src ? (
         interactive ? (
-          <button
-            type="button"
-            className="local-image-open"
-            aria-label={`预览图片：${label}`}
-            title={title || '点击放大图片'}
-            onClick={() => open({ ...source, label })}
-          >
-            {thumbnail}
-          </button>
+          <ControlHint asChild content={title || '点击放大图片'}>
+            <button
+              type="button"
+              className="local-image-open"
+              aria-label={`预览图片：${label}`}
+              onClick={() => open({ ...source, label })}
+            >
+              {thumbnail}
+            </button>
+          </ControlHint>
         ) : (
-          <span className="local-image-open" title={title}>
-            {thumbnail}
-          </span>
+          <ControlHint asChild content={title}>
+            <span className="local-image-open">{thumbnail}</span>
+          </ControlHint>
         )
       ) : (
         <span className="local-image-loading" role="status">

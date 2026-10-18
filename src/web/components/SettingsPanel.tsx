@@ -179,10 +179,12 @@ export function SettingsPanel({
       )}
       <div className="composer-actions">
         <div className="composer-context">
-          <span className="composer-target" title={projectName ?? '未选择项目'}>
-            <Icon name="folder" size={14} />
-            <span>{projectName ?? '未选择项目'}</span>
-          </span>
+          <ControlHint asChild content={projectName ?? '未选择项目'}>
+            <span className="composer-target">
+              <Icon name="folder" size={14} />
+              <span>{projectName ?? '未选择项目'}</span>
+            </span>
+          </ControlHint>
           <PermissionModeSelect
             settings={changes}
             current={permissions}
@@ -191,17 +193,18 @@ export function SettingsPanel({
             scope={`${projectId}:${thread?.id ?? ''}:${runtimeKey}`}
             onChange={onChange}
           />
-          <button
-            className="settings-details-toggle"
-            type="button"
-            aria-label="权限详情"
-            title="权限详情"
-            aria-expanded={expanded}
-            aria-controls={advancedId}
-            onClick={() => setExpanded(!expanded)}
-          >
-            <Icon name="settings" size={14} />
-          </button>
+          <ControlHint asChild content="权限详情">
+            <button
+              className="settings-details-toggle"
+              type="button"
+              aria-label="权限详情"
+              aria-expanded={expanded}
+              aria-controls={advancedId}
+              onClick={() => setExpanded(!expanded)}
+            >
+              <Icon name="settings" size={14} />
+            </button>
+          </ControlHint>
         </div>
         <div className="composer-send-controls">
           <Select
@@ -220,17 +223,18 @@ export function SettingsPanel({
               }
             }}
           >
-            <SelectTrigger
-              className="settings-choice settings-model"
-              aria-label="模型"
-              aria-disabled={saving || undefined}
-              title={`模型：${model || unknown}`}
-              data-value={model}
-            >
-              <span className="settings-model-value">
-                <SelectValue placeholder={unknown}>{model || unknown}</SelectValue>
-              </span>
-            </SelectTrigger>
+            <ControlHint content={`模型：${model || unknown}`} suppressed={modelMenuOpen}>
+              <SelectTrigger
+                className="settings-choice settings-model"
+                aria-label="模型"
+                aria-disabled={saving || undefined}
+                data-value={model}
+              >
+                <span className="settings-model-value">
+                  <SelectValue placeholder={unknown}>{model || unknown}</SelectValue>
+                </span>
+              </SelectTrigger>
+            </ControlHint>
             <SelectContent side="top" aria-label="模型">
               {model && !selectedModel && (
                 <SelectItem value={model} disabled>

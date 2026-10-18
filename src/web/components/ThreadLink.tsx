@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import type { RunStatus, ThreadSummary } from '../../shared/types';
 import { threadOrigin } from '../lib/thread-origin';
@@ -29,27 +29,30 @@ function ThreadStatusIcon({
   pending: boolean;
 }) {
   return (
-    <span
-      className={cn('thread-status-indicator', `thread-status-${status}`)}
-      data-status={status}
-      role="img"
-      aria-label={label}
-      title={label}
-    >
+    <ControlHint asChild content={label}>
       <span
-        className={cn(
-          'thread-status-glyph',
-          status === 'running' && !offline && 'thread-status-spinning',
-        )}
+        className={cn('thread-status-indicator', `thread-status-${status}`)}
+        data-status={status}
+        role="img"
+        aria-label={label}
       >
-        {status === 'idle' || status === 'completed' ? (
-          <span className="thread-status-dot" />
-        ) : (
-          <Icon name={statusIcons[status]} size={15} />
+        <span
+          className={cn(
+            'thread-status-glyph',
+            status === 'running' && !offline && 'thread-status-spinning',
+          )}
+        >
+          {status === 'idle' || status === 'completed' ? (
+            <span className="thread-status-dot" />
+          ) : (
+            <Icon name={statusIcons[status]} size={15} />
+          )}
+        </span>
+        {(pending || status === 'waitingApproval') && (
+          <span className="thread-status-notification" />
         )}
       </span>
-      {(pending || status === 'waitingApproval') && <span className="thread-status-notification" />}
-    </span>
+    </ControlHint>
   );
 }
 
@@ -81,16 +84,6 @@ export function ThreadLink({
   const forkHintId = useId();
   const detailsButton = useRef<HTMLButtonElement>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [tooltipDismissed, setTooltipDismissed] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  useEffect(() => {
-    if (!hovered) return;
-    const dismiss = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setTooltipDismissed(true);
-    };
-    document.addEventListener('keydown', dismiss);
-    return () => document.removeEventListener('keydown', dismiss);
-  }, [hovered]);
   const title = thread.title || '未命名会话';
   const origin = threadOrigin(thread);
   const archiveLabel = thread.archived ? '取消归档' : '归档会话';
@@ -120,22 +113,23 @@ export function ThreadLink({
         }
       }}
     >
-      <button
-        className={cn('thread-link', selected && 'thread-selected')}
-        data-thread-id={thread.id}
-        title={title}
-        onClick={() => {
-          setDetailsOpen(false);
-          onSelect();
-        }}
-        aria-current={selected ? 'page' : undefined}
-      >
-        {thread.forkedFromId && <Icon name="fork" size={14} />}
-        <span className="thread-link-content">
-          <span className="thread-title">{title}</span>
-          <span className="sr-only"> · {statusLabel}</span>
-        </span>
-      </button>
+      <ControlHint asChild content={title}>
+        <button
+          className={cn('thread-link', selected && 'thread-selected')}
+          data-thread-id={thread.id}
+          onClick={() => {
+            setDetailsOpen(false);
+            onSelect();
+          }}
+          aria-current={selected ? 'page' : undefined}
+        >
+          {thread.forkedFromId && <Icon name="fork" size={14} />}
+          <span className="thread-link-content">
+            <span className="thread-title">{title}</span>
+            <span className="sr-only"> · {statusLabel}</span>
+          </span>
+        </button>
+      </ControlHint>
       <div className="thread-row-actions">
         {showStatus ? (
           <ThreadStatusIcon
@@ -147,19 +141,20 @@ export function ThreadLink({
         ) : (
           <span className="thread-status-placeholder" aria-hidden="true" />
         )}
-        <Button
-          ref={detailsButton}
-          variant="ghost"
-          size="icon"
-          className="thread-details-trigger"
-          aria-label={`会话详情：${title}`}
-          aria-expanded={detailsOpen}
-          aria-controls={detailsId}
-          title="会话详情与来源"
-          onClick={() => setDetailsOpen((open) => !open)}
-        >
-          <Icon name="info" size={15} />
-        </Button>
+        <ControlHint asChild content="会话详情与来源">
+          <Button
+            ref={detailsButton}
+            variant="ghost"
+            size="icon"
+            className="thread-details-trigger"
+            aria-label={`会话详情：${title}`}
+            aria-expanded={detailsOpen}
+            aria-controls={detailsId}
+            onClick={() => setDetailsOpen((open) => !open)}
+          >
+            <Icon name="info" size={15} />
+          </Button>
+        </ControlHint>
         <ControlHint
           id={forkHintId}
           className="thread-fork"
@@ -181,17 +176,11 @@ export function ThreadLink({
             )}
           </Button>
         </ControlHint>
-        <span
+        <ControlHint
+          id={tooltipId}
           className="thread-archive"
-          onMouseEnter={() => {
-            setHovered(true);
-            setTooltipDismissed(false);
-          }}
-          onMouseLeave={() => setHovered(false)}
-          onFocus={() => setTooltipDismissed(false)}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') setTooltipDismissed(true);
-          }}
+          content={archiveDisabledReason ?? archiveLabel}
+          side="bottom"
         >
           <Button
             variant="ghost"
@@ -200,16 +189,12 @@ export function ThreadLink({
             aria-describedby={tooltipId}
             aria-disabled={Boolean(archiveDisabledReason)}
             onClick={() => {
-              setTooltipDismissed(true);
               if (!archiveDisabledReason) onArchive();
             }}
           >
             <Icon name={thread.archived ? 'unarchive' : 'archive'} size={15} />
           </Button>
-          <span id={tooltipId} role="tooltip" className="keyboard-hint" hidden={tooltipDismissed}>
-            {archiveDisabledReason ?? archiveLabel}
-          </span>
-        </span>
+        </ControlHint>
       </div>
       <section
         id={detailsId}

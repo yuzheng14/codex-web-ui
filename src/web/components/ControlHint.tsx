@@ -1,20 +1,43 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react';
 import { cn } from '../lib/utils';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipPortal,
+  TooltipProvider,
+  TooltipTrigger,
+} from './ui/tooltip';
 
 export function ControlHint({
-  id,
+  id: providedId,
   content,
   children,
   suppressed = false,
   className,
+  asChild = false,
+  side = 'top',
+  align = 'end',
 }: {
-  id: string;
+  id?: string;
   content: ReactNode;
   children: ReactNode;
   suppressed?: boolean;
   className?: string;
+  asChild?: boolean;
+  side?: ComponentProps<typeof TooltipContent>['side'];
+  align?: ComponentProps<typeof TooltipContent>['align'];
 }) {
+  const generatedId = useId();
+  const id = providedId ?? generatedId;
   const [open, setOpen] = useState(false);
   const suppressRestoredFocus = useRef(false);
   useEffect(() => {
@@ -22,6 +45,7 @@ export function ControlHint({
       setOpen(false);
       suppressRestoredFocus.current = true;
     }
+    if (!suppressRestoredFocus.current) return;
     // Closing a Select restores focus to its trigger. Only fresh keyboard
     // navigation may reopen on focus; Radix handles fresh hover separately.
     const allowKeyboardFocus = (event: KeyboardEvent) => {
@@ -31,24 +55,40 @@ export function ControlHint({
     return () => document.removeEventListener('keydown', allowKeyboardFocus);
   }, [suppressed]);
 
+  if (!content) return children;
+
+  const description = (
+    <span id={id} className="sr-only control-hint-description" aria-hidden="true">
+      {content}
+    </span>
+  );
+  const describedChildren = isValidElement<{ 'aria-describedby'?: string }>(children)
+    ? cloneElement(children, { 'aria-describedby': children.props['aria-describedby'] ?? id })
+    : children;
   return (
     <TooltipProvider>
       <Tooltip open={open && !suppressed} onOpenChange={(next) => setOpen(next && !suppressed)}>
         <TooltipTrigger
           asChild
+          aria-describedby={asChild ? id : undefined}
+          className={asChild ? className : undefined}
           onFocus={(event) => {
             if (suppressRestoredFocus.current || !event.target.matches(':focus-visible'))
               event.preventDefault();
           }}
         >
-          <span className={cn('control-hint', className)}>
-            {children}
-            <span id={id} className="sr-only control-hint-description">
-              {content}
+          {asChild ? (
+            describedChildren
+          ) : (
+            <span className={cn('control-hint', className)}>
+              {describedChildren}
+              {description}
             </span>
-          </span>
+          )}
         </TooltipTrigger>
-        <TooltipContent side="top" align="end">
+        {/* Keep descriptions available while closed without adding layout children. */}
+        {asChild && <TooltipPortal forceMount>{description}</TooltipPortal>}
+        <TooltipContent side={side} align={align}>
           <div className="control-hint-content">{content}</div>
         </TooltipContent>
       </Tooltip>

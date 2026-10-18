@@ -4,6 +4,8 @@ import type * as React from 'react';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { cn } from '../../lib/utils';
 
+const TooltipPortal = TooltipPrimitive.Portal;
+
 function TooltipProvider({
   delayDuration = 0,
   ...props
@@ -42,4 +44,4 @@ function TooltipContent({
   );
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, TooltipPortal };

@@ -315,9 +315,9 @@ export function Composer(props: Props) {
                 ) : (
                   <span role="status">读取中…</span>
                 )}
-                <span className="composer-image-name" title={image.name}>
-                  {image.name}
-                </span>
+                <ControlHint asChild content={image.name}>
+                  <span className="composer-image-name">{image.name}</span>
+                </ControlHint>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -448,19 +448,20 @@ export function Composer(props: Props) {
           }
         >
           {active && (
-            <Button
-              aria-label={props.interrupting ? '请求中…' : '中断'}
-              title="中断"
-              variant="secondary"
-              size="sm"
-              onClick={props.onInterrupt}
-              disabled={!props.canInterrupt || props.interrupting}
-            >
-              <Icon name="stop" size={13} />
-              <span className="composer-action-label">
-                {props.interrupting ? '请求中…' : '中断'}
-              </span>
-            </Button>
+            <ControlHint content="中断">
+              <Button
+                aria-label={props.interrupting ? '请求中…' : '中断'}
+                variant="secondary"
+                size="sm"
+                onClick={props.onInterrupt}
+                disabled={!props.canInterrupt || props.interrupting}
+              >
+                <Icon name="stop" size={13} />
+                <span className="composer-action-label">
+                  {props.interrupting ? '请求中…' : '中断'}
+                </span>
+              </Button>
+            </ControlHint>
           )}
           <ControlHint
             id={shortcutId}

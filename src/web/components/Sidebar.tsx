@@ -3,6 +3,7 @@ import { Bell } from 'lucide-react';
 import type { Project, ThreadSummary } from '../../shared/types';
 import type { ProjectThreads } from '../lib/project-threads';
 import { cn } from '../lib/utils';
+import { ControlHint } from './ControlHint';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { isActive } from './Status';
@@ -146,40 +147,46 @@ export function Sidebar(props: Props) {
                 data-project-id={project.id}
               >
                 <h2 className="project-heading">
-                  <button
-                    className="project-link"
-                    onClick={() => props.onProject(project.id)}
-                    aria-current={props.projectId === project.id ? 'true' : undefined}
-                    title={project.name}
-                  >
-                    <Icon name="folder" size={16} />
-                    <span>{project.name}</span>
-                    {activeCount > 0 && (
-                      <span className="project-activity" aria-label={`${activeCount} 个进行中会话`}>
-                        {activeCount}
-                      </span>
-                    )}
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={props.creating(project.id) ? '正在创建…' : '新建会话'}
-                    title={props.creating(project.id) ? '正在创建…' : '新建会话'}
-                    onClick={() => props.onCreate(project.id)}
-                    disabled={!props.canCreate(project.id) || props.creating(project.id)}
-                  >
-                    <Icon name={props.creating(project.id) ? 'loader' : 'plus'} size={15} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`管理项目 ${project.name}`}
-                    title="管理项目"
-                    onClick={() => props.onManageProject(project)}
-                    disabled={!props.canManageProjects}
-                  >
-                    <Icon name="settings" size={15} />
-                  </Button>
+                  <ControlHint asChild content={project.name}>
+                    <button
+                      className="project-link"
+                      onClick={() => props.onProject(project.id)}
+                      aria-current={props.projectId === project.id ? 'true' : undefined}
+                    >
+                      <Icon name="folder" size={16} />
+                      <span>{project.name}</span>
+                      {activeCount > 0 && (
+                        <span
+                          className="project-activity"
+                          aria-label={`${activeCount} 个进行中会话`}
+                        >
+                          {activeCount}
+                        </span>
+                      )}
+                    </button>
+                  </ControlHint>
+                  <ControlHint content={props.creating(project.id) ? '正在创建…' : '新建会话'}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={props.creating(project.id) ? '正在创建…' : '新建会话'}
+                      onClick={() => props.onCreate(project.id)}
+                      disabled={!props.canCreate(project.id) || props.creating(project.id)}
+                    >
+                      <Icon name={props.creating(project.id) ? 'loader' : 'plus'} size={15} />
+                    </Button>
+                  </ControlHint>
+                  <ControlHint content={'管理项目'}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`管理项目 ${project.name}`}
+                      onClick={() => props.onManageProject(project)}
+                      disabled={!props.canManageProjects}
+                    >
+                      <Icon name="settings" size={15} />
+                    </Button>
+                  </ControlHint>
                 </h2>
                 {!project.available && (
                   <p className="inline-error project-error" role="status">
@@ -220,26 +227,27 @@ export function Sidebar(props: Props) {
                   {state && (
                     <div className="thread-pagination" aria-live="polite" aria-busy={state.loading}>
                       {state.loading || state.error || state.nextCursor ? (
-                        <Button
-                          variant="ghost"
-                          className={cn('load-more', state.error && 'load-more-error')}
-                          size="sm"
-                          disabled={state.loading}
-                          title={state.error}
-                          aria-describedby={
-                            state.error ? `thread-pagination-error-${project.id}` : undefined
-                          }
-                          onClick={() => {
-                            if (state.error) props.onRetry(project.id);
-                            else if (state.nextCursor) props.onMore(project.id, state.nextCursor);
-                          }}
-                        >
-                          {state.loading
-                            ? '正在加载更多会话…'
-                            : state.error
-                              ? '加载失败，重试'
-                              : '加载更多会话'}
-                        </Button>
+                        <ControlHint content={state.error}>
+                          <Button
+                            variant="ghost"
+                            className={cn('load-more', state.error && 'load-more-error')}
+                            size="sm"
+                            disabled={state.loading}
+                            aria-describedby={
+                              state.error ? `thread-pagination-error-${project.id}` : undefined
+                            }
+                            onClick={() => {
+                              if (state.error) props.onRetry(project.id);
+                              else if (state.nextCursor) props.onMore(project.id, state.nextCursor);
+                            }}
+                          >
+                            {state.loading
+                              ? '正在加载更多会话…'
+                              : state.error
+                                ? '加载失败，重试'
+                                : '加载更多会话'}
+                          </Button>
+                        </ControlHint>
                       ) : state.loaded && state.data.length > 0 && !query ? (
                         <p className="sidebar-pagination-status">已加载全部会话</p>
                       ) : null}

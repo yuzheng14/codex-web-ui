@@ -250,7 +250,11 @@ svg {
   font-size: 13px;
   background: var(--sidebar);
 }
-.project-heading > .button {
+.project-heading > .control-hint {
+  flex-shrink: 0;
+}
+.project-heading > .button,
+.project-heading > .control-hint > .button {
   flex-shrink: 0;
   color: #7b8881;
 }
@@ -3128,7 +3132,6 @@ dd {
   align-items: center;
   gap: 0;
   padding: 4px 4px 0 0;
-  z-index: 1;
 }
 .thread-status-placeholder,
 .thread-status-indicator {
@@ -3190,9 +3193,6 @@ dd {
     animation: none;
   }
 }
-.thread-archive {
-  position: relative;
-}
 .thread-details-trigger,
 .thread-fork > .button,
 .thread-archive > button {
@@ -3252,36 +3252,6 @@ dd {
 }
 .thread-origin-note {
   color: var(--muted);
-}
-.thread-archive .keyboard-hint {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  bottom: auto;
-  z-index: 2;
-  visibility: hidden;
-  max-width: 220px;
-  width: max-content;
-  padding: 7px 10px;
-  border-radius: 6px;
-  color: #fff;
-  background: #243d33;
-  box-shadow: 0 3px 12px #18321f20;
-  font-size: 11px;
-  line-height: 1.5;
-  white-space: normal;
-}
-.thread-archive .keyboard-hint::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  right: 0;
-  left: 0;
-  height: 8px;
-}
-.thread-archive:hover .keyboard-hint,
-.thread-archive:focus-within .keyboard-hint {
-  visibility: visible;
 }
 @media (pointer: coarse) {
   .thread-row .thread-link {

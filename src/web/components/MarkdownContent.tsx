@@ -3,6 +3,7 @@ import Markdown, { defaultUrlTransform, type Components, type UrlTransform } fro
 import remarkGfm from 'remark-gfm';
 import { localImagePath, localImageUrl } from '../lib/local-images';
 import { LocalImage, RemoteImage, useImagePreview } from './ImagePreview';
+import { ControlHint } from './ControlHint';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock';
 
 // Preserve the default protocol allowlist for ordinary links and remote images.
@@ -20,28 +21,31 @@ const markdownComponents: Components = {
     if (path && threadId) {
       return (
         <ImageLinkContext value={true}>
-          <a
-            href={localImageUrl(threadId, path)}
-            title={title || `预览图片：${path}`}
-            className="local-image-link"
-            onClick={(event) => {
-              event.preventDefault();
-              open({
-                path,
-                label: typeof children === 'string' ? children : path.split('/').at(-1) || '图片',
-              });
-            }}
-          >
-            {children}
-          </a>
+          <ControlHint asChild content={title || `预览图片：${path}`}>
+            <a
+              href={localImageUrl(threadId, path)}
+              className="local-image-link"
+              onClick={(event) => {
+                event.preventDefault();
+                open({
+                  path,
+                  label: typeof children === 'string' ? children : path.split('/').at(-1) || '图片',
+                });
+              }}
+            >
+              {children}
+            </a>
+          </ControlHint>
         </ImageLinkContext>
       );
     }
     return (
       <ImageLinkContext value={true}>
-        <a href={href} title={title} target="_blank" rel="noopener noreferrer">
-          {children}
-        </a>
+        <ControlHint asChild content={title}>
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            {children}
+          </a>
+        </ControlHint>
       </ImageLinkContext>
     );
   },

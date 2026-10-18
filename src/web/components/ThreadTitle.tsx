@@ -144,25 +144,27 @@ export function ThreadTitle({
                   if (event.key === 'Enter') compositionEndedAt.current = -Infinity;
                 }}
               />
-              <Button
-                type="submit"
-                size="icon"
-                aria-label="保存会话名称"
-                title="保存会话名称"
-                disabled={saving || Boolean(reason)}
-              >
-                <Icon name="check" size={16} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="取消重命名"
-                title="取消重命名"
-                disabled={saving}
-                onClick={finish}
-              >
-                <Icon name="close" size={16} />
-              </Button>
+              <ControlHint content="保存会话名称">
+                <Button
+                  type="submit"
+                  size="icon"
+                  aria-label="保存会话名称"
+                  disabled={saving || Boolean(reason)}
+                >
+                  <Icon name="check" size={16} />
+                </Button>
+              </ControlHint>
+              <ControlHint content="取消重命名">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="取消重命名"
+                  disabled={saving}
+                  onClick={finish}
+                >
+                  <Icon name="close" size={16} />
+                </Button>
+              </ControlHint>
             </div>
             <p id={`${id}-help`} className="thread-title-help">
               {saving
