@@ -89,7 +89,10 @@ export class Projection {
       if (!preserveCurrent) Object.assign(current, incoming, { items });
       for (const item of incoming.items) this.item(threadId, incoming.id, item, preserveCurrent);
     }
-    if (!preserveCurrent) thread.status = incoming.status;
+    // Tool cancellation can finish after a new turn starts. Only the latest
+    // turn owns the thread status; older events still update their own history.
+    if (!preserveCurrent && thread.turns.at(-1)?.id === incoming.id)
+      thread.status = incoming.status;
     this.flushAutoReviews(threadId, incoming.id);
     const updated = thread.turns.find((turn) => turn.id === incoming.id)!;
     this.finishReconnect(updated);
@@ -260,6 +263,11 @@ export class Projection {
   }
 
   action(action: PendingAction): void {
+    const owner = action.threadId
+      ? this.threads.get(action.threadId)?.turns.find((turn) => turn.id === action.turnId)
+      : undefined;
+    if (owner && isTerminal(owner.status) && ['pending', 'responding'].includes(action.status))
+      action = { ...action, status: 'expired' };
     this.actions.set(action.actionId, action);
     const thread = action.threadId ? this.threads.get(action.threadId) : undefined;
     if (thread) {
