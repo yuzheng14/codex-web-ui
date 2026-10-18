@@ -158,6 +158,14 @@ export function createApp({
       'Content-Length': String(image.bytes.length),
     });
   });
+  app.get('/api/threads/:threadId/markdown', async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('Cross-Origin-Resource-Policy', 'same-origin');
+    return c.json(
+      await service.getThreadMarkdown(id(c.req.param('threadId')), c.req.query('path')),
+    );
+  });
   app.get('/api/operations/:operationId', (c) =>
     c.json(service.getOperation(id(c.req.param('operationId')))),
   );

@@ -386,3 +386,8 @@ export type ServerMessage =
       payload: ThreadView | ThreadSummary | SystemInfo | Operation | Project[] | TurnCompletion;
     }
   | { type: 'error'; error: ApiError };
+
+export interface MarkdownFile {
+  path: string;
+  content: string;
+}
