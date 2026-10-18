@@ -3,6 +3,7 @@ import { dirname, isAbsolute, resolve } from 'node:path';
 import { z } from 'zod';
 import { AppError } from '../shared/errors.js';
 import { DEFAULT_MAX_LINE_BYTES } from '../codex/transport.js';
+import type { GatewayConfig } from '../shared/gateway-config.js';
 const origin = z
   .string()
   .regex(/^https?:\/\/[^/?#\\\s]+\/?$/i, 'Expected an exact HTTP(S) origin')
@@ -103,12 +104,20 @@ export const configSchema = z
   })
   .strict();
 export type AppConfig = z.infer<typeof configSchema> & { demo: boolean };
+const sources = new WeakMap<AppConfig, { path: string; development: boolean }>();
+export const configSource = (config: AppConfig) => sources.get(config);
 export function isLoopback(hostname: string): boolean {
   return ['127.0.0.1', 'localhost', '::1', '[::1]'].includes(hostname);
 }
-export function parseConfig(value: unknown, filename: string, development = false): AppConfig {
+export function parseFileConfig(value: unknown): GatewayConfig {
   const parsed = configSchema.safeParse(value);
-  if (!parsed.success) throw new AppError('INVALID_CONFIG', parsed.error.message);
+  if (!parsed.success)
+    throw new AppError(
+      'INVALID_CONFIG',
+      parsed.error.issues
+        .map((issue) => `${issue.path.join('.') || '配置'}: ${issue.message}`)
+        .join('\n'),
+    );
   const config = parsed.data;
   if (new Set(config.projects.map((p) => p.id)).size !== config.projects.length)
     throw new AppError('INVALID_CONFIG', 'Project IDs must be unique');
@@ -135,12 +144,18 @@ export function parseConfig(value: unknown, filename: string, development = fals
       throw new AppError('INVALID_CONFIG', 'All Access public origins must use HTTPS');
     config.auth.issuer = issuer.origin;
   }
-  return {
+  return config;
+}
+export function parseConfig(value: unknown, filename: string, development = false): AppConfig {
+  const config = parseFileConfig(value);
+  const result: AppConfig = {
     ...config,
     developmentOrigins: development ? config.developmentOrigins : [],
     dataDir: resolve(dirname(filename), config.dataDir),
     demo: false,
   };
+  sources.set(result, { path: resolve(filename), development });
+  return result;
 }
 export function cliOptions(args = process.argv.slice(2)): {
   configPath: string;
