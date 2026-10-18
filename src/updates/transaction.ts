@@ -41,8 +41,9 @@ export async function activateUpdate(paths: TransactionPaths, effects: UpdateEff
     await effects.phase('waiting', '候选包已准备好，等待所有任务、审批与待核对操作结束');
     await effects.waitForIdle();
     await effects.phase('stopping', '已关闭新任务入口，正在停止旧服务并备份数据');
-    await effects.stop();
+    // stop may fail after the process has already exited; recovery must restart the old service.
     stopped = true;
+    await effects.stop();
     await mkdir(paths.backup, { recursive: true, mode: 0o700 });
     for (const name of ['app.sqlite', 'app.sqlite-wal', 'app.sqlite-shm']) {
       if (await exists(join(paths.dataDir, name)))

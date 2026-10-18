@@ -83,6 +83,20 @@ async function stopService(context: UpdateContext) {
   }
 }
 
+async function verifyRestoredService(context: UpdateContext, version: string) {
+  for (let attempt = 0; attempt < 240; attempt++) {
+    try {
+      const restored = await control<DaemonStatus>(context.location, 'status');
+      if (restored.version !== version || restored.maintenance)
+        throw new Error('旧版恢复身份不匹配');
+      return;
+    } catch (error) {
+      if (attempt === 239) throw error;
+    }
+    await setTimeout(250);
+  }
+}
+
 async function verifyMigrations(context: UpdateContext, candidate: string) {
   // Loading the existing native addon happens before any package path is replaced.
   const require = createRequire(join(context.root, 'package.json'));
@@ -156,19 +170,27 @@ async function worker(directory: string) {
       if (record.committed) return;
       if (active && !active.maintenance && active.version !== record.from)
         throw new Error('当前服务可能已接受新版业务数据；拒绝恢复旧快照，请使用兼容版本检查。');
-      await stopService(context);
       const previous = await readJson<{ version: string; name: string }>(
         join(paths.previous, 'package.json'),
       );
-      if (active && !active.maintenance) {
-        const admission = await control<{ ready: boolean }>(context.location, 'prepare-update');
-        if (!admission.ready) throw new Error('仍有任务、审批或待核对操作，不能恢复旧安装');
-      }
       if (previous) {
         if (previous.name !== 'covro' || previous.version !== record.from)
           throw new Error('旧版备份身份不匹配');
         const snapshot = await readJson<{ complete: boolean }>(join(paths.backup, 'snapshot.json'));
         if (!snapshot?.complete) throw new Error('数据库备份不完整，保留全部现场供检查');
+      } else {
+        const original = await readJson<{ name: string; version: string }>(
+          join(paths.root, 'package.json'),
+        );
+        if (original?.name !== 'covro' || original.version !== record.from)
+          throw new Error('未找到完整的上一版本安装');
+      }
+      if (active && !active.maintenance) {
+        const admission = await control<{ ready: boolean }>(context.location, 'prepare-update');
+        if (!admission.ready) throw new Error('仍有任务、审批或待核对操作，不能恢复旧安装');
+      }
+      await stopService(context);
+      if (previous) {
         await rm(paths.root, { recursive: true, force: true });
         await rename(paths.previous, paths.root);
         for (const name of ['app.sqlite', 'app.sqlite-wal', 'app.sqlite-shm']) {
@@ -187,7 +209,14 @@ async function worker(directory: string) {
       if (restored?.name !== 'covro' || restored.version !== record.from)
         throw new Error('未找到完整的上一版本安装');
       await update('rolledBack', '已恢复上次未完成的升级，正在启动上一版本');
-      await startService(context);
+      try {
+        await startService(context);
+        await verifyRestoredService(context, record.from);
+        await update('rolledBack', '已恢复上次未完成的升级，上一版本已就绪');
+      } catch (error) {
+        await update('failed', `旧版恢复启动失败，保留备份：${message(error)}`);
+        throw error;
+      }
       return;
     }
     const reason = await inspectInstallation(context.root);
@@ -257,19 +286,7 @@ async function worker(directory: string) {
       stop: () => stopService(context),
       start: async (candidate) => {
         await startService(context, candidate ? record!.id : undefined);
-        if (!candidate) {
-          for (let attempt = 0; attempt < 240; attempt++) {
-            try {
-              const restored = await control<DaemonStatus>(context.location, 'status');
-              if (restored.version !== record!.from || restored.maintenance)
-                throw new Error('旧版恢复身份不匹配');
-              return;
-            } catch (error) {
-              if (attempt === 239) throw error;
-            }
-            await setTimeout(250);
-          }
-        }
+        if (!candidate) await verifyRestoredService(context, record!.from);
       },
       verify: async () => {
         for (let attempt = 0; attempt < 240; attempt++) {

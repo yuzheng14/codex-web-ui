@@ -120,3 +120,15 @@ it('keeps the candidate and new data after a committed activation response is lo
   }
   expect(effects.start).not.toHaveBeenCalledWith(false);
 });
+
+it('restarts the original service when stopping fails after the process has exited', async () => {
+  const { paths, effects, phases } = await fixture();
+  effects.stop = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('service manager stop failed'))
+    .mockResolvedValue(undefined);
+  await expect(activateUpdate(paths, effects)).rejects.toThrow('service manager stop failed');
+  expect(await readFile(join(paths.root, 'version'), 'utf8')).toBe('old');
+  expect(effects.start).toHaveBeenCalledWith(false);
+  expect(phases.at(-1)).toBe('rolledBack');
+});

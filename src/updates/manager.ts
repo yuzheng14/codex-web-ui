@@ -35,7 +35,16 @@ export interface UpdateContext {
   directory: string;
 }
 export class UpdateManager implements UpdateController {
-  private settings: UpdateSettings = { channel: 'stable', automatic: false };
+  private settings: UpdateSettings = {
+    channel:
+      packageInfo.covroChannel ??
+      (packageInfo.version?.includes('-dev.')
+        ? 'dev'
+        : packageInfo.version?.includes('-beta.')
+          ? 'beta'
+          : 'stable'),
+    automatic: false,
+  };
   private available?: UpdateStatus['available'];
   private checkedAt?: number;
   private checkError?: string;
