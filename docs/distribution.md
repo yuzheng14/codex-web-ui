@@ -22,3 +22,21 @@ covro service uninstall
 macOS 使用当前用户的 launchd，Linux 使用 `systemd --user`，`service install` 显式启用登录自启并启动服务。它记录当前 Node、CLI 的绝对路径及 PATH；移动 Node 安装后需要重新安装该服务。日志由 `covro logs` 显示末尾 64 KiB，外部日志轮转仍由运行环境管理。Windows 支持前台和后台运行，登录自启尚未提供。
 
 配置、数据库和项目文件不存放在 npm 安装目录，更新 npm 包不会替换业务数据。开发源码继续使用 `pnpm dev`，生产源码仍可使用 `pnpm build` 和 `pnpm start -- --config ...`。
+
+## 更新与发布渠道
+
+```sh
+covro update status
+covro update
+covro update --channel dev
+covro update --channel stable --allow-downgrade
+covro update repair
+```
+
+稳定版、预览版、开发版分别解析 npm 官方 registry 的 `latest`、`beta`、`dev` 标签；解析后固定到确切版本安装，标签移动不会改变正在执行的升级目标。每 30 分钟检查一次；自动安装默认关闭，可从网页开启。失败的同一目标不会后台无限重试，可人工重试或等待下一版本。
+
+完整 CLI 与服务一起作为一个 npm 包发布。macOS/Linux 的 npm 全局安装支持受管升级：先将同一 npm 包安装到私有候选 prefix，检查入口与原生 SQLite 模块，再核对候选迁移是否覆盖当前已应用的完整历史。所有配置共用该 npm 安装时，需先停止其他实例。源码、容器、pnpm 全局等安装方式只展示版本检查和原部署方式提示；Windows 暂不提供受管自动升级。
+
+候选准备期间旧版继续服务。升级等待所有受管任务、审批、输入、在途及待核对操作结束；同步关闭新操作入口后才停止服务。旧 npm 安装、SQLite 文件和配置快照保留在应用管理目录及 npm 包旁的私有备份目录。新版迁移和就绪验证期间拒绝业务写入，确认提交后才重新开放。启动失败会恢复旧安装及快照；确认响应丢失时先检查持久提交记录，不回退已开放写入的数据。Codex 历史与实际项目文件不参与应用数据库回退。
+
+后台工作进程不依赖浏览器连接，升级进度与最终结果在重启后可读取。使用了登录自启的实例由原系统服务重新启动，普通后台实例由升级进程启动。若进程异常失联，等待陈旧锁释放后使用 `covro update repair`；备份不会被失败重试自动删除。数据库历史不兼容时拒绝降级，改用兼容版本或独立测试配置，不重建数据库。

@@ -232,6 +232,20 @@ export class OperationStore {
       .all();
   }
 
+  unresolvedOperations(): OperationRow[] {
+    return this.database
+      .select()
+      .from(operations)
+      .where(
+        or(
+          eq(operations.state, 'accepted'),
+          eq(operations.state, 'dispatching'),
+          and(eq(operations.state, 'unknown'), isNull(operations.reconciledAt)),
+        ),
+      )
+      .all();
+  }
+
   marker(operationId: string): ExecutionMarker | undefined {
     return this.database
       .select()

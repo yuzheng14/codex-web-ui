@@ -12,17 +12,22 @@ import type { AppConfig } from './config.js';
 import { createAuthenticator, type Authenticator, type Identity } from './auth.js';
 import type { GatewayService } from './service.js';
 import { socketHandlers } from './websocket.js';
+import { z } from 'zod';
+import { releaseChannels, type UpdateController } from '../shared/updates.js';
+import { settingsSchema, updateRequestSchema } from '../updates/manager.js';
 export interface HttpDependencies {
   config: AppConfig;
   service: GatewayService;
   staticDir: string;
   authenticate?: Authenticator;
+  updates?: UpdateController;
 }
 export function createApp({
   config,
   service,
   staticDir,
   authenticate = createAuthenticator(config),
+  updates,
 }: HttpDependencies) {
   const app = new Hono<{
     Bindings: HttpBindings;
@@ -52,6 +57,32 @@ export function createApp({
       },
     })(c, next),
   );
+  app.use('/api/*', async (c, next) => {
+    c.header('Cache-Control', 'no-store');
+    if (
+      service.isInMaintenance() &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) &&
+      !c.req.path.startsWith('/api/updates')
+    )
+      throw new AppError('UPDATE_MAINTENANCE', '正在升级，请等待服务重新连接', 503);
+    await next();
+  });
+  if (updates) {
+    app.get('/api/updates', async (c) => c.json(await updates.status()));
+    app.post('/api/updates/check', async (c) => {
+      const input = z
+        .object({ channel: z.enum(releaseChannels).optional() })
+        .strict()
+        .parse(await c.req.json());
+      return c.json(await updates.check(input.channel));
+    });
+    app.post('/api/updates/settings', async (c) =>
+      c.json(await updates.configure(settingsSchema.parse(await c.req.json()))),
+    );
+    app.post('/api/updates/run', async (c) =>
+      c.json(await updates.start(updateRequestSchema.parse(await c.req.json())), 202),
+    );
+  }
   const id = (value: string) => schemas.idSchema.parse(value);
   const parse = async <T>(
     c: { req: { json: () => Promise<unknown> }; set: (key: 'operationId', value: string) => void },
@@ -262,6 +293,7 @@ export function createApp({
     throw new AppError('NOT_FOUND', 'WebSocket route not found', 404);
   });
   app.use('*', async (c, next) => {
+    if (!c.req.path.startsWith('/assets/')) c.header('Cache-Control', 'no-store');
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Referrer-Policy', 'same-origin');
     c.header(

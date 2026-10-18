@@ -68,6 +68,7 @@ export class GatewayService {
   private readonly removeListener: () => void;
   private readonly fileTemporaryRoots = temporaryFileRoots();
   private accepting = true;
+  private maintenance = false;
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly archiveChanges = new Set<string>();
@@ -100,6 +101,28 @@ export class GatewayService {
 
   listProjects() {
     return this.projects.list();
+  }
+  isInMaintenance() {
+    return this.maintenance;
+  }
+  setMaintenance(value: boolean) {
+    this.maintenance = value;
+  }
+  prepareUpdate(): { ready: boolean; reason?: string } {
+    if (this.inFlightOperations.size || this.resumes.size || this.pendingThreadCreations.size)
+      return { ready: false, reason: '等待正在提交或恢复的操作完成' };
+    if (this.store.activeMarkers().length || this.store.unresolvedOperations().length)
+      return { ready: false, reason: '等待任务结束，并核对结果尚未确认的操作' };
+    if (
+      this.projection.values().some((thread) => thread.managed && isActive(thread.status)) ||
+      [...this.projection.actions.values()].some((action) =>
+        ['pending', 'responding'].includes(action.status),
+      )
+    )
+      return { ready: false, reason: '等待执行中的任务、审批或输入结束' };
+    // Synchronous gate and check share one event-loop boundary with perform().
+    this.maintenance = true;
+    return { ready: true };
   }
   addProject(input: CreateProjectInput) {
     const project = this.projects.add(input);
@@ -966,6 +989,8 @@ export class GatewayService {
     work: () => Promise<{ result: unknown; turnId?: string; onAcknowledged?: () => void }>,
   ): Promise<Operation> {
     if (!this.accepting) throw new AppError('CODEX_UNAVAILABLE', '服务正在关闭', 503);
+    if (this.maintenance)
+      throw new AppError('UPDATE_MAINTENANCE', '正在升级，请等待服务重新连接', 503);
     let accepted;
     try {
       accepted = this.store.accept(input.clientOperationId, kind, target, input);

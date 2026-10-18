@@ -2,24 +2,34 @@ import { spawn } from 'node:child_process';
 import { mkdir, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout } from 'node:timers/promises';
-import { control, isNotRunning } from './control.js';
+import { control, isNotRunning, stopAndWait } from './control.js';
+import { randomUUID } from 'node:crypto';
 import { ensureConfig, packageInfo, packageRoot, paths, type CovroPaths } from './paths.js';
 import { runDaemon } from './daemon.js';
 import { service } from './service.js';
+import { UpdateManager } from '../updates/manager.js';
+import { loadConfig } from '../server/config.js';
 
 export function parseArguments(args: string[]) {
   const positional: string[] = [];
   let configPath: string | undefined;
+  let channel: 'stable' | 'beta' | 'dev' | undefined;
+  let allowDowngrade = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === '--config' && args[i + 1]) configPath = args[++i];
+    else if (arg === '--channel' && ['stable', 'beta', 'dev'].includes(args[i + 1] ?? ''))
+      channel = args[++i] as typeof channel;
+    else if (arg === '--allow-downgrade') allowDowngrade = true;
     else if (arg.startsWith('-') && arg !== '--help' && arg !== '--version')
       throw new Error(`Unknown argument: ${arg}`);
     else positional.push(arg);
   }
   const [command = 'start', subcommand] = positional;
-  if (positional.length > (command === 'service' ? 2 : 1)) throw new Error('Too many arguments');
-  return { command, subcommand, location: paths(configPath) };
+  if (positional.length > (['service', 'update'].includes(command) ? 2 : 1))
+    throw new Error('Too many arguments');
+  if ((channel || allowDowngrade) && command !== 'update') throw new Error('升级选项仅用于 update');
+  return { command, subcommand, channel, allowDowngrade, location: paths(configPath) };
 }
 
 export async function startBackground(location: CovroPaths) {
@@ -60,14 +70,14 @@ export async function startBackground(location: CovroPaths) {
 }
 
 export async function main(args = process.argv.slice(2)) {
-  const { command, subcommand, location } = parseArguments(args);
+  const { command, subcommand, channel, allowDowngrade, location } = parseArguments(args);
   if (command === '--version') {
     console.log(packageInfo.version);
     return;
   }
   if (command === '--help' || command === 'help') {
     console.log(
-      'Covro\n\ncovro [start|run|stop|status|logs] [--config FILE]\ncovro service install|uninstall [--config FILE]\n\n默认后台运行；service install 单独启用登录自启。',
+      'Covro\n\ncovro [start|run|stop|status|logs] [--config FILE]\ncovro update [status|repair] [--channel stable|beta|dev] [--allow-downgrade]\ncovro service install|uninstall [--config FILE]\n\n默认后台运行；service install 单独启用登录自启。',
     );
     return;
   }
@@ -75,9 +85,34 @@ export async function main(args = process.argv.slice(2)) {
   else if (command === 'run') {
     await ensureConfig(location);
     await runDaemon(location.config);
+  } else if (command === 'update') {
+    if (subcommand === 'repair') {
+      const config = await loadConfig({ configPath: location.config, development: false });
+      const manager = new UpdateManager(location, config.dataDir);
+      console.log(JSON.stringify(await manager.repair(), null, 2));
+      return;
+    }
+    if (subcommand && subcommand !== 'status') throw new Error('未知升级命令');
+    await startBackground(location);
+    console.log(
+      JSON.stringify(
+        await control(
+          location,
+          subcommand === 'status' ? 'update-check' : 'update',
+          subcommand === 'status'
+            ? { channel }
+            : { clientOperationId: randomUUID(), channel, allowDowngrade },
+        ),
+        null,
+        2,
+      ),
+    );
   } else if (command === 'status' || command === 'stop') {
     try {
-      console.log(JSON.stringify(await control(location, command), null, 2));
+      if (command === 'stop') {
+        await stopAndWait(location);
+        console.log('Covro 已停止');
+      } else console.log(JSON.stringify(await control(location, command), null, 2));
     } catch (error) {
       if (!isNotRunning(error)) throw error;
       console.log('Covro 未运行');
