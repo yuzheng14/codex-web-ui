@@ -1175,6 +1175,17 @@ svg {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.user-question-reply + .user-question-reply {
+  margin-top: 16px;
+}
+.user-question-reply blockquote {
+  margin: 0 0 8px;
+  border-left: 3px solid #b5cfc0;
+  padding-left: 12px;
+  color: #526b5e;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .user-message:focus-visible {
   outline: none;
 }

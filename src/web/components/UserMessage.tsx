@@ -9,7 +9,16 @@ export function UserMessage({ item }: { item: ItemView }) {
       tabIndex={-1}
     >
       <div className="message-content">
-        <p className="user-text">{item.text}</p>
+        {item.questionReplies?.length ? (
+          item.questionReplies.map((reply, index) => (
+            <div className="user-question-reply" key={index}>
+              <blockquote>{reply.question}</blockquote>
+              <p className="user-text">{reply.answer}</p>
+            </div>
+          ))
+        ) : (
+          <p className="user-text">{item.text}</p>
+        )}
         {item.images && (
           <div className="message-images">
             {item.images.map((image, index) => (
