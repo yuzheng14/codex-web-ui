@@ -1,0 +1,71 @@
+name: release-please
+on:
+  workflow_run:
+    workflows: [checks]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+concurrency:
+  group: release-please-main
+  cancel-in-progress: false
+jobs:
+  release:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Require the verified main commit
+        id: verified
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          current=$(git rev-parse HEAD)
+          if [ "$current" = "$VERIFIED_SHA" ]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Main advanced; its own successful checks will run release-please.'
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        if: steps.verified.outputs.current == 'true'
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - name: Run checks on generated Release PRs
+        if: steps.release.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PRS: ${{ steps.release.outputs.prs }}
+        run: |
+          node --input-type=module <<'JS'
+          import { execFileSync } from 'node:child_process';
+          for (const pr of JSON.parse(process.env.RELEASE_PRS || '[]')) {
+            if (!Number.isInteger(pr.number)) throw new Error('Invalid release PR number');
+            const branch = execFileSync('gh', ['api', `repos/${process.env.GITHUB_REPOSITORY}/pulls/${pr.number}`, '--jq', '.head.ref'], {encoding:'utf8'}).trim();
+            execFileSync('gh', ['workflow', 'run', 'checks.yml', '--ref', branch], {stdio:'inherit'});
+          }
+          JS
+      - name: Publish the created stable release
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh workflow run publish.yml --ref main -f channel=stable -f version="$RELEASE_VERSION" -f source_ref="$RELEASE_TAG"
