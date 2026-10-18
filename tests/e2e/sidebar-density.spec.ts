@@ -105,7 +105,7 @@ test('compact rows retain keyboard-accessible full titles and creation details',
   await expect(details).toBeVisible();
   await expect(details).toContainText(longTitle);
   await expect(details).toContainText('Web');
-  await expect(details).toContainText('由 Codex Web UI（本网页）创建。');
+  await expect(details).toContainText('由 Covro（本网页）创建。');
   await expect(details).toContainText('已完成');
   await expect(link(page, id)).not.toHaveAttribute('aria-current', 'page');
   const expanded = testInfo.outputPath('sidebar-details-keyboard.png');

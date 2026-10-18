@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import type { ServerMessage, ThreadPage, ThreadView } from '../../src/shared/types';
-import { createEmptyThread, confirmCompatibility, expectThreadReady } from './helpers';
+import {
+  createEmptyThread,
+  confirmCompatibility,
+  expectThreadReady,
+  controlRuntime,
+} from './helpers';
 
 const input = (page: Page) => page.getByRole('textbox', { name: /^(任务内容|追加要求)$/ });
 const feedback = (page: Page) => page.locator('.slash-feedback');
@@ -22,11 +27,7 @@ async function finishTurn(page: Page, text: string) {
 }
 
 test.beforeEach(async ({ request }) => {
-  const response = await request.post(
-    `${process.env.E2E_CONTROL_ORIGIN ?? 'http://127.0.0.1:8789'}/runtime`,
-    { data: { reset: true } },
-  );
-  expect(response.ok()).toBe(true);
+  await controlRuntime(request, { reset: true });
 });
 test.afterEach(async ({ request }, testInfo) => {
   const response = await request.get('/api/threads?projectId=fixture');

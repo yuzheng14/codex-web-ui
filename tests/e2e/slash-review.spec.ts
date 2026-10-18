@@ -5,11 +5,12 @@ import {
   controlRuntime,
   createEmptyThread,
   expectThreadReady,
+  testOrigin,
 } from './helpers';
 import type { ThreadView } from '../../src/shared/types';
 
 const input = (page: Page) => page.getByRole('textbox', { name: /^(任务内容|追加要求)$/ });
-const origin = 'http://127.0.0.1:8788';
+const origin = testOrigin;
 async function create(page: Page) {
   await page.goto('/');
   await confirmCompatibility(page);
@@ -85,9 +86,7 @@ test('rejects custom review inputs and retains the draft after an unsuccessful r
   await input(page).press('Enter');
   await expect(page.locator('.slash-feedback')).toHaveAttribute('role', 'alert');
   await expect(input(page)).toHaveValue('/review');
-  await expect(
-    page.getByRole('alert').filter({ hasText: '当前目录不是 Git 仓库' }),
-  ).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: '当前目录不是 Git 仓库' })).toBeVisible();
   expect(
     ((await (await request.get(`/api/threads/${threadId}`)).json()) as ThreadView).turns,
   ).toHaveLength(0);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell } from 'lucide-react';
+import { ArrowUpCircle, Bell } from 'lucide-react';
 import type { Project, ThreadSummary } from '../../shared/types';
 import type { ProjectThreads } from '../lib/project-threads';
 import { cn } from '../lib/utils';
@@ -39,6 +39,10 @@ interface Props {
   onClose: () => void;
   onNotificationSettings: () => void;
   notificationStatus: string;
+  onUpdates: () => void;
+  appVersion?: string;
+  updateAvailable: boolean;
+  updating: boolean;
 }
 
 export function Sidebar(props: Props) {
@@ -65,7 +69,22 @@ export function Sidebar(props: Props) {
             <div className="brand-mark">
               <Icon name="code" size={21} />
             </div>
-            <div className="brand-name">Codex</div>
+            <ControlHint
+              asChild
+              side="bottom"
+              align="start"
+              content={`Covro ${props.appVersion ?? ''} · ${props.updating ? '更新中' : props.updateAvailable ? '有新版本' : '版本与更新'}`}
+            >
+              <button
+                type="button"
+                className="brand-name covro-brand-button"
+                aria-label="Covro 更新"
+                data-update-available={props.updateAvailable || props.updating}
+                onClick={props.onUpdates}
+              >
+                Covro <ArrowUpCircle size={13} aria-hidden="true" />
+              </button>
+            </ControlHint>
             <Button
               className="add-project"
               variant="secondary"

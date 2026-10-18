@@ -21,6 +21,7 @@ import {
 } from '../lib/slash-commands';
 import { ControlHint } from './ControlHint';
 import type { SentDraft } from '../lib/conversation-drafts';
+import { useUpgradeReloadState } from '../lib/upgrade-reload';
 
 interface Props {
   commands: SlashCommand[];
@@ -55,6 +56,23 @@ export function Composer(props: Props) {
   const draftsRef = useRef(drafts);
   const shortcutId = useId();
   const composingRef = useRef(false);
+  useUpgradeReloadState(
+    'composer',
+    () => {
+      if (
+        composingRef.current ||
+        Object.values(draftsRef.current).some((draft) =>
+          draft.images.some((image) => !image.dataUrl),
+        )
+      )
+        throw new Error('正在输入或读取图片，完成后会自动加载新版');
+      return draftsRef.current;
+    },
+    (saved) => {
+      draftsRef.current = { ...saved, ...draftsRef.current };
+      setDrafts(draftsRef.current);
+    },
+  );
   const compositionEndedAtRef = useRef(-Infinity);
   const sendingRef = useRef(new Set<string>());
   const submittedDrafts = useRef(new Map<string, MessageDraft>());
