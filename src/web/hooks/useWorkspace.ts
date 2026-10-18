@@ -22,6 +22,7 @@ import {
   readOperations,
   saveOperations,
   type SavedOperation,
+  type ThreadMutation,
 } from '../lib/operations';
 import { ThreadStream, type ConnectionState } from '../lib/realtime';
 import { readableError } from '../lib/utils';
@@ -488,7 +489,7 @@ export function useWorkspace() {
       // Force the selected detail to re-project after removing its local mutation.
       setThread((previous) =>
         previous && summary?.id === previous.id
-          ? { ...previous, archived: summary.archived }
+          ? { ...previous, archived: summary.archived, title: summary.title }
           : previous
             ? { ...previous }
             : previous,
@@ -611,7 +612,7 @@ export function useWorkspace() {
   );
 
   useEffect(() => {
-    // Restore pending archive projections after a reload, using real metadata as their baseline.
+    // Restore pending thread projections after a reload, using real metadata as their baseline.
     for (const entry of operationsRef.current) {
       if (!entry.mutation) continue;
       void api
@@ -811,7 +812,13 @@ export function useWorkspace() {
         return undefined;
       }
       if (busyRef.current.has(key)) return;
-      if (kind === 'archive' && operationsRef.current.some((entry) => blocksTarget(entry, target)))
+      if (
+        (kind === 'archive' || kind === 'rename') &&
+        operationsRef.current.some(
+          (entry) =>
+            (entry.kind === 'archive' || entry.kind === 'rename') && blocksTarget(entry, target),
+        )
+      )
         return;
       if (
         (kind === 'fork' || kind === 'create' || kind === 'send') &&
@@ -832,16 +839,18 @@ export function useWorkspace() {
           : Object.values(projectStore.current.snapshot)
               .flatMap((page) => page.data)
               .find((row) => row.id === target);
-      const mutation =
+      const mutation: ThreadMutation | undefined =
         kind === 'archive' &&
         source &&
         typeof (body as { archived?: boolean }).archived === 'boolean'
           ? { projectId: source.projectId, archived: (body as { archived: boolean }).archived }
-          : undefined;
+          : kind === 'rename' && source && typeof (body as { name?: string }).name === 'string'
+            ? { projectId: source.projectId, title: (body as { name: string }).name.trim() }
+            : undefined;
       if (mutation) {
         projectStore.current.beginMutation(clientOperationId, target, mutation, source);
         setProjectThreads(projectStore.current.snapshot);
-        if (selectedRef.current === target) {
+        if (selectedRef.current === target && mutation.archived !== undefined) {
           const archived = projectStore.current.archived;
           const left = mutation.archived;
           if (left) clearSelection();
