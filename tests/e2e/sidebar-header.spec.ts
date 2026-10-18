@@ -2,6 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 import type { Project, ThreadSummary } from '../../src/shared/types';
 import { confirmCompatibility, controlRuntime } from './helpers';
 
+// Chromium may round translated bounds by one 1/64 CSS-pixel layout unit.
+const pixelTolerance = 1 / 64;
+
 const longName = 'Codex Web UI · 多项目工作区与会话导航布局验证';
 const longPath =
   '/workspace/engineering/customer-platform/frontend/codex-web-ui/long-project-directory';
@@ -59,6 +62,7 @@ for (const viewport of [
     const sidebar = page.getByRole('complementary', { name: '项目与会话' });
     await expect(sidebar).toBeInViewport();
     const metrics = await sidebar.evaluate((element) => {
+      const tolerance = 1 / 64;
       const sidebar = element.getBoundingClientRect();
       const list = element.querySelector('.project-list')!.getBoundingClientRect();
       return {
@@ -73,7 +77,9 @@ for (const viewport of [
           .map((control) => {
             const bounds = control.getBoundingClientRect();
             return {
-              inside: bounds.left >= sidebar.left && bounds.right <= sidebar.right,
+              inside:
+                bounds.left >= sidebar.left - tolerance &&
+                bounds.right <= sidebar.right + tolerance,
               width: bounds.width,
               height: bounds.height,
             };
@@ -86,8 +92,8 @@ for (const viewport of [
     expect(metrics.overflow).toBe(false);
     for (const control of metrics.controls) {
       expect(control.inside).toBe(true);
-      expect(control.width).toBeGreaterThanOrEqual(32);
-      expect(control.height).toBeGreaterThanOrEqual(32);
+      expect(control.width).toBeGreaterThanOrEqual(32 - pixelTolerance);
+      expect(control.height).toBeGreaterThanOrEqual(32 - pixelTolerance);
     }
     const project = sidebar.getByRole('region', { name: longName, exact: true });
     await expect(project.locator('.project-link')).toHaveAccessibleDescription(longName);
@@ -98,6 +104,7 @@ for (const viewport of [
     await expect(create).toHaveText('');
     // Read every bound in one frame, including while the mobile drawer slides in.
     const headingMetrics = await heading.evaluate((element) => {
+      const tolerance = 1 / 64;
       const heading = element.getBoundingClientRect();
       return {
         height: heading.height,
@@ -105,10 +112,10 @@ for (const viewport of [
           const bounds = button.getBoundingClientRect();
           return {
             inside:
-              bounds.top >= heading.top &&
-              bounds.bottom <= heading.bottom &&
-              bounds.left >= heading.left &&
-              bounds.right <= heading.right,
+              bounds.top >= heading.top - tolerance &&
+              bounds.bottom <= heading.bottom + tolerance &&
+              bounds.left >= heading.left - tolerance &&
+              bounds.right <= heading.right + tolerance,
             width: bounds.width,
           };
         }),
@@ -117,7 +124,7 @@ for (const viewport of [
     expect(headingMetrics.height).toBeLessThanOrEqual(40);
     for (const button of headingMetrics.buttons) {
       expect(button.inside).toBe(true);
-      expect(button.width).toBeGreaterThanOrEqual(32);
+      expect(button.width).toBeGreaterThanOrEqual(32 - pixelTolerance);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
