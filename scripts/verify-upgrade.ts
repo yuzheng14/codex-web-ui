@@ -336,7 +336,7 @@ for (const mode of [
       db.close();
     }
     console.log(
-      `PASS: real worker ${rejected ? `rejected ${mode} before stopping or replacing the service` : mode === 'codex-confirmed' ? 'activated the explicitly confirmed unverified Codex combination' : mode === 'repair-resumed' ? 'refused snapshot restore after the original service resumed writes' : repair ? 'repaired an interrupted activation and verified the restored service' : failure ? 'restored package, database and project after failed migration/readiness' : 'activated exact candidate and reopened task admission'} (fixture npm transport)`,
+      `PASS: real worker ${mode === 'codex-restarted' ? 'rolled back after the configured Codex changed at restart' : rejected ? `rejected ${mode} before stopping or replacing the service` : mode === 'codex-confirmed' ? 'activated the explicitly confirmed unverified Codex combination' : mode === 'repair-resumed' ? 'refused snapshot restore after the original service resumed writes' : repair ? 'repaired an interrupted activation and verified the restored service' : failure ? 'restored package, database and project after failed migration/readiness' : 'activated exact candidate and reopened task admission'} (fixture npm transport)`,
     );
   } finally {
     await stopAndWait(location).catch(() => {});
