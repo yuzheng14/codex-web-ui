@@ -1,6 +1,6 @@
 import { isRecord } from './transport.js';
 
-// Keep in sync with codex-rs/tui/src/app/thread_title.rs (rust-v0.162.1).
+// Keep in sync with codex-rs/tui/src/app/thread_title.rs (rust-v0.163.0).
 export const TITLE_MODEL = 'gpt-5.6-luna';
 export const TITLE_MAX_CHARS = 36;
 const PROMPT_MAX_BYTES = 960;

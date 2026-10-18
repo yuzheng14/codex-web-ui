@@ -1,6 +1,6 @@
 import type { PermissionCapabilities, PermissionMode } from './types.js';
 
-/** Verified against Codex 0.162.1's built-in profiles and permissions menu. */
+/** Verified against Codex 0.163.0's built-in profiles and permissions menu. */
 export const permissionModes = {
   ask: {
     label: '请求批准',

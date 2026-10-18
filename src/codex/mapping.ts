@@ -28,7 +28,7 @@ export function taskInput(text: string, images: string[] = []): UserInput[] {
   ];
 }
 
-/** Codex 0.162.1 reports Fast as priority and standard speed as default. */
+/** Codex 0.163.0 reports Fast as priority and standard speed as default. */
 export function serviceTierSettings(
   tier: string | null | undefined,
 ): Pick<RuntimeSettings, 'serviceTier'> {
