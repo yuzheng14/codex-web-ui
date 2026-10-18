@@ -25,8 +25,9 @@ import { transactionPaths } from '../src/updates/transaction.js';
 const metadata = JSON.parse(await readFile('package.json', 'utf8')) as { version: string };
 const [major, minor, patch] = metadata.version.split('-')[0]!.split('.');
 
-for (const mode of ['success', 'failure', 'repair'] as const) {
+for (const mode of ['success', 'failure', 'repair', 'repair-live', 'repair-resumed'] as const) {
   const failure = mode !== 'success';
+  const repair = mode.startsWith('repair');
   const directory = await mkdtemp('/private/tmp/covro-verify-').catch(async () => {
     const { tmpdir } = await import('node:os');
     return mkdtemp(join(tmpdir(), 'cv-'));
@@ -144,7 +145,7 @@ for (const mode of ['success', 'failure', 'repair'] as const) {
       from: metadata.version,
       target,
       channel: 'dev',
-      phase: mode === 'repair' ? 'verifying' : 'installing',
+      phase: mode === 'repair' ? 'verifying' : repair ? 'failed' : 'installing',
       message: 'Fixture npm transport',
       startedAt: Date.now(),
       updatedAt: Date.now(),
@@ -171,9 +172,26 @@ for (const mode of ['success', 'failure', 'repair'] as const) {
       interrupted.exec('CREATE TABLE covro_upgrade_probe (id TEXT)');
       interrupted.close();
     }
+    if (mode === 'repair-resumed') {
+      // A previous recovery resumed writes but left an old package backup behind.
+      const snapshot = transactionPaths(
+        root,
+        id,
+        context.dataDir,
+        config,
+        join(updateDir, `backup-${id}`),
+      );
+      await cp(root, snapshot.previous, { recursive: true });
+      const saved = await fetch(`${origin}/api/projects`, {
+        method: 'POST',
+        headers: { origin, 'content-type': 'application/json' },
+        body: JSON.stringify({ path: commands, name: 'Must retain resumed data' }),
+      });
+      if (!saved.ok) throw new Error('Could not write resumed-service data');
+    }
     worker = spawn(
       process.execPath,
-      [resolve('dist/update-worker.cjs'), updateDir, ...(mode === 'repair' ? ['--repair'] : [])],
+      [resolve('dist/update-worker.cjs'), updateDir, ...(repair ? ['--repair'] : [])],
       {
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -190,7 +208,10 @@ for (const mode of ['success', 'failure', 'repair'] as const) {
       }),
     ]);
     const record = JSON.parse(await readFile(join(updateDir, 'run.json'), 'utf8')) as UpdateRun;
-    if (exit[0] !== 0 || record.phase !== (failure ? 'rolledBack' : 'succeeded'))
+    if (
+      exit[0] !== (mode === 'repair-resumed' ? 1 : 0) ||
+      record.phase !== (mode === 'repair-resumed' ? 'failed' : failure ? 'rolledBack' : 'succeeded')
+    )
       throw new Error(`Unexpected upgrade outcome: ${JSON.stringify(record)} ${errors}`);
     const current = await control<{ version: string; maintenance: boolean }>(location, 'status');
     if (current.version !== (failure ? metadata.version : target) || current.maintenance)
@@ -200,6 +221,11 @@ for (const mode of ['success', 'failure', 'repair'] as const) {
     };
     if (!projects.data.some((project) => project.name === 'Preserved project'))
       throw new Error('Project data was lost');
+    if (
+      mode === 'repair-resumed' &&
+      !projects.data.some((project) => project.name === 'Must retain resumed data')
+    )
+      throw new Error('Resumed-service data was overwritten');
     const db = new Database(join(directory, 'data/app.sqlite'), { readonly: true });
     try {
       if (
@@ -211,7 +237,7 @@ for (const mode of ['success', 'failure', 'repair'] as const) {
       db.close();
     }
     console.log(
-      `PASS: real worker ${mode === 'repair' ? 'repaired an interrupted activation and verified the restored service' : failure ? 'restored package, database and project after failed migration/readiness' : 'activated exact candidate and reopened task admission'} (fixture npm transport)`,
+      `PASS: real worker ${mode === 'repair-resumed' ? 'refused snapshot restore after the original service resumed writes' : repair ? 'repaired an interrupted activation and verified the restored service' : failure ? 'restored package, database and project after failed migration/readiness' : 'activated exact candidate and reopened task admission'} (fixture npm transport)`,
     );
   } finally {
     await stopAndWait(location).catch(() => {});
