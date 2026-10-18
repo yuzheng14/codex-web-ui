@@ -67,7 +67,7 @@ export function Sidebar(props: Props) {
         <div className="sidebar-header">
           <div className="brand">
             <div className="brand-mark">
-              <Icon name="code" size={21} />
+              <img src="/covro.svg" alt="" width="28" height="28" />
             </div>
             <ControlHint
               asChild
