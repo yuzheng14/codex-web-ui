@@ -74,6 +74,38 @@ async function waitFor<T>(get: () => T | undefined): Promise<T> {
 }
 
 describe('verified protocol adapter with a real subprocess', () => {
+  it('waits for terminal evidence after an interrupt receipt and rejects steering the finished turn', async () => {
+    const { adapter, events, requests } = await fixture({
+      approval: 'command',
+      interruptCompletionDelayMs: 200,
+    });
+    const thread = await adapter.createThread('/tmp');
+    const turn = await adapter.startTurn(thread.id, thread.cwd, 'wait for approval');
+    const incoming = await waitFor(() => events.find((event) => event.type === 'action'));
+    if (incoming.type !== 'action') throw new Error('Wrong event');
+    await adapter.interruptTurn(thread.id, turn.id);
+    expect(
+      events.some((event) => event.type === 'turn' && event.turn.status === 'interrupted'),
+    ).toBe(false);
+    expect((await adapter.readThread(thread.id)).turns[0]?.status).toBe('running');
+    await waitFor(() =>
+      events.find((event) => event.type === 'turn' && event.turn.status === 'interrupted'),
+    );
+    await expect(
+      adapter.respond(incoming.action.actionId, { decision: 'accept' }),
+    ).rejects.toMatchObject({ code: 'ACTION_EXPIRED' });
+    await expect(adapter.steerTurn(thread.id, turn.id, 'keep this draft')).rejects.toMatchObject({
+      code: 'CODEX_REQUEST_FAILED',
+    });
+    expect(
+      (await requests()).filter(
+        (request) => request.method === 'turn/start' && request.params.threadId === thread.id,
+      ),
+    ).toHaveLength(1);
+    expect(
+      (await requests()).find((request) => request.method === 'turn/steer')?.params.expectedTurnId,
+    ).toBe(turn.id);
+  });
   it.each([false, true])(
     'distinguishes unloaded history from unfinished work after restarting (paginated: %s)',
     async (paginated) => {

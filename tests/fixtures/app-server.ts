@@ -1,4 +1,4 @@
-/** Explicit test process. Its envelopes and payloads use the CLI-generated 0.162.1 protocol. */
+/** Explicit test process. Its envelopes and payloads use the CLI-generated 0.163.0 protocol. */
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -37,6 +37,7 @@ export interface SimulatorOptions {
   configWriteFailure?: boolean;
   fragmentBytes?: number;
   ackDelayMs?: number;
+  interruptCompletionDelayMs?: number;
   turnDelayMs?: number;
   compactStartDelayMs?: number;
   compactFailure?: boolean;
@@ -2192,7 +2193,37 @@ function receive(request: ClientRequest): void {
     case 'turn/interrupt': {
       const thread = threads.get(request.params.threadId);
       const turn = thread?.turns.find((entry) => entry.id === request.params.turnId);
-      if (thread && turn) complete(thread, turn, 'interrupted');
+      if (thread && turn) {
+        const lateCancellation = turn.items.some(
+          (item) =>
+            item.type === 'userMessage' &&
+            item.content.some(
+              (input) => input.type === 'text' && input.text.includes('[interrupt-ack-first]'),
+            ),
+        );
+        const completionDelay = options.interruptCompletionDelayMs ?? (lateCancellation ? 200 : 0);
+        // Cancellation dispatch may be acknowledged before nested tools finish.
+        if (completionDelay) {
+          clearTimeout(finishes.get(turn.id));
+          finishes.set(
+            turn.id,
+            setTimeout(() => complete(thread, turn, 'interrupted'), completionDelay),
+          );
+        } else complete(thread, turn, 'interrupted');
+        if (lateCancellation)
+          setTimeout(() => {
+            notify({ method: 'turn/completed', params: { threadId: thread.id, turn } });
+            notify({
+              method: 'item/commandExecution/outputDelta',
+              params: {
+                threadId: thread.id,
+                turnId: turn.id,
+                itemId: 'cancelled-nested-tool',
+                delta: '旧工具取消完成',
+              },
+            });
+          }, 1500);
+      }
       reply(request.id, {});
       break;
     }

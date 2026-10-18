@@ -69,7 +69,7 @@ export class GatewayService {
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly archiveChanges = new Set<string>();
-  private readonly compactionBaselines = new Map<string, Set<string>>();
+  private readonly turnBaselines = new Map<string, Set<string>>();
   private readonly renameChanges = new Set<string>();
   private readonly reads = new Map<string, Promise<ThreadView>>();
   private readonly resumes = new Map<string, Promise<void>>();
@@ -719,6 +719,7 @@ export class GatewayService {
         workspaceKey: ownership.workspaceKey,
         codexEpoch: this.codex.epoch,
       });
+      this.turnBaselines.set(input.clientOperationId, new Set(thread.turns.map((turn) => turn.id)));
       // A refresh must discover a dispatched first message even before its turn
       // notification or receipt arrives. A definite failure removes the marker.
       this.publishThread(threadId);
@@ -731,6 +732,7 @@ export class GatewayService {
         input.images,
       );
       this.store.attachTurn(input.clientOperationId, turn.id);
+      this.turnBaselines.delete(input.clientOperationId);
       this.projection.turn(threadId, turn, this.projection.revision(threadId) !== revision);
       const projectedTurn = this.projection
         .get(threadId)
@@ -759,10 +761,7 @@ export class GatewayService {
         workspaceKey: ownership.workspaceKey,
         codexEpoch: this.codex.epoch,
       });
-      this.compactionBaselines.set(
-        input.clientOperationId,
-        new Set(thread.turns.map((turn) => turn.id)),
-      );
+      this.turnBaselines.set(input.clientOperationId, new Set(thread.turns.map((turn) => turn.id)));
       this.publishThread(threadId);
       await this.codex.compactThread(threadId);
       // No turn ID in this RPC's receipt. consume() binds the new turn and only
@@ -790,8 +789,10 @@ export class GatewayService {
         codexEpoch: this.codex.epoch,
       });
       const revision = this.projection.revision(threadId);
+      this.turnBaselines.set(input.clientOperationId, new Set(thread.turns.map((turn) => turn.id)));
       const turn = await this.codex.startReview(threadId);
       this.store.attachTurn(input.clientOperationId, turn.id);
+      this.turnBaselines.delete(input.clientOperationId);
       // A completion or approval can arrive before review/start returns its initial turn.
       this.projection.turn(threadId, turn, this.projection.revision(threadId) !== revision);
       const projectedTurn = this.projection
@@ -1006,11 +1007,8 @@ export class GatewayService {
     } finally {
       this.inFlightOperations.delete(input.clientOperationId);
       this.pendingThreadCreations.delete(input.clientOperationId);
-      if (kind === 'thread.compact') {
-        if (!this.store.activeForThread(target))
-          this.compactionBaselines.delete(input.clientOperationId);
-        this.publishThread(target);
-      }
+      if (!this.store.activeForThread(target)) this.turnBaselines.delete(input.clientOperationId);
+      if (kind === 'thread.compact') this.publishThread(target);
     }
   }
 
@@ -1395,7 +1393,7 @@ export class GatewayService {
         this.currentEpoch = event.diagnostics.codexEpoch;
         this.titleReads.clear();
         this.runtimeSettingsUpdates.clear();
-        this.compactionBaselines.clear();
+        this.turnBaselines.clear();
         this.resumes.clear();
         this.store.recover();
         this.projection.runtimeReset();
@@ -1485,13 +1483,12 @@ export class GatewayService {
       if (
         marker?.codexEpoch === this.codex.epoch &&
         marker.turnId === null &&
-        // A delayed event for an old turn must not bind/finish a compaction
-        // whose RPC has no turn ID. Its new turn can begin after the receipt.
-        (this.store.get(marker.operationId)?.kind !== 'thread.compact' ||
-          this.compactionBaselines.get(marker.operationId)?.has(event.turn.id) === false)
+        // A cancellation event from an existing turn cannot identify newly
+        // dispatched work, even when its first notification/receipt is delayed.
+        this.turnBaselines.get(marker.operationId)?.has(event.turn.id) === false
       ) {
         this.store.attachTurn(marker.operationId, event.turn.id);
-        this.compactionBaselines.delete(marker.operationId);
+        this.turnBaselines.delete(marker.operationId);
       }
       if (isTerminal(event.turn.status)) {
         this.store.finishTurn(thread.id, event.turn.id, this.codex.epoch);
