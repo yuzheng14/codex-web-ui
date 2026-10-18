@@ -35,7 +35,8 @@ async function expectEmpty(page: Page) {
   await expect(
     page.getByRole('button', { name: '会话', exact: true, includeHidden: true }),
   ).toHaveAttribute('aria-pressed', 'true');
-  expect(await selectedId(page)).toBeNull();
+  // React commits the empty view before its storage effect; other tabs also converge asynchronously.
+  await expect.poll(() => selectedId(page)).toBeNull();
   expect(await page.evaluate(() => localStorage.getItem('codex-web.project'))).toBe('fixture');
 }
 async function openArchived(page: Page, id: string) {
