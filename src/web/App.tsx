@@ -21,6 +21,9 @@ import { encodeQuestionReplies } from '../shared/async-questions';
 import { CompatibilityNotice } from './components/CompatibilityNotice';
 import { ProjectDialog } from './components/ProjectDialog';
 import { NotificationSettings } from './components/NotificationSettings';
+import { UpdateSettings } from './components/UpdateSettings';
+import { useUpdates } from './hooks/useUpdates';
+import { updateActive } from '../shared/updates';
 import {
   canConfirmCompatibility,
   compatibilityConfirmationRequired,
@@ -40,6 +43,8 @@ function WorkspaceLayout({ threadId, children }: { threadId?: string; children: 
 
 export function App() {
   const workspace = useWorkspace();
+  const updates = useUpdates();
+  const [updatesOpen, setUpdatesOpen] = useState(false);
   const { isUnreadCompletion, markCompletedRead } = useThreadReadState();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
@@ -262,6 +267,15 @@ export function App() {
   return (
     <WorkspaceLayout threadId={thread?.id}>
       <Sidebar
+        onUpdates={() => {
+          setSidebarOpen(false);
+          setUpdatesOpen(true);
+        }}
+        appVersion={updates.status?.version}
+        updateAvailable={Boolean(
+          updates.status?.available && updates.status.available.version !== updates.status.version,
+        )}
+        updating={updateActive(updates.status?.run)}
         onNotificationSettings={() => {
           setSidebarOpen(false);
           setNotificationSettingsOpen(true);
@@ -711,6 +725,7 @@ export function App() {
           onClose={() => setNotificationSettingsOpen(false)}
         />
       )}
+      {updatesOpen && <UpdateSettings updates={updates} onClose={() => setUpdatesOpen(false)} />}
     </WorkspaceLayout>
   );
 }

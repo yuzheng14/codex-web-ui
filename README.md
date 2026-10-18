@@ -1,4 +1,4 @@
-# Codex Web UI
+# Covro
 
 私人电脑上的 Codex 网页客户端。默认中文，单用户、单网关、单受管 `codex app-server`；支持本机、Tailscale Serve 或 Cloudflare Access 访问，页面、API 和 WebSocket 共用配置的访问入口。
 
@@ -6,7 +6,23 @@
 
 实现按 14 个小单元组织为 GitHub 原生 Stacked PR，见 [PR 评审顺序](docs/review-stack.md)。
 
-## 安装与本机运行
+## npm 安装与后台运行
+
+Covro 面向已有 Node.js 和 Codex 环境的用户，npm 包包含构建好的页面、服务和数据库迁移。
+
+```sh
+npm install -g covro
+covro
+covro status
+covro update
+covro update --channel dev
+```
+
+默认后台常驻，`covro run` 可在前台调试；`covro service install` 单独启用登录自启。默认配置和数据保存在 `~/.covro/`，也可通过 `--config` 沿用现有配置。
+
+网页侧栏的「Covro 更新」可检查版本、选择稳定/预览/开发渠道、开启空闲时自动升级，以及一键升级并重启。配置、项目和历史跨版本沿用，新版验证失败会恢复上一可用安装；降级仍需通过数据库兼容检查。发布与平台支持边界见 [分发和升级说明](docs/distribution.md)。
+
+## 源码开发与本机运行
 
 要求 Node.js **24.19.0**（LTS）、pnpm **12.11.2**、已安装并登录的 Codex CLI。协议生成与已验证运行目标为 **0.163.0**。依赖版本固定于 `package.json` 和 `pnpm-lock.yaml`。升级与回退说明见 [Codex 0.163.0 兼容性记录](docs/codex-0.163.0-verification.md)。
 

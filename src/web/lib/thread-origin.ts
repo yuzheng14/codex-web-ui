@@ -8,7 +8,7 @@ export function threadOrigin(thread: ThreadOriginInput): { label: string; descri
   if (originator?.trim()) {
     switch (originator) {
       case 'codex_web_ui':
-        return { label: 'Web', description: '由 Codex Web UI（本网页）创建。' };
+        return { label: 'Web', description: '由 Covro（本网页）创建。' };
       case 'codex-tui':
         return { label: 'CLI', description: '由 Codex 终端命令行创建。' };
       // Exact client names verified in Codex rust-v0.162.1:

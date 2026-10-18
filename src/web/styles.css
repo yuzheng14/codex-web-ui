@@ -3657,3 +3657,137 @@ dd {
     font-size: 16px;
   }
 }
+
+.update-dialog {
+  width: min(540px, calc(100vw - 32px));
+}
+.update-version,
+.update-available {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 0;
+}
+.update-version strong {
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+.update-version code,
+.update-available code {
+  color: var(--muted);
+  font-size: 12px;
+}
+.update-channel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-weight: 600;
+}
+.update-channel select {
+  min-width: 148px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f7f8fa;
+  color: #303b35;
+  font: inherit;
+}
+.update-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 0;
+  border-block: 1px solid var(--border);
+  margin-top: 18px;
+}
+.update-control p {
+  margin: 5px 0 0;
+}
+.update-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 18px 0;
+}
+.update-progress {
+  display: grid;
+  gap: 7px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f7f8fa;
+  margin: 18px 0;
+}
+.update-progress > span {
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.update-progress p {
+  margin: 0;
+  line-height: 1.65;
+}
+.update-progress progress {
+  width: 100%;
+  height: 6px;
+  margin-top: 8px;
+  accent-color: #303b35;
+}
+.update-progress[data-phase='failed'] {
+  border-color: #e5a7a7;
+}
+.update-progress[data-phase='succeeded'] {
+  border-color: #a3c6b0;
+}
+.update-notice {
+  padding: 12px;
+  border-radius: 8px;
+  background: #f7f8fa;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.update-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 20px;
+}
+.update-source a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+}
+.update-downgrade {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.covro-update-button {
+  display: flex;
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 5px;
+  gap: 6px;
+  font-size: 11px;
+  justify-content: flex-start;
+}
+.covro-version-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.covro-update-button .notification-settings-status {
+  margin-left: auto;
+  flex-shrink: 0;
+}

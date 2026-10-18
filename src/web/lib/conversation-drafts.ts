@@ -14,6 +14,13 @@ export type DraftSubmission =
 export class ConversationDrafts {
   private keys = new Map<string, string>();
   private submissions = new Map<string, DraftSubmission>();
+  snapshotKeys() {
+    return Object.fromEntries(this.keys);
+  }
+  restoreKeys(keys: Record<string, string>) {
+    for (const [key, value] of Object.entries(keys))
+      if (!this.keys.has(key)) this.keys.set(key, value);
+  }
 
   key(projectId: string, threadId?: string) {
     const scope = threadId ?? `project:${projectId}`;

@@ -36,6 +36,7 @@ import {
   type DraftSubmission,
   type SentDraft,
 } from '../lib/conversation-drafts';
+import { useUpgradeReloadState } from '../lib/upgrade-reload';
 
 function preferredProject() {
   try {
@@ -79,6 +80,15 @@ export function useWorkspace() {
   const firstMessagesRef = useRef(new Set<string>());
   const [firstMessages, setFirstMessages] = useState<string[]>([]);
   const [settingsByScope, setSettingsByScope] = useState(settingsRef.current);
+  useUpgradeReloadState(
+    'workspace',
+    () => ({ settings: settingsRef.current, keys: conversationDrafts.current.snapshotKeys() }),
+    (saved) => {
+      conversationDrafts.current.restoreKeys(saved.keys);
+      settingsRef.current = { ...saved.settings, ...settingsRef.current };
+      setSettingsByScope(settingsRef.current);
+    },
+  );
   const [runtimeDefaultsRevision, setRuntimeDefaultsRevision] = useState(0);
   const navigationRevision = useRef(0);
   const mutationNavigation = useRef(

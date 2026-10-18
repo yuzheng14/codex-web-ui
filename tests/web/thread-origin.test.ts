@@ -3,7 +3,7 @@ import { threadOrigin } from '../../src/web/lib/thread-origin';
 
 describe('thread origin', () => {
   it.each([
-    ['codex_web_ui', 'Web', '由 Codex Web UI（本网页）创建。'],
+    ['codex_web_ui', 'Web', '由 Covro（本网页）创建。'],
     ['codex-tui', 'CLI', '由 Codex 终端命令行创建。'],
     ['codex_vscode', 'VS Code', '由 VS Code 中的 Codex 扩展创建。'],
     ['Codex Desktop', 'Codex Desktop', '由 Codex 桌面应用创建。'],
