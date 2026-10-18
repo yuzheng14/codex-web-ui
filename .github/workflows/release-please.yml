@@ -62,6 +62,21 @@ jobs:
             execFileSync('gh', ['workflow', 'run', 'checks.yml', '--ref', branch], {stdio:'inherit'});
           }
           JS
+      - uses: pnpm/action-setup@v4
+        if: steps.release.outputs.release_created == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.release.outputs.release_created == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: steps.release.outputs.release_created == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Add the tagged package's Codex compatibility to Release notes
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+        run: node --import tsx scripts/release-compatibility.ts
       - name: Publish the created stable release
         if: steps.release.outputs.release_created == 'true'
         env:

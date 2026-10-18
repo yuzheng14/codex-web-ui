@@ -1,3 +1,4 @@
+import type { UpdateStatus } from '../shared/updates.js';
 import { spawn } from 'node:child_process';
 import { mkdir, open } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -15,12 +16,14 @@ export function parseArguments(args: string[]) {
   let configPath: string | undefined;
   let channel: 'stable' | 'beta' | 'dev' | undefined;
   let allowDowngrade = false;
+  let allowUnverifiedCodex = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === '--config' && args[i + 1]) configPath = args[++i];
     else if (arg === '--channel' && ['stable', 'beta', 'dev'].includes(args[i + 1] ?? ''))
       channel = args[++i] as typeof channel;
     else if (arg === '--allow-downgrade') allowDowngrade = true;
+    else if (arg === '--allow-unverified-codex') allowUnverifiedCodex = true;
     else if (arg.startsWith('-') && arg !== '--help' && arg !== '--version')
       throw new Error(`Unknown argument: ${arg}`);
     else positional.push(arg);
@@ -28,8 +31,16 @@ export function parseArguments(args: string[]) {
   const [command = 'start', subcommand] = positional;
   if (positional.length > (['service', 'update'].includes(command) ? 2 : 1))
     throw new Error('Too many arguments');
-  if ((channel || allowDowngrade) && command !== 'update') throw new Error('升级选项仅用于 update');
-  return { command, subcommand, channel, allowDowngrade, location: paths(configPath) };
+  if ((channel || allowDowngrade || allowUnverifiedCodex) && command !== 'update')
+    throw new Error('升级选项仅用于 update');
+  return {
+    command,
+    subcommand,
+    channel,
+    allowDowngrade,
+    allowUnverifiedCodex,
+    location: paths(configPath),
+  };
 }
 
 export async function startBackground(location: CovroPaths) {
@@ -70,14 +81,15 @@ export async function startBackground(location: CovroPaths) {
 }
 
 export async function main(args = process.argv.slice(2)) {
-  const { command, subcommand, channel, allowDowngrade, location } = parseArguments(args);
+  const { command, subcommand, channel, allowDowngrade, allowUnverifiedCodex, location } =
+    parseArguments(args);
   if (command === '--version') {
     console.log(packageInfo.version);
     return;
   }
   if (command === '--help' || command === 'help') {
     console.log(
-      'Covro\n\ncovro [start|run|stop|status|logs] [--config FILE]\ncovro update [status|repair] [--channel stable|beta|dev] [--allow-downgrade]\ncovro service install|uninstall [--config FILE]\n\n默认后台运行；service install 单独启用登录自启。',
+      'Covro\n\ncovro [start|run|stop|status|logs] [--config FILE]\ncovro update [status|repair] [--channel stable|beta|dev] [--allow-downgrade] [--allow-unverified-codex]\ncovro service install|uninstall [--config FILE]\n\n默认后台运行；service install 单独启用登录自启。',
     );
     return;
   }
@@ -94,6 +106,13 @@ export async function main(args = process.argv.slice(2)) {
     }
     if (subcommand && subcommand !== 'status') throw new Error('未知升级命令');
     await startBackground(location);
+    let codexConfirmation;
+    if (allowUnverifiedCodex && !subcommand) {
+      const checked = await control<UpdateStatus>(location, 'update-check', { channel });
+      const candidate = checked.available;
+      if (candidate?.codex.status === 'unverified' && candidate.codex.version)
+        codexConfirmation = { version: candidate.codex.version, target: candidate.version };
+    }
     console.log(
       JSON.stringify(
         await control(
@@ -101,7 +120,7 @@ export async function main(args = process.argv.slice(2)) {
           subcommand === 'status' ? 'update-check' : 'update',
           subcommand === 'status'
             ? { channel }
-            : { clientOperationId: randomUUID(), channel, allowDowngrade },
+            : { clientOperationId: randomUUID(), channel, allowDowngrade, codexConfirmation },
         ),
         null,
         2,

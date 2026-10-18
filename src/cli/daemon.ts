@@ -33,6 +33,8 @@ export async function runDaemon(configPath: string) {
             configPath,
             dataDir: config.dataDir,
             maintenance: runtime?.service.isInMaintenance(),
+            codexVersion: runtime?.codex.diagnostics().codexVersion ?? null,
+            codexReady: runtime?.codex.ready ?? false,
           }),
         );
       } else if (request.url === '/stop') {
@@ -83,7 +85,11 @@ export async function runDaemon(configPath: string) {
     })());
   try {
     config = await loadConfig({ configPath, development: false });
-    updates = new UpdateManager(location, config.dataDir);
+    updates = new UpdateManager(
+      location,
+      config.dataDir,
+      () => runtime?.codex.diagnostics().codexVersion ?? null,
+    );
     await updates.initialize();
     const maintenance = await updates.activationPending();
     runtime = await startGateway(config, { updates, maintenance });

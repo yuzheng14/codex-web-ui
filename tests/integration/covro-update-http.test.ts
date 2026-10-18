@@ -1,3 +1,5 @@
+import { CODEX_COMPATIBILITY } from '../../src/codex/compatibility.js';
+import { assessCodexCompatibility } from '../../src/shared/codex-compatibility.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { createApp } from '../../src/server/http.js';
@@ -15,6 +17,7 @@ function fixture() {
   const status: UpdateStatus = {
     version: '0.1.0',
     source: 'npm',
+    codex: assessCodexCompatibility(CODEX_COMPATIBILITY, CODEX_COMPATIBILITY.recommended),
     supported: true,
     settings: { channel: 'stable', automatic: false },
   };

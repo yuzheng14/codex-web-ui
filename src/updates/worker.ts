@@ -1,3 +1,7 @@
+import {
+  codexCompatibilitySchema,
+  requireCodexCompatibility,
+} from '../shared/codex-compatibility.js';
 // Bundled with its pure JavaScript dependencies and copied outside the installation before launch.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -20,7 +24,13 @@ import { inspectInstallation, registry } from './registry.js';
 
 const exec = promisify(execFile);
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
-type DaemonStatus = { version: string; pid: number; maintenance?: boolean };
+type DaemonStatus = {
+  version: string;
+  pid: number;
+  maintenance?: boolean;
+  codexVersion?: string | null;
+  codexReady?: boolean;
+};
 
 async function startService(context: UpdateContext, activation?: string) {
   const installed = await readJson<{ platform: string; label: string }>(
@@ -255,11 +265,26 @@ async function worker(directory: string) {
       ],
       { timeout: 10 * 60_000, maxBuffer: 2 * 1024 * 1024 },
     );
-    const candidate = await readJson<{ name: string; version: string }>(
+    const candidate = await readJson<{ name: string; version: string; covroCodex?: unknown }>(
       join(paths.candidate, 'package.json'),
     );
     if (candidate?.name !== 'covro' || candidate.version !== record.target)
       throw new Error('候选包身份或版本不匹配');
+    if (!record.codex) throw new Error('缺少 Codex 升级校验记录，请重新检查更新');
+    const manifest = codexCompatibilitySchema.parse(candidate.covroCodex);
+    if (JSON.stringify(manifest) !== JSON.stringify(record.codex.manifest))
+      throw new Error('候选包的 Codex 兼容声明与检查时不一致，拒绝切换');
+    const checkCodex = async (current?: DaemonStatus) => {
+      const state = current ?? (await control<DaemonStatus>(context.location, 'status'));
+      if (state.codexVersion !== record!.codex!.version)
+        throw new Error('Codex 版本在等待升级期间发生变化，请重新检查更新');
+      requireCodexCompatibility(
+        manifest,
+        state.codexVersion ?? null,
+        record!.codex!.confirmedUnverified,
+      );
+    };
+    await checkCodex();
     await exec(process.execPath, [join(paths.candidate, 'bin/covro.mjs'), '--version'], {
       timeout: 30_000,
     });
@@ -276,11 +301,15 @@ async function worker(directory: string) {
       waitForIdle: async () => {
         // Queue without blocking normal work; admission closes atomically only after all blockers clear.
         for (;;) {
+          await checkCodex();
           const result = await control<{ ready: boolean; reason?: string }>(
             context.location,
             'prepare-update',
           );
-          if (result.ready) return;
+          if (result.ready) {
+            await checkCodex();
+            return;
+          }
           await update('waiting', result.reason ?? '等待所有任务结束');
           await setTimeout(2_000);
         }
@@ -292,16 +321,18 @@ async function worker(directory: string) {
       },
       verify: async () => {
         for (let attempt = 0; attempt < 240; attempt++) {
-          try {
-            const current = await control<DaemonStatus>(context.location, 'status');
+          const current = await control<DaemonStatus>(context.location, 'status').catch(
+            () => undefined,
+          );
+          if (current) {
             if (current.version !== record!.target || !current.maintenance)
               throw new Error('新版服务身份或维护状态不匹配');
-            return;
-          } catch (error) {
-            if (attempt === 239) throw error;
+            await checkCodex(current);
+            if (current.codexReady) return;
           }
           await setTimeout(250);
         }
+        throw new Error('新版服务或 Codex 连接未就绪，拒绝激活');
       },
       commit: async () => {
         // Gateway commits the durable result before reopening task admission.

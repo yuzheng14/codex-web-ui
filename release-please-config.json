@@ -4,6 +4,11 @@
   "include-v-in-tag": true,
   "include-component-in-tag": false,
   "packages": {
-    ".": { "release-type": "node", "package-name": "covro", "bump-minor-pre-major": true }
+    ".": {
+      "release-type": "node",
+      "package-name": "covro",
+      "bump-minor-pre-major": true,
+      "initial-version": "0.1.0"
+    }
   }
 }

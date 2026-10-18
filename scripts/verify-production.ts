@@ -16,7 +16,7 @@ await new Promise<void>((done) => probe.close(() => done()));
 const origin = `http://127.0.0.1:${address.port}`;
 await mkdir(join(root, 'project'));
 await cp(resolve('dist'), join(root, 'dist'), { recursive: true });
-await writeFile(join(root, 'package.json'), '{"type":"module"}');
+await cp(resolve('package.json'), join(root, 'package.json'));
 await symlink(resolve('node_modules'), join(root, 'node_modules'), 'dir');
 await writeFile(
   join(root, 'config.json'),

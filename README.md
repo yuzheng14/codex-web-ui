@@ -42,7 +42,13 @@
 
 ## Get started
 
-You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The current verified Codex version is **0.163.0**; other versions may require confirmation. The interface currently uses Simplified Chinese.
+You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The interface currently uses Simplified Chinese.
+
+<!-- codex-compatibility:start -->
+
+Recommended Codex CLI: **0.163.0**. Verified versions: `0.163.0`.
+
+<!-- codex-compatibility:end -->
 
 ### Run from source
 

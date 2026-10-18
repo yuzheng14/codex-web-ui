@@ -1,3 +1,8 @@
+import { CODEX_COMPATIBILITY } from '../codex/compatibility.js';
+import {
+  assessCodexCompatibility,
+  requireCodexCompatibility,
+} from '../shared/codex-compatibility.js';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { copyFile, mkdir, open } from 'node:fs/promises';
@@ -26,6 +31,10 @@ export const updateRequestSchema = z
     clientOperationId: z.uuid(),
     channel: z.enum(releaseChannels).optional(),
     allowDowngrade: z.boolean().optional(),
+    codexConfirmation: z
+      .object({ version: z.string().max(128), target: z.string().max(128) })
+      .strict()
+      .optional(),
   })
   .strict();
 export interface UpdateContext {
@@ -53,7 +62,11 @@ export class UpdateManager implements UpdateController {
   private checking?: Promise<UpdateStatus>;
   private readonly network = new AbortController();
   readonly context?: UpdateContext;
-  constructor(location?: CovroPaths, dataDir?: string) {
+  constructor(
+    location?: CovroPaths,
+    dataDir?: string,
+    private readonly codexVersion: () => string | null = () => null,
+  ) {
     if (location && dataDir)
       this.context = {
         location,
@@ -87,10 +100,16 @@ export class UpdateManager implements UpdateController {
       version: packageInfo.version ?? 'unknown',
       commit: packageInfo.covroCommit,
       source: 'npm',
+      codex: assessCodexCompatibility(CODEX_COMPATIBILITY, this.codexVersion()),
       settings: this.settings,
       supported: !this.reason,
       unsupportedReason: this.reason || undefined,
-      available: this.available,
+      available: this.available
+        ? {
+            ...this.available,
+            codex: assessCodexCompatibility(this.available.codex.manifest, this.codexVersion()),
+          }
+        : undefined,
       checkedAt: this.checkedAt,
       checkError: this.checkError,
       run,
@@ -104,6 +123,7 @@ export class UpdateManager implements UpdateController {
         channel,
         commit: release.gitHead,
         downgrade: compareVersions(release.version, packageInfo.version) < 0,
+        codex: assessCodexCompatibility(release.covroCodex, this.codexVersion()),
       };
       this.checkError = undefined;
     } catch (error) {
@@ -139,6 +159,13 @@ export class UpdateManager implements UpdateController {
     const run = (await this.status()).run;
     if (!run || run.id !== id || run.phase !== 'verifying' || run.target !== packageInfo.version)
       throw new Error('升级记录、版本或运行状态不匹配');
+    if (!run.codex || run.codex.version !== this.codexVersion())
+      throw new Error('Codex 版本在升级期间发生变化或缺少校验记录，拒绝激活');
+    requireCodexCompatibility(
+      CODEX_COMPATIBILITY,
+      this.codexVersion(),
+      run.codex.confirmedUnverified,
+    );
     this.settings = { ...this.settings, channel: run.channel };
     await saveJson(join(this.context.directory, 'settings.json'), this.settings);
     await saveJson(join(this.context.directory, 'run.json'), {
@@ -194,11 +221,30 @@ export class UpdateManager implements UpdateController {
       if (checked.available.version === packageInfo.version) {
         return this.configure({ ...this.settings, channel });
       }
+      const confirmation = request.codexConfirmation;
+      const codex = checked.available.codex;
+      const confirmedUnverified = Boolean(
+        confirmation &&
+        confirmation.target === checked.available.version &&
+        confirmation.version === codex.version,
+      );
+      if (confirmation && !confirmedUnverified)
+        throw new AppError(
+          'UPDATE_CODEX_CHANGED',
+          '目标版本或 Codex 已变化，请重新检查并确认。',
+          409,
+        );
+      try {
+        requireCodexCompatibility(codex.manifest, codex.version, confirmedUnverified);
+      } catch (error) {
+        throw new AppError('UPDATE_CODEX_INCOMPATIBLE', (error as Error).message, 409);
+      }
       const run: UpdateRun = {
         id: request.clientOperationId,
         from: packageInfo.version,
         target: checked.available.version,
         channel,
+        codex: { version: codex.version!, manifest: codex.manifest!, confirmedUnverified },
         phase: 'installing',
         message: '正在安装候选 npm 包',
         startedAt: Date.now(),
@@ -286,6 +332,7 @@ export class UpdateManager implements UpdateController {
       if (
         this.settings.automatic &&
         result.available &&
+        result.available.codex.status === 'verified' &&
         !result.available.downgrade &&
         result.available.version !== packageInfo.version &&
         result.run?.target !== result.available.version &&
