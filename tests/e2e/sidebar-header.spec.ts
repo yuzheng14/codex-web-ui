@@ -91,9 +91,34 @@ for (const viewport of [
     }
     const project = sidebar.getByRole('region', { name: longName, exact: true });
     await expect(project.locator('.project-link')).toHaveAttribute('title', longName);
-    await expect(project.locator('.project-path')).toHaveAttribute('title', longPath);
-    await expect(project.locator('.project-path')).toHaveCSS('text-overflow', 'ellipsis');
-    expect((await project.locator('.project-path').boundingBox())!.height).toBeLessThanOrEqual(16);
+    await expect(project).not.toContainText(longPath);
+    const heading = project.locator('.project-heading');
+    const create = project.getByRole('button', { name: '新建会话', exact: true });
+    await expect(create).toHaveAttribute('title', '新建会话');
+    await expect(create).toHaveText('');
+    // Read every bound in one frame, including while the mobile drawer slides in.
+    const headingMetrics = await heading.evaluate((element) => {
+      const heading = element.getBoundingClientRect();
+      return {
+        height: heading.height,
+        buttons: [...element.querySelectorAll('button')].map((button) => {
+          const bounds = button.getBoundingClientRect();
+          return {
+            inside:
+              bounds.top >= heading.top &&
+              bounds.bottom <= heading.bottom &&
+              bounds.left >= heading.left &&
+              bounds.right <= heading.right,
+            width: bounds.width,
+          };
+        }),
+      };
+    });
+    expect(headingMetrics.height).toBeLessThanOrEqual(40);
+    for (const button of headingMetrics.buttons) {
+      expect(button.inside).toBe(true);
+      expect(button.width).toBeGreaterThanOrEqual(32);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );

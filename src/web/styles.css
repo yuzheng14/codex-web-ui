@@ -225,6 +225,7 @@ svg {
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
+  scroll-padding-top: 40px;
   margin: 4px -6px;
   padding: 0 6px;
 }
@@ -239,11 +240,15 @@ svg {
   border-top: 0;
 }
 .project-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 3px;
   margin: 0;
   font-size: 13px;
+  background: var(--sidebar);
 }
 .project-heading > .button {
   flex-shrink: 0;
@@ -378,10 +383,6 @@ svg {
 .project-link:hover {
   background: #eef0f2;
 }
-.project-active .project-link {
-  background: #e9efeb;
-  color: #244734;
-}
 .project-activity {
   flex-shrink: 0;
   margin-left: auto;
@@ -393,25 +394,9 @@ svg {
   font-size: 10px;
   text-align: center;
 }
-.project-path {
-  font-family: monospace;
-  font-size: 10px;
-  color: #89929a;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  margin: 5px 8px 10px 32px;
-  line-height: 1.5;
-}
 .project-error {
   margin: 8px;
   overflow-wrap: anywhere;
-}
-.new-thread {
-  justify-content: flex-start;
-  padding-left: 9px;
-  min-height: 32px;
-  margin: 0 8px 9px;
 }
 .thread-list {
   min-width: 0;

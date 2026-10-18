@@ -141,7 +141,7 @@ export function Sidebar(props: Props) {
             return (
               <section
                 key={project.id}
-                className={cn('project-group', props.projectId === project.id && 'project-active')}
+                className="project-group"
                 aria-label={project.name}
                 data-project-id={project.id}
               >
@@ -163,6 +163,16 @@ export function Sidebar(props: Props) {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label={props.creating(project.id) ? '正在创建…' : '新建会话'}
+                    title={props.creating(project.id) ? '正在创建…' : '新建会话'}
+                    onClick={() => props.onCreate(project.id)}
+                    disabled={!props.canCreate(project.id) || props.creating(project.id)}
+                  >
+                    <Icon name={props.creating(project.id) ? 'loader' : 'plus'} size={15} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     aria-label={`管理项目 ${project.name}`}
                     title="管理项目"
                     onClick={() => props.onManageProject(project)}
@@ -171,24 +181,11 @@ export function Sidebar(props: Props) {
                     <Icon name="settings" size={15} />
                   </Button>
                 </h2>
-                <p className="project-path" title={project.rootPath}>
-                  {project.rootPath}
-                </p>
                 {!project.available && (
                   <p className="inline-error project-error" role="status">
                     {project.error ?? '项目目录不可用'}
                   </p>
                 )}
-                <Button
-                  className="new-thread"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => props.onCreate(project.id)}
-                  disabled={!props.canCreate(project.id) || props.creating(project.id)}
-                >
-                  <Icon name="plus" size={14} />
-                  {props.creating(project.id) ? '正在创建…' : '新建会话'}
-                </Button>
                 <div className="thread-list">
                   {threads.map((entry) => (
                     <ThreadLink
