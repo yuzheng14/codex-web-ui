@@ -13,7 +13,7 @@
 | 项目       | 0.163.0 的映射                                                                                                                                                    |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 握手       | `initialize` 成功后发送 `initialized`，随后读认证和模型；`experimentalApi: true` 允许结构化用户请求                                                                   |
-| 历史来源   | `thread/list.sourceKinds` 显式为 `cli`、`appServer`、`vscode`；省略只匹配原始字符串的 `cwd`，由服务层按 realpath 和目录边界筛选归属，保留符号链接别名和项目子目录历史 |
+| 历史来源   | `thread/list.sourceKinds` 显式为 `cli`、`appServer`、`vscode`；`cwd` 使用项目的 `canonicalRoot` 精确过滤，每页最多 30 条，按更新时间倒序，不扫描全局历史；其他路径别名和子目录历史不自动收集，服务层继续校验项目归属 |
 | 分页历史   | `Thread.historyMode` 可为 `paginated`；此时用 `thread/turns/list` 与必要的 `thread/items/list` 完整加载，不假定 `thread/read(includeTurns)` 覆盖所有历史              |
 | 新建、恢复 | `thread/start`、`thread/resume` 只映射已定义设置；恢复附带服务端已校验的 `cwd`                                                                                        |
 | 分叉会话   | `thread/fork` 使用源会话校验后的 `cwd`、`excludeTurns: true`，省略 `lastTurnId`；新 ID 再通过历史读取接口加载，保留 `forkedFromId`。运行中的源会话继续执行，分支记录已保存历史及中断状态 |

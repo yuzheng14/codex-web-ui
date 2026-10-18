@@ -1,6 +1,6 @@
 import type { ThreadSummaryPage } from '../../shared/types';
 
-/** Upstream pages are global; project/archive filtering can leave empty or duplicate pages. */
+/** Ownership, visibility and live updates can still leave empty or duplicate CWD-filtered pages. */
 export async function readThreadPage(options: {
   projectId: string;
   archived: boolean;
