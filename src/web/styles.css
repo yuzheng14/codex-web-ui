@@ -1149,6 +1149,27 @@ svg {
 .turn-completion-status svg {
   margin-right: 5px;
 }
+.reply-copy-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.reply-copy-button {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 5px;
+  color: inherit;
+}
+.reply-copy-feedback:empty {
+  opacity: 0;
+}
+.reply-copy-failed {
+  color: var(--destructive);
+}
 .message {
   display: flex;
   margin-bottom: 25px;
