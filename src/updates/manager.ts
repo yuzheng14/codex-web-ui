@@ -42,6 +42,7 @@ export class UpdateManager implements UpdateController {
   private reason = '当前服务未通过 covro 启动，网页仅支持版本检测；升级请使用原部署方式。';
   private timer?: ReturnType<typeof setInterval>;
   private checking?: Promise<UpdateStatus>;
+  private readonly network = new AbortController();
   readonly context?: UpdateContext;
   constructor(location?: CovroPaths, dataDir?: string) {
     if (location && dataDir)
@@ -88,7 +89,7 @@ export class UpdateManager implements UpdateController {
   }
   async check(channel: ReleaseChannel = this.settings.channel) {
     try {
-      const release = await lookupRelease(channel);
+      const release = await lookupRelease(channel, this.network.signal);
       this.available = {
         version: release.version,
         channel,
@@ -287,6 +288,7 @@ export class UpdateManager implements UpdateController {
     }
   }
   close() {
+    this.network.abort();
     clearInterval(this.timer);
   }
 }

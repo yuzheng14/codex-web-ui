@@ -54,10 +54,12 @@ export const releaseSchema = z.object({
   version: z.string().refine(validVersion),
   gitHead: z.string().optional(),
 });
-export async function lookupRelease(channel: ReleaseChannel) {
+export async function lookupRelease(channel: ReleaseChannel, signal?: AbortSignal) {
   // Resolve a channel exactly once. Install the resulting immutable version, never the moving tag.
   const response = await fetch(`${registry}/covro/${npmTags[channel]}`, {
-    signal: AbortSignal.timeout(15_000),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
+      : AbortSignal.timeout(15_000),
     headers: { accept: 'application/json' },
   });
   if (!response.ok)
