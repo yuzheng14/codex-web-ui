@@ -69,16 +69,22 @@ export function Sidebar(props: Props) {
             <div className="brand-mark">
               <Icon name="code" size={21} />
             </div>
-            <button
-              type="button"
-              className="brand-name covro-brand-button"
-              aria-label="Covro 更新"
-              title={`Covro ${props.appVersion ?? ''} · ${props.updating ? '更新中' : props.updateAvailable ? '有新版本' : '版本与更新'}`}
-              data-update-available={props.updateAvailable || props.updating}
-              onClick={props.onUpdates}
+            <ControlHint
+              asChild
+              side="bottom"
+              align="start"
+              content={`Covro ${props.appVersion ?? ''} · ${props.updating ? '更新中' : props.updateAvailable ? '有新版本' : '版本与更新'}`}
             >
-              Covro <ArrowUpCircle size={13} aria-hidden="true" />
-            </button>
+              <button
+                type="button"
+                className="brand-name covro-brand-button"
+                aria-label="Covro 更新"
+                data-update-available={props.updateAvailable || props.updating}
+                onClick={props.onUpdates}
+              >
+                Covro <ArrowUpCircle size={13} aria-hidden="true" />
+              </button>
+            </ControlHint>
             <Button
               className="add-project"
               variant="secondary"
