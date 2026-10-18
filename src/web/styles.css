@@ -3676,6 +3676,52 @@ dd {
   color: var(--muted);
   font-size: 12px;
 }
+.update-codex {
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #f7f8fa;
+  overflow-wrap: anywhere;
+}
+.update-codex h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.update-codex > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.update-codex p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.update-codex-status {
+  color: #4f6658;
+  margin-left: auto;
+}
+.update-codex[data-state='verified'] {
+  border-color: #c0d6c7;
+  background: #f4f8f5;
+}
+.update-codex[data-state='unverified'],
+.update-codex[data-state='unknown'] {
+  border-color: #dfd4b6;
+  background: #fcfaf4;
+}
+.update-codex[data-state='unsupported'] {
+  border-color: #e2c0be;
+  background: #fcf6f5;
+}
+.update-codex-consent {
+  margin-top: 12px;
+}
 .update-channel {
   display: flex;
   align-items: center;

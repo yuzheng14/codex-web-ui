@@ -117,6 +117,8 @@ covro update --channel dev
 | 预览版 | `beta`   | 维护者选定的预览版本        |
 | 开发版 | `dev`    | CI 通过后的 main 分支新功能 |
 
+每个发行版声明推荐和已验证的 Codex CLI 版本，更新面板会同时显示当前与目标组合。自动升级只接受已验证组合；未验证组合需要对确切目标明确确认。版本未知、声明缺失/无效或明确不支持的组合会阻止受管升级。CLI 可通过 `covro update --allow-unverified-codex` 明确尝试同一组合。Covro 不会自动升级你的 Codex CLI。
+
 自动安装默认关闭。受管升级支持 **macOS 和 Linux 的 npm 全局安装**；源码、链接、容器和 Windows 安装沿用原更新方式。候选版本失败时，会在重新开放业务写入前回滚；降级需通过数据库兼容检查。旧备份会保留，暂不自动轮转。
 
 详细说明见[分发与恢复](docs/distribution.md)、[发版操作](docs/releases.md)。

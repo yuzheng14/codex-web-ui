@@ -1,3 +1,4 @@
+import type { CodexCompatibility } from '../../shared/codex-compatibility';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpCircle, ExternalLink } from 'lucide-react';
 import { releaseChannels, updateActive, type ReleaseChannel } from '../../shared/updates';
@@ -15,6 +16,30 @@ const phaseLabels = {
   rolledBack: '已恢复上一版本',
   failed: '升级失败',
 };
+const compatibilityLabels = {
+  verified: '已验证',
+  unverified: '尚未验证',
+  unsupported: '明确不支持',
+  unknown: '无法确认',
+};
+function CodexCompatibilityDetails({ title, value }: { title: string; value: CodexCompatibility }) {
+  return (
+    <section className="update-codex" aria-label={title} data-state={value.status}>
+      <h3>{title}</h3>
+      <div>
+        <span>Codex CLI</span>
+        <strong>{value.version ?? '未识别'}</strong>
+        <span className="update-codex-status">{compatibilityLabels[value.status]}</span>
+      </div>
+      {value.manifest && (
+        <p className="subtle">
+          推荐：{value.manifest.recommended} · 已验证：{value.manifest.verified.join('、')}
+        </p>
+      )}
+      {value.reason && <p>{value.reason}</p>}
+    </section>
+  );
+}
 export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const { status, busy, error, reloadError } = updates;
@@ -24,6 +49,22 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
   const selected = status?.available?.channel === channel ? status.available : undefined;
   const active = updateActive(status?.run);
   const current = selected?.version === status?.version;
+  const [codexConsent, setCodexConsent] = useState<string>();
+  const identity = JSON.stringify([channel, selected?.version, selected?.codex]);
+  const confirmedCodex = codexConsent === identity;
+  const compatibility = selected?.codex;
+  const needsCodexConsent = !current && compatibility?.status === 'unverified';
+  const codexBlocked =
+    !current &&
+    selected &&
+    (!compatibility ||
+      compatibility.status === 'unknown' ||
+      compatibility.status === 'unsupported' ||
+      (needsCodexConsent && !confirmedCodex));
+  useEffect(() => {
+    setCodexConsent(undefined);
+  }, [identity]);
+
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
@@ -49,10 +90,11 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
         </Button>
       </div>
       <div className="update-version">
-        <span>当前版本</span>
+        <span>当前 Covro</span>
         <strong>{status?.version ?? '读取中…'}</strong>
         {status?.commit && <code>{status.commit.slice(0, 8)}</code>}
       </div>
+      {status?.codex && <CodexCompatibilityDetails title="当前 Codex" value={status.codex} />}
       <label className="update-channel">
         版本渠道
         <select
@@ -63,6 +105,7 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
             const next = event.target.value as ReleaseChannel;
             setChannel(next);
             setAllowDowngrade(false);
+            setCodexConsent(undefined);
             void updates.check(next);
           }}
         >
@@ -83,7 +126,7 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
       <div className="update-control">
         <div>
           <strong>空闲时自动升级</strong>
-          <p className="subtle">定期检查当前渠道，任务结束后安装并重启。</p>
+          <p className="subtle">定期检查当前渠道，已验证的 Codex 组合在任务结束后安装并重启。</p>
         </div>
         <Button
           role="switch"
@@ -114,6 +157,33 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
           {selected.commit && <code>{selected.commit.slice(0, 8)}</code>}
         </div>
       )}
+      {selected?.codex && (
+        <CodexCompatibilityDetails title="目标版本兼容性" value={selected.codex} />
+      )}
+      {needsCodexConsent && (
+        <label className="update-downgrade update-codex-consent">
+          <input
+            type="checkbox"
+            aria-label="允许尝试未验证的 Codex 组合"
+            checked={confirmedCodex}
+            disabled={busy || active}
+            onChange={(event) => setCodexConsent(event.target.checked ? identity : undefined)}
+          />
+          我确认尝试 Codex {compatibility?.version} 与 Covro {selected?.version}{' '}
+          的未验证组合；此确认仅用于本次升级。
+        </label>
+      )}
+      {selected &&
+        !current &&
+        selected.channel === status?.settings.channel &&
+        status.settings.automatic &&
+        compatibility?.status !== 'verified' && (
+          <p className="update-notice" role="status">
+            {compatibility?.status === 'unverified'
+              ? '自动升级已暂停。可以调整 Codex 版本后重新检查，或勾选确认后手动尝试。'
+              : '自动升级已暂停。请先恢复 Codex 连接、调整版本或等待含有效兼容声明的发行版，再重新检查。'}
+          </p>
+        )}
       <div className="update-buttons">
         <Button
           variant="secondary"
@@ -128,10 +198,19 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
             active ||
             !selected ||
             !status?.supported ||
+            Boolean(codexBlocked) ||
             (selected.downgrade && !allowDowngrade) ||
             (current && channel === status.settings.channel)
           }
-          onClick={() => void updates.start(channel, allowDowngrade)}
+          onClick={() =>
+            void updates.start(
+              channel,
+              allowDowngrade,
+              needsCodexConsent && confirmedCodex && selected?.codex.version
+                ? { version: selected.codex.version, target: selected.version }
+                : undefined,
+            )
+          }
         >
           {current ? '使用此渠道' : selected?.downgrade ? '切换并重启' : '升级并重启'}
         </Button>

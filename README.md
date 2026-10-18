@@ -117,6 +117,8 @@ covro update --channel dev
 | Beta    | `beta`   | Preview releases selected by the maintainer |
 | Dev     | `dev`    | New main-branch changes after CI passes     |
 
+Each release declares its recommended and verified Codex CLI versions. The update panel shows the current and candidate combinations. Automatic upgrades require a verified combination; an unverified combination needs explicit confirmation for that exact upgrade. Unknown versions, invalid/missing declarations, and explicitly unsupported combinations block managed upgrades. The CLI offers `covro update --allow-unverified-codex` for the same explicit attempt. Covro does not upgrade your Codex CLI.
+
 Automatic installation is off by default. Managed upgrades support **macOS and Linux npm global installations**; source, linked, container, and Windows installations use their original update method. A failed candidate is rolled back before business writes resume; downgrades must pass database compatibility checks. Old backups are retained without automatic rotation.
 
 See [distribution and recovery](docs/distribution.md) and [release operations](docs/releases.md) for details.
