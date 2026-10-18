@@ -85,14 +85,22 @@ test('async questions survive reload and send native answers after the turn ends
   await expect(page.getByRole('textbox', { name: '追加要求', exact: true })).toHaveValue(
     '稍后要发送的另一条要求',
   );
-  await expect(page.locator('.user-text').last()).toHaveText(
-    '界面使用哪种主题？\n深色（推荐）\n\n项目名称是什么？\n我的项目',
-  );
+  const reply = page.locator('.user-message').last();
+  await expect(reply.locator('blockquote')).toHaveText(['界面使用哪种主题？', '项目名称是什么？']);
+  await expect(reply.locator('.user-text')).toHaveText(['深色（推荐）', '我的项目']);
   await page.reload();
   await expect(card(page)).toContainText('已发送回答');
   await expect(card(page).getByRole('button', { name: '发送回答', exact: true })).toHaveCount(0);
   await expect(card(page)).toContainText('我的项目');
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
+  await expect(reply.locator('blockquote')).toHaveText(['界面使用哪种主题？', '项目名称是什么？']);
+  await reply.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath('answered-mobile.png'),
+    fullPage: true,
+    animations: 'disabled',
+  });
   await page.setViewportSize({ width: 1360, height: 1050 });
   await card(page).evaluate((element) =>
     element.scrollIntoView({ block: 'center', behavior: 'instant' }),
@@ -123,6 +131,12 @@ test('running async questions use steer and allow a custom answer to an option q
   await expect(page.locator('.turn')).toHaveCount(1);
   await page.reload();
   await expect(card(page)).toContainText('已发送回答');
+  const reply = page.locator('.user-message').last();
+  await expect(reply.locator('blockquote')).toHaveText(['界面使用哪种主题？', '项目名称是什么？']);
+  await expect(reply.locator('.user-text').first()).toHaveJSProperty(
+    'textContent',
+    '跟随系统\n允许手动切换',
+  );
 });
 
 test('a definite send failure retains answers and a lost receipt does not replay the answer', async ({
@@ -174,7 +188,7 @@ test('native answers from another client resolve only their individual question'
       text: encodeQuestionReplies([
         {
           questionItemId: asyncQuestionId(source.id, 0),
-          question: '界面使用哪种主题？',
+          question: '界面使用哪种主题？\n请选择 **深色** 或 <浅色>。',
           answer: '来自 CLI 的浅色选择',
         },
       ]),
@@ -185,6 +199,13 @@ test('native answers from another client resolve only their individual question'
   await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
   await page.reload();
   await expect(card(page)).toContainText('来自 CLI 的浅色选择');
+  const reply = page.locator('.user-message').last();
+  await expect(reply.locator('blockquote')).toHaveJSProperty(
+    'textContent',
+    '界面使用哪种主题？\n请选择 **深色** 或 <浅色>。',
+  );
+  await expect(reply.locator('blockquote strong')).toHaveCount(0);
+  await expect(reply.locator('.user-text')).toHaveText('来自 CLI 的浅色选择');
   await expect(card(page).getByRole('radio')).toHaveCount(0);
   await expect(freeName(page)).toBeVisible();
   await freeName(page).fill('网页补充的项目名');
