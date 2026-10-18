@@ -6,9 +6,10 @@ import {
   controlRuntime,
   createEmptyThread,
   expectThreadReady,
+  testOrigin,
 } from './helpers';
 
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
 test.beforeEach(async ({ page, request }) => {
   await controlRuntime(request, { reset: true });
   await page.goto('/');

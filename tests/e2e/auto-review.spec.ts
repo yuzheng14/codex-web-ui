@@ -9,10 +9,11 @@ import {
   controlRuntime,
   createEmptyThread,
   expectThreadReady,
+  testOrigin,
 } from './helpers';
 
 const evidence = join(tmpdir(), 'codex-auto-review-evidence');
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
 const reviewCard = (page: Page) => page.locator('details.auto-review-card');
 const reviewGroup = (page: Page) => page.locator('details.activity-group');
 const authorizationRequest = (request: Request) =>

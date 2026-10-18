@@ -6,6 +6,7 @@ import {
   controlRuntime,
   createEmptyThread,
   expectThreadReady,
+  testOrigin,
 } from './helpers';
 
 test.beforeEach(async ({ request }) => {
@@ -22,7 +23,7 @@ test.afterEach(async ({ request }) => {
     );
     if (turn)
       await request.post(`/api/threads/${encodeURIComponent(thread.id)}/interrupt`, {
-        headers: { Origin: 'http://127.0.0.1:8788' },
+        headers: { Origin: testOrigin },
         data: { clientOperationId: randomUUID(), expectedTurnId: turn.id },
       });
   }

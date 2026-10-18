@@ -9,10 +9,11 @@ import {
   controlRuntime,
   createEmptyThread,
   expectThreadReady,
+  testOrigin,
 } from './helpers';
 
 const evidence = join(tmpdir(), 'codex-reconnect-evidence');
-const headers = { Origin: 'http://127.0.0.1:8788' };
+const headers = { Origin: testOrigin };
 const notice = (page: Page) => page.getByTestId('codex-reconnect-status');
 const input = (page: Page) => page.getByRole('textbox', { name: '任务内容', exact: true });
 const send = (page: Page) => page.getByRole('button', { name: '发送任务', exact: true });

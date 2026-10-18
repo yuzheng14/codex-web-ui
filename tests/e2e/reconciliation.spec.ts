@@ -5,6 +5,7 @@ import {
   controlRuntime,
   createEmptyThread,
   expectThreadReady,
+  testOrigin,
 } from './helpers';
 
 const panel = (page: Page) => page.getByRole('region', { name: '状态诊断详情' });
@@ -376,7 +377,7 @@ test('a late 404 cannot replace a receipt delivered through the live stream', as
   await reading;
   // Simulate delayed delivery of the original identity while its older read is in flight.
   const delivered = await request.post(`/api/threads/${first.target}/turns`, {
-    headers: { Origin: 'http://127.0.0.1:8788' },
+    headers: { Origin: testOrigin },
     data: { clientOperationId: missingId, text: '[approval] 等待人工处理' },
   });
   expect(delivered.ok()).toBe(true);

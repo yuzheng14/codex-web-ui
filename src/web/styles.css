@@ -3772,22 +3772,22 @@ dd {
   line-height: 1.5;
 }
 
-.covro-update-button {
+.covro-brand-button {
   display: flex;
-  width: 100%;
-  min-height: 30px;
-  padding: 4px 5px;
-  gap: 6px;
-  font-size: 11px;
-  justify-content: flex-start;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 }
-.covro-version-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.covro-brand-button svg {
+  opacity: 0.55;
 }
-.covro-update-button .notification-settings-status {
-  margin-left: auto;
-  flex-shrink: 0;
+.covro-brand-button[data-update-available='true'] svg {
+  color: var(--accent);
+  opacity: 1;
 }
