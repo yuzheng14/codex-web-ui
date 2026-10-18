@@ -25,7 +25,9 @@ gh workflow run publish.yml --ref main -f channel=beta -f version=0.2.0-beta.1 -
 3. 在仓库 Settings → Actions → General 允许 GitHub Actions 创建 PR。release-please 默认使用受限于该工作流的 GITHUB_TOKEN；也可配置已有的 `RELEASE_PLEASE_TOKEN`。不自动批准或合并 Release PR。
 4. checks 提供 workflow_dispatch，release-please 会显式为生成的 PR 派发只读验证，避免依赖机器人 PR 的事件触发行为。稳定发布也显式派发 publish，不依赖 GITHUB_TOKEN 创建 Release 后的隐式事件。
 
-首次发布、Trusted Publisher 绑定及权限设置需要 npm/GitHub 维护者完成；工作流未合并到 main 前，不执行真实发布。整个 Stack 的合并入口是栈顶发版 PR，所有层先审查并通过检查。
+首次发布、Trusted Publisher 绑定及权限设置需要 npm/GitHub 维护者完成；工作流未合并到 main 前，不执行真实发布。整个 Stack 的合并入口是栈顶 PR，所有层先审查并通过检查。
+
+确认首次 npm 发布可以安装后，在同一个 PR 中移除 `README.md` 与 `README.zh-CN.md` 的“首发准备中”提示，并将 npm 安装移到主上手路径。
 
 发布验证包括锁定依赖安装、生产启动检查和 npm 包文件白名单。`scripts/verify-package.ts` 确认 CLI、页面、迁移和升级工作进程均入包，并排除本地配置、数据库、测试和源码目录。`scripts/verify-upgrade.ts` 使用真实后台服务、升级工作进程与 SQLite，配合明确的本地 npm 分发夹具，验证成功切换、迁移后启动失败回滚、激活中断后的修复、仍在运行的旧服务修复，以及恢复写入后拒绝快照覆盖；候选包安装由夹具提供，不执行真实 npm 安装或发布。版本号与 commit 在构建前写入临时发布工作区，不回写开发分支。
 

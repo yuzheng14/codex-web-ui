@@ -175,11 +175,9 @@ svg {
   width: 28px;
   height: 28px;
   flex-shrink: 0;
-  border-radius: 10px;
-  background: #263f35;
-  color: white;
-  display: grid;
-  place-items: center;
+}
+.brand-mark img {
+  display: block;
 }
 .brand-name {
   min-width: 0;
