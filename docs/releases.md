@@ -1,20 +1,20 @@
 # Covro 发版
 
-正式版本由 `release-please-action` v5.0.0 管理，固定提交 `45996ed1f6d02564a971a2fa1b5860e934307cf7`。main 的 checks 成功后更新 Release PR；合并 Release PR 后生成版本标签、CHANGELOG 和 GitHub Release，并显式触发 npm 发布。开发基线是 0.1.0，只纳入 bootstrap commit 之后的 Conventional Commits。
+正式版本由 `release-please-action` v5.0.0 管理，固定提交 `45996ed1f6d02564a971a2fa1b5860e934307cf7`。main 的 checks 成功后更新 Release PR；合并 Release PR 后生成版本标签、CHANGELOG 和 GitHub Release，并显式触发 npm 发布。首个正式版本是 0.1.0，由包配置的 `initial-version` 指定；首发前 `.release-please-manifest.json` 保持空对象，表示没有已经发布的版本。清单中的版本代表上次发行，不能预填目标版本。首个 Release PR 合并后由 release-please 自动记录版本，后续按 Conventional Commits 递增；`initial-version` 不会锁住后续发行。CHANGELOG 只纳入 bootstrap commit 之后的 Conventional Commits。
 
 ## 版本与 Codex 兼容契约
 
-Covro 使用独立 SemVer，当前以 0.1.0 为开发基线：兼容修复使用 `fix:` 升 patch；功能或新增 Codex 适配使用 `feat:` 升 minor。缩小 Codex 支持集合、提高运行要求等属于破坏性变更，使用 `feat!:` / `BREAKING CHANGE`；0.x 阶段升 minor（现有 `bump-minor-pre-major`），1.0 后升 major。上游发新版本不自动改变 Covro 的版本，也不自动扩大兼容声明。
+Covro 使用独立 SemVer，首个正式版本为 0.1.0：兼容修复使用 `fix:` 升 patch；功能或新增 Codex 适配使用 `feat:` 升 minor。缩小 Codex 支持集合、提高运行要求等属于破坏性变更，使用 `feat!:` / `BREAKING CHANGE`；0.x 阶段升 minor（现有 `bump-minor-pre-major`），1.0 后升 major。上游发新版本不自动改变 Covro 的版本，也不自动扩大兼容声明。
 
 `package.json.covroCodex` 定义推荐、已验证及明确不支持的 Codex 确切版本。改动后执行 `pnpm compat:sync`；发布准备与包验证会检查 README 双语声明、兼容文档和生成协议基线同步，缺失或冲突的声明无法发布。稳定版 GitHub Release 在创建后，从其确切标签读取 package.json 并追加兼容信息；重跑会替换自己的区块，保留其他发布说明。beta/dev 同样携带 npm 元数据和 README 声明。
 
 ## 渠道与触发
 
-| 渠道   | npm 标签 | 触发方式                                                                   |
-| ------ | -------- | -------------------------------------------------------------------------- |
-| stable | latest   | release-please 创建 GitHub Release 后发布确切标签                          |
-| beta   | beta     | 手工运行 publish，指定已验证的 main commit 和 `X.Y.Z-beta.N`               |
-| dev    | dev      | main 的 push 检查通过后，自动发布 `当前补丁版本 + 1-dev.CI运行ID.重跑次数` |
+| 渠道   | npm 标签 | 触发方式                                                                                                                   |
+| ------ | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| stable | latest   | release-please 创建 GitHub Release 后发布确切标签                                                                          |
+| beta   | beta     | 手工运行 publish，指定已验证的 main commit 和 `X.Y.Z-beta.N`                                                               |
+| dev    | dev      | main 的 push 检查通过后自动发布；首发前为 `0.1.0-dev.CI运行ID.重跑次数`，首发后为 `当前补丁版本 + 1-dev.CI运行ID.重跑次数` |
 
 所有发布从同一仓库的 main 历史取源码，检查确切 commit 的 `verify` 结果，再构建 npm 包。GitHub Release 稳定标签必须与 package.json 版本和 commit 一致；开发标签不会因较旧 CI 迟到而退回旧源码。已发布版本不可覆盖，同版本重复运行会核对 commit 后跳过。
 

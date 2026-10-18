@@ -11,6 +11,7 @@ export function releaseVersion(
   sequence: string,
   attempt: string,
   requested?: string,
+  firstRelease = false,
 ) {
   if (!validVersion(current)) throw new Error('Invalid source package version');
   if (channel === 'stable') {
@@ -26,7 +27,7 @@ export function releaseVersion(
   if (!/^[1-9]\d*$/.test(sequence) || !/^[1-9]\d*$/.test(attempt))
     throw new Error('Invalid CI run identity');
   const [major, minor, patch] = current.split('-')[0]!.split('.');
-  return `${major}.${minor}.${BigInt(patch!) + 1n}-dev.${sequence}.${attempt}`;
+  return `${major}.${minor}.${firstRelease ? patch : BigInt(patch!) + 1n}-dev.${sequence}.${attempt}`;
 }
 
 async function metadata(selector: string) {
@@ -55,6 +56,9 @@ async function main() {
     process.env.RELEASE_SEQUENCE ?? '',
     process.env.RELEASE_ATTEMPT ?? '',
     process.env.RELEASE_VERSION,
+    !(JSON.parse(readFileSync('.release-please-manifest.json', 'utf8')) as Record<string, string>)[
+      '.'
+    ],
   );
   const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   if (channel === 'stable') {
