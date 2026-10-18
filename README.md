@@ -5,11 +5,11 @@
   </picture>
 </p>
 
-<h1 align="center">Your Codex. Any browser.</h1>
+<h1 align="center">Codex CLI. Now in your browser.</h1>
 
 <p align="center">
-  A workspace for the Codex running on your computer.<br />
-  Start a task at your desk. Follow it from your phone. Keep the context.
+  <strong>Covro is a self-hosted Web UI for Codex CLI.</strong><br />
+  Start a task at your desk. Review the changes, approve the next step, and keep it moving from your phone.
 </p>
 
 <p align="center"><strong>Self-hosted · Desktop & mobile · Your existing Codex login · MIT</strong></p>
@@ -27,12 +27,11 @@
 
 ## What you can do
 
-- **Keep projects in view.** Switch between projects and conversations, run independent tasks in parallel, and see which ones need your attention.
-- **Continue your Codex work.** Browse saved conversations, resume existing work, fork a new direction, rename threads, and archive finished ones.
-- **Stay in control.** Follow tool activity and file changes, handle permission requests, and answer Codex's questions from the browser.
-- **Read without losing your place.** View Markdown, tables, code, images, and local Markdown documents. Use a side panel on desktop or a full-screen reader on mobile.
-- **Keep your working context.** Each conversation keeps its own draft, pasted images, and model settings while you move around the workspace. Copy or export results when you're done.
-- **Stay up to date.** Choose stable, beta, or dev; check versions and upgrade from the Web UI. Managed upgrades wait for tasks to finish, restart the service, and preserve the data directory.
+- **Step away from your desk. Stay with the task.** Follow tool activity, inspect file changes, handle permission requests, and answer Codex's questions from your computer or phone. Closing the page doesn't cancel the task.
+- **See every project in one place.** Run independent tasks in parallel and spot which conversations are working, waiting for approval, or ready to read.
+- **Pick up your Codex CLI conversations.** Browse saved history, resume existing work, or fork a new direction. Rename conversations to find them later and archive them when you're done.
+- **Review the work beside the conversation.** Read Markdown documents in a desktop side panel while you keep talking to Codex. View code, tables, and images, with a full-screen document reader on mobile.
+- **Switch tasks without losing your draft.** Each conversation keeps its own draft, pasted images, and model settings in the current page. Copy or export results when you're done.
 
 <details>
   <summary><strong>A workspace that fits your phone</strong></summary>
@@ -50,9 +49,31 @@ Recommended Codex CLI: **0.163.0**. Verified versions: `0.163.0`.
 
 <!-- codex-compatibility:end -->
 
+### npm installation
+
+The first public npm release is being prepared. Until `covro` is published, [run from source](#run-from-source). After publication, install and start with:
+
+```sh
+npm install -g covro
+covro
+```
+
+`covro` starts in the background and prints the local address. Open **<http://127.0.0.1:8787>** to get started. Close the terminal and keep working in your browser.
+
+| Command                   | Purpose                                      |
+| ------------------------- | -------------------------------------------- |
+| `covro status`            | Show the running instance and its address    |
+| `covro logs`              | Read recent service logs                     |
+| `covro stop`              | Stop the service                             |
+| `covro run`               | Run in the foreground                        |
+| `covro service install`   | Opt in to login auto-start on macOS or Linux |
+| `covro service uninstall` | Remove login auto-start                      |
+
+The npm CLI uses `~/.covro/config.json` and a fixed data directory beside it. Reuse an existing configuration with `covro --config /absolute/path/config.json`.
+
 ### Run from source
 
-With **pnpm 12.11.2** installed:
+To try Covro before the npm release or work on the code, use **pnpm 12.11.2**:
 
 ```sh
 git clone https://github.com/yuzheng14/codex-web-ui.git covro
@@ -66,28 +87,6 @@ pnpm start -- --config ./config.local.json
 Open **<http://127.0.0.1:8787>**, click **添加项目** (Add project), and enter a project directory on the computer running Covro. Open a conversation or send your first task.
 
 For local development, run `pnpm dev` instead and open <http://127.0.0.1:5173>.
-
-### npm installation
-
-The first public npm release is being prepared. Use the source instructions above until `covro` is published. After publication:
-
-```sh
-npm install -g covro
-covro
-```
-
-`covro` starts in the background. Close the terminal and keep working in your browser.
-
-| Command                   | Purpose                                      |
-| ------------------------- | -------------------------------------------- |
-| `covro status`            | Show the running instance and its address    |
-| `covro logs`              | Read recent service logs                     |
-| `covro stop`              | Stop the service                             |
-| `covro run`               | Run in the foreground                        |
-| `covro service install`   | Opt in to login auto-start on macOS or Linux |
-| `covro service uninstall` | Remove login auto-start                      |
-
-The npm CLI uses `~/.covro/config.json` and a fixed data directory beside it. Reuse an existing configuration with `covro --config /absolute/path/config.json`.
 
 ## Access from another device
 
@@ -125,7 +124,7 @@ See [distribution and recovery](docs/distribution.md) and [release operations](d
 
 ## Your computer, your workspace
 
-Covro is a single-user app built around your existing Codex environment. Code runs on the host computer through `codex app-server`. Projects and Codex history stay there; Covro stores its own project registry and operation records in SQLite. It does not provide a separate hosted account or copy your Codex login into the browser. Codex itself still uses its configured model provider.
+Covro is a single-user Web UI for your existing Codex CLI. It connects through `codex app-server`, which executes tasks on the host computer using your Codex login and configuration. Projects and Codex history stay there; Covro stores its own project registry and operation records in SQLite. It does not provide a separate hosted account or copy your Codex login into the browser. Codex itself still uses its configured model provider.
 
 Use the browser to follow work, review requests, and continue conversations. An interactive terminal, file editor, Git GUI, and multi-user team management are outside the current scope.
 
