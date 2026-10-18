@@ -180,7 +180,7 @@ function makeThread(cwd: string): Thread {
     status: { type: 'idle' },
     path: null,
     cwd,
-    cliVersion: '0.162.1',
+    cliVersion: '0.163.0',
     originator: 'codex_web_ui',
     source: 'vscode',
     threadSource: null,
@@ -1478,7 +1478,7 @@ function receive(request: ClientRequest): void {
   if (request.method === 'initialize') {
     initialized = true;
     reply(request.id, {
-      userAgent: 'codex/0.162.1',
+      userAgent: 'codex/0.163.0',
       codexHome: '/tmp/simulated-codex',
       platformFamily: 'unix',
       platformOs: 'macos',
