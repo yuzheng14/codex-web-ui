@@ -486,6 +486,36 @@ export function App() {
             </Button>
           </div>
         )}
+        {workspace.operations
+          .filter((entry) => entry.mutation)
+          .map((entry) => (
+            <div
+              className="archive-notice mutation-notice"
+              role="status"
+              key={entry.clientOperationId}
+            >
+              <Icon name="archive" size={16} />
+              <span>
+                {entry.mutation!.archived
+                  ? entry.status === 'unknown'
+                    ? '归档结果待确认'
+                    : '正在归档会话…'
+                  : entry.status === 'unknown'
+                    ? '取消归档结果待确认'
+                    : '正在取消归档…'}
+              </span>
+              {entry.status === 'unknown' && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={checkingStatus}
+                  onClick={() => void refreshStatus()}
+                >
+                  {checkingStatus ? '正在核对…' : '核对提交'}
+                </Button>
+              )}
+            </div>
+          ))}
         {thread?.archived && (
           <div className="archive-notice" role="status">
             <Icon name="archive" size={18} />

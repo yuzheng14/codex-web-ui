@@ -202,3 +202,30 @@ describe('durable operation identity', () => {
     expect(entry.operation!.status).toBe('unknown');
   });
 });
+
+it('persists only the archive intent needed for reconciliation', () => {
+  let data = '';
+  const storage = {
+    getItem: () => data,
+    setItem: (_key: string, value: string) => {
+      data = value;
+    },
+  };
+  saveOperations(
+    [
+      {
+        clientOperationId: 'archive',
+        kind: 'archive',
+        target: 'thread',
+        createdAt: 1,
+        status: 'accepted',
+        mutation: { projectId: 'project', archived: true },
+      },
+    ],
+    storage,
+  );
+  expect(readOperations(storage)[0]).toMatchObject({
+    status: 'unknown',
+    mutation: { projectId: 'project', archived: true },
+  });
+});

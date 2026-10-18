@@ -3,6 +3,11 @@ import { HttpError } from './api';
 import { readableError } from './utils';
 
 const STORAGE_KEY = 'codex-web.operations.v1';
+export interface ThreadMutation {
+  projectId: string;
+  archived: boolean;
+}
+
 export interface SavedOperation {
   clientOperationId: string;
   kind: string;
@@ -14,6 +19,7 @@ export interface SavedOperation {
   lookupError?: { message: string; missing: boolean };
   projectId?: string;
   navigateToResult?: boolean;
+  mutation?: ThreadMutation;
   /** Navigation when Fork was clicked, which can differ from its source row and project. */
   navigationSource?: { projectId: string; threadId: string | null };
 }
@@ -60,12 +66,18 @@ export function readOperations(storage?: Pick<Storage, 'getItem'>): SavedOperati
           projectId,
           navigateToResult,
           navigationSource,
+          mutation,
         }) => ({
           clientOperationId,
           kind,
           target,
           createdAt,
           status: 'unknown',
+          ...(kind === 'archive' &&
+          typeof mutation?.projectId === 'string' &&
+          typeof mutation.archived === 'boolean'
+            ? { mutation: { projectId: mutation.projectId, archived: mutation.archived } }
+            : {}),
           ...((kind === 'fork' || kind === 'create') && typeof projectId === 'string'
             ? { projectId, navigateToResult: navigateToResult === true }
             : {}),
@@ -100,12 +112,14 @@ export function saveOperations(operations: SavedOperation[], storage?: Pick<Stor
             projectId,
             navigateToResult,
             navigationSource,
+            mutation,
           }) => ({
             clientOperationId,
             kind,
             target,
             createdAt,
             ...(kind === 'fork' || kind === 'create' ? { projectId, navigateToResult } : {}),
+            ...(kind === 'archive' && mutation ? { mutation } : {}),
             ...(kind === 'fork' && navigationSource ? { navigationSource } : {}),
           }),
         ),

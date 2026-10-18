@@ -1,4 +1,11 @@
-import type { Cursor, ThreadSummary, ThreadSummaryPage } from '../../shared/types';
+import type {
+  Cursor,
+  ThreadSummary,
+  ThreadSummaryPage,
+  ThreadMutationResult,
+} from '../../shared/types';
+
+import type { SavedOperation, ThreadMutation } from './operations';
 
 export interface ProjectThreads {
   data: ThreadSummary[];
@@ -32,6 +39,75 @@ export class ProjectThreadsStore {
   private readonly versions = new Map<string, SummaryVersion>();
   private revision = 0;
   archived = false;
+  private readonly mutations = new Map<
+    string,
+    {
+      target: string;
+      change: ThreadMutation;
+      base?: ThreadSummary;
+      revision: number;
+    }
+  >();
+
+  constructor(operations: SavedOperation[] = []) {
+    for (const entry of operations)
+      if (entry.mutation) this.beginMutation(entry.clientOperationId, entry.target, entry.mutation);
+  }
+
+  beginMutation(id: string, target: string, change: ThreadMutation, base?: ThreadSummary) {
+    base ??= Object.values(this.value)
+      .flatMap((page) => page.data)
+      .find((row) => row.id === target);
+    this.mutations.set(id, { target, change, base, revision: this.revision });
+  }
+
+  seedMutation(id: string, base: ThreadSummary) {
+    const mutation = this.mutations.get(id);
+    if (
+      mutation &&
+      !mutation.base &&
+      mutation.target === base.id &&
+      mutation.change.projectId === base.projectId
+    )
+      mutation.base = base;
+  }
+
+  project<T extends { id: string }>(thread: T): T {
+    let next = thread;
+    for (const { target, change } of this.mutations.values())
+      if (target === thread.id) next = { ...next, archived: change.archived };
+    return next;
+  }
+
+  settleMutation(id: string, result?: ThreadMutationResult) {
+    const mutation = this.mutations.get(id);
+    if (!mutation) return;
+    if (
+      result?.summary?.id === mutation.target &&
+      result.summary.projectId === mutation.change.projectId &&
+      result.cursor
+    ) {
+      const version = this.versions.get(mutation.target);
+      // A recovered receipt from a previous gateway must not overwrite a newer epoch.
+      if (
+        !version ||
+        version.cursor.serverEpoch === result.cursor.serverEpoch ||
+        version.revision <= mutation.revision
+      )
+        this.applySummary(result.summary, result.cursor);
+    }
+    if (mutation.base) {
+      // A failed write may have outlived a filter change; restore only its own row.
+      const previous = this.get(mutation.change.projectId);
+      if (!previous.data.some((row) => row.id === mutation.target) && this.includes(mutation.base))
+        this.set(mutation.change.projectId, {
+          ...previous,
+          data: sort([...previous.data, mutation.base]),
+        });
+    }
+    this.mutations.delete(id);
+    return mutation.base;
+  }
 
   setArchived(archived: boolean) {
     if (this.archived === archived) return false;
@@ -39,7 +115,9 @@ export class ProjectThreadsStore {
     for (const projectId of this.sequences.keys())
       this.sequences.set(projectId, this.sequences.get(projectId)! + 1);
     this.value = {};
-    this.versions.clear();
+    for (const id of this.versions.keys())
+      if (![...this.mutations.values()].some((mutation) => mutation.target === id))
+        this.versions.delete(id);
     return true;
   }
 
@@ -48,7 +126,20 @@ export class ProjectThreadsStore {
   }
 
   get snapshot() {
-    return this.value;
+    if (!this.mutations.size) return this.value;
+    const value = { ...this.value };
+    for (const { change, base } of this.mutations.values()) {
+      const page = value[change.projectId] ?? empty();
+      const data = new Map(page.data.map((row) => [row.id, row]));
+      if (base && !data.has(base.id)) data.set(base.id, base);
+      value[change.projectId] = { ...page, data: [...data.values()] };
+    }
+    for (const [projectId, page] of Object.entries(value))
+      value[projectId] = {
+        ...page,
+        data: sort(page.data.map((row) => this.project(row)).filter((row) => this.includes(row))),
+      };
+    return value;
   }
 
   findProject(threadId: string) {
@@ -58,6 +149,8 @@ export class ProjectThreadsStore {
   }
 
   removeProject(projectId: string) {
+    for (const [id, mutation] of this.mutations)
+      if (mutation.change.projectId === projectId) this.mutations.delete(id);
     // Keep the sequence as a tombstone so an older read cannot restore a removed project.
     this.sequences.set(projectId, (this.sequences.get(projectId) ?? 0) + 1);
     const next = { ...this.value };
@@ -105,7 +198,9 @@ export class ProjectThreadsStore {
       } else {
         if (this.includes(entry)) data.set(entry.id, entry);
         else data.delete(entry.id);
-        this.versions.set(entry.id, { cursor: page.cursor, revision: this.revision });
+        this.versions.set(entry.id, { cursor: page.cursor, revision: ++this.revision });
+        for (const mutation of this.mutations.values())
+          if (mutation.target === entry.id) mutation.base = entry;
       }
     }
     // A newly created or newly active conversation may be absent from an older first page.
@@ -133,6 +228,8 @@ export class ProjectThreadsStore {
     )
       return false;
     this.versions.set(summary.id, { cursor, revision: ++this.revision });
+    for (const mutation of this.mutations.values())
+      if (mutation.target === summary.id) mutation.base = summary;
     const previous = this.get(summary.projectId);
     this.set(summary.projectId, {
       ...previous,
