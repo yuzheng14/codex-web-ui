@@ -1,7 +1,7 @@
-import { cp, mkdir, rename, rm, stat } from 'node:fs/promises';
+import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { UpdateRun } from '../shared/updates.js';
-import { saveJson } from './files.js';
+import { copyDurable, saveJson } from './files.js';
 
 export interface TransactionPaths {
   root: string;
@@ -47,9 +47,9 @@ export async function activateUpdate(paths: TransactionPaths, effects: UpdateEff
     await mkdir(paths.backup, { recursive: true, mode: 0o700 });
     for (const name of ['app.sqlite', 'app.sqlite-wal', 'app.sqlite-shm']) {
       if (await exists(join(paths.dataDir, name)))
-        await cp(join(paths.dataDir, name), join(paths.backup, name));
+        await copyDurable(join(paths.dataDir, name), join(paths.backup, name));
     }
-    await cp(paths.config, join(paths.backup, 'config.json'));
+    await copyDurable(paths.config, join(paths.backup, 'config.json'));
     await saveJson(join(paths.backup, 'snapshot.json'), { complete: true });
     backedUp = true;
     await rename(paths.root, paths.previous);
@@ -79,9 +79,9 @@ export async function activateUpdate(paths: TransactionPaths, effects: UpdateEff
         for (const name of ['app.sqlite', 'app.sqlite-wal', 'app.sqlite-shm']) {
           await rm(join(paths.dataDir, name), { force: true });
           if (await exists(join(paths.backup, name)))
-            await cp(join(paths.backup, name), join(paths.dataDir, name));
+            await copyDurable(join(paths.backup, name), join(paths.dataDir, name));
         }
-        await cp(join(paths.backup, 'config.json'), paths.config);
+        await copyDurable(join(paths.backup, 'config.json'), paths.config);
       }
       await effects.phase(
         'rolledBack',

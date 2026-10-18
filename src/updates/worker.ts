@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-import { access, readFile, mkdir, open, readdir, rm, rename, cp } from 'node:fs/promises';
+import { access, readFile, mkdir, open, readdir, rm, rename } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { setTimeout } from 'node:timers/promises';
@@ -14,7 +14,7 @@ import type Database from 'better-sqlite3';
 import type { UpdateRun } from '../shared/updates.js';
 import type { UpdateContext } from './manager.js';
 import { control, isNotRunning, stopAndWait } from '../cli/control.js';
-import { readJson, saveJson } from './files.js';
+import { copyDurable, readJson, saveJson } from './files.js';
 import { activateUpdate, transactionPaths } from './transaction.js';
 import { inspectInstallation, registry } from './registry.js';
 
@@ -198,12 +198,12 @@ async function worker(directory: string) {
         for (const name of ['app.sqlite', 'app.sqlite-wal', 'app.sqlite-shm']) {
           await rm(join(paths.dataDir, name), { force: true });
           try {
-            await cp(join(paths.backup, name), join(paths.dataDir, name));
+            await copyDurable(join(paths.backup, name), join(paths.dataDir, name));
           } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
           }
         }
-        await cp(join(paths.backup, 'config.json'), paths.config);
+        await copyDurable(join(paths.backup, 'config.json'), paths.config);
       }
       const restored = await readJson<{ name: string; version: string }>(
         join(paths.root, 'package.json'),
