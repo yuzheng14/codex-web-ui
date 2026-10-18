@@ -28,7 +28,15 @@ it('orders immutable release versions and prereleases without treating dev as st
   expect(compareVersions('0.3.0-beta.1', '0.3.0')).toBeLessThan(0);
   expect(compareVersions('0.3.0', '0.2.99')).toBeGreaterThan(0);
   expect(compareVersions('0.3.0+abc', '0.3.0+def')).toBe(0);
-  for (const version of ['latest', '../bad', '1.2.3;sh', '1.2.3-dev.01', '01.2.3'])
+  for (const version of [
+    'latest',
+    '../bad',
+    '1.2.3;sh',
+    '1.2.3-dev.01',
+    '01.2.3',
+    '1.2.3+..',
+    '1.2.3+build.',
+  ])
     expect(validVersion(version)).toBe(false);
 });
 
