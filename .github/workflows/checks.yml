@@ -1,6 +1,7 @@
 name: checks
 on:
   pull_request:
+  workflow_dispatch:
   push:
     branches: [main]
 permissions:
@@ -26,6 +27,8 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: node --import tsx scripts/verify-production.ts
+      - run: node --import tsx scripts/verify-package.ts
+      - run: node --import tsx scripts/verify-upgrade.ts
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15

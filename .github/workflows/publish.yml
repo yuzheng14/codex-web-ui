@@ -1,0 +1,86 @@
+name: publish
+on:
+  workflow_run:
+    workflows: [checks]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: npm release channel
+        type: choice
+        options: [stable, beta]
+        required: true
+      version:
+        description: Exact version (beta requires X.Y.Z-beta.N)
+        required: true
+        type: string
+      source_ref:
+        description: Verified main commit or stable release tag
+        default: main
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: covro-npm-publish
+  cancel-in-progress: false
+jobs:
+  npm:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || inputs.source_ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require successful checks and main ancestry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git merge-base --is-ancestor HEAD origin/main
+          node --input-type=module <<'JS'
+          import { execFileSync } from 'node:child_process';
+          const sha = execFileSync('git', ['rev-parse','HEAD'], {encoding:'utf8'}).trim();
+          const pages = JSON.parse(execFileSync('gh', ['api', `repos/${process.env.GITHUB_REPOSITORY}/commits/${sha}/check-runs`, '--paginate', '--slurp'], {encoding:'utf8'}));
+          if (!pages.flatMap(page => page.check_runs).some(run => run.name === 'verify' && run.conclusion === 'success' && run.app?.slug === 'github-actions')) {
+            throw new Error('This exact commit has not passed checks/verify. Wait for CI and retry.');
+          }
+          JS
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - name: Resolve and stamp the immutable npm version
+        id: prepare
+        env:
+          RELEASE_CHANNEL: ${{ inputs.channel || 'dev' }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_SEQUENCE: ${{ github.event.workflow_run.id || github.run_id }}
+          RELEASE_ATTEMPT: ${{ github.event.workflow_run.run_attempt || github.run_attempt }}
+        run: node --import tsx scripts/prepare-release.ts
+      - if: steps.prepare.outputs.skip != 'true'
+        run: pnpm build
+      - if: steps.prepare.outputs.skip != 'true'
+        run: node --import tsx scripts/verify-production.ts
+      - if: steps.prepare.outputs.skip != 'true'
+        run: node --import tsx scripts/verify-package.ts
+      - if: steps.prepare.outputs.skip != 'true'
+        run: node --import tsx scripts/verify-upgrade.ts
+      - name: Publish through npm trusted publishing
+        if: steps.prepare.outputs.skip != 'true'
+        env:
+          RELEASE_TAG: ${{ steps.prepare.outputs.tag }}
+        run: npm publish --access public --provenance --tag "$RELEASE_TAG"
