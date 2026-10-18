@@ -29,6 +29,7 @@ async function updatesFixture(page: Page) {
     commit: '2a7c9d1e5432',
     settings: { channel: 'stable', automatic: false },
   };
+  let candidateMetadata: unknown = CODEX_COMPATIBILITY;
   const requests: { path: string; body: Record<string, unknown> }[] = [];
   let reload = false;
   await page.route('**/api/updates**', async (route) => {
@@ -43,7 +44,7 @@ async function updatesFixture(page: Page) {
         channel: body.channel as 'dev' | 'stable',
         downgrade: false,
         commit: '8fb09cabcdef',
-        codex: assessCodexCompatibility(CODEX_COMPATIBILITY, CODEX_COMPATIBILITY.recommended),
+        codex: assessCodexCompatibility(candidateMetadata, state.codex.version),
       };
     if (path.endsWith('/settings')) state.settings = body as unknown as UpdateStatus['settings'];
     if (path.endsWith('/run'))
@@ -65,6 +66,14 @@ async function updatesFixture(page: Page) {
   return {
     state,
     requests,
+    setCandidate: (metadata: unknown) => {
+      candidateMetadata = metadata;
+    },
+    setCodex: (version: string | null) => {
+      state.codex = assessCodexCompatibility(CODEX_COMPATIBILITY, version);
+      if (state.available)
+        state.available.codex = assessCodexCompatibility(candidateMetadata, version);
+    },
     triggerReload: () => {
       reload = true;
     },
@@ -148,4 +157,93 @@ test('new server version reloads the UI once and restores the tab draft and past
   await expect(input).toHaveValue('升级后继续处理这份草稿，保留图片。');
   await expect(page.locator('.composer-images img')).toHaveCount(1);
   expect(submissions).toBe(0);
+});
+
+for (const viewport of [
+  { name: 'desktop', width: 1440, height: 1100 },
+  { name: 'mobile', width: 390, height: 844 },
+]) {
+  test(`${viewport.name}: compatibility blocks unknown/unsupported candidates and requires a fresh exact confirmation`, async ({
+    page,
+  }) => {
+    const fixture = await updatesFixture(page);
+    fixture.state.settings.automatic = true;
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await confirmCompatibility(page);
+    if (viewport.name === 'mobile')
+      await page.getByRole('button', { name: '打开项目与会话', exact: true }).click();
+    await page.getByRole('button', { name: 'Covro 更新', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Covro 更新', exact: true });
+    const currentCodex = dialog.getByRole('region', { name: '当前 Codex', exact: true });
+    await expect(currentCodex).toContainText('0.163.0');
+    await expect(currentCodex).toContainText('已验证');
+    fixture.setCandidate(undefined);
+    await dialog.getByRole('button', { name: '检查更新', exact: true }).click();
+    const candidate = dialog.getByRole('region', { name: '目标版本兼容性', exact: true });
+    const upgrade = dialog.getByRole('button', { name: '升级并重启', exact: true });
+    await expect(candidate).toContainText('缺少有效的 Codex 兼容声明');
+    await expect(upgrade).toBeDisabled();
+    await screenshot(page, `codex-${viewport.name}-missing-metadata.png`);
+    const unsupported = {
+      recommended: '0.164.0',
+      verified: ['0.164.0'],
+      unsupported: [{ version: '0.163.0', reason: '示例：该组合明确不受支持' }],
+    };
+    fixture.setCandidate(unsupported);
+    await dialog.getByRole('button', { name: '检查更新', exact: true }).click();
+    await expect(candidate).toContainText('明确不支持');
+    await expect(upgrade).toBeDisabled();
+    await expect(dialog.getByRole('checkbox', { name: '允许尝试未验证的 Codex 组合' })).toHaveCount(
+      0,
+    );
+    await candidate.scrollIntoViewIfNeeded();
+    await screenshot(page, `codex-${viewport.name}-unsupported.png`);
+    const unverified = { ...unsupported, unsupported: [] };
+    fixture.setCandidate(unverified);
+    await dialog.getByRole('button', { name: '检查更新', exact: true }).click();
+    await expect(candidate).toContainText('尚未验证');
+    const consent = dialog.getByRole('checkbox', { name: '允许尝试未验证的 Codex 组合' });
+    await expect(upgrade).toBeDisabled();
+    await consent.check();
+    await expect(upgrade).toBeEnabled();
+    fixture.setCodex('0.162.1');
+    await expect(candidate).toContainText('0.162.1', { timeout: 10_000 });
+    await expect(consent).not.toBeChecked();
+    await expect(upgrade).toBeDisabled();
+    fixture.setCodex('0.163.0');
+    await dialog.getByRole('button', { name: '检查更新', exact: true }).click();
+    await expect(candidate).toContainText('当前 Codex 0.163.0');
+    await expect(consent).not.toBeChecked();
+    await consent.check();
+    await expect(upgrade).toBeEnabled();
+    await screenshot(page, `codex-${viewport.name}-confirmed.png`);
+    expect(fixture.requests.filter((request) => request.path.endsWith('/run'))).toHaveLength(0);
+    await upgrade.click();
+    await expect(dialog).toContainText('等待任务空闲');
+    const runs = fixture.requests.filter((request) => request.path.endsWith('/run'));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.body.codexConfirmation).toEqual({ version: '0.163.0', target: nextVersion });
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+  });
+}
+
+test('unknown configured Codex blocks managed upgrades even when the candidate declares compatible versions', async ({
+  page,
+}) => {
+  const fixture = await updatesFixture(page);
+  fixture.setCodex(null);
+  await page.goto('/');
+  await confirmCompatibility(page);
+  await page.getByRole('button', { name: 'Covro 更新', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Covro 更新', exact: true });
+  await dialog.getByRole('button', { name: '检查更新', exact: true }).click();
+  await expect(dialog.getByRole('region', { name: '目标版本兼容性', exact: true })).toContainText(
+    '无法确认当前 Codex CLI 版本',
+  );
+  await expect(dialog.getByRole('button', { name: '升级并重启', exact: true })).toBeDisabled();
+  await screenshot(page, 'codex-desktop-unknown-runtime.png');
+  expect(fixture.requests.filter((request) => request.path.endsWith('/run'))).toHaveLength(0);
 });

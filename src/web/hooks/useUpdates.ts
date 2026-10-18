@@ -1,3 +1,4 @@
+import type { CodexUpdateConfirmation } from '../../shared/codex-compatibility';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReleaseChannel, UpdateSettings, UpdateStatus } from '../../shared/updates';
 import { request } from '../lib/api';
@@ -81,11 +82,16 @@ export function useUpdates() {
     reloadError,
     check: (channel: ReleaseChannel) => perform('/api/updates/check', { channel }),
     configure: (settings: UpdateSettings) => perform('/api/updates/settings', settings),
-    start: (channel: ReleaseChannel, allowDowngrade: boolean) =>
+    start: (
+      channel: ReleaseChannel,
+      allowDowngrade: boolean,
+      codexConfirmation?: CodexUpdateConfirmation,
+    ) =>
       perform('/api/updates/run', {
         clientOperationId: crypto.randomUUID(),
         channel,
         allowDowngrade,
+        codexConfirmation,
       }),
   };
 }
