@@ -29,7 +29,9 @@ export async function startGateway(
   const release = await acquireInstanceLock(config.dataDir);
   let closeDatabase: (() => void) | undefined;
   let codex: CodexClient | undefined;
-  const updates = overrides.updates ?? new UpdateManager();
+  const updates =
+    overrides.updates ??
+    new UpdateManager(undefined, undefined, () => codex?.diagnostics().codexVersion ?? null);
   try {
     const db = openDatabase(join(config.dataDir, 'app.sqlite'));
     closeDatabase = db.close;

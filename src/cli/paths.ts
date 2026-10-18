@@ -10,6 +10,7 @@ export const packageInfo = JSON.parse(readFileSync(join(packageRoot, 'package.js
   name: string;
   version: string;
   engines: { node: string };
+  covroCodex?: unknown;
   covroCommit?: string;
   covroChannel?: 'stable' | 'beta' | 'dev';
 };

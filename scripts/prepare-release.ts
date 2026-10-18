@@ -1,3 +1,4 @@
+import { verifyCompatibility } from './sync-compatibility.js';
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -39,6 +40,7 @@ async function metadata(selector: string) {
 async function main() {
   const channel = process.env.RELEASE_CHANNEL as ReleaseChannel;
   if (!releaseChannels.includes(channel)) throw new Error('Unknown release channel');
+  verifyCompatibility();
   const filename = 'package.json';
   const source = JSON.parse(readFileSync(filename, 'utf8')) as {
     name: string;

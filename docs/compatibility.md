@@ -1,6 +1,12 @@
 # Codex 协议兼容性
 
-当前目标：`codex-cli 0.163.0`，核验日期：2026-10-18（Asia/Shanghai）。稳定协议已由明确指定的官方 binary 重新生成，单一 verified 版本提升为 0.163.0；0.162.1 和其他版本重新走 unverified 确认。来源与实验字段差异见 [协议审查](codex-0.163.0-protocol.md)，本轮验证范围与限制见 [升级验证](codex-0.163.0-verification.md)。
+<!-- codex-compatibility:start -->
+
+推荐 Codex CLI：**0.163.0**。已验证版本：`0.163.0`。
+
+<!-- codex-compatibility:end -->
+
+以下为 `codex-cli 0.163.0` 的核验记录，日期：2026-10-18（Asia/Shanghai）。稳定协议已由明确指定的官方 binary 重新生成，单一 verified 版本提升为 0.163.0；0.162.1 和其他版本重新走 unverified 确认。来源与实验字段差异见 [协议审查](codex-0.163.0-protocol.md)，本轮验证范围与限制见 [升级验证](codex-0.163.0-verification.md)。
 
 以下映射继续适用于 0.163.0；下文保留的 0.162.1 实测日期与版本表示历史证据，不扩大为新版完整验证。
 
@@ -10,24 +16,24 @@
 
 会话创建方 `Thread.originator` 原样进入详情与列表摘要，缺失时返回 `null`。来源展示优先精确识别 `codex_web_ui`、`codex-tui`、`codex_vscode` 和 `Codex Desktop`，其他非空创建方原样显示。仅有 `source: vscode` 时不能判断具体客户端：0.162.1 的独立 app-server 启动路径固定使用 VSCode 来源，网页和连接共享后台服务的终端会话也可能属于此类，因此显示“交互客户端”。协议 `source: appServer` 映射内部 MCP 来源，显示 MCP；原始 `source` 保留以兼容已有接口、关联记录和未知来源兜底。依据为上游 [CLI 启动代码](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/cli/src/main.rs)、[来源映射](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server-protocol/src/protocol/v2/thread_data.rs)、[客户端身份示例](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server-protocol/src/protocol/common.rs)及[初始化处理](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server/src/request_processors/initialize_processor.rs)。这些字段描述创建入口，与当前执行进程、任务状态和连接状态分别展示。
 
-| 项目       | 0.163.0 的映射                                                                                                                                                    |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 握手       | `initialize` 成功后发送 `initialized`，随后读认证和模型；`experimentalApi: true` 允许结构化用户请求                                                                   |
-| 历史来源   | `thread/list.sourceKinds` 显式为 `cli`、`appServer`、`vscode`；`cwd` 使用项目的 `canonicalRoot` 精确过滤，每页最多 30 条，按更新时间倒序，不扫描全局历史；其他路径别名和子目录历史不自动收集，服务层继续校验项目归属 |
-| 分页历史   | `Thread.historyMode` 可为 `paginated`；此时用 `thread/turns/list` 与必要的 `thread/items/list` 完整加载，不假定 `thread/read(includeTurns)` 覆盖所有历史              |
-| 新建、恢复 | `thread/start`、`thread/resume` 只映射已定义设置；恢复附带服务端已校验的 `cwd`                                                                                        |
-| 分叉会话   | `thread/fork` 使用源会话校验后的 `cwd`、`excludeTurns: true`，省略 `lastTurnId`；新 ID 再通过历史读取接口加载，保留 `forkedFromId`。运行中的源会话继续执行，分支记录已保存历史及中断状态 |
-| 文本输入   | `input: [{ type: 'text', text, text_elements: [] }]`，追加要求使用 `turn/steer.expectedTurnId`                                                                        |
-| 推理强度   | turn 使用 `effort`；新建和恢复通过协议支持的 `config.model_reasoning_effort` 设置；选项来自 `model/list`                                                              |
-| 权限       | thread 使用 `sandbox` 枚举；turn 映射为 `sandboxPolicy` 对象，不直接透传浏览器字段                                                                                    |
-| 审批       | command/file 使用各自 decision 枚举；命令规则和网络规则只能采用上游请求提供的具体 amendment                                                                           |
-| 额外权限   | `item/permissions/requestApproval` 展示原始请求的网络及文件范围；允许本轮/本会话分别回复 `scope: turn/session`，拒绝回复空权限；浏览器不能提交或扩大权限范围 |
-| MCP 交互   | `mcpServer/elicitation/request` 支持 `form`、`openai/form`、`openaiForm` 的平面表单及 `url` 模式；回复 `action/content/_meta`，拒绝与取消保持独立语义。URL 仅允许 HTTP/HTTPS，必须由用户主动打开 |
-| 结构化问题 | `item/tool/requestUserInput`，回复为 `{ answers: { questionId: { answers: [...] } } }`；校验选项、自由输入和题目 ID，保留 `isBlocking` 语义                           |
-| 回答确认   | 写入回复后保持 responding；`serverRequest/resolved` 才确认 answered，turn 结束或进程退出使遗留请求失效                                                                |
-| 自动审核展示 | `item/autoApprovalReview/started`、`item/autoApprovalReview/completed` 按独立 `reviewId` 合并，只读展示操作、状态、风险和原因；不发送审批回复，也不据此判定任务完成 |
-| 请求 ID    | 字符串与数字分别匹配，数字 `0` 有效；不依赖响应顺序                                                                                                                   |
-| 新活动类型 | 保留稳定 item ID，以通用活动详情展示；未知交互请求显示兼容错误并回复 JSON-RPC `-32601`，不会自动同意                                                                  |
+| 项目         | 0.163.0 的映射                                                                                                                                                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 握手         | `initialize` 成功后发送 `initialized`，随后读认证和模型；`experimentalApi: true` 允许结构化用户请求                                                                                                                  |
+| 历史来源     | `thread/list.sourceKinds` 显式为 `cli`、`appServer`、`vscode`；`cwd` 使用项目的 `canonicalRoot` 精确过滤，每页最多 30 条，按更新时间倒序，不扫描全局历史；其他路径别名和子目录历史不自动收集，服务层继续校验项目归属 |
+| 分页历史     | `Thread.historyMode` 可为 `paginated`；此时用 `thread/turns/list` 与必要的 `thread/items/list` 完整加载，不假定 `thread/read(includeTurns)` 覆盖所有历史                                                             |
+| 新建、恢复   | `thread/start`、`thread/resume` 只映射已定义设置；恢复附带服务端已校验的 `cwd`                                                                                                                                       |
+| 分叉会话     | `thread/fork` 使用源会话校验后的 `cwd`、`excludeTurns: true`，省略 `lastTurnId`；新 ID 再通过历史读取接口加载，保留 `forkedFromId`。运行中的源会话继续执行，分支记录已保存历史及中断状态                             |
+| 文本输入     | `input: [{ type: 'text', text, text_elements: [] }]`，追加要求使用 `turn/steer.expectedTurnId`                                                                                                                       |
+| 推理强度     | turn 使用 `effort`；新建和恢复通过协议支持的 `config.model_reasoning_effort` 设置；选项来自 `model/list`                                                                                                             |
+| 权限         | thread 使用 `sandbox` 枚举；turn 映射为 `sandboxPolicy` 对象，不直接透传浏览器字段                                                                                                                                   |
+| 审批         | command/file 使用各自 decision 枚举；命令规则和网络规则只能采用上游请求提供的具体 amendment                                                                                                                          |
+| 额外权限     | `item/permissions/requestApproval` 展示原始请求的网络及文件范围；允许本轮/本会话分别回复 `scope: turn/session`，拒绝回复空权限；浏览器不能提交或扩大权限范围                                                         |
+| MCP 交互     | `mcpServer/elicitation/request` 支持 `form`、`openai/form`、`openaiForm` 的平面表单及 `url` 模式；回复 `action/content/_meta`，拒绝与取消保持独立语义。URL 仅允许 HTTP/HTTPS，必须由用户主动打开                     |
+| 结构化问题   | `item/tool/requestUserInput`，回复为 `{ answers: { questionId: { answers: [...] } } }`；校验选项、自由输入和题目 ID，保留 `isBlocking` 语义                                                                          |
+| 回答确认     | 写入回复后保持 responding；`serverRequest/resolved` 才确认 answered，turn 结束或进程退出使遗留请求失效                                                                                                               |
+| 自动审核展示 | `item/autoApprovalReview/started`、`item/autoApprovalReview/completed` 按独立 `reviewId` 合并，只读展示操作、状态、风险和原因；不发送审批回复，也不据此判定任务完成                                                  |
+| 请求 ID      | 字符串与数字分别匹配，数字 `0` 有效；不依赖响应顺序                                                                                                                                                                  |
+| 新活动类型   | 保留稳定 item ID，以通用活动详情展示；未知交互请求显示兼容错误并回复 JSON-RPC `-32601`，不会自动同意                                                                                                                 |
 
 MCP 表单支持字符串、数字、整数、布尔值、单选和多选，以及必填、长度、数值范围、选项和数组长度约束。服务端在领取请求前校验回答，保留 `false`、`0` 和字符串空白；适配层发送前再次校验。不支持的结构或约束会显示说明并禁止接受，但仍允许明确拒绝或取消；不会默默忽略约束后授权。权限目标和表单控制信息不会随长会话输出一起被截断。
 
@@ -39,7 +45,7 @@ MCP 表单支持字符串、数字、整数、布尔值、单选和多选，以�
 
 默认 RPC 回执期限 30 秒，与 turn 执行时间分开。回执超时、写入失败、进程退出及协议错误均保留可能已执行的不确定性；不会自动重发 prompt。stdout 单行上限 8 MiB，stdin 待写上限 4 MiB，待确认 RPC 上限 256；stderr 只保存 64 KiB 内存尾部，不返回给浏览器。子进程只使用参数数组启动，继承用户环境；仅配置 `codex.home` 时覆盖子进程的 `CODEX_HOME`。关闭时只处理本服务持有的子进程，有限等待后强制结束。
 
-版本相同时显示 verified；其他版本显示 unverified，不伪装验证成功。`initialize` 的客户端版本与能力开关不提供跨 CLI 版本的 schema 兼容保证；重新生成类型也不等于验证了运行行为。上游明确拒绝某方法为不支持后，该方法被禁用并显示原因。缺少认证、模型查询或初始化能力时保留明确诊断，不进入无限重启。
+运行版本位于当前包 `covroCodex.verified` 列表时显示 verified；其他版本显示 unverified，不伪装验证成功。`initialize` 的客户端版本与能力开关不提供跨 CLI 版本的 schema 兼容保证；重新生成类型也不等于验证了运行行为。上游明确拒绝某方法为不支持后，该方法被禁用并显示原因。缺少认证、模型查询或初始化能力时保留明确诊断，不进入无限重启。
 
 ## 未验证版本的使用确认
 
@@ -70,3 +76,11 @@ MCP 表单支持字符串、数字、整数、布尔值、单选和多选，以�
 WebUI 将结构化问题显示在所属助手消息中，每组支持一次回答多个问题。任意选项题均可改用自由回答，纯文本题必须填写；不会因默认选中首项、刷新或重连自动发送。运行中使用现有 `turn/steer` 链路，结束后使用 `turn/start`，共享原有权限、兼容性、操作回执和结果不明保护。发送失败保留输入，状态变化引起的明确失败允许重试，但不自动重发答案。
 
 原生答案以 `questionItemId = JSON.stringify(["request_user_input_async", messageId, questionIndex])` 逐题关联，兼容旧版按整条消息 ID 关联的回复，网页只显示可读的题目与答案；通过历史、Fork 或其他兼容客户端发送的原生答案也能恢复已发送状态。普通聊天消息不会被猜测为已回答。大快照缩减保留问题选项与回复关联，超限时明确报告，避免丢掉表单或重新开放已回答的问题。未发送的回答仅保留在当前已挂载的会话界面中，刷新或切换会话后需要重新填写。
+
+## 发行版兼容声明
+
+`package.json.covroCodex` 是当前发行版的兼容信息来源：`recommended` 对应生成协议的基线，`verified` 只包含实际验证过的确切版本，`unsupported` 记录明确不支持的确切版本及原因。不会从版本大小或范围推断未验证版本兼容。更新声明后执行 `pnpm compat:sync` 同步英中 README 和本文顶部；CI 验证文档与生成协议来源一致。适配新的 Codex 版本时仍须完成协议审查、行为验证及 Issue #69 的 Slash Command 支持核对。
+
+npm 包保留这份声明，GitHub Release 从其确切标签读取相同信息。升级检查会返回当前运行 Codex 与候选 Covro 的组合状态；自动安装只接受 verified。unverified 可以由用户对当前 Codex 和确切目标版本明确确认后尝试，确认不持久化为允许其他版本升级，也不把运行时状态改成 verified。声明缺失/无效、Codex 版本未知或明确 unsupported 时禁止受管升级。原有运行时未验证版本确认继续独立生效。
+
+独立工作进程核对实际候选包与检查时的声明一致，在等待任务结束及关闭入口后复核运行版本；新版连接和版本验证通过才提交激活。等待期间 Codex 变化会终止升级并要求重新检查，重启后发现版本变化或连接不就绪则回滚。历史版本缺少声明时也不能直接受管降级，需要含有效声明的新发行版或沿用手工部署方式。

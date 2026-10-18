@@ -33,7 +33,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --import tsx scripts/migrate.ts",
     "codex:generate": "node --import tsx scripts/generate-codex.ts",
-    "test:live": "node --import tsx scripts/live-smoke.ts"
+    "test:live": "node --import tsx scripts/live-smoke.ts",
+    "compat:sync": "node --import tsx scripts/sync-compatibility.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.4",
@@ -76,5 +77,12 @@
     "typescript-eslint": "8.71.1",
     "vite": "8.3.4",
     "vitest": "5.0.3"
+  },
+  "covroCodex": {
+    "recommended": "0.163.0",
+    "verified": [
+      "0.163.0"
+    ],
+    "unsupported": []
   }
 }

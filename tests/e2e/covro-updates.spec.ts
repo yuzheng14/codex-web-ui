@@ -1,3 +1,5 @@
+import { CODEX_COMPATIBILITY } from '../../src/codex/compatibility.js';
+import { assessCodexCompatibility } from '../../src/shared/codex-compatibility.js';
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
@@ -22,6 +24,7 @@ async function updatesFixture(page: Page) {
   const state: UpdateStatus = {
     version: currentVersion,
     source: 'npm',
+    codex: assessCodexCompatibility(CODEX_COMPATIBILITY, CODEX_COMPATIBILITY.recommended),
     supported: true,
     commit: '2a7c9d1e5432',
     settings: { channel: 'stable', automatic: false },
@@ -40,6 +43,7 @@ async function updatesFixture(page: Page) {
         channel: body.channel as 'dev' | 'stable',
         downgrade: false,
         commit: '8fb09cabcdef',
+        codex: assessCodexCompatibility(CODEX_COMPATIBILITY, CODEX_COMPATIBILITY.recommended),
       };
     if (path.endsWith('/settings')) state.settings = body as unknown as UpdateStatus['settings'];
     if (path.endsWith('/run'))

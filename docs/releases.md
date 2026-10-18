@@ -2,6 +2,12 @@
 
 正式版本由 `release-please-action` v5.0.0 管理，固定提交 `45996ed1f6d02564a971a2fa1b5860e934307cf7`。main 的 checks 成功后更新 Release PR；合并 Release PR 后生成版本标签、CHANGELOG 和 GitHub Release，并显式触发 npm 发布。开发基线是 0.1.0，只纳入 bootstrap commit 之后的 Conventional Commits。
 
+## 版本与 Codex 兼容契约
+
+Covro 使用独立 SemVer，当前以 0.1.0 为开发基线：兼容修复使用 `fix:` 升 patch；功能或新增 Codex 适配使用 `feat:` 升 minor。缩小 Codex 支持集合、提高运行要求等属于破坏性变更，使用 `feat!:` / `BREAKING CHANGE`；0.x 阶段升 minor（现有 `bump-minor-pre-major`），1.0 后升 major。上游发新版本不自动改变 Covro 的版本，也不自动扩大兼容声明。
+
+`package.json.covroCodex` 定义推荐、已验证及明确不支持的 Codex 确切版本。改动后执行 `pnpm compat:sync`；发布准备与包验证会检查 README 双语声明、兼容文档和生成协议基线同步，缺失或冲突的声明无法发布。稳定版 GitHub Release 在创建后，从其确切标签读取 package.json 并追加兼容信息；重跑会替换自己的区块，保留其他发布说明。beta/dev 同样携带 npm 元数据和 README 声明。
+
 ## 渠道与触发
 
 | 渠道   | npm 标签 | 触发方式                                                                   |
@@ -17,6 +23,14 @@ gh workflow run publish.yml --ref main -f channel=beta -f version=0.2.0-beta.1 -
 ```
 
 开发版只对 main 生效，不发布 fork、PR 分支或未通过完整检查的提交。普通 PR 和 Stacked PR 继续只运行 checks。发布包同时包含 CLI、前后端、迁移与独立升级工作进程，内嵌 commit 和渠道；首次安装开发版会默认订阅开发渠道，已有渠道偏好保留。
+
+## 触发排查
+
+合并后先查看 main 的 `checks`。publish/release-please 监听 `checks` 的 `workflow_run: completed`，不在合并瞬间启动；只有同仓库 main push 的完整检查通过后才执行。PR 检查通过不能代替合并提交的检查。可以用 `gh run list --workflow checks.yml --branch main`、`gh run list --workflow publish.yml` 和 `gh run list --workflow release-please.yml` 查看各阶段。
+
+- release-please 报 “GitHub Actions is not permitted to create or approve pull requests”：仓库 Settings → Actions → General 的 “Allow GitHub Actions to create and approve pull requests” 尚未开启。该设置包含审批能力，需维护者明确同意；工作流本身不批准或合并 PR。
+- publish 到 npm 返回 E404：检查 `covro` 是否已由当前账号完成首次发布，以及该包的 Trusted Publisher 是否精确绑定本仓库和 `publish.yml`。OIDC 不替代首次建立包所有权的流程，也不需要把 npm token 发给协作者或写进仓库。完成下方配置后可重跑失败的 publish。
+- Checks 失败、取消或仍在排队：先处理 checks，后续不会绕过验证发版。
 
 ## 一次性配置
 

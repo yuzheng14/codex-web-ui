@@ -1,3 +1,8 @@
+import type {
+  CodexCompatibility,
+  CodexCompatibilityManifest,
+  CodexUpdateConfirmation,
+} from './codex-compatibility.js';
 export const releaseChannels = ['stable', 'beta', 'dev'] as const;
 export type ReleaseChannel = (typeof releaseChannels)[number];
 export interface UpdateSettings {
@@ -16,13 +21,21 @@ export interface UpdateRun {
   startedAt: number;
   updatedAt: number;
   committed?: boolean;
+  codex?: { version: string; manifest: CodexCompatibilityManifest; confirmedUnverified: boolean };
 }
 export interface UpdateStatus {
   version: string;
   commit?: string;
   source: 'npm';
+  codex: CodexCompatibility;
   settings: UpdateSettings;
-  available?: { version: string; channel: ReleaseChannel; commit?: string; downgrade: boolean };
+  available?: {
+    version: string;
+    channel: ReleaseChannel;
+    commit?: string;
+    downgrade: boolean;
+    codex: CodexCompatibility;
+  };
   checkedAt?: number;
   checkError?: string;
   supported: boolean;
@@ -39,6 +52,7 @@ export interface UpdateController {
     clientOperationId: string;
     channel?: ReleaseChannel;
     allowDowngrade?: boolean;
+    codexConfirmation?: CodexUpdateConfirmation;
   }): Promise<UpdateStatus>;
   close(): void;
 }

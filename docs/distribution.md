@@ -30,10 +30,13 @@ covro update status
 covro update
 covro update --channel dev
 covro update --channel stable --allow-downgrade
+covro update --allow-unverified-codex
 covro update repair
 ```
 
 稳定版、预览版、开发版分别解析 npm 官方 registry 的 `latest`、`beta`、`dev` 标签；解析后固定到确切版本安装，标签移动不会改变正在执行的升级目标。每 30 分钟检查一次；自动安装默认关闭，可从网页开启。失败的同一目标不会后台无限重试，可人工重试或等待下一版本。
+
+升级前核对目标包的 Codex 兼容声明。自动安装仅接受已验证的确切组合；未知版本、缺失/无效声明及明确不支持的版本都会阻止升级。未验证组合需在网页明确勾选，或在 CLI 使用 `--allow-unverified-codex`；此选项只确认本次检查得到的 Codex 与目标 Covro，版本变化时必须重新检查。它不能绕过明确不支持或缺失声明，也不会自动升级全局 Codex。详情见[兼容声明](compatibility.md#发行版兼容声明)。
 
 完整 CLI 与服务一起作为一个 npm 包发布。macOS/Linux 的 npm 全局安装支持受管升级：先将同一 npm 包安装到私有候选 prefix，检查入口与原生 SQLite 模块，再核对候选迁移是否覆盖当前已应用的完整历史。所有配置共用该 npm 安装时，需先停止其他实例。源码、容器、pnpm 全局等安装方式只展示版本检查和原部署方式提示；Windows 暂不提供受管自动升级。
 

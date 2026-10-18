@@ -1,3 +1,4 @@
+import { CODEX_COMPATIBILITY } from '../src/codex/compatibility.js';
 /** Real daemon/worker/SQLite verification; npm transport is an explicit local fixture. */
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -25,8 +26,25 @@ import { transactionPaths } from '../src/updates/transaction.js';
 const metadata = JSON.parse(await readFile('package.json', 'utf8')) as { version: string };
 const [major, minor, patch] = metadata.version.split('-')[0]!.split('.');
 
-for (const mode of ['success', 'failure', 'repair', 'repair-live', 'repair-resumed'] as const) {
-  const failure = mode !== 'success';
+for (const mode of [
+  'success',
+  'failure',
+  'repair',
+  'repair-live',
+  'repair-resumed',
+  'codex-mismatch',
+  'codex-missing',
+  'codex-changed',
+  'codex-unverified',
+  'codex-confirmed',
+  'codex-unsupported',
+  'codex-unavailable',
+  'codex-restarted',
+] as const) {
+  const failure = ['failure', 'repair', 'repair-live', 'repair-resumed'].includes(mode);
+  const rolledBack = failure || mode === 'codex-restarted';
+  const rejected =
+    mode.startsWith('codex-') && !['codex-confirmed', 'codex-restarted'].includes(mode);
   const repair = mode.startsWith('repair');
   const directory = await mkdtemp('/private/tmp/covro-verify-').catch(async () => {
     const { tmpdir } = await import('node:os');
@@ -53,6 +71,23 @@ for (const mode of ['success', 'failure', 'repair', 'repair-live', 'repair-resum
     const next = JSON.parse(await readFile(join(candidate, 'package.json'), 'utf8'));
     next.version = target;
     next.covroChannel = 'dev';
+    if (
+      ['codex-mismatch', 'codex-unverified', 'codex-confirmed', 'codex-unsupported'].includes(mode)
+    )
+      next.covroCodex = {
+        recommended: '0.164.0',
+        verified: ['0.164.0'],
+        unsupported:
+          mode === 'codex-unsupported'
+            ? [
+                {
+                  version: CODEX_COMPATIBILITY.recommended,
+                  reason: 'Explicit fixture incompatibility',
+                },
+              ]
+            : [],
+      };
+    if (mode === 'codex-missing') delete next.covroCodex;
     await saveJson(join(candidate, 'package.json'), next);
     if (failure) {
       const journalFile = join(candidate, 'dist/drizzle/meta/_journal.json');
@@ -81,6 +116,37 @@ for (const mode of ['success', 'failure', 'repair', 'repair-live', 'repair-resum
         ),
       );
     }
+    let codexBinary = resolve('tests/fixtures/codex.mjs');
+    if (mode === 'codex-restarted') {
+      const versionFile = join(directory, 'codex-version');
+      await writeFile(versionFile, 'codex-cli 0.163.0');
+      const fixture = await readFile(codexBinary, 'utf8');
+      codexBinary = join(directory, 'codex-fixture.mjs');
+      await writeFile(
+        codexBinary,
+        fixture
+          .replace(
+            "console.log('codex-cli 0.163.0')",
+            `console.log((await import('node:fs')).readFileSync(${JSON.stringify(versionFile)}, 'utf8'))`,
+          )
+          .replace(
+            "fileURLToPath(new URL('./app-server.ts', import.meta.url))",
+            JSON.stringify(resolve('tests/fixtures/app-server.ts')),
+          ),
+      );
+      await chmod(codexBinary, 0o700);
+      const daemonFile = join(candidate, 'dist/cli/daemon.js');
+      const daemon = await readFile(daemonFile, 'utf8');
+      const marker = 'runtime = await startGateway(config, { updates, maintenance });';
+      if (!daemon.includes(marker)) throw new Error('Missing restart fixture insertion point');
+      await writeFile(
+        daemonFile,
+        daemon.replace(
+          marker,
+          `await (await import('node:fs/promises')).writeFile(${JSON.stringify(versionFile)}, 'codex-cli 0.164.0');\n${marker}`,
+        ),
+      );
+    }
     const commands = join(directory, 'commands');
     await mkdir(commands);
     const npm = join(commands, 'npm');
@@ -101,7 +167,9 @@ for (const mode of ['success', 'failure', 'repair', 'repair-live', 'repair-resum
       port: address.port,
       publicOrigin: [origin],
       dataDir: './data',
-      codex: { binary: join(directory, 'missing-codex') },
+      codex: {
+        binary: mode === 'codex-unavailable' ? join(directory, 'missing-codex') : codexBinary,
+      },
     });
     child = spawn(process.execPath, [join(root, 'bin/covro.mjs'), 'run', '--config', config], {
       env,
@@ -145,6 +213,14 @@ for (const mode of ['success', 'failure', 'repair', 'repair-live', 'repair-resum
       from: metadata.version,
       target,
       channel: 'dev',
+      codex: {
+        version: mode === 'codex-changed' ? '0.162.1' : CODEX_COMPATIBILITY.recommended,
+        manifest:
+          mode === 'codex-mismatch' || mode === 'codex-missing'
+            ? CODEX_COMPATIBILITY
+            : next.covroCodex,
+        confirmedUnverified: ['codex-confirmed', 'codex-unsupported'].includes(mode),
+      },
       phase: mode === 'repair' ? 'verifying' : repair ? 'failed' : 'installing',
       message: 'Fixture npm transport',
       startedAt: Date.now(),
@@ -209,13 +285,36 @@ for (const mode of ['success', 'failure', 'repair', 'repair-live', 'repair-resum
     ]);
     const record = JSON.parse(await readFile(join(updateDir, 'run.json'), 'utf8')) as UpdateRun;
     if (
-      exit[0] !== (mode === 'repair-resumed' ? 1 : 0) ||
-      record.phase !== (mode === 'repair-resumed' ? 'failed' : failure ? 'rolledBack' : 'succeeded')
+      exit[0] !== (mode === 'repair-resumed' || rejected ? 1 : 0) ||
+      record.phase !==
+        (mode === 'repair-resumed' || rejected ? 'failed' : rolledBack ? 'rolledBack' : 'succeeded')
     )
       throw new Error(`Unexpected upgrade outcome: ${JSON.stringify(record)} ${errors}`);
     const current = await control<{ version: string; maintenance: boolean }>(location, 'status');
-    if (current.version !== (failure ? metadata.version : target) || current.maintenance)
+    if (
+      current.version !== (rolledBack || rejected ? metadata.version : target) ||
+      current.maintenance
+    )
       throw new Error('Service activation did not settle');
+    if (rejected) {
+      const snapshot = transactionPaths(
+        root,
+        id,
+        context.dataDir,
+        config,
+        join(updateDir, `backup-${id}`),
+      );
+      if (
+        await readFile(join(snapshot.backup, 'snapshot.json'), 'utf8').then(
+          () => true,
+          () => false,
+        )
+      )
+        throw new Error('Rejected Codex update stopped service and took a snapshot');
+      const installed = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+      if (installed.version !== metadata.version)
+        throw new Error('Rejected Codex update replaced the installation');
+    }
     const projects = (await (await fetch(`${origin}/api/projects`)).json()) as {
       data: { name: string }[];
     };
@@ -237,7 +336,7 @@ for (const mode of ['success', 'failure', 'repair', 'repair-live', 'repair-resum
       db.close();
     }
     console.log(
-      `PASS: real worker ${mode === 'repair-resumed' ? 'refused snapshot restore after the original service resumed writes' : repair ? 'repaired an interrupted activation and verified the restored service' : failure ? 'restored package, database and project after failed migration/readiness' : 'activated exact candidate and reopened task admission'} (fixture npm transport)`,
+      `PASS: real worker ${rejected ? `rejected ${mode} before stopping or replacing the service` : mode === 'codex-confirmed' ? 'activated the explicitly confirmed unverified Codex combination' : mode === 'repair-resumed' ? 'refused snapshot restore after the original service resumed writes' : repair ? 'repaired an interrupted activation and verified the restored service' : failure ? 'restored package, database and project after failed migration/readiness' : 'activated exact candidate and reopened task admission'} (fixture npm transport)`,
     );
   } finally {
     await stopAndWait(location).catch(() => {});

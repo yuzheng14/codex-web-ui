@@ -1,3 +1,4 @@
+import { CODEX_COMPATIBILITY } from './compatibility.js';
 import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -92,7 +93,7 @@ export type {
 } from './types.js';
 export { CodexError } from './transport.js';
 
-export const VERIFIED_CODEX_VERSION = '0.163.0';
+export const VERIFIED_CODEX_VERSION = CODEX_COMPATIBILITY.recommended;
 const CAPABILITIES = [
   'thread/name/set',
   'thread/start',
@@ -270,7 +271,9 @@ export class CodexAdapter implements CodexClient {
       const version = stdout.trim().replace(/^codex-cli\s+/, '');
       this.state.codexVersion = version;
       this.permissionState.clear();
-      this.state.compatibility = version === VERIFIED_CODEX_VERSION ? 'verified' : 'unverified';
+      this.state.compatibility = CODEX_COMPATIBILITY.verified.includes(version)
+        ? 'verified'
+        : 'unverified';
       const child = spawn(
         this.options.binary,
         this.options.args ?? ['app-server', '--listen', 'stdio://'],
@@ -786,7 +789,7 @@ export class CodexAdapter implements CodexClient {
     threadId?: string,
     config?: ConfigReadResponse['config'],
   ): Promise<PermissionCapabilities> {
-    if (this.state.codexVersion !== VERIFIED_CODEX_VERSION)
+    if (!CODEX_COMPATIBILITY.verified.includes(this.state.codexVersion ?? ''))
       return permissionCapabilities(
         null,
         false,
