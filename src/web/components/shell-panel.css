@@ -234,6 +234,14 @@
   background: #e5f2e9;
   color: #2d6d48;
 }
+/* The Shell entry can increase the mobile header height. Anchor diagnostics
+   below that header so the panel never covers its own toggle. */
+.topbar {
+  position: relative;
+}
+.topbar .diagnostics-panel {
+  top: calc(100% - 6px);
+}
 @media (max-width: 760px) {
   .main-panel.shell-visible > .bottom-region {
     display: none;
