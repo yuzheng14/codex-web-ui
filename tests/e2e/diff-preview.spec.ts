@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   confirmCompatibility,
   controlRuntime,
@@ -18,7 +20,7 @@ async function send(page: Page, scenario = '[diff-preview]') {
 }
 async function screenshot(page: Page, name: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: `/private/tmp/covro-diff-${name}.png`, animations: 'disabled' });
+  await page.screenshot({ path: join(tmpdir(), `covro-diff-${name}.png`), animations: 'disabled' });
 }
 test.beforeEach(async ({ page, request }) => {
   await controlRuntime(request, { reset: true });
