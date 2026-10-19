@@ -1,6 +1,7 @@
+import { localPreviewUrl } from './local-files';
 import type {
   ApiError,
-  MarkdownFile,
+  TextFile,
   RuntimeSettings,
   Operation,
   Project,
@@ -83,12 +84,8 @@ export const api = {
   thread: (threadId: string) => request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}`),
   threadMetadata: (threadId: string) =>
     request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}/metadata`),
-  markdown: (threadId: string, path: string, signal: AbortSignal) =>
-    request<MarkdownFile>(
-      `/api/threads/${encodeURIComponent(threadId)}/markdown?${new URLSearchParams({ path })}`,
-      undefined,
-      signal,
-    ),
+  previewFile: (threadId: string, path: string, signal: AbortSignal) =>
+    request<TextFile>(localPreviewUrl(threadId, path), undefined, signal),
   operation: (id: string) => request<Operation>(`/api/operations/${encodeURIComponent(id)}`),
   submit: (path: string, body: object) => request<Operation>(path, body),
 };

@@ -1,6 +1,6 @@
 import { extname } from 'node:path';
 import { AppError } from '../shared/errors.js';
-import type { MarkdownFile } from '../shared/types.js';
+import type { TextFile } from '../shared/types.js';
 import { readLocalFile, type FileScope } from './local-files.js';
 
 export const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
@@ -8,7 +8,7 @@ export const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
 export async function readLocalMarkdown(
   path: string | undefined,
   scope: FileScope,
-): Promise<MarkdownFile> {
+): Promise<TextFile> {
   const file = await readLocalFile(path, scope, {
     code: 'MARKDOWN',
     label: 'Markdown',

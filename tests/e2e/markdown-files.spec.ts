@@ -177,7 +177,7 @@ test('changing the selected thread releases the document and desktop can resize 
   await fileLink(page).click();
   await expect(preview(page).locator('table')).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
-  expect(await preview(page).evaluate((node) => node.matches(':modal'))).toBe(true);
+  await expect.poll(() => preview(page).evaluate((node) => node.matches(':modal'))).toBe(true);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await expect.poll(() => preview(page).evaluate((node) => node.matches(':modal'))).toBe(false);
   await createEmptyThread(page);

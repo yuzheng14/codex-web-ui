@@ -602,7 +602,7 @@ function imageReply(
 function markdownReply(
   thread: Thread,
   turn: Turn,
-  kind: 'table' | 'security' | 'code' | 'files',
+  kind: 'table' | 'security' | 'code' | 'files' | 'json',
 ): void {
   const item: Extract<ThreadItem, { type: 'agentMessage' }> = {
     id: randomUUID(),
@@ -646,17 +646,29 @@ function markdownReply(
                 '<img src="x" onerror="window.markdownInjected = true">\n\n' +
                 '```text\n| 这不是 | 表格 |\n| --- | --- |\n```',
             ]
-          : [
-              '我建议优先做下面几组，按当前支持情况排序：\n\n' +
-                '| 优先级 | 命令 | 为什么值得做 |\n| :',
-              '--- | :---: | ---: |\n' +
-                '| **第一批** | `/rename` | 会话多了很实用，已有标题写入基础。 |\n',
-              '| **第一批** | `/model`、`/permissions` | 高频操作，可复用现有设置控件。 |\n' +
-                '| **第一批** | `/copy`、`/export` | Copy & export，保存和分享对话，尤其适合手机端。 |\n' +
-                '| 第二批 | `/review`、`/diff` | 补齐“修改代码 → 查看改动 → 审查”的工作流程。 |\n' +
-                '| 后续 | `a\\|b` | 支持转义管道 A\\|B，并保留 **重点** 与 [说明](https://example.com/docs)。 |\n\n' +
-                '下一轮我会先选 `/rename`、`/model`、`/copy`，范围清楚，收益直接。',
-            ];
+          : kind === 'json'
+            ? [
+                'JSON 产出已准备好，可以直接预览并继续讨论。\n\n' +
+                  '[配置文件](<docs/项目 配置.JSON>) · [数组](docs/list.json) · [使用说明](docs/json.md)\n\n' +
+                  '[无效 JSON](docs/invalid.json) · [缺失文件](docs/missing.json) · [超大文件](docs/huge.json)\n\n' +
+                  '[绝对路径](<' +
+                  join(thread.cwd, 'docs/项目 配置.JSON') +
+                  '>) · ' +
+                  '[本地文件](file://' +
+                  encodeURI(join(thread.cwd, 'docs/项目 配置.JSON')) +
+                  ')',
+              ]
+            : [
+                '我建议优先做下面几组，按当前支持情况排序：\n\n' +
+                  '| 优先级 | 命令 | 为什么值得做 |\n| :',
+                '--- | :---: | ---: |\n' +
+                  '| **第一批** | `/rename` | 会话多了很实用，已有标题写入基础。 |\n',
+                '| **第一批** | `/model`、`/permissions` | 高频操作，可复用现有设置控件。 |\n' +
+                  '| **第一批** | `/copy`、`/export` | Copy & export，保存和分享对话，尤其适合手机端。 |\n' +
+                  '| 第二批 | `/review`、`/diff` | 补齐“修改代码 → 查看改动 → 审查”的工作流程。 |\n' +
+                  '| 后续 | `a\\|b` | 支持转义管道 A\\|B，并保留 **重点** 与 [说明](https://example.com/docs)。 |\n\n' +
+                  '下一轮我会先选 `/rename`、`/model`、`/copy`，范围清楚，收益直接。',
+              ];
   turn.items.push(item);
   notify({
     method: 'item/started',
@@ -2183,6 +2195,7 @@ function receive(request: ClientRequest): void {
               ? 'errors'
               : 'normal',
         );
+      else if (prompt.includes('[json-files]')) markdownReply(thread, turn, 'json');
       else if (prompt.includes('[markdown-files]')) markdownReply(thread, turn, 'files');
       else if (prompt.includes('[code-copy]')) markdownReply(thread, turn, 'code');
       else if (prompt.includes('[markdown]') || prompt.includes('[markdown-security]'))

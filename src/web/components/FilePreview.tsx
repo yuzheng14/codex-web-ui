@@ -9,8 +9,9 @@ import {
   type ReactNode,
 } from 'react';
 import { ArrowLeft, Copy, FileText, X, Check } from 'lucide-react';
-import type { MarkdownFile } from '../../shared/types';
+import type { TextFile } from '../../shared/types';
 import { api } from '../lib/api';
+import { JsonContent } from './JsonContent';
 import { readableError } from '../lib/utils';
 import { Button } from './ui/button';
 import { MarkdownContent } from './MarkdownContent';
@@ -20,9 +21,9 @@ const PreviewContext = createContext<{
   threadId?: string;
   open: (path: string) => void;
 }>({ open: () => {} });
-export const useMarkdownPreview = () => useContext(PreviewContext);
+export const useFilePreview = () => useContext(PreviewContext);
 
-export function MarkdownPreviewProvider({
+export function FilePreviewProvider({
   threadId,
   children,
 }: {
@@ -45,7 +46,7 @@ export function MarkdownPreviewProvider({
     <PreviewContext value={context}>
       {children}
       {target && target.threadId === threadId && (
-        <MarkdownFilePreview
+        <FilePreview
           key={`${threadId}:${target.path}`}
           threadId={target.threadId}
           path={target.path}
@@ -56,7 +57,7 @@ export function MarkdownPreviewProvider({
   );
 }
 
-function MarkdownFilePreview({
+function FilePreview({
   threadId,
   path,
   onClose,
@@ -65,10 +66,11 @@ function MarkdownFilePreview({
   path: string;
   onClose: () => void;
 }) {
+  const kind = /\.json$/i.test(path) ? 'JSON' : 'Markdown';
   const dialog = useRef<HTMLDialogElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const source = useRef<HTMLPreElement>(null);
-  const [file, setFile] = useState<MarkdownFile>();
+  const [file, setFile] = useState<TextFile>();
   const [error, setError] = useState<string>();
   const [attempt, setAttempt] = useState(0);
   const [view, setView] = useState<'preview' | 'source'>('preview');
@@ -93,7 +95,7 @@ function MarkdownFilePreview({
       if (
         event.key === 'Escape' &&
         !event.defaultPrevented &&
-        !document.querySelector('dialog[open]:modal:not(.markdown-file-preview)')
+        !document.querySelector('dialog[open]:modal:not(.file-preview)')
       ) {
         event.preventDefault();
         onClose();
@@ -119,7 +121,7 @@ function MarkdownFilePreview({
     setFile(undefined);
     setError(undefined);
     void api
-      .markdown(threadId, path, controller.signal)
+      .previewFile(threadId, path, controller.signal)
       .then((result) => {
         if (!controller.signal.aborted) setFile(result);
       })
@@ -140,7 +142,7 @@ function MarkdownFilePreview({
     setFeedback('');
     try {
       await navigator.clipboard.writeText(file.content);
-      setFeedback('已复制 Markdown 原文');
+      setFeedback(`已复制 ${kind} 原文`);
       resetTimer.current = setTimeout(() => setFeedback(''), 2500);
     } catch {
       setView('source');
@@ -156,8 +158,8 @@ function MarkdownFilePreview({
   return (
     <dialog
       ref={dialog}
-      className="markdown-file-preview"
-      aria-label="Markdown 文件预览"
+      className="file-preview"
+      aria-label={`${kind} 文件预览`}
       onCancel={(event) => {
         // React also bubbles cancellation from a nested image dialog.
         if (event.target !== event.currentTarget) return;
@@ -179,7 +181,7 @@ function MarkdownFilePreview({
         <FileText size={19} className="file-preview-icon" aria-hidden="true" />
         <div className="file-preview-title">
           <h2>{path.split('/').at(-1)}</h2>
-          <span>Markdown 文件</span>
+          <span>{kind} 文件</span>
         </div>
         <Button variant="secondary" size="sm" disabled={!file} onClick={() => void copy()}>
           {feedback.startsWith('已复制') ? <Check size={15} /> : <Copy size={15} />}
@@ -227,15 +229,19 @@ function MarkdownFilePreview({
           </div>
         ) : file ? (
           view === 'preview' ? (
-            <ImagePreviewProvider threadId={threadId}>
-              <MarkdownContent text={file.content} baseFile={file.path} />
-            </ImagePreviewProvider>
+            kind === 'JSON' ? (
+              <JsonContent content={file.content} />
+            ) : (
+              <ImagePreviewProvider threadId={threadId}>
+                <MarkdownContent text={file.content} baseFile={file.path} />
+              </ImagePreviewProvider>
+            )
           ) : (
             <pre
               ref={source}
               className="file-preview-source"
               tabIndex={0}
-              aria-label="Markdown 原文"
+              aria-label={`${kind} 原文`}
             >
               {file.content}
             </pre>

@@ -1,9 +1,9 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
-import { localMarkdownPath, relativeToFile } from '../../src/web/lib/local-files';
+import { localPreviewPath, relativeToFile } from '../../src/web/lib/local-files';
 import { MarkdownContent } from '../../src/web/components/MarkdownContent';
-import { MarkdownPreviewProvider } from '../../src/web/components/MarkdownFilePreview';
+import { FilePreviewProvider } from '../../src/web/components/FilePreview';
 
 it.each([
   ['./docs/方案%20说明.md', './docs/方案 说明.md'],
@@ -12,7 +12,7 @@ it.each([
   ['/work/literal%2520.md', '/work/literal%20.md'],
   ['docs/readme.md?raw=1#section', 'docs/readme.md'],
 ])('recognizes one local Markdown destination: %s', (input, expected) => {
-  expect(localMarkdownPath(input)).toBe(expected);
+  expect(localPreviewPath(input)).toBe(expected);
 });
 it.each([
   'https://example.com/README.md',
@@ -27,7 +27,7 @@ it.each([
   '#section',
   '',
 ])('keeps nonlocal or unsafe destinations out of the file reader: %s', (input) => {
-  expect(localMarkdownPath(input)).toBeUndefined();
+  expect(localPreviewPath(input)).toBeUndefined();
 });
 it('resolves nested documents and image paths relative to the open document', () => {
   expect(relativeToFile('../next.md', '/work/docs/plan.md')).toBe('/work/docs/../next.md');
@@ -39,7 +39,7 @@ it('resolves nested documents and image paths relative to the open document', ()
 });
 it('routes local documents through the authenticated preview and leaves external links alone', () => {
   const html = renderToStaticMarkup(
-    createElement(MarkdownPreviewProvider, {
+    createElement(FilePreviewProvider, {
       threadId: 'thread',
       children: createElement(MarkdownContent, {
         text: '[本地](file:///work/plan.md) [下一页](next.md) [外部](https://example.com/README.md) [危险](javascript:alert%281%29)',
