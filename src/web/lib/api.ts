@@ -8,6 +8,11 @@ import type {
   ThreadSummaryPage,
   ThreadView,
 } from '../../shared/types';
+import type {
+  GatewayConfig,
+  GatewayConfigSnapshot,
+  GatewayConfigImport,
+} from '../../shared/gateway-config';
 
 export class HttpError extends Error {
   constructor(
@@ -54,6 +59,12 @@ export async function request<T>(path: string, body?: object, signal?: AbortSign
 }
 
 export const api = {
+  gatewayConfig: () => request<GatewayConfigSnapshot>('/api/config'),
+  saveGatewayConfig: (revision: string, config: GatewayConfig) =>
+    request<GatewayConfigSnapshot>('/api/config', { revision, config }),
+  importGatewayConfig: (config: unknown) =>
+    request<GatewayConfigImport>('/api/config/import', { config }),
+  exportGatewayConfig: () => request<GatewayConfig>('/api/config/export'),
   system: () => request<SystemInfo>('/api/system'),
   runtimeSettings: (projectId: string) =>
     request<RuntimeSettings>(`/api/projects/${encodeURIComponent(projectId)}/runtime-settings`),

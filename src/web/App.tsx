@@ -21,6 +21,7 @@ import { encodeQuestionReplies } from '../shared/async-questions';
 import { CompatibilityNotice } from './components/CompatibilityNotice';
 import { ProjectDialog } from './components/ProjectDialog';
 import { NotificationSettings } from './components/NotificationSettings';
+import { GatewaySettings } from './components/GatewaySettings';
 import { UpdateSettings } from './components/UpdateSettings';
 import { useUpdates } from './hooks/useUpdates';
 import { updateActive } from '../shared/updates';
@@ -48,6 +49,7 @@ export function App() {
   const { isUnreadCompletion, markCompletedRead } = useThreadReadState();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
+  const [gatewaySettingsOpen, setGatewaySettingsOpen] = useState(false);
   useEffect(() => {
     const desktop = window.matchMedia('(min-width: 761px)');
     const closeMobileNavigation = () => {
@@ -267,6 +269,10 @@ export function App() {
   return (
     <WorkspaceLayout threadId={thread?.id}>
       <Sidebar
+        onGatewaySettings={() => {
+          setSidebarOpen(false);
+          setGatewaySettingsOpen(true);
+        }}
         onUpdates={() => {
           setSidebarOpen(false);
           setUpdatesOpen(true);
@@ -725,6 +731,7 @@ export function App() {
           onClose={() => setNotificationSettingsOpen(false)}
         />
       )}
+      {gatewaySettingsOpen && <GatewaySettings onClose={() => setGatewaySettingsOpen(false)} />}
       {updatesOpen && <UpdateSettings updates={updates} onClose={() => setUpdatesOpen(false)} />}
     </WorkspaceLayout>
   );

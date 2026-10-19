@@ -38,6 +38,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onNotificationSettings: () => void;
+  onGatewaySettings: () => void;
   notificationStatus: string;
   onUpdates: () => void;
   appVersion?: string;
@@ -292,6 +293,15 @@ export function Sidebar(props: Props) {
           )}
         </nav>
         <div className="sidebar-footer">
+          <Button
+            className="gateway-settings-button"
+            variant="ghost"
+            size="sm"
+            onClick={props.onGatewaySettings}
+          >
+            <Icon name="settings" size={15} />
+            <span>服务配置</span>
+          </Button>
           <Button
             className="notification-settings-button"
             variant="ghost"
