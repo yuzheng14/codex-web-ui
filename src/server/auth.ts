@@ -2,6 +2,7 @@ import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import type { AppConfig } from './config.js';
 import { AppError } from '../shared/errors.js';
 export interface Identity {
+  subject?: string;
   expiresAt?: number;
 }
 export function createAuthenticator(
@@ -49,7 +50,7 @@ export function createAuthenticator(
         algorithms: ['RS256'],
         requiredClaims: ['exp', 'iss', 'aud', 'sub'],
       });
-      return { expiresAt: payload.exp! * 1000 };
+      return { subject: payload.sub!, expiresAt: payload.exp! * 1000 };
     } catch {
       throw new AppError('UNAUTHENTICATED', 'Cloudflare Access login is invalid or expired', 401);
     }

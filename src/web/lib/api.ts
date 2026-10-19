@@ -66,6 +66,7 @@ export const api = {
   importGatewayConfig: (config: unknown) =>
     request<GatewayConfigImport>('/api/config/import', { config }),
   exportGatewayConfig: () => request<GatewayConfig>('/api/config/export'),
+  historyCacheContext: () => request<{ scope: string }>('/api/history-cache-context'),
   system: () => request<SystemInfo>('/api/system'),
   runtimeSettings: (projectId: string) =>
     request<RuntimeSettings>(`/api/projects/${encodeURIComponent(projectId)}/runtime-settings`),

@@ -195,6 +195,10 @@ interface ConversationProps {
   thread?: ThreadView;
   offline: boolean;
   history?: {
+    cached?: boolean;
+    cacheExhausted?: boolean;
+    onLoadCachedOlder?: () => void;
+    syncError?: string;
     loading: boolean;
     error?: string;
     onLoadOlder: () => void;
@@ -387,6 +391,20 @@ function ConversationContent({
   }, [thread?.id, latestTurn?.id, latestTurn?.status, readingEnabled, onReadCompleted]);
   return (
     <div className="conversation-area">
+      {history?.cached && (
+        <div className="history-cache-notice" role="status">
+          <span>
+            {history.syncError
+              ? '显示本机缓存 · 同步失败，部分历史可能缺失。'
+              : '显示本机缓存 · 正在核对最新消息与任务状态…'}
+          </span>
+          {history.syncError && (
+            <Button variant="ghost" size="sm" onClick={history.onRetryOpen}>
+              重新同步
+            </Button>
+          )}
+        </div>
+      )}
       {latestTurn?.reconnect && (
         <div className="codex-reconnect-pinned">
           <CodexReconnectNotice turn={latestTurn} offline={offline} />
@@ -427,7 +445,7 @@ function ConversationContent({
           aria-label="会话消息"
         >
           <div className="conversation-content">
-            {thread?.history?.olderCursor && (
+            {(thread?.history?.olderCursor || history?.error) && (
               <div
                 className="history-pagination"
                 role="status"
@@ -446,6 +464,16 @@ function ConversationContent({
                 >
                   {history?.error ? '重试加载' : '加载更早的消息'}
                 </Button>
+                {history?.error && history.cached && thread?.history?.olderCursor && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={history.loading || history.cacheExhausted}
+                    onClick={history.onLoadCachedOlder}
+                  >
+                    {history.cacheExhausted ? '此处尚无本机缓存' : '继续读取本机历史'}
+                  </Button>
+                )}
               </div>
             )}
             {thread?.historyTruncated && (

@@ -4088,3 +4088,16 @@ dd {
 .history-skeleton span:nth-child(3) {
   width: 55%;
 }
+
+.history-cache-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--surface);
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
