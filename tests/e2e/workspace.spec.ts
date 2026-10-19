@@ -61,8 +61,10 @@ test('complete turn, tool output, file diff and refresh recover through the real
     .locator('summary')
     .first()
     .click();
-  await expect(page.locator('.file-change')).toContainText('hello.txt');
-  await expect(page.locator('.file-change')).toContainText('+你好 Codex');
+  await page.getByRole('button', { name: /hello.txt.*查看变更/ }).click();
+  const diff = page.getByRole('dialog', { name: '代码变更预览' });
+  await expect(diff.locator('.diff-added')).toContainText('你好 Codex');
+  await diff.getByRole('button', { name: '关闭代码变更预览' }).click();
   await page.reload();
   await expect(page.getByText('模拟任务已完成。', { exact: true })).toBeVisible();
   await expect(

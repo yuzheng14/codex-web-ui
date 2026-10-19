@@ -100,7 +100,7 @@ for (const viewport of [
   { name: 'desktop', width: 1280, height: 900 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
-  test(`${viewport.name} keeps long command and diff headers available and restores the collapse anchor`, async ({
+  test(`${viewport.name} keeps long command headers available and opens file patches in the preview`, async ({
     page,
   }) => {
     await startScenario(page);
@@ -124,11 +124,14 @@ for (const viewport of [
     await header(file).focus();
     await header(file).press('Enter');
     await expect(file).toHaveAttribute('open', '');
-    await expect(file.locator('.diff')).toContainText('updatedValue100');
-    await scrollInside(file);
+    await file.locator('.file-change-link').click();
+    const diff = page.getByRole('dialog', { name: '代码变更预览' });
+    await expect(diff.locator('.diff-content')).toContainText('updatedValue100');
+    await diff.getByRole('button', { name: '关闭代码变更预览' }).click();
     await screenshot(page, `activity-diff-pinned-${viewport.name}`);
     await header(file).press('Space');
-    await expectCollapseAnchor(file);
+    await expect(file).not.toHaveAttribute('open');
+    await expect(header(file)).toBeFocused();
     await expect(command).not.toHaveAttribute('open');
     await screenshot(page, `activity-diff-collapsed-anchor-${viewport.name}`);
   });
@@ -145,11 +148,11 @@ for (const viewport of [
       await header(activity).click();
       await expect(activity).toHaveAttribute('open', '');
     }
-    await scrollInside(file);
+    await scrollInside(first);
     const preceding = await geometry(first);
-    expect(preceding.headerBottom).toBeLessThanOrEqual(preceding.scrollTop);
+    expect(Math.abs(preceding.headerTop - preceding.scrollTop)).toBeLessThanOrEqual(2);
     await expect(header(file)).toContainText('文件变更');
-    await screenshot(page, `activity-multiple-diff-pinned-${viewport.name}`);
+    await screenshot(page, `activity-multiple-command-pinned-${viewport.name}`);
 
     await scrollInside(second);
     const previousFile = await geometry(file);

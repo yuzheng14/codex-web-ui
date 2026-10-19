@@ -1,3 +1,4 @@
+import { diffPreviewChanges } from './diff-preview';
 /** Explicit test process. Its envelopes and payloads use the CLI-generated 0.163.0 protocol. */
 import { createInterface } from 'node:readline';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -454,6 +455,25 @@ function asyncQuestions(thread: Thread, turn: Turn, running: boolean, multiple: 
     );
   else complete(thread, turn);
 }
+function diffPreviewScenario(thread: Thread, turn: Turn, scenario: string): void {
+  const changes = diffPreviewChanges(scenario);
+  const item: ThreadItem = { id: randomUUID(), type: 'fileChange', status: 'completed', changes };
+  turn.items.push(item);
+  notify({
+    method: 'item/completed',
+    params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
+  });
+  notify({
+    method: 'turn/diff/updated',
+    params: {
+      threadId: thread.id,
+      turnId: turn.id,
+      diff: changes.map((change) => change.diff).join(''),
+    },
+  });
+  complete(thread, turn);
+}
+
 function execute(thread: Thread, turn: Turn, cmd = command(randomUUID(), thread.cwd)): void {
   if (turn.items.some((item) => item.type === 'enteredReviewMode')) {
     finishes.set(
@@ -2253,6 +2273,7 @@ function receive(request: ClientRequest): void {
               : 'normal',
         );
       else if (prompt.includes('[json-files]')) markdownReply(thread, turn, 'json');
+      else if (prompt.includes('[diff-preview')) diffPreviewScenario(thread, turn, prompt);
       else if (prompt.includes('[markdown-files]')) markdownReply(thread, turn, 'files');
       else if (prompt.includes('[code-copy]')) markdownReply(thread, turn, 'code');
       else if (prompt.includes('[markdown]') || prompt.includes('[markdown-security]'))

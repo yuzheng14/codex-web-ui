@@ -1,14 +1,6 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
-import { ArrowLeft, Copy, FileText, X, Check } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Copy, FileText, Check } from 'lucide-react';
+import { FilePreviewPanel } from './FilePreviewPanel';
 import type { TextFile } from '../../shared/types';
 import { api } from '../lib/api';
 import { JsonContent } from './JsonContent';
@@ -17,47 +9,7 @@ import { Button } from './ui/button';
 import { MarkdownContent } from './MarkdownContent';
 import { ImagePreviewProvider } from './ImagePreview';
 
-const PreviewContext = createContext<{
-  threadId?: string;
-  open: (path: string) => void;
-}>({ open: () => {} });
-export const useFilePreview = () => useContext(PreviewContext);
-
-export function FilePreviewProvider({
-  threadId,
-  children,
-}: {
-  threadId?: string;
-  children: ReactNode;
-}) {
-  const [target, setTarget] = useState<{ threadId: string; path: string }>();
-  useEffect(() => setTarget(undefined), [threadId]);
-  const close = useCallback(() => setTarget(undefined), []);
-  const context = useMemo(
-    () => ({
-      threadId,
-      open: (path: string) => {
-        if (threadId) setTarget({ threadId, path });
-      },
-    }),
-    [threadId],
-  );
-  return (
-    <PreviewContext value={context}>
-      {children}
-      {target && target.threadId === threadId && (
-        <FilePreview
-          key={`${threadId}:${target.path}`}
-          threadId={target.threadId}
-          path={target.path}
-          onClose={close}
-        />
-      )}
-    </PreviewContext>
-  );
-}
-
-function FilePreview({
+export function FilePreview({
   threadId,
   path,
   onClose,
@@ -67,8 +19,6 @@ function FilePreview({
   onClose: () => void;
 }) {
   const kind = /\.json$/i.test(path) ? 'JSON' : 'Markdown';
-  const dialog = useRef<HTMLDialogElement>(null);
-  const closeButton = useRef<HTMLButtonElement>(null);
   const source = useRef<HTMLPreElement>(null);
   const [file, setFile] = useState<TextFile>();
   const [error, setError] = useState<string>();
@@ -78,39 +28,7 @@ function FilePreview({
   const copying = useRef(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  useEffect(() => {
-    const element = dialog.current!;
-    const trigger = document.activeElement;
-    const compact = window.matchMedia('(max-width: 1279px)');
-    const updateMode = () => {
-      element.close();
-      if (compact.matches) element.showModal();
-      else element.show();
-    };
-    updateMode();
-    closeButton.current?.focus({ preventScroll: true });
-    compact.addEventListener('change', updateMode);
-    const escape = (event: KeyboardEvent) => {
-      // An image opened from the file gets its own modal Escape handling first.
-      if (
-        event.key === 'Escape' &&
-        !event.defaultPrevented &&
-        !document.querySelector('dialog[open]:modal:not(.file-preview)')
-      ) {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', escape);
-    return () => {
-      compact.removeEventListener('change', updateMode);
-      document.removeEventListener('keydown', escape);
-      element.close();
-      clearTimeout(resetTimer.current);
-      if (trigger instanceof HTMLElement && trigger.isConnected)
-        trigger.focus({ preventScroll: true });
-    };
-  }, [onClose]);
+  useEffect(() => () => clearTimeout(resetTimer.current), []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -156,38 +74,20 @@ function FilePreview({
   }, [view]);
 
   return (
-    <dialog
-      ref={dialog}
-      className="file-preview"
-      aria-label={`${kind} 文件预览`}
-      onCancel={(event) => {
-        // React also bubbles cancellation from a nested image dialog.
-        if (event.target !== event.currentTarget) return;
-        event.preventDefault();
-        onClose();
-      }}
-    >
-      <header className="file-preview-header">
-        <Button
-          ref={closeButton}
-          variant="ghost"
-          size="icon"
-          aria-label="关闭文件预览"
-          onClick={onClose}
-        >
-          <ArrowLeft className="file-preview-back" size={20} />
-          <X className="file-preview-close" size={20} />
-        </Button>
-        <FileText size={19} className="file-preview-icon" aria-hidden="true" />
-        <div className="file-preview-title">
-          <h2>{path.split('/').at(-1)}</h2>
-          <span>{kind} 文件</span>
-        </div>
+    <FilePreviewPanel
+      label={`${kind} 文件预览`}
+      closeLabel="关闭文件预览"
+      title={path.split('/').at(-1) ?? path}
+      subtitle={`${kind} 文件`}
+      icon={<FileText size={19} className="file-preview-icon" aria-hidden="true" />}
+      onClose={onClose}
+      actions={
         <Button variant="secondary" size="sm" disabled={!file} onClick={() => void copy()}>
           {feedback.startsWith('已复制') ? <Check size={15} /> : <Copy size={15} />}
           复制原文
         </Button>
-      </header>
+      }
+    >
       <div className="file-preview-toolbar">
         <div role="group" aria-label="文件展示方式">
           <Button
@@ -255,6 +155,6 @@ function FilePreview({
       <footer className="file-preview-path" title={file?.path ?? path}>
         {file?.path ?? path}
       </footer>
-    </dialog>
+    </FilePreviewPanel>
   );
 }

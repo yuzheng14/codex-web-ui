@@ -4,7 +4,7 @@ import type { ThreadSummary } from '../shared/types';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useThreadReadState } from './hooks/useThreadReadState';
 import { Sidebar } from './components/Sidebar';
-import { FilePreviewProvider } from './components/FilePreview';
+import { FilePreviewProvider } from './components/FilePreviewProvider';
 import { Conversation } from './components/Conversation';
 import { ThreadTitle } from './components/ThreadTitle';
 import { Composer } from './components/Composer';

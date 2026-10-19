@@ -16,6 +16,7 @@ import { MarkdownContent as TextContent } from './MarkdownContent';
 import { ImagePreviewProvider } from './ImagePreview';
 import { UserMessage } from './UserMessage';
 import { StickyPrompt } from './StickyPrompt';
+import { useDiffPreview } from './FilePreviewProvider';
 
 const activityLabels: Record<string, string> = {
   commandExecution: '执行命令',
@@ -37,6 +38,7 @@ const activityStatusLabels: Record<string, string> = {
 };
 
 function Activity({ item }: { item: ItemView }) {
+  const openDiff = useDiffPreview();
   return (
     <CollapsibleActivity
       className={`activity${item.status === 'failed' ? ' activity-failed' : ''}`}
@@ -74,13 +76,24 @@ function Activity({ item }: { item: ItemView }) {
           </p>
         )}
         {item.changes?.map((change, index) => (
-          <details className="file-change" key={`${change.path}:${index}`} open>
-            <summary>
-              <span className="change-kind">{change.kind}</span>
-              <code>{change.path}</code>
-            </summary>
-            <Diff text={change.diff} />
-          </details>
+          <Button
+            className="file-change-link"
+            variant="ghost"
+            key={`${change.path}:${index}`}
+            onClick={() =>
+              openDiff({
+                id: item.id,
+                scope: '此工具的文件变更',
+                source: 'item',
+                selectedPath: change.path,
+              })
+            }
+          >
+            <Icon name="code" size={15} />
+            <code>{change.path}</code>
+            <span>查看变更</span>
+            <Icon name="chevron" size={14} />
+          </Button>
         ))}
         {item.error && <p className="inline-error">{item.error}</p>}
         {item.details !== undefined && (
@@ -91,31 +104,6 @@ function Activity({ item }: { item: ItemView }) {
         )}
       </div>
     </CollapsibleActivity>
-  );
-}
-
-function Diff({ text }: { text: string }) {
-  return (
-    <pre className="diff">
-      <code>
-        {text.split('\n').map((line, index) => (
-          <span
-            key={index}
-            className={
-              line.startsWith('+') && !line.startsWith('+++')
-                ? 'diff-added'
-                : line.startsWith('-') && !line.startsWith('---')
-                  ? 'diff-removed'
-                  : line.startsWith('@@')
-                    ? 'diff-hunk'
-                    : ''
-            }
-          >
-            {line || ' '}
-          </span>
-        ))}
-      </code>
-    </pre>
   );
 }
 
@@ -236,6 +224,7 @@ function ConversationContent({
   onReadCompleted,
   questionControls,
 }: ConversationProps) {
+  const openDiff = useDiffPreview();
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -579,15 +568,24 @@ function ConversationContent({
                       </ActivityGroup>
                     ),
                   )}
-                  {turn.diff && (
-                    <details className="turn-diff">
-                      <summary>
-                        <Icon name="code" size={16} />
-                        本轮变更预览<span className="mono">{turn.id.slice(0, 12)}</span>
-                      </summary>
-                      <p className="subtle">由本轮 Codex 工具提供的变更</p>
-                      <Diff text={turn.diff} />
-                    </details>
+                  {(turn.diff !== undefined || turn.items.some((item) => item.changes?.length)) && (
+                    <Button
+                      className="turn-diff"
+                      variant="ghost"
+                      onClick={() =>
+                        openDiff({
+                          id: turn.id,
+                          scope: `第 ${index + 1} 轮变更`,
+                          source: 'turn',
+                        })
+                      }
+                    >
+                      <Icon name="code" size={17} />
+                      <span>
+                        本轮变更预览<small>查看文件与代码行变更</small>
+                      </span>
+                      <Icon name="chevron" size={16} />
+                    </Button>
                   )}
                   {turn.error &&
                     turn.reconnect?.status !== 'failed' &&
