@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   Cursor,
   Operation,
@@ -978,6 +978,10 @@ export function useWorkspace() {
       );
   };
 
+  const visibleThread = useMemo(
+    () => (thread ? projectStore.current.project(thread) : undefined),
+    [thread, projectThreads, operations],
+  );
   return {
     projects,
     projectsLoaded,
@@ -1083,7 +1087,7 @@ export function useWorkspace() {
     projectThreads,
     threads: projectThreads[projectId]?.data ?? [],
     nextCursor: projectThreads[projectId]?.nextCursor ?? null,
-    thread: thread ? projectStore.current.project(thread) : undefined,
+    thread: visibleThread,
     selectedId,
     selectThread: (id: string, owningProjectId?: string) => {
       cancelResultNavigation();

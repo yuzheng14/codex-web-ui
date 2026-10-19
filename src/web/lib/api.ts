@@ -82,6 +82,12 @@ export const api = {
       signal,
     ),
   thread: (threadId: string) => request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}`),
+  threadHistory: (threadId: string, cursor: string, signal: AbortSignal) =>
+    request<ThreadView>(
+      `/api/threads/${encodeURIComponent(threadId)}/history?${new URLSearchParams({ cursor })}`,
+      undefined,
+      signal,
+    ),
   threadMetadata: (threadId: string) =>
     request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}/metadata`),
   previewFile: (threadId: string, path: string, signal: AbortSignal) =>

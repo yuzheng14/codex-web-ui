@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { AsyncQuestionReply, ItemView, ThreadView, TurnView } from '../../shared/types';
 import { AsyncQuestionCard, type AsyncQuestionControls } from './AsyncQuestionCard';
 import { asyncQuestionId } from '../../shared/async-questions';
@@ -194,6 +194,14 @@ function CodexReconnectNotice({ turn, offline }: { turn: TurnView; offline: bool
 interface ConversationProps {
   thread?: ThreadView;
   offline: boolean;
+  history?: {
+    loading: boolean;
+    error?: string;
+    onLoadOlder: () => void;
+    opening: boolean;
+    openingError?: string;
+    onRetryOpen: () => void;
+  };
   projectName?: string;
   needsProject?: boolean;
   canAddProject?: boolean;
@@ -215,6 +223,7 @@ export function Conversation(props: ConversationProps) {
 function ConversationContent({
   thread,
   offline,
+  history,
   projectName,
   needsProject = false,
   canAddProject = true,
@@ -229,6 +238,10 @@ function ConversationContent({
   const [showBottom, setShowBottom] = useState(false);
   const previousThread = useRef(thread?.id);
   const lastReadCompletion = useRef<{ threadId: string; turnId: string } | undefined>(undefined);
+  const anchor = useRef<{ id: string; offset: number } | undefined>(undefined);
+  const lastScrollTop = useRef(0);
+  const scrollingUp = useRef(false);
+  const userScrolled = useRef(false);
   const latestTurn = thread?.turns.at(-1);
   const questionReplies = new Map<string, AsyncQuestionReply[]>();
   for (const turn of thread?.turns ?? [])
@@ -243,20 +256,63 @@ function ConversationContent({
           (item) => item.type === 'contextCompaction' && item.status === 'inProgress',
         )
       : undefined;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (previousThread.current !== thread?.id) {
       previousThread.current = thread?.id;
       stickToBottom.current = true;
       setShowBottom(false);
+      anchor.current = undefined;
+      scrollingUp.current = false;
+      userScrolled.current = false;
     }
+    const box = containerRef.current;
     if (stickToBottom.current) endRef.current?.scrollIntoView({ block: 'end' });
+    else if (box && anchor.current) {
+      const target = [...box.querySelectorAll<HTMLElement>('[data-turn-id]')].find(
+        (element) => element.dataset.turnId === anchor.current!.id,
+      );
+      if (target)
+        box.scrollTop +=
+          target.getBoundingClientRect().top -
+          box.getBoundingClientRect().top -
+          anchor.current.offset;
+    }
+    if (box) lastScrollTop.current = box.scrollTop;
   }, [thread]);
   const updateScrollPosition = useCallback(() => {
     const box = containerRef.current;
     if (!box) return;
+    scrollingUp.current = userScrolled.current && box.scrollTop < lastScrollTop.current;
+    lastScrollTop.current = box.scrollTop;
+    const firstVisible = [...box.querySelectorAll<HTMLElement>('[data-turn-id]')].find(
+      (element) => element.getBoundingClientRect().bottom > box.getBoundingClientRect().top,
+    );
+    anchor.current = firstVisible
+      ? {
+          id: firstVisible.dataset.turnId!,
+          offset: firstVisible.getBoundingClientRect().top - box.getBoundingClientRect().top,
+        }
+      : undefined;
+    if (
+      scrollingUp.current &&
+      box.scrollTop < Math.max(600, box.clientHeight * 1.5) &&
+      !history?.error
+    )
+      history?.onLoadOlder();
     stickToBottom.current = box.scrollHeight - box.scrollTop - box.clientHeight < 100;
     setShowBottom(!stickToBottom.current);
-  }, []);
+  }, [history]);
+  useEffect(() => {
+    const box = containerRef.current;
+    if (
+      box &&
+      scrollingUp.current &&
+      box.scrollTop < Math.max(600, box.clientHeight * 1.5) &&
+      !history?.loading &&
+      !history?.error
+    )
+      history?.onLoadOlder();
+  }, [thread, history]);
   useEffect(() => {
     const box = containerRef.current;
     if (!box) return;
@@ -348,15 +404,72 @@ function ConversationContent({
             stickToBottom.current = false;
           }}
         />
-        <div className="conversation-scroll" ref={containerRef} onScroll={updateScrollPosition}>
+        <div
+          className="conversation-scroll"
+          ref={containerRef}
+          onScroll={updateScrollPosition}
+          onWheel={() => {
+            userScrolled.current = true;
+          }}
+          onTouchStart={() => {
+            userScrolled.current = true;
+          }}
+          onPointerDown={() => {
+            userScrolled.current = true;
+          }}
+          onKeyDown={(event) => {
+            if (
+              ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)
+            )
+              userScrolled.current = true;
+          }}
+          tabIndex={0}
+          aria-label="会话消息"
+        >
           <div className="conversation-content">
+            {thread?.history?.olderCursor && (
+              <div
+                className="history-pagination"
+                role="status"
+                aria-live="polite"
+                aria-busy={history?.loading}
+              >
+                <span>
+                  {history?.error ??
+                    (history?.loading ? '正在加载较早的消息…' : '向上滚动，加载更早的消息')}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={history?.loading}
+                  onClick={() => history?.onLoadOlder()}
+                >
+                  {history?.error ? '重试加载' : '加载更早的消息'}
+                </Button>
+              </div>
+            )}
             {thread?.historyTruncated && (
               <p className="truncation">
                 <Icon name="alert" size={14} />
                 当前实时快照已省略部分较早历史，以限制传输大小。
               </p>
             )}
-            {!thread?.turns.length ? (
+            {history?.opening && !thread?.turns.length ? (
+              <div className="history-opening" role={history.openingError ? 'alert' : 'status'}>
+                <p>{history.openingError ?? '正在读取会话…'}</p>
+                {history.openingError ? (
+                  <Button variant="secondary" onClick={history.onRetryOpen}>
+                    重试读取
+                  </Button>
+                ) : (
+                  <div className="history-skeleton" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                )}
+              </div>
+            ) : !thread?.turns.length ? (
               <div
                 className="empty-state"
                 data-testid="workspace-start"
@@ -403,7 +516,12 @@ function ConversationContent({
               </div>
             ) : (
               thread.turns.map((turn, index) => (
-                <section className="turn" key={turn.id} aria-label={`第 ${index + 1} 轮`}>
+                <section
+                  className="turn"
+                  key={turn.id}
+                  data-turn-id={turn.id}
+                  aria-label={`第 ${index + 1} 轮`}
+                >
                   <div className="turn-heading">
                     <span>第 {index + 1} 轮</span>
                     <Status status={turn.status} offline={offline} />
