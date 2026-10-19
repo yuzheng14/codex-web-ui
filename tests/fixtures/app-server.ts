@@ -1,5 +1,6 @@
 /** Explicit test process. Its envelopes and payloads use the CLI-generated 0.163.0 protocol. */
 import { createInterface } from 'node:readline';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -1505,6 +1506,20 @@ const model: Model = {
   isDefault: true,
 };
 const delayedStarts = new WeakSet<ClientRequest>();
+// Only the explicit test simulator runs host commands; production uses Codex's sandbox.
+const shellProcesses = new Map<string, ChildProcess>();
+function stopShell(child: ChildProcess) {
+  if (child.pid && process.platform !== 'win32') {
+    try {
+      process.kill(-child.pid, 'SIGKILL');
+    } catch {
+      /* already exited */
+    }
+  } else child.kill('SIGKILL');
+}
+function stopShells() {
+  for (const child of shellProcesses.values()) stopShell(child);
+}
 function receive(request: ClientRequest): void {
   if (request.method === 'initialize') {
     if (options.initializeFailureOncePath && !existsSync(options.initializeFailureOncePath)) {
@@ -1530,6 +1545,47 @@ function receive(request: ClientRequest): void {
     return;
   }
   switch (request.method) {
+    case 'command/exec': {
+      const params = request.params;
+      const child = spawn(params.command[0]!, params.command.slice(1), {
+        cwd: params.cwd ?? undefined,
+        detached: process.platform !== 'win32',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      const processId = params.processId!;
+      shellProcesses.set(processId, child);
+      const timer = setTimeout(() => stopShell(child), params.timeoutMs ?? 60_000);
+      const captured = { stdout: 0, stderr: 0 };
+      for (const stream of ['stdout', 'stderr'] as const)
+        child[stream]!.on('data', (bytes: Buffer) => {
+          const cap = params.outputBytesCap ?? 32768;
+          const remaining = Math.max(0, cap - captured[stream]);
+          if (!remaining) return;
+          captured[stream] += bytes.length;
+          notify({
+            method: 'command/exec/outputDelta',
+            params: {
+              processId,
+              stream,
+              deltaBase64: bytes.subarray(0, remaining).toString('base64'),
+              capReached: captured[stream] >= cap,
+            },
+          });
+        });
+      child.once('error', (failure) => error(request.id, failure.message, -32000));
+      child.once('close', (code) => {
+        clearTimeout(timer);
+        shellProcesses.delete(processId);
+        reply(request.id, { exitCode: code ?? 137, stdout: '', stderr: '' });
+      });
+      break;
+    }
+    case 'command/exec/terminate': {
+      const child = shellProcesses.get(request.params.processId);
+      if (child) stopShell(child);
+      reply(request.id, {});
+      break;
+    }
     case 'account/read':
       reply(request.id, {
         account:
@@ -2299,10 +2355,12 @@ function saveHistory() {
     );
 }
 process.once('SIGTERM', () => {
+  stopShells();
   saveHistory();
   process.exit(0);
 });
 input.on('close', () => {
+  stopShells();
   for (const timer of finishes.values()) clearTimeout(timer);
   saveHistory();
   void writes.then(() => process.exit(0));

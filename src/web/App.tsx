@@ -24,6 +24,9 @@ import { NotificationSettings } from './components/NotificationSettings';
 import { GatewaySettings } from './components/GatewaySettings';
 import { UpdateSettings } from './components/UpdateSettings';
 import { useUpdates } from './hooks/useUpdates';
+import { useShell } from './hooks/useShell';
+import { ShellPanel } from './components/ShellPanel';
+import { shellActive } from '../shared/shell';
 import { updateActive } from '../shared/updates';
 import {
   canConfirmCompatibility,
@@ -44,6 +47,9 @@ function WorkspaceLayout({ threadId, children }: { threadId?: string; children: 
 
 export function App() {
   const workspace = useWorkspace();
+  const [shellOpen, setShellOpen] = useState(false);
+  const shell = useShell(shellOpen);
+  const [shellCollapsed, setShellCollapsed] = useState(false);
   const updates = useUpdates();
   const [updatesOpen, setUpdatesOpen] = useState(false);
   const { isUnreadCompletion, markCompletedRead } = useThreadReadState();
@@ -372,7 +378,7 @@ export function App() {
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
-      <main className="main-panel">
+      <main className={`main-panel${shellOpen && !shellCollapsed ? ' shell-visible' : ''}`}>
         <header className="topbar">
           <div className="topbar-title">
             <Button
@@ -408,6 +414,25 @@ export function App() {
             </div>
           </div>
           <div className="topbar-status">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shell-entry"
+              aria-label="打开 Shell 面板"
+              aria-expanded={shellOpen && !shellCollapsed}
+              onClick={() => {
+                setShellOpen(true);
+                setShellCollapsed(false);
+              }}
+            >
+              <Icon name="terminal" size={16} />
+              <span>Shell</span>
+              {shell.commands.some(shellActive) && (
+                <span className="shell-entry-count" aria-label="运行中的 Shell 命令">
+                  {shell.commands.filter(shellActive).length}
+                </span>
+              )}
+            </Button>
             {thread && <Status status={thread.status} offline={offline} />}
             <ConnectionBadge connection={workspace.connection} />
             {thread?.forkedFromId && (
@@ -711,6 +736,15 @@ export function App() {
             onSend={sendMessage}
           />
         </div>
+        <ShellPanel
+          open={shellOpen}
+          project={project}
+          shell={shell}
+          canExecute={canOperate && Boolean(system?.capabilities.includes('command/exec'))}
+          collapsed={shellCollapsed}
+          onCollapse={() => setShellCollapsed((value) => !value)}
+          onClose={() => setShellOpen(false)}
+        />
       </main>
       {projectDialog && (projectDialog.kind === 'add' || managedProject) && (
         <ProjectDialog

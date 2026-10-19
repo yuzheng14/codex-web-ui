@@ -1,4 +1,7 @@
 import { CODEX_COMPATIBILITY } from './compatibility.js';
+import { SHELL_TIMEOUT_MS, SHELL_OUTPUT_BYTES } from '../shared/shell.js';
+import type { CommandExecResponse } from './generated/v2/CommandExecResponse.js';
+import type { CommandExecTerminateResponse } from './generated/v2/CommandExecTerminateResponse.js';
 import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -95,6 +98,8 @@ export { CodexError } from './transport.js';
 
 export const VERIFIED_CODEX_VERSION = CODEX_COMPATIBILITY.recommended;
 const CAPABILITIES = [
+  'command/exec',
+  'command/exec/terminate',
   'thread/name/set',
   'thread/start',
   'thread/fork',
@@ -119,6 +124,8 @@ const CAPABILITIES = [
   'account/read',
 ];
 type Responses = {
+  'command/exec': CommandExecResponse;
+  'command/exec/terminate': CommandExecTerminateResponse;
   'thread/name/set': ThreadSetNameResponse;
   initialize: InitializeResponse;
   'account/read': GetAccountResponse;
@@ -183,6 +190,10 @@ function permissionPathLabel(path: FileSystemPath): string {
 }
 
 export class CodexAdapter implements CodexClient {
+  private readonly commandOutputs = new Map<
+    string,
+    Parameters<NonNullable<CodexClient['executeCommand']>>[3]
+  >();
   epoch = randomUUID();
   private child?: ChildProcessWithoutNullStreams;
   private rpc?: RpcTransport;
@@ -485,13 +496,14 @@ export class CodexAdapter implements CodexClient {
     method: M,
     params: Extract<ClientRequest, { method: M }>['params'],
     initializing = false,
+    timeoutMs?: number,
   ): Promise<Responses[M]> {
     if (!this.rpc || (!initializing && !this.ready))
       throw new CodexError('CODEX_UNAVAILABLE', 'Codex is not ready');
     if (this.disabled.has(method))
       throw new CodexError('PROTOCOL_INCOMPATIBLE', `Codex does not support ${method}`);
     try {
-      return await this.rpc.request<Responses[M]>(method, params);
+      return await this.rpc.request<Responses[M]>(method, params, undefined, timeoutMs);
     } catch (error) {
       // Concurrent startup calls can inherit the same error when cleanup fails the transport.
       if (!initializing && error instanceof CodexError && error.rpcCode === -32601) {
@@ -1009,11 +1021,55 @@ export class CodexAdapter implements CodexClient {
     await this.call('thread/compact/start', { threadId: id });
   }
 
+  async executeCommand(
+    processId: string,
+    cwd: string,
+    command: string,
+    output: Parameters<NonNullable<CodexClient['executeCommand']>>[3],
+  ) {
+    this.commandOutputs.set(processId, output);
+    try {
+      return await this.call(
+        'command/exec',
+        {
+          processId,
+          cwd,
+          command:
+            process.platform === 'win32'
+              ? ['cmd.exe', '/d', '/s', '/c', command]
+              : ['/bin/sh', '-c', command],
+          streamStdoutStderr: true,
+          streamStdin: false,
+          tty: false,
+          timeoutMs: SHELL_TIMEOUT_MS,
+          outputBytesCap: SHELL_OUTPUT_BYTES / 2,
+          // Omit sandboxPolicy: preserve the server's configured permission policy.
+        },
+        false,
+        SHELL_TIMEOUT_MS + 5000,
+      );
+    } finally {
+      this.commandOutputs.delete(processId);
+    }
+  }
+  async terminateCommand(processId: string): Promise<void> {
+    await this.call('command/exec/terminate', { processId });
+  }
+
   private notification(message: RpcNotification): void {
     if (this.titles?.notification(message)) return;
     const event = message as ServerNotification;
     const p = event.params;
     switch (event.method) {
+      case 'command/exec/outputDelta': {
+        const { processId, stream, deltaBase64, capReached } = event.params;
+        this.commandOutputs.get(processId)?.(
+          stream,
+          Buffer.from(deltaBase64, 'base64'),
+          capReached,
+        );
+        break;
+      }
       case 'thread/settings/updated':
         {
           const observed: RuntimeSettings = {

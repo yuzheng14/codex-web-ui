@@ -11,6 +11,10 @@ import { AppError } from '../src/shared/errors.js';
 
 /** Test-only diagnostics controls; the production adapter has no hook. */
 class ControlledFixture implements CodexClient {
+  executeCommand: NonNullable<CodexClient['executeCommand']> = (...args) =>
+    this.inner.executeCommand!(...args);
+  terminateCommand: NonNullable<CodexClient['terminateCommand']> = (...args) =>
+    this.inner.terminateCommand!(...args);
   private version = 'fixture-unverified-1';
   private unavailable = false;
   private seedingExternal = false;

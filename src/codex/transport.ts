@@ -123,7 +123,12 @@ export class RpcTransport extends EventEmitter {
       this.fail(new CodexError('CODEX_UNAVAILABLE', error.message, true)),
     );
   }
-  request<T>(method: string, params: unknown, id: RpcId = this.nextId++): Promise<T> {
+  request<T>(
+    method: string,
+    params: unknown,
+    id: RpcId = this.nextId++,
+    timeoutMs = this.options.timeoutMs ?? 30_000,
+  ): Promise<T> {
     if (this.failure) return Promise.reject(this.failure);
     if (this.pending.has(id))
       return Promise.reject(new CodexError('PROTOCOL_ERROR', 'Duplicate outgoing RPC id'));
@@ -139,7 +144,7 @@ export class RpcTransport extends EventEmitter {
             true,
           ),
         );
-      }, this.options.timeoutMs ?? 30_000);
+      }, timeoutMs);
       this.pending.set(id, { method, resolve: (result) => resolve(result as T), reject, timer });
       void this.write({ id, method, params }).catch((error: unknown) => {
         const pending = this.pending.get(id);
