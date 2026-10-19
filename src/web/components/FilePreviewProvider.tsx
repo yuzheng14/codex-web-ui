@@ -20,9 +20,11 @@ export const useDiffPreview = () => useContext(PreviewContext).openDiff;
 
 export function FilePreviewProvider({
   threadId,
+  getHistoryCursor,
   children,
 }: {
   threadId?: string;
+  getHistoryCursor?: (targetId: string) => string | undefined;
   children: ReactNode;
 }) {
   const [target, setTarget] = useState<
@@ -39,10 +41,15 @@ export function FilePreviewProvider({
         if (threadId) setTarget({ threadId, kind: 'file', path });
       },
       openDiff: (diff: DiffPreviewTarget) => {
-        if (threadId) setTarget({ threadId, kind: 'diff', diff });
+        if (threadId)
+          setTarget({
+            threadId,
+            kind: 'diff',
+            diff: { ...diff, cursor: getHistoryCursor?.(diff.id) },
+          });
       },
     }),
-    [threadId],
+    [threadId, getHistoryCursor],
   );
   return (
     <PreviewContext value={context}>

@@ -1,7 +1,10 @@
 import { writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect, test, type Page, type WebSocketRoute, type TestInfo } from '@playwright/test';
 import { confirmCompatibility, controlRuntime } from './helpers';
 import type { ThreadView } from '../../src/shared/types';
+import { diffPreviewChanges } from '../fixtures/diff-preview';
 
 async function recordMetrics(testInfo: TestInfo, name: string, value: unknown) {
   const path = testInfo.outputPath(name);
@@ -200,6 +203,47 @@ test('retries a failed page and ignores a late response after switching sessions
   release();
   await expect(page.locator('.turn')).toHaveCount(12);
   await expect(page.locator('[data-turn-id^="history-one-"]')).toHaveCount(0);
+});
+
+test('reloads older turn and tool diffs from their source page without scanning history', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await mockHistory(page);
+  const requests: string[] = [];
+  await page.route('**/api/threads/*/history?*', (route) => {
+    requests.push(new URL(route.request().url()).searchParams.get('cursor')!);
+    const older = historyPage(12, 24, '12');
+    const turn = older.turns.at(-1)!;
+    const change = diffPreviewChanges('inline')[0]!;
+    // The second read corrects the snapshot, proving the preview consults the server.
+    const diff = change.diff.replace('"dark"', requests.length > 1 ? '"updated"' : '"dark"');
+    turn.diff = diff;
+    turn.items.push({
+      id: 'historical-file-change',
+      type: 'fileChange',
+      status: 'completed',
+      changes: [{ path: change.path, kind: 'update', diff }],
+    });
+    return route.fulfill({ json: older });
+  });
+  await page.locator('.conversation-scroll').evaluate((box) => {
+    box.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: -1000 }));
+    box.scrollTop = 0;
+  });
+  await expect(page.locator('.turn')).toHaveCount(24);
+  const turn = page.locator('[data-turn-id="history-one-23"]');
+  const preview = page.getByRole('dialog', { name: '代码变更预览', exact: true });
+  await turn.getByRole('button', { name: /本轮变更预览/ }).click();
+  await expect(preview.locator('.diff-added .diff-inline-change').first()).toHaveText('updated');
+  await page.screenshot({ path: join(tmpdir(), 'covro-diff-history-page.png') });
+  await page.keyboard.press('Escape');
+  await turn.locator('details.activity-group > summary').click();
+  await turn.locator('details.activity > summary').click();
+  await turn.getByRole('button', { name: /src\/preview.ts.*查看变更/ }).click();
+  await expect(preview).toContainText('此工具的文件变更');
+  await expect(preview.locator('.diff-added .diff-inline-change').first()).toHaveText('updated');
+  expect(requests).toEqual(['24', '24', '24']);
 });
 
 async function expectCacheSaved(page: Page, minimum = 1) {

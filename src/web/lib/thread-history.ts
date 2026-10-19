@@ -50,6 +50,15 @@ export class HistoryWindow {
     if (previous.page.history?.olderCursor !== page.history?.olderCursor)
       this.chunks.splice(index + 1);
   }
+  /** Locate the authoritative page without fetching unrelated history. */
+  getHistoryCursor(targetId: string): string | undefined {
+    const contains = (page: ThreadView) =>
+      page.turns.some(
+        (turn) => turn.id === targetId || turn.items.some((item) => item.id === targetId),
+      );
+    if (contains(this.latest)) return undefined;
+    return this.chunks.find((chunk) => contains(chunk.page))?.cursor;
+  }
   get view(): ThreadView {
     let turns: TurnView[] = [];
     for (const chunk of this.chunks.slice().reverse())

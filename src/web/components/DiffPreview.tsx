@@ -13,6 +13,7 @@ export interface DiffPreviewTarget {
   scope: string;
   source: 'turn' | 'item';
   selectedPath?: string;
+  cursor?: string;
 }
 interface DiffSnapshot extends DiffPreviewTarget {
   text?: string;
@@ -51,8 +52,10 @@ export function DiffPreview({
     }, 35_000);
     setLoaded(undefined);
     setError(undefined);
-    void api
-      .thread(threadId, controller.signal)
+    const read = target.cursor
+      ? api.threadHistory(threadId, target.cursor, controller.signal)
+      : api.thread(threadId, controller.signal);
+    void read
       .then((thread) => {
         if (controller.signal.aborted) return;
         if (target.source === 'turn') {
