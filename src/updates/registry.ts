@@ -22,8 +22,9 @@ export const releaseSchema = z.object({
   gitHead: z.string().optional(),
   covroCodex: z.unknown().optional(),
 });
-export function packageMetadataUrl(selector: string) {
-  return `${registry}/${encodeURIComponent(npmPackageName)}/${encodeURIComponent(selector)}`;
+export function packageMetadataUrl(selector?: string) {
+  const url = `${registry}/${encodeURIComponent(npmPackageName)}`;
+  return selector === undefined ? url : `${url}/${encodeURIComponent(selector)}`;
 }
 export async function lookupRelease(channel: ReleaseChannel, signal?: AbortSignal) {
   // Resolve a channel exactly once. Install the resulting immutable version, never the moving tag.
