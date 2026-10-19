@@ -23,6 +23,7 @@ import { ProjectDialog } from './components/ProjectDialog';
 import { NotificationSettings } from './components/NotificationSettings';
 import { GatewaySettings } from './components/GatewaySettings';
 import { UpdateSettings } from './components/UpdateSettings';
+import { useConversationHistory } from './hooks/useConversationHistory';
 import { useUpdates } from './hooks/useUpdates';
 import { useShell } from './hooks/useShell';
 import { ShellPanel } from './components/ShellPanel';
@@ -86,6 +87,7 @@ export function App() {
     setProjectDialog({ kind: 'add' });
   };
   const { thread, system } = workspace;
+  const history = useConversationHistory(thread, workspace.selectedId);
   const resumeAttempt = useRef<string | undefined>(undefined);
   const canControl = Boolean(
     system?.ready &&
@@ -605,7 +607,18 @@ export function App() {
           </div>
         )}
         <Conversation
-          thread={thread}
+          thread={history.thread}
+          history={{
+            loading: history.loading,
+            error: history.error,
+            onLoadOlder: history.loadOlder,
+            opening: Boolean(workspace.selectedId && !thread),
+            openingError: !thread ? workspace.error : undefined,
+            onRetryOpen: () => {
+              workspace.clearError();
+              void workspace.refreshThread();
+            },
+          }}
           readingEnabled={
             !sidebarOpen &&
             !projectDialog &&

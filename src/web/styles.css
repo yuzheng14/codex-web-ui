@@ -4053,3 +4053,38 @@ dd {
   color: var(--accent);
   opacity: 1;
 }
+
+.history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 48px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.conversation-scroll {
+  overflow-anchor: none;
+}
+.history-opening {
+  padding: 48px 16px;
+  color: var(--muted);
+}
+.history-skeleton {
+  display: grid;
+  gap: 14px;
+  margin-top: 28px;
+}
+.history-skeleton span {
+  height: 16px;
+  width: 75%;
+  border-radius: 6px;
+  background: var(--border);
+}
+.history-skeleton span:nth-child(2) {
+  width: 92%;
+}
+.history-skeleton span:nth-child(3) {
+  width: 55%;
+}
