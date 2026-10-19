@@ -13,7 +13,7 @@ Covro 使用独立 SemVer，首个正式版本为 0.1.0：兼容修复使用 `fi
 | 渠道   | npm 标签 | 触发方式                                                                                            |
 | ------ | -------- | --------------------------------------------------------------------------------------------------- |
 | stable | latest   | release-please 创建 GitHub Release 后发布确切标签                                                   |
-| beta   | beta     | 手工运行 publish，指定已验证的 main commit 和 `X.Y.Z-beta.N`                                        |
+| beta   | beta     | 手动推送 `vX.Y.Z-beta.N` 标签，或发布带此标签的 GitHub Release                                      |
 | dev    | dev      | main 的 push 检查通过后自动发布当前 main；首发前为 `0.1.0-dev.N`，首发后为 `当前补丁版本 + 1-dev.N` |
 
 所有发布从同一仓库的 main 历史取源码，检查确切 commit 的 `verify` 结果，再构建 npm 包。GitHub Release 稳定标签必须与 package.json 版本和 commit 一致；Dev 只发布执行时仍为 main HEAD 的提交，较旧 CI 迟到或重跑会跳过。已发布版本不可覆盖，同一源码已存在 Dev 快照时不再分配新号；稳定版和 Beta 的同版本重跑核对 commit 后跳过。
@@ -22,13 +22,34 @@ Covro 使用独立 SemVer，首个正式版本为 0.1.0：兼容修复使用 `fi
 
 `N` 来自 npm 完整版本历史：在同一个 `X.Y.Z-dev` 基线下，取已发布版本的最大数字序号加一。它不依赖 CI ID 的大小，也不只读取 `dev` 标签，因此移动或删除标签不会使旧序号被重新使用。旧格式 `0.1.0-dev.39202054561.1` 的首个数字段 `39202054561` 计入下限，下一版为 `0.1.0-dev.39202054562`；下个版本基线可重新从 `dev.1` 开始。无法数值递增的 Dev 格式或超过 npm 安全整数比较范围的序号会阻止发版。CI 运行 ID 和尝试次数保存在 npm 元数据 `covroRelease` 中用于追溯。
 
-publish 工作流沿用同一个串行发布组。`npm publish` 被接受后，任务继续持有发布位置，每 15 秒查询一次公共 registry，确认确切版本、源码 commit 和渠道标签都可见后才成功，让后续发版从已更新的历史取号。此阶段最多等待 20 分钟；npm 审查延迟、registry 不可用或标签未同步会使验证失败，不能据此认定包未发布。排查时先检查版本历史和标签，再重跑；不要覆盖旧版本或把序号改回更小的数字。若任务在发布后被取消或超时，npm 中尚未可见的版本可能仍在审查，应等待其状态确定后再重试，npm 的不可变版本约束会拒绝重复占号。
+publish 工作流按 stable、beta、dev 分开串行，自动 Dev 不会取消排队中的手动 Beta 或正式版。`npm publish` 被接受后，任务继续持有本渠道的发布位置，每 15 秒查询一次公共 registry，确认确切版本、源码 commit 和渠道标签都可见后才成功，让后续发版从已更新的历史取号。此阶段最多等待 20 分钟；npm 审查延迟、registry 不可用或标签未同步会使验证失败，不能据此认定包未发布。排查时先检查版本历史和标签，再重跑；不要覆盖旧版本或把序号改回更小的数字。若任务在发布后被取消或超时，npm 中尚未可见的版本可能仍在审查，应等待其状态确定后再重试，npm 的不可变版本约束会拒绝重复占号。
 
 从 Dev 切到同基线的正式版时，SemVer 顺序为 `0.1.0-dev.N < 0.1.0`；正式版之后的 Dev 基线变为 `0.1.1-dev.N`，大于 `0.1.0`。自动发版不会绕过已有的更高渠道版本或无法确认的源码历史。
 
+### 通过标签或 GitHub Release 发布 Beta
+
+Beta 版本由维护者手动指定，首次可用 `v0.1.0-beta.1`，后续递增为 `v0.1.0-beta.2`。选取已经进入 main 且完整 `checks/verify` 通过的提交，推送一个新标签即可：
+
 ```sh
-gh workflow run publish.yml --ref main -f channel=beta -f version=0.2.0-beta.1 -f source_ref=main
+git tag -a v0.1.0-beta.1 <verified-main-commit> -m "Covro 0.1.0-beta.1"
+git push origin refs/tags/v0.1.0-beta.1
 ```
+
+也可以在 GitHub 的 Releases 页面创建并发布带同名 Beta 标签的 Release，建议标记为 prerelease。草稿不会发版；监听 `published`，因此从草稿发布的 prerelease 也能触发。版本及渠道由标签名决定，不读取 Release 标题或 `target_commitish`；普通 `vX.Y.Z` Release 不走此入口，正式版继续由 release-please 派发。
+
+标签推送和 Release 发布都由 `publish.yml` 的 Beta 路由解析标签，支持轻量和附注标签，将剥离后的确切 commit 派发给 main 上的同一个 `publish.yml`。后者重新核对 main 祖先关系、确切 Beta 版本标签与源码一致、该提交的成功 verify，再执行原有构建、验证、OIDC 发布与可见性等待。npm Trusted Publisher 仍只需绑定 `publish.yml`；路由仅有 `contents: read` / `actions: write`，不获取 npm 发布身份。
+
+推标签后再发布同一 Release 会产生相同版本、相同 commit 的请求，发布端核对身份后跳过重复版本。已经使用的标签不要移动或强推；每轮使用一个新 Beta 号，并等待本轮完成再发布下一轮。GitHub 并发组只保留一个等待任务，连续提交多轮请求可能替换较早的排队请求。
+
+标签提交需要包含本入口的 workflow 配置，故首次应选择本改动合并后的 main 提交。更早的标签不会自动获得新的 GitHub 触发规则；维护者可从 main 上手工补发，但目标源码必须包含发布验证脚本，缺失会在上传前被拒绝：
+
+```sh
+gh workflow run publish.yml --repo yuzheng14/covro --ref main -f channel=beta -f version=0.1.0-beta.1 -f source_ref=refs/tags/v0.1.0-beta.1
+```
+
+补发也要求确切的 `v0.1.0-beta.1` 标签指向该源码。同版本同 commit 跳过，已占号的不同 commit 被拒绝；低于当前 Beta 渠道的版本不会回退标签。通过 `GITHUB_TOKEN` 在其他工作流中创建标签或 Release 不会自动引起后续普通事件，机器人发布应显式派发上述入口。
+
+用户使用 `npm install -g @covro/covro@beta` 首装，或 `covro update --channel beta` 切换。同一基线下 SemVer 的 `beta` 排在 `dev` 前面，从当前 Dev 切到首个 Beta 需显式加 `--allow-downgrade`，仍受数据库兼容性检查约束。
 
 开发版只对 main 生效，不发布 fork、PR 分支或未通过完整检查的提交。普通 PR 和 Stacked PR 继续只运行 checks。发布包同时包含 CLI、前后端、迁移与独立升级工作进程，内嵌 commit 和渠道；首次安装开发版会默认订阅开发渠道，已有渠道偏好保留。
 

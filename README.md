@@ -122,11 +122,11 @@ covro update
 covro update --channel dev
 ```
 
-| Channel | npm tag  | Choose it for                               |
-| ------- | -------- | ------------------------------------------- |
-| Stable  | `latest` | Regular use                                 |
-| Beta    | `beta`   | Preview releases selected by the maintainer |
-| Dev     | `dev`    | New main-branch changes after CI passes     |
+| Channel | npm tag  | Choose it for                                    |
+| ------- | -------- | ------------------------------------------------ |
+| Stable  | `latest` | Regular use                                      |
+| Beta    | `beta`   | Maintainer-selected Beta tags or GitHub Releases |
+| Dev     | `dev`    | New main-branch changes after CI passes          |
 
 Each release declares its recommended and verified Codex CLI versions. The update panel shows the current and candidate combinations. Automatic upgrades require a verified combination; an unverified combination needs explicit confirmation for that exact upgrade. Unknown versions, invalid/missing declarations, and explicitly unsupported combinations block managed upgrades. The CLI offers `covro update --allow-unverified-codex` for the same explicit attempt. Covro does not upgrade your Codex CLI.
 
