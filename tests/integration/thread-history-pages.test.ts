@@ -1,0 +1,102 @@
+import { afterEach, expect, it } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { CodexAdapter } from '../../src/codex/adapter.js';
+import { GatewayService } from '../../src/server/service.js';
+import { harness } from './domain-helpers.js';
+
+const cleanups: (() => Promise<void> | void)[] = [];
+afterEach(async () => {
+  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+});
+
+it('opens a long session with one native page, resumes without a full read, and pages to the end', async () => {
+  const resource = harness();
+  cleanups.push(resource.close);
+  const logPath = join(resource.directory, 'requests.jsonl');
+  const adapter = new CodexAdapter({
+    binary: process.execPath,
+    args: [
+      '--import',
+      'tsx',
+      resolve('tests/fixtures/app-server.ts'),
+      '--options',
+      JSON.stringify({
+        paginated: true,
+        history: { turns: 125, itemsPerTurn: 2, itemBytes: 500 },
+        logPath,
+      }),
+    ],
+  });
+  cleanups.push(() => adapter.stop());
+  await adapter.start();
+  const created = await adapter.createThread(resource.project);
+  const service = new GatewayService({
+    store: resource.store,
+    projects: resource.projects,
+    codex: adapter,
+  });
+  const recent = await service.getThread(created.id);
+  expect(recent.turns).toHaveLength(12);
+  expect(recent.history?.olderCursor).toBeTruthy();
+  const requests = () =>
+    readFile(logPath, 'utf8').then((text) =>
+      text
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { method?: string; params?: Record<string, unknown> }),
+    );
+  const opening = await requests();
+  expect(opening.filter((r) => r.method === 'thread/turns/list')).toHaveLength(1);
+  expect(opening.some((r) => r.method === 'thread/read' && r.params?.includeTurns === true)).toBe(
+    false,
+  );
+  const resumed = await adapter.resumeThread(created.id, resource.project);
+  expect(resumed.turns).toHaveLength(12);
+  const ids = recent.turns.map((turn) => turn.id);
+  let cursor = recent.history!.olderCursor;
+  while (cursor) {
+    const page = await service.getThreadHistory(created.id, cursor);
+    expect(page.turns.length).toBeLessThanOrEqual(12);
+    ids.unshift(...page.turns.map((turn) => turn.id));
+    cursor = page.history!.olderCursor;
+  }
+  expect(ids).toHaveLength(125);
+  expect(new Set(ids).size).toBe(125);
+  const full = await adapter.readThread(created.id);
+  expect(ids).toEqual(full.turns.map((turn) => turn.id));
+  await expect(
+    adapter.readThreadPage('another-thread', recent.history!.olderCursor!),
+  ).rejects.toMatchObject({ code: 'HISTORY_CURSOR_EXPIRED' });
+  // Reading older pages must never displace live control state or inflate websocket snapshots.
+  expect((await service.getThread(created.id)).turns).toHaveLength(12);
+});
+
+it('hydrates item-summary pages and retains the legacy history fallback', async () => {
+  const resource = harness();
+  cleanups.push(resource.close);
+  for (const paginated of [true, false]) {
+    const adapter = new CodexAdapter({
+      binary: process.execPath,
+      args: [
+        '--import',
+        'tsx',
+        resolve('tests/fixtures/app-server.ts'),
+        '--options',
+        JSON.stringify({
+          paginated,
+          historyItemSummaries: true,
+          historyPageSize: 2,
+          history: { turns: 5, itemsPerTurn: 3, itemBytes: 10 },
+        }),
+      ],
+    });
+    cleanups.push(() => adapter.stop());
+    await adapter.start();
+    const created = await adapter.createThread(resource.project);
+    const page = await adapter.readThreadPage(created.id);
+    expect(page.turns).toHaveLength(paginated ? 2 : 5);
+    expect(page.turns.every((turn) => turn.items.length >= 3)).toBe(true);
+    expect(Boolean(page.history?.olderCursor)).toBe(paginated);
+  }
+});

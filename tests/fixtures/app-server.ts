@@ -1868,7 +1868,8 @@ function receive(request: ClientRequest): void {
       break;
     }
     case 'thread/turns/list': {
-      const turns = threads.get(request.params.threadId)?.turns ?? [];
+      const history = threads.get(request.params.threadId)?.turns ?? [];
+      const turns = request.params.sortDirection === 'desc' ? history.slice().reverse() : history;
       const offset = Number(request.params.cursor ?? 0);
       const limit = Math.min(options.historyPageSize ?? 100, request.params.limit ?? 100);
       reply(request.id, {
@@ -1876,7 +1877,7 @@ function receive(request: ClientRequest): void {
           .slice(offset, offset + limit)
           .map((turn) =>
             options.historyItemSummaries || request.params.itemsView !== 'full'
-              ? { ...turn, items: [], itemsView: request.params.itemsView ?? 'summary' }
+              ? { ...turn, items: [], itemsView: 'summary' }
               : turn,
           ),
         nextCursor: offset + limit < turns.length ? String(offset + limit) : null,

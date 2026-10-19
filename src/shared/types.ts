@@ -146,6 +146,8 @@ export interface ThreadView {
   updatedAt?: number;
   actions: PendingAction[];
   historyTruncated?: boolean;
+  /** Present on a paged history window; turns are in chronological order. */
+  history?: { olderCursor: string | null };
   /** Native preview/history evidence, also available when a response omits turns. */
   hasMessages?: boolean;
   /** False for an unsent draft; pending executions remain visible until resolved. */

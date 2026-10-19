@@ -534,6 +534,20 @@ export class GatewayService {
     return this.threadView(thread);
   }
 
+  async getThreadHistory(threadId: string, cursor?: string): Promise<ThreadView> {
+    if (!cursor || cursor.length > 8192)
+      throw new AppError('VALIDATION_FAILED', 'Missing or invalid history cursor', 400);
+    this.ensureReady();
+    // Authorize before reading a page, and check ownership again after the await.
+    const metadata = this.normalize(await this.codex.readThreadMetadata(threadId));
+    this.projects.assertOwnership(metadata.projectId, metadata.cwd);
+    if (!this.codex.readThreadPage)
+      throw new AppError('HISTORY_UNAVAILABLE', '当前 Codex 不支持历史分页', 409);
+    const page = this.normalize(await this.codex.readThreadPage(threadId, cursor));
+    this.projects.assertOwnership(page.projectId, page.cwd);
+    return page;
+  }
+
   async exportThread(threadId: string) {
     this.ensureReady();
     const epoch = this.codex.epoch;
@@ -610,13 +624,19 @@ export class GatewayService {
         return this.threadView(cached);
       }
       // Managed ownership does not make an unknown projection authoritative.
-      if (cached.status !== 'unknown' || !this.codex.ready) return this.threadView(cached);
+      if (
+        ((cached.managed || isActive(cached.status)) && cached.status !== 'unknown') ||
+        !this.codex.ready
+      )
+        return this.threadView(cached);
     }
     const existing = this.reads.get(threadId);
     if (existing) return this.threadView(await existing);
     const revision = this.projection.revision(threadId);
     const loading = (async () => {
-      const thread = this.normalize(await this.codex.readThread(threadId));
+      const thread = this.normalize(
+        await (this.codex.readThreadPage?.(threadId) ?? this.codex.readThread(threadId)),
+      );
       // Managed live projections are never replaced by a history read finishing later.
       const current = this.projection.get(threadId);
       const preserveCurrent =

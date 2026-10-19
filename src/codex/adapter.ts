@@ -682,6 +682,82 @@ export class CodexAdapter implements CodexClient {
     const sequence = ++this.archiveSequence;
     return this.storedThread(await this.readThreadHeader(id), sequence);
   }
+  async readThreadPage(id: string, continuation?: string): Promise<ThreadView> {
+    const epoch = this.epoch;
+    let cursor: string | null = null;
+    if (continuation) {
+      try {
+        const decoded = JSON.parse(Buffer.from(continuation, 'base64url').toString('utf8'));
+        if (
+          decoded.threadId !== id ||
+          decoded.epoch !== epoch ||
+          typeof decoded.cursor !== 'string'
+        )
+          throw new Error('Invalid cursor');
+        cursor = decoded.cursor;
+      } catch {
+        throw new AppError('HISTORY_CURSOR_EXPIRED', '历史分页已失效，请重新同步会话。', 409);
+      }
+    }
+    const sequence = ++this.archiveSequence;
+    const header = await this.readThreadHeader(id);
+    // Legacy rollout files expose no paging protocol. Keep the compatibility path explicit.
+    if (header.historyMode !== 'paginated') return this.readThread(id);
+    const page = await this.call('thread/turns/list', {
+      threadId: id,
+      cursor,
+      limit: 12,
+      sortDirection: 'desc',
+      itemsView: 'summary',
+    });
+    if (page.nextCursor && page.nextCursor === cursor)
+      throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid turn pagination');
+    await this.hydrateTurns(id, page.data);
+    if (this.epoch !== epoch)
+      throw new AppError('HISTORY_CURSOR_EXPIRED', '读取期间 Codex 已重启，请重新同步会话。', 409);
+    const view = await this.storedThread(
+      { ...header, turns: page.data.slice().reverse() },
+      sequence,
+    );
+    return {
+      ...view,
+      history: {
+        olderCursor: page.nextCursor
+          ? Buffer.from(
+              JSON.stringify({
+                threadId: id,
+                epoch,
+                cursor: page.nextCursor,
+              }),
+            ).toString('base64url')
+          : null,
+      },
+    };
+  }
+
+  private async hydrateTurns(id: string, turns: Thread['turns']): Promise<void> {
+    for (const turn of turns) {
+      if (turn.itemsView === 'full') continue;
+      let cursor: string | null = null;
+      const seen = new Set<string>();
+      turn.items = [];
+      do {
+        const page: ThreadItemsListResponse = await this.call('thread/items/list', {
+          threadId: id,
+          turnId: turn.id,
+          cursor,
+          limit: 20,
+          sortDirection: 'asc',
+        });
+        turn.items.push(...page.data.map((entry) => entry.item));
+        cursor = page.nextCursor;
+        if (cursor && (seen.has(cursor) || seen.size >= 1000))
+          throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid item pagination');
+        if (cursor) seen.add(cursor);
+      } while (cursor);
+    }
+  }
+
   async readThread(id: string): Promise<ThreadView> {
     const sequence = ++this.archiveSequence;
     const thread = await this.readThreadHeader(id);
@@ -922,7 +998,7 @@ export class CodexAdapter implements CodexClient {
       throw error;
     }
     titles?.register(result);
-    const view = await this.readThread(result.thread.id);
+    const view = await this.readThreadPage(result.thread.id);
     return { ...view, runtimeSettings: await this.responseRuntimeSettings(result) };
   }
   async forkThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
