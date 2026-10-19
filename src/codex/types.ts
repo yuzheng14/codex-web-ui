@@ -41,6 +41,13 @@ export type CodexEvent =
   | { type: 'actionResolved'; actionId: string }
   | { type: 'runtime'; diagnostics: CodexDiagnostics };
 export interface CodexClient {
+  executeCommand?(
+    processId: string,
+    cwd: string,
+    command: string,
+    output: (stream: 'stdout' | 'stderr', bytes: Buffer, capReached: boolean) => void,
+  ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
+  terminateCommand?(processId: string): Promise<void>;
   readonly epoch: string;
   readonly pid: number | undefined;
   readonly ready: boolean;

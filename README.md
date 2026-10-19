@@ -34,6 +34,7 @@
 - 💬 **Pick up your Codex CLI conversations.** Browse saved history, resume existing work, or fork a new direction. Rename conversations to find them later and archive them when you're done.
 - 📖 **Review the work beside the conversation.** Read Markdown documents in a desktop side panel while you keep talking to Codex. View code, tables, and images, with a full-screen document reader on mobile.
 - ✍️ **Switch tasks without losing your draft.** Each conversation keeps its own draft, pasted images, and model settings in the current page. Copy or export results when you're done.
+- 🖥️ **Run a command beside your task.** Open **Shell** to execute commands in the selected project's directory, follow stdout/stderr, interrupt a run, and reuse recent commands. The panel uses Codex's configured sandbox, with a ten-minute limit and no interactive input. Closing it keeps the command running. [Capabilities and limits](docs/shell.md).
 
 <details>
   <summary><strong>📱 A workspace that fits your phone</strong></summary>

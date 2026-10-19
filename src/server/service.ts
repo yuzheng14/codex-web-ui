@@ -1,4 +1,6 @@
 import type { CodexClient, CodexDiagnostics, CodexEvent } from '../codex/types.js';
+import { ShellService } from './shell.js';
+import type { StartShellInput } from '../shared/shell.js';
 import { realpathSync } from 'node:fs';
 import { AppError } from '../shared/errors.js';
 import { threadNameError } from '../shared/thread-name.js';
@@ -59,6 +61,7 @@ export interface GatewayOptions {
 
 /** Coordinates durable intent, upstream effects, and the recoverable browser projection. */
 export class GatewayService {
+  readonly shell: ShellService;
   readonly events: EventHub;
   readonly projection: Projection;
   private readonly store: OperationStore;
@@ -92,6 +95,7 @@ export class GatewayService {
     this.turnUsage = new TurnUsageStore(this.store.database);
     this.projects = options.projects;
     this.codex = options.codex;
+    this.shell = new ShellService(this.codex);
     this.events = new EventHub(options.limits?.eventBytes);
     this.projection = new Projection(options.limits?.itemBytes);
     this.currentEpoch = this.codex.epoch;
@@ -102,6 +106,21 @@ export class GatewayService {
   listProjects() {
     return this.projects.list();
   }
+  startShell(projectId: string, input: StartShellInput) {
+    return this.perform('shell.start', projectId, input, async () => {
+      this.ensureCompatibilityConfirmed();
+      const project = this.projects.get(projectId);
+      this.store.dispatch(input.clientOperationId);
+      return { result: { shellCommand: this.shell.start(project, input) } };
+    });
+  }
+  interruptShell(id: string, input: OperationInput) {
+    return this.perform('shell.interrupt', id, input, async () => {
+      this.store.dispatch(input.clientOperationId);
+      await this.shell.interrupt(id);
+      return { result: { interrupted: true } };
+    });
+  }
   isInMaintenance() {
     return this.maintenance;
   }
@@ -109,6 +128,7 @@ export class GatewayService {
     this.maintenance = value;
   }
   prepareUpdate(): { ready: boolean; reason?: string } {
+    if (this.shell.active()) return { ready: false, reason: '等待 Shell 命令结束' };
     if (this.inFlightOperations.size || this.resumes.size || this.pendingThreadCreations.size)
       return { ready: false, reason: '等待正在提交或恢复的操作完成' };
     if (this.store.activeMarkers().length || this.store.unresolvedOperations().length)
@@ -152,7 +172,7 @@ export class GatewayService {
           (isActive(thread.status) ||
             thread.actions.some((action) => ['pending', 'responding'].includes(action.status))),
       );
-    if (pending || marker || active)
+    if (pending || marker || active || this.shell.active(projectId))
       throw new AppError(
         'PROJECT_BUSY',
         '项目仍有活动任务或结果待核对的操作；请先结束任务并核对旧操作',

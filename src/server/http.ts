@@ -16,6 +16,7 @@ import { socketHandlers } from './websocket.js';
 import { z } from 'zod';
 import { releaseChannels, type UpdateController } from '../shared/updates.js';
 import { settingsSchema, updateRequestSchema } from '../updates/manager.js';
+import { startShellSchema } from '../shared/shell.js';
 export interface HttpDependencies {
   config: AppConfig;
   service: GatewayService;
@@ -116,6 +117,34 @@ export function createApp({
     return c.json(await configuration.export());
   });
   app.get('/api/system', (c) => c.json(service.getSystem()));
+  app.get('/api/shell', (c) =>
+    c.json(
+      service.shell.snapshot(
+        c.req.query('epoch'),
+        z.coerce
+          .number()
+          .int()
+          .min(0)
+          .max(Number.MAX_SAFE_INTEGER)
+          .default(0)
+          .parse(c.req.query('after')),
+      ),
+    ),
+  );
+  app.post('/api/projects/:projectId/shell', async (c) => {
+    const op = await service.startShell(
+      id(c.req.param('projectId')),
+      await parse(c, startShellSchema),
+    );
+    return c.json(op, status(op));
+  });
+  app.post('/api/shell/:commandId/interrupt', async (c) => {
+    const op = await service.interruptShell(
+      id(c.req.param('commandId')),
+      await parse(c, schemas.operationSchema),
+    );
+    return c.json(op, status(op));
+  });
   app.post('/api/system/compatibility/confirm', async (c) => {
     const op = await service.confirmCompatibility(
       await parse(c, schemas.confirmCompatibilitySchema),
