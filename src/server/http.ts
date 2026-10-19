@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -115,6 +116,26 @@ export function createApp({
   app.get('/api/config/export', async (c) => {
     c.header('Content-Disposition', 'attachment; filename="codex-web-config.json"');
     return c.json(await configuration.export());
+  });
+  app.get('/api/history-cache-context', async (c) => {
+    const identity = c.get('identity');
+    if (config.auth.mode !== 'local' && !identity.subject)
+      throw new AppError('UNAUTHENTICATED', '无法确认缓存所属用户', 401);
+    const projects = await service.listProjects();
+    // A restart, user change or project/permission change creates a new namespace.
+    // The subject is hashed on the server and is never exposed to browser storage.
+    const scope = createHash('sha256')
+      .update(
+        JSON.stringify([
+          service.events.serverEpoch,
+          service.getSystem().codexEpoch,
+          config.auth.mode,
+          identity.subject ?? 'local',
+          projects.map((project) => [project.id, project.rootPath, project.available]),
+        ]),
+      )
+      .digest('hex');
+    return c.json({ scope });
   });
   app.get('/api/system', (c) => c.json(service.getSystem()));
   app.get('/api/shell', (c) =>

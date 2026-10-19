@@ -23,6 +23,7 @@ import { ProjectDialog } from './components/ProjectDialog';
 import { NotificationSettings } from './components/NotificationSettings';
 import { GatewaySettings } from './components/GatewaySettings';
 import { UpdateSettings } from './components/UpdateSettings';
+import { api } from './lib/api';
 import { useConversationHistory } from './hooks/useConversationHistory';
 import { useUpdates } from './hooks/useUpdates';
 import { useShell } from './hooks/useShell';
@@ -87,7 +88,37 @@ export function App() {
     setProjectDialog({ kind: 'add' });
   };
   const { thread, system } = workspace;
-  const history = useConversationHistory(thread, workspace.selectedId);
+  const [historyScope, setHistoryScope] = useState<string>();
+  useEffect(() => {
+    if (workspace.authRequired) {
+      setHistoryScope(undefined);
+      return;
+    }
+    let active = true;
+    void api
+      .historyCacheContext()
+      .then(({ scope }) => {
+        if (active) setHistoryScope(scope);
+      })
+      .catch(() => {
+        /* A confirmed scope remains usable during a transient outage. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [workspace.authRequired, workspace.connection, workspace.projects, system?.codexEpoch]);
+  const historyForbidden =
+    workspace.authRequired ||
+    Boolean(
+      workspace.threadReadFailure &&
+      workspace.threadReadFailure.id === workspace.selectedId &&
+      [401, 403, 404].includes(workspace.threadReadFailure.status),
+    );
+  const history = useConversationHistory(thread, workspace.selectedId, {
+    projectId: workspace.projectId,
+    scope: historyScope,
+    forbidden: historyForbidden,
+  });
   const resumeAttempt = useRef<string | undefined>(undefined);
   const canControl = Boolean(
     system?.ready &&
@@ -396,7 +427,7 @@ export function App() {
               <div className="breadcrumb">
                 {project?.name ?? '工作空间'}
                 <Icon name="chevron" size={12} />
-                <span>{thread ? '会话' : '新会话'}</span>
+                <span>{workspace.selectedId ? '会话' : '新会话'}</span>
               </div>
               {thread ? (
                 <ThreadTitle
@@ -411,7 +442,13 @@ export function App() {
                   )}
                 />
               ) : (
-                <h1>开始你的下一项任务</h1>
+                <h1>
+                  {workspace.selectedId
+                    ? (history.thread?.title ??
+                      workspace.threads.find((entry) => entry.id === workspace.selectedId)?.title ??
+                      '正在读取会话…')
+                    : '开始你的下一项任务'}
+                </h1>
               )}
             </div>
           </div>
@@ -609,6 +646,10 @@ export function App() {
         <Conversation
           thread={history.thread}
           history={{
+            cached: history.cached,
+            cacheExhausted: history.cacheExhausted,
+            onLoadCachedOlder: history.loadCachedOlder,
+            syncError: !thread ? workspace.error : history.error,
             loading: history.loading,
             error: history.error,
             onLoadOlder: history.loadOlder,
@@ -616,6 +657,7 @@ export function App() {
             openingError: !thread ? workspace.error : undefined,
             onRetryOpen: () => {
               workspace.clearError();
+              if (history.error) void history.loadOlder();
               void workspace.refreshThread();
             },
           }}

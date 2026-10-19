@@ -60,6 +60,7 @@ export function useWorkspace() {
   const [archiveView, setArchiveView] = useState(false);
   const [projectThreads, setProjectThreads] = useState(projectStore.current.snapshot);
   const [thread, setThread] = useState<ThreadView>();
+  const [threadReadFailure, setThreadReadFailure] = useState<{ id: string; status: number }>();
   const [selectedId, setSelectedId] = useState<string>();
   const selectedRef = useRef<string | undefined>(undefined);
   const selectedThreadRef = useRef<ThreadView | undefined>(undefined);
@@ -237,6 +238,7 @@ export function useWorkspace() {
     (next: ThreadView) => {
       if (!projectsRef.current.some((project) => project.id === next.projectId)) return;
       if (next.id === selectedRef.current && next.projectId === projectRef.current) {
+        setThreadReadFailure(undefined);
         const previous = selectedThreadRef.current;
         const visible = projectStore.current.project(next);
         if (visible.archived && previous?.id === next.id && !previous.archived) {
@@ -307,6 +309,7 @@ export function useWorkspace() {
         selectionRestoreRef.current = undefined;
         setRestoringSelection(false);
       }
+      setThreadReadFailure(undefined);
       let project =
         owningProjectId ??
         projectStore.current.findProject(id) ??
@@ -327,6 +330,13 @@ export function useWorkspace() {
         setThread(undefined);
         streamRef.current?.select(undefined);
       };
+      if (project && restoring) {
+        activateProject(project);
+        selectedRef.current = id;
+        selectedThreadRef.current = undefined;
+        setSelectedId(id);
+        setThread(undefined);
+      }
       if (!project || restoring) {
         // Check remembered selections before subscribing: opening an empty draft
         // would otherwise automatically resume it and put it back into history.
@@ -354,7 +364,11 @@ export function useWorkspace() {
               !operationsRef.current.some((entry) => blocksTarget(entry, id))
             )
               discardRestoredSelection();
-            else report(problem);
+            else {
+              if (problem instanceof HttpError)
+                setThreadReadFailure({ id, status: problem.status });
+              report(problem);
+            }
           }
           return;
         }
@@ -398,8 +412,10 @@ export function useWorkspace() {
           projectRef.current === project &&
           navigationRevision.current === revision &&
           detailReadSequence.current === read
-        )
+        ) {
+          if (problem instanceof HttpError) setThreadReadFailure({ id, status: problem.status });
           report(problem);
+        }
       }
     },
     [activateProject, report, updateThread],
@@ -692,6 +708,8 @@ export function useWorkspace() {
   const refreshThread = useCallback(async () => {
     const id = selectedRef.current;
     if (!id) return;
+    // A remembered session can be readable from cache before its metadata check recovers.
+    streamRef.current?.select(id);
     const revision = navigationRevision.current;
     const read = ++detailReadSequence.current;
     try {
@@ -701,8 +719,10 @@ export function useWorkspace() {
       const latest = streamRef.current?.cache.get(id)?.data;
       updateThread(latest && latest !== cached ? latest : loaded);
     } catch (problem) {
-      if (revision === navigationRevision.current && detailReadSequence.current === read)
+      if (revision === navigationRevision.current && detailReadSequence.current === read) {
+        if (problem instanceof HttpError) setThreadReadFailure({ id, status: problem.status });
         report(problem);
+      }
     }
   }, [report, updateThread]);
   const loadThreads = useCallback(
@@ -1089,6 +1109,7 @@ export function useWorkspace() {
     nextCursor: projectThreads[projectId]?.nextCursor ?? null,
     thread: visibleThread,
     selectedId,
+    threadReadFailure,
     selectThread: (id: string, owningProjectId?: string) => {
       cancelResultNavigation();
       return selectThread(id, owningProjectId);

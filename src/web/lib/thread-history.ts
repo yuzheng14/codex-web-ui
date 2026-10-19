@@ -40,6 +40,16 @@ export class HistoryWindow {
       throw new Error('历史分页未前进，请重试同步会话。');
     this.chunks.push({ cursor, page });
   }
+  replace(cursor: string, page: ThreadView) {
+    const index = this.chunks.findIndex((chunk) => chunk.cursor === cursor);
+    if (index < 0) return this.append(cursor, page);
+    if (page.id !== this.latest.id || page.projectId !== this.latest.projectId)
+      throw new Error('历史分片不属于当前会话。');
+    const previous = this.chunks[index]!;
+    this.chunks[index] = { cursor, page };
+    if (previous.page.history?.olderCursor !== page.history?.olderCursor)
+      this.chunks.splice(index + 1);
+  }
   get view(): ThreadView {
     let turns: TurnView[] = [];
     for (const chunk of this.chunks.slice().reverse())
