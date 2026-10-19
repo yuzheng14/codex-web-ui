@@ -5,11 +5,11 @@
   </picture>
 </p>
 
-<h1 align="center">你的 Codex，随处打开。</h1>
+<h1 align="center">在浏览器里，用你的 Codex CLI。</h1>
 
 <p align="center">
-  给电脑上的 Codex，一个浏览器工作台。<br />
-  在桌前发起任务，用手机跟进进展，带着上下文继续工作。
+  <strong>Covro 是 Codex CLI 的自部署 Web UI。</strong><br />
+  在桌前发起任务，用手机查看改动、处理审批，接着推进下一步。
 </p>
 
 <p align="center"><strong>自行部署 · 电脑与手机 · 沿用 Codex 登录 · MIT 开源</strong></p>
@@ -27,12 +27,11 @@
 
 ## 你可以做什么
 
-- **把多个项目放在眼前。** 在项目与会话间切换，让独立任务并行执行，随时知道哪些工作需要你处理。
-- **接着已有的 Codex 工作。** 浏览历史、恢复会话、Fork 新方向，为会话命名，完成后归档。
-- **保留你的控制权。** 查看工具活动与文件变更，处理权限审批，在浏览器中回答 Codex 的问题。
-- **阅读时不丢上下文。** 查看 Markdown、表格、代码、图片和本地 Markdown 文档；电脑上分屏讨论，手机上全屏阅读。
-- **带着工作上下文切换。** 每个会话分别保留当前页面中的草稿、粘贴图片和模型设置；完成后可以复制或导出结果。
-- **方便地跟上新版本。** 选择稳定、预览或开发渠道，在网页检查和升级。受管升级会等待任务结束、重启服务，并沿用固定数据目录。
+- **离开电脑，也能跟进任务。** 在电脑或手机上查看工具活动与文件变更、处理权限审批、回答 Codex 的问题。关闭页面，任务仍会继续。
+- **多个项目，一眼掌握进展。** 让独立任务并行执行，随时看到哪些会话正在工作、等待审批，哪些已有结果可读。
+- **接着你的 Codex CLI 会话。** 浏览已有历史、恢复工作，或 Fork 一个新方向；为会话命名以便查找，完成后归档。
+- **一边看产出，一边继续讨论。** 电脑上将 Markdown 文档与会话并排打开，继续向 Codex 提问；支持代码、表格与图片，手机上也有全屏文档阅读器。
+- **切换任务，草稿还在。** 每个会话分别保留当前页面中的草稿、粘贴图片和模型设置；完成后可以复制或导出结果。
 
 <details>
   <summary><strong>手机上也能舒服地使用</strong></summary>
@@ -50,9 +49,31 @@
 
 <!-- codex-compatibility:end -->
 
+### npm 安装
+
+首个公开 npm 版本正在准备中。`covro` 发布前，请先[从源码运行](#从源码运行)；发布后，只需安装并启动：
+
+```sh
+npm install -g covro
+covro
+```
+
+`covro` 默认在后台启动，并输出本机访问地址。打开 **<http://127.0.0.1:8787>** 即可开始使用。关掉终端后，仍可继续通过浏览器工作。
+
+| 命令                      | 用途                                 |
+| ------------------------- | ------------------------------------ |
+| `covro status`            | 查看运行实例与访问地址               |
+| `covro logs`              | 查看最近的服务日志                   |
+| `covro stop`              | 停止服务                             |
+| `covro run`               | 在前台运行                           |
+| `covro service install`   | 在 macOS 或 Linux 上主动启用登录自启 |
+| `covro service uninstall` | 移除登录自启                         |
+
+npm CLI 默认使用 `~/.covro/config.json`，数据目录固定在配置文件旁。可以通过 `covro --config /absolute/path/config.json` 沿用已有配置。
+
 ### 从源码运行
 
-先准备好 **pnpm 12.11.2**：
+想在 npm 发布前体验，或参与开发，可以使用 **pnpm 12.11.2** 从源码运行：
 
 ```sh
 git clone https://github.com/yuzheng14/codex-web-ui.git covro
@@ -66,28 +87,6 @@ pnpm start -- --config ./config.local.json
 打开 **<http://127.0.0.1:8787>**，点击 **添加项目**，填写运行 Covro 的电脑上的项目目录，然后打开会话或发送第一条任务。
 
 本地开发可以改用 `pnpm dev`，打开 <http://127.0.0.1:5173>。
-
-### npm 安装
-
-首个公开 npm 版本正在准备中。`covro` 发布前，请使用上面的源码步骤；发布后可以运行：
-
-```sh
-npm install -g covro
-covro
-```
-
-`covro` 默认在后台启动。关掉终端后，仍可继续通过浏览器工作。
-
-| 命令                      | 用途                                 |
-| ------------------------- | ------------------------------------ |
-| `covro status`            | 查看运行实例与访问地址               |
-| `covro logs`              | 查看最近的服务日志                   |
-| `covro stop`              | 停止服务                             |
-| `covro run`               | 在前台运行                           |
-| `covro service install`   | 在 macOS 或 Linux 上主动启用登录自启 |
-| `covro service uninstall` | 移除登录自启                         |
-
-npm CLI 默认使用 `~/.covro/config.json`，数据目录固定在配置文件旁。可以通过 `covro --config /absolute/path/config.json` 沿用已有配置。
 
 ## 从其他设备访问
 
@@ -125,7 +124,7 @@ covro update --channel dev
 
 ## 你的电脑，你的工作台
 
-Covro 是围绕已有 Codex 环境构建的单用户应用。代码通过 `codex app-server` 在运行服务的电脑上执行。项目与 Codex 历史留在那里；Covro 使用 SQLite 保存自身的项目注册和操作记录。它不提供单独的托管账号，也不会把 Codex 登录信息复制到浏览器。Codex 本身仍会访问你配置的模型提供方。
+Covro 是面向单用户的 Codex CLI Web UI，通过 `codex app-server` 连接已有 CLI，沿用你的 Codex 登录与配置，在运行服务的电脑上执行任务。项目与 Codex 历史留在那里；Covro 使用 SQLite 保存自身的项目注册和操作记录。它不提供单独的托管账号，也不会把 Codex 登录信息复制到浏览器。Codex 本身仍会访问你配置的模型提供方。
 
 浏览器用于跟进工作、处理请求和继续对话。交互终端、文件编辑器、Git 图形界面与多人团队管理不在当前范围内。
 
