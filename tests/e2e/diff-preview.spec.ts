@@ -44,6 +44,11 @@ test('desktop uses a shared side panel, structured multi-file diffs and independ
     'const layout = "terminal"',
   );
   await expect(preview(page).locator('.diff-line-number').first()).toHaveText('1');
+  await expect(preview(page).locator('.diff-removed .diff-inline-change').first()).toHaveText(
+    'terminal',
+  );
+  await expect(preview(page).locator('.diff-added .diff-inline-change').first()).toHaveText('web');
+  await expect(preview(page).locator('.diff-added').nth(1).locator('mark')).toHaveCount(0);
   const panel = (await preview(page).boundingBox())!,
     main = (await page.locator('.main-panel').boundingBox())!;
   expect(main.x + main.width).toBeLessThanOrEqual(panel.x + 1);
@@ -196,3 +201,35 @@ test('read failures can be retried and closing cancels a pending read', async ({
   await trigger(page).click();
   await expect(preview(page).locator('.diff-table')).toBeVisible();
 });
+
+for (const width of [1600, 390]) {
+  test(`${width}px: highlights separate inline edits while keeping complete source text`, async ({
+    page,
+  }) => {
+    await send(page, '[diff-preview-inline]');
+    await page.setViewportSize({ width, height: width === 1600 ? 1000 : 844 });
+    await trigger(page).click();
+    await expect(preview(page).locator('.diff-removed .diff-inline-change')).toHaveText([
+      'light',
+      '3',
+      '👩🏽‍💻',
+    ]);
+    await expect(preview(page).locator('.diff-added .diff-inline-change')).toHaveText([
+      'dark',
+      '5',
+      'Name',
+      '👨🏻‍💻',
+    ]);
+    await expect(
+      preview(page)
+        .locator('.diff-added')
+        .filter({ hasText: 'newly added explanation' })
+        .locator('mark'),
+    ).toHaveCount(0);
+    await expect(preview(page).locator('.diff-added .diff-code').first()).toHaveText(
+      '  const mode = "dark"; const retries = 5;',
+    );
+    if (width < 1280) await preview(page).getByRole('button', { name: '自动换行' }).click();
+    await screenshot(page, `inline-${width}`);
+  });
+}

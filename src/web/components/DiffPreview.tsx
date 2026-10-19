@@ -4,6 +4,7 @@ import { readableError } from '../lib/utils';
 import { ChevronDown, ChevronUp, FileCode2, WrapText } from 'lucide-react';
 import type { FileChange } from '../../shared/types';
 import { diffKindLabels, parseDiff, type DiffFile } from '../lib/diff';
+import { highlightDiffHunks } from '../lib/diff-inline';
 import { FilePreviewPanel } from './FilePreviewPanel';
 import { Button } from './ui/button';
 
@@ -137,6 +138,7 @@ function DiffContent({ target }: { target: DiffSnapshot }) {
   const [hunkIndex, setHunkIndex] = useState(0);
   const hunks = useRef<(HTMLElement | null)[]>([]);
   const file = files[selected];
+  const highlightedHunks = useMemo(() => highlightDiffHunks(file?.hunks ?? []), [file]);
   const failed =
     file &&
     !file.binary &&
@@ -262,7 +264,7 @@ function DiffContent({ target }: { target: DiffSnapshot }) {
                         <th scope="col">代码内容</th>
                       </tr>
                     </thead>
-                    {file.hunks.map((hunk, index) => (
+                    {highlightedHunks.map((hunk, index) => (
                       <tbody
                         key={index}
                         ref={(element) => {
@@ -289,7 +291,19 @@ function DiffContent({ target }: { target: DiffSnapshot }) {
                               {line.kind === 'added' ? '+' : line.kind === 'removed' ? '−' : ''}
                             </td>
                             <td className="diff-code">
-                              <code>{line.text || ' '}</code>
+                              <code>
+                                {line.segments
+                                  ? line.segments.map((segment, index) =>
+                                      segment.changed ? (
+                                        <mark className="diff-inline-change" key={index}>
+                                          {segment.text}
+                                        </mark>
+                                      ) : (
+                                        segment.text
+                                      ),
+                                    )
+                                  : line.text || ' '}
+                              </code>
                             </td>
                           </tr>
                         ))}

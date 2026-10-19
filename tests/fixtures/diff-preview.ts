@@ -11,6 +11,30 @@ export function diffPreviewChanges(scenario: string): FileUpdateChange[] {
         diff: 'not a valid patch',
       },
     ];
+  if (scenario.includes('inline'))
+    return [
+      {
+        path: 'src/preview.ts',
+        kind: { type: 'update', move_path: null },
+        diff: [
+          'diff --git a/src/preview.ts b/src/preview.ts',
+          '--- a/src/preview.ts',
+          '+++ b/src/preview.ts',
+          '@@ -1,6 +1,7 @@',
+          ' export function preview(user: string) {',
+          '-  const mode = "light"; const retries = 3;',
+          '+  const mode = "dark"; const retries = 5;',
+          '-  const name = user;',
+          '+  const name = userName;',
+          '+  // Keep this newly added explanation visible.',
+          '-  const icon = "👩🏽‍💻";',
+          '+  const icon = "👨🏻‍💻";',
+          '   return { mode, retries, name, icon };',
+          ' }',
+          '',
+        ].join('\n'),
+      },
+    ];
   const path = 'src/预览 workspace.ts';
   return [
     {
