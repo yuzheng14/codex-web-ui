@@ -34,7 +34,7 @@ jobs:
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     permissions:
       contents: read
       id-token: write
@@ -68,8 +68,6 @@ jobs:
         env:
           RELEASE_CHANNEL: ${{ inputs.channel || 'dev' }}
           RELEASE_VERSION: ${{ inputs.version }}
-          RELEASE_SEQUENCE: ${{ github.event.workflow_run.id || github.run_id }}
-          RELEASE_ATTEMPT: ${{ github.event.workflow_run.run_attempt || github.run_attempt }}
         run: node --import tsx scripts/prepare-release.ts
       - if: steps.prepare.outputs.skip != 'true'
         run: pnpm build
@@ -84,3 +82,6 @@ jobs:
         env:
           RELEASE_TAG: ${{ steps.prepare.outputs.tag }}
         run: npm publish --access public --provenance --tag "$RELEASE_TAG"
+      - name: Wait for the published version and channel to become visible
+        if: steps.prepare.outputs.skip != 'true'
+        run: node --import tsx scripts/verify-published-release.ts
