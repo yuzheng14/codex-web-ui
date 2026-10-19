@@ -6,6 +6,12 @@
 - 修改功能介绍、安装与启动步骤、环境要求、渠道或平台支持、截图、重要限制和文档导航时，在同一个 PR 中同步更新两个语言版本，保持事实和操作步骤一致。
 - README 保持面向使用者，详细实现与完整操作规则放在 `docs/`；不得把尚未发布的安装路径写成已经可用。
 
+## 提交与发布说明语言
+
+- 用于生成发布说明的 Conventional Commit 标题及合并到 main 的 PR 标题使用英文；PR 讨论和详细说明可以使用中文。
+- `CHANGELOG.md` 和公开 Release notes 使用英文。翻译历史条目时保留原有功能含义、PR 编号、commit 与 issue 链接。
+- Release PR 中的人工校对可能被 release-please 重新生成覆盖；合并前若 main 或 Release PR 再次更新，需要重新核对发布说明的语言和完整性。
+
 ## UI 更改验证
 
 - 任何涉及 UI 的更改，都必须使用 browser use 或 Playwright 打开实际页面，并对对应变更区域截图。
