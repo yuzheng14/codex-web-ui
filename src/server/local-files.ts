@@ -37,7 +37,7 @@ export function temporaryFileRoots(): FileRoot[] {
 }
 
 interface FilePolicy {
-  code: 'IMAGE' | 'MARKDOWN';
+  code: 'IMAGE' | 'MARKDOWN' | 'JSON';
   label: string;
   maxBytes: number;
   sizeError: string;

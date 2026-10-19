@@ -1,8 +1,8 @@
 import { createContext, useContext } from 'react';
 import Markdown, { defaultUrlTransform, type Components, type UrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { localMarkdownPath, relativeToFile } from '../lib/local-files';
-import { useMarkdownPreview } from './MarkdownFilePreview';
+import { localPreviewPath, localPreviewUrl, relativeToFile } from '../lib/local-files';
+import { useFilePreview } from './FilePreview';
 import { localImagePath, localImageUrl } from '../lib/local-images';
 import { LocalImage, RemoteImage, useImagePreview } from './ImagePreview';
 import { ControlHint } from './ControlHint';
@@ -10,7 +10,7 @@ import { MarkdownCodeBlock } from './MarkdownCodeBlock';
 
 // Preserve the default protocol allowlist for ordinary links and remote images.
 const transformUrl: UrlTransform = (url, key) =>
-  localImagePath(url, key === 'src') || (key === 'href' && localMarkdownPath(url))
+  localImagePath(url, key === 'src') || (key === 'href' && localPreviewPath(url))
     ? url
     : defaultUrlTransform(url);
 
@@ -23,19 +23,19 @@ const markdownComponents: Components = {
   a: function FileLink({ children, href, title }) {
     const { threadId, open } = useImagePreview();
     const baseFile = useContext(BaseFileContext);
-    const markdown = useMarkdownPreview();
-    const markdownPath = href ? localMarkdownPath(href) : undefined;
-    if (markdownPath && markdown.threadId) {
-      const path = relativeToFile(markdownPath, baseFile);
+    const preview = useFilePreview();
+    const filePath = href ? localPreviewPath(href) : undefined;
+    if (filePath && preview.threadId) {
+      const path = relativeToFile(filePath, baseFile);
       return (
         <ImageLinkContext value={true}>
           <a
-            href={`/api/threads/${encodeURIComponent(markdown.threadId)}/markdown?${new URLSearchParams({ path })}`}
-            className="local-markdown-link"
-            title={title || `预览 Markdown：${path}`}
+            href={localPreviewUrl(preview.threadId, path)}
+            className="local-file-link"
+            title={title || `预览文件：${path}`}
             onClick={(event) => {
               event.preventDefault();
-              markdown.open(path);
+              preview.open(path);
             }}
           >
             {children}

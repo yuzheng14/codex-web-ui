@@ -49,8 +49,13 @@ export function relativeToFile(path: string, baseFile?: string): string {
     : path;
 }
 
-export function localMarkdownPath(destination: string): string | undefined {
+export function localPreviewPath(destination: string): string | undefined {
   // Codex file references can include a source line suffix.
   const path = localFilePath(destination.replace(/:(\d+)(?::\d+)?$/, ''));
-  return path && /\.(md|markdown)$/i.test(path) ? path : undefined;
+  return path && /\.(md|markdown|json)$/i.test(path) ? path : undefined;
+}
+
+export function localPreviewUrl(threadId: string, path: string): string {
+  const format = /\.json$/i.test(path) ? 'json' : 'markdown';
+  return `/api/threads/${encodeURIComponent(threadId)}/${format}?${new URLSearchParams({ path })}`;
 }

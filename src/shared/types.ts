@@ -387,7 +387,7 @@ export type ServerMessage =
     }
   | { type: 'error'; error: ApiError };
 
-export interface MarkdownFile {
+export interface TextFile {
   path: string;
   content: string;
 }

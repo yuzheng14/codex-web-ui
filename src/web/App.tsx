@@ -4,7 +4,7 @@ import type { ThreadSummary } from '../shared/types';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useThreadReadState } from './hooks/useThreadReadState';
 import { Sidebar } from './components/Sidebar';
-import { MarkdownPreviewProvider } from './components/MarkdownFilePreview';
+import { FilePreviewProvider } from './components/FilePreview';
 import { Conversation } from './components/Conversation';
 import { ThreadTitle } from './components/ThreadTitle';
 import { Composer } from './components/Composer';
@@ -37,7 +37,7 @@ const encode = encodeURIComponent;
 function WorkspaceLayout({ threadId, children }: { threadId?: string; children: ReactNode }) {
   return (
     <div className="app-shell">
-      <MarkdownPreviewProvider threadId={threadId}>{children}</MarkdownPreviewProvider>
+      <FilePreviewProvider threadId={threadId}>{children}</FilePreviewProvider>
     </div>
   );
 }
