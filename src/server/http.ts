@@ -9,6 +9,7 @@ import { IMAGE_REQUEST_BYTES } from '../shared/images.js';
 import * as schemas from '../shared/validation.js';
 import type { Operation } from '../shared/types.js';
 import type { AppConfig } from './config.js';
+import { ConfigStore } from './config-store.js';
 import { createAuthenticator, type Authenticator, type Identity } from './auth.js';
 import type { GatewayService } from './service.js';
 import { socketHandlers } from './websocket.js';
@@ -100,6 +101,20 @@ export function createApp({
   };
   const status = (op: Operation) =>
     op.status === 'dispatching' || op.status === 'accepted' ? (202 as const) : (200 as const);
+  const configuration = new ConfigStore(config);
+  app.use('/api/config*', async (c, next) => {
+    c.header('Cache-Control', 'no-store');
+    await next();
+  });
+  app.get('/api/config', async (c) => c.json(await configuration.snapshot()));
+  app.post('/api/config', async (c) => c.json(await configuration.save(await c.req.json())));
+  app.post('/api/config/import', async (c) =>
+    c.json(await configuration.previewImport(await c.req.json())),
+  );
+  app.get('/api/config/export', async (c) => {
+    c.header('Content-Disposition', 'attachment; filename="codex-web-config.json"');
+    return c.json(await configuration.export());
+  });
   app.get('/api/system', (c) => c.json(service.getSystem()));
   app.post('/api/system/compatibility/confirm', async (c) => {
     const op = await service.confirmCompatibility(
