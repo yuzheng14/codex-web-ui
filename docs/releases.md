@@ -1,6 +1,10 @@
 # Covro 发版
 
-正式版本由 `release-please-action` v5.0.0 管理，固定提交 `45996ed1f6d02564a971a2fa1b5860e934307cf7`。main 的 checks 成功后更新 Release PR；合并 Release PR 后生成版本标签、CHANGELOG 和 GitHub Release，并显式触发 npm 发布。首个正式版本是 0.1.0，由包配置的 `initial-version` 指定；首发前 `.release-please-manifest.json` 保持空对象，表示没有已经发布的版本。清单中的版本代表上次发行，不能预填目标版本。首个 Release PR 合并后由 release-please 自动记录版本，后续按 Conventional Commits 递增；`initial-version` 不会锁住后续发行。CHANGELOG 只纳入 bootstrap commit 之后的 Conventional Commits。
+正式版本由 `release-please-action` v5.0.0 管理，固定提交 `45996ed1f6d02564a971a2fa1b5860e934307cf7`。main 的 checks 成功后更新 Release PR；合并 Release PR 后生成版本标签、CHANGELOG 和 GitHub Release，并显式触发 npm 发布。首个正式版本是 0.1.0，由包配置的 `initial-version` 指定；首发前 `.release-please-manifest.json` 保持空对象，表示没有已经发布的版本。清单中的版本代表上次发行，不能预填目标版本。首个 Release PR 合并后由 release-please 自动记录版本，后续按 Conventional Commits 递增；`initial-version` 不会锁住后续发行。
+
+首版 CHANGELOG 从完整 main 历史收集 Conventional Commits，默认包含 Features、Bug Fixes 等可发布条目。不设置 `bootstrap-sha` 或 `last-release-sha` 截断首发历史，确保项目早期功能也能进入首版说明；后续正式版按上次发行边界生成增量。修正首发配置后，先合并配置变更，等待 main 的 checks 和 release-please 完成并更新现有 Release PR，核对 CHANGELOG 的历史范围与版本号后再合并 Release PR。
+
+源码 `package.json.version` 已预设为 `0.1.0`，因此首个 Release PR 可以只修改 CHANGELOG 与发布清单，package.json 没有版本差异属于正常情况。Dev/Beta 版本在构建发布包时写入临时工作区，不回写 main 的源码版本；后续正式版本递增时再由 release-please 更新 package.json。
 
 ## 版本与 Codex 兼容契约
 
