@@ -1,5 +1,9 @@
 name: publish
 on:
+  push:
+    tags: ['v*-beta.*']
+  release:
+    types: [published]
   workflow_run:
     workflows: [checks]
     branches: [main]
@@ -22,10 +26,28 @@ on:
         type: string
 permissions:
   contents: read
-concurrency:
-  group: covro-npm-publish
-  cancel-in-progress: false
 jobs:
+  beta:
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'release' && contains(github.event.release.tag_name, '-beta'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Dispatch the Beta tag to the main publisher
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/dispatch-beta-release.ts
   npm:
     if: >-
       github.ref == 'refs/heads/main' &&
@@ -35,6 +57,10 @@ jobs:
         github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    concurrency:
+      # Preserve the Dev group so publishers already running during rollout stay serialized.
+      group: ${{ inputs.channel == 'beta' && 'covro-npm-publish-beta' || inputs.channel == 'stable' && 'covro-npm-publish-stable' || 'covro-npm-publish' }}
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
@@ -47,11 +73,23 @@ jobs:
       - name: Require successful checks and main ancestry
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_CHANNEL: ${{ inputs.channel || 'dev' }}
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          git merge-base --is-ancestor HEAD origin/main
           node --input-type=module <<'JS'
           import { execFileSync } from 'node:child_process';
+          import { existsSync } from 'node:fs';
           const sha = execFileSync('git', ['rev-parse','HEAD'], {encoding:'utf8'}).trim();
+          execFileSync('git', ['merge-base', '--is-ancestor', sha, 'refs/remotes/origin/main']);
+          if (process.env.RELEASE_CHANNEL === 'beta') {
+            const version = process.env.RELEASE_VERSION || '';
+            if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-beta\.(0|[1-9]\d*)$/.test(version))
+              throw new Error('Beta version must use X.Y.Z-beta.N');
+            const tagged = execFileSync('git', ['rev-parse', `refs/tags/v${version}^{commit}`], {encoding:'utf8'}).trim();
+            if (tagged !== sha) throw new Error('Beta source must match its exact version tag');
+          }
+          if (!existsSync('scripts/verify-published-release.ts'))
+            throw new Error('Source predates publication verification; select a newer main commit');
           const pages = JSON.parse(execFileSync('gh', ['api', `repos/${process.env.GITHUB_REPOSITORY}/commits/${sha}/check-runs`, '--paginate', '--slurp'], {encoding:'utf8'}));
           if (!pages.flatMap(page => page.check_runs).some(run => run.name === 'verify' && run.conclusion === 'success' && run.app?.slug === 'github-actions')) {
             throw new Error('This exact commit has not passed checks/verify. Wait for CI and retry.');
