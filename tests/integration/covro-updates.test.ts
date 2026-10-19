@@ -1,5 +1,5 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile, symlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
@@ -12,6 +12,7 @@ import {
   compareVersions,
   validVersion,
   inspectPackageDirectory,
+  lookupRelease,
 } from '../../src/updates/registry.js';
 import { harness, operationId } from './domain-helpers.js';
 import { paths as cliPaths, packageInfo } from '../../src/cli/paths.js';
@@ -21,6 +22,24 @@ import { saveJson } from '../../src/updates/files.js';
 const cleanups: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+});
+
+it('resolves the scoped dev tag and rejects metadata for another package', async () => {
+  const fetch = vi.spyOn(globalThis, 'fetch');
+  cleanups.push(() => fetch.mockRestore());
+  fetch.mockResolvedValueOnce(
+    new Response(JSON.stringify({ name: '@covro/covro', version: '0.1.0-dev.1' })),
+  );
+  expect(await lookupRelease('dev')).toMatchObject({
+    name: '@covro/covro',
+    version: '0.1.0-dev.1',
+  });
+  expect(fetch).toHaveBeenCalledWith(
+    'https://registry.npmjs.org/%40covro%2Fcovro/dev',
+    expect.objectContaining({ headers: { accept: 'application/json' } }),
+  );
+  fetch.mockResolvedValueOnce(new Response(JSON.stringify({ name: 'covro', version: '0.1.0' })));
+  await expect(lookupRelease('stable')).rejects.toThrow();
 });
 
 it('orders immutable release versions and prereleases without treating dev as stable', () => {
@@ -63,11 +82,18 @@ async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'covro-upgrade-'));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
   const paths = transactionPaths(
-    join(root, 'npm/covro'),
+    join(root, 'npm/@covro/covro'),
     'test-update',
     join(root, 'data'),
     join(root, 'config.json'),
     join(root, 'backup'),
+  );
+  expect(paths.candidate).toBe(
+    join(
+      paths.prefix,
+      process.platform === 'win32' ? 'node_modules' : 'lib/node_modules',
+      '@covro/covro',
+    ),
   );
   await mkdir(paths.root, { recursive: true });
   await mkdir(paths.candidate, { recursive: true });
@@ -176,8 +202,8 @@ it('refuses to start an uncommitted candidate after interrupted rollback', async
 it('rejects npm-linked source checkouts and Git workspaces before replacing an installation', async () => {
   const { paths } = await fixture();
   const globalRoot = join(paths.backup, 'node_modules');
-  const installation = join(globalRoot, 'covro');
-  await mkdir(globalRoot, { recursive: true });
+  const installation = join(globalRoot, '@covro/covro');
+  await mkdir(dirname(installation), { recursive: true });
   await symlink(paths.root, installation, 'dir');
   expect(await inspectPackageDirectory(paths.root, globalRoot)).toContain('链接');
   await rm(installation);

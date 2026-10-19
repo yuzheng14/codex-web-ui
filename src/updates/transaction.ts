@@ -1,3 +1,4 @@
+import { npmPackageName } from '../shared/package.js';
 import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { UpdateRun } from '../shared/updates.js';
@@ -113,7 +114,7 @@ export function transactionPaths(
     candidate: join(
       prefix,
       process.platform === 'win32' ? 'node_modules' : 'lib/node_modules',
-      'covro',
+      npmPackageName,
     ),
     previous: join(dirname(root), `.covro-previous-${id}`),
     backup,

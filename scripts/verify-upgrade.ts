@@ -1,3 +1,4 @@
+import { npmPackageName } from '../src/shared/package.js';
 import { CODEX_COMPATIBILITY } from '../src/codex/compatibility.js';
 /** Real daemon/worker/SQLite verification; npm transport is an explicit local fixture. */
 import { spawn } from 'node:child_process';
@@ -50,7 +51,7 @@ for (const mode of [
     const { tmpdir } = await import('node:os');
     return mkdtemp(join(tmpdir(), 'cv-'));
   });
-  const root = join(directory, 'npm/lib/node_modules/covro');
+  const root = join(directory, 'npm/lib/node_modules', npmPackageName);
   const home = join(directory, 'home');
   const config = join(directory, 'config.json');
   const priorHome = process.env.COVRO_HOME;
@@ -152,7 +153,7 @@ for (const mode of [
     const npm = join(commands, 'npm');
     await writeFile(
       npm,
-      `#!${process.execPath}\nconst fs=require('node:fs'),path=require('node:path');const args=process.argv.slice(2);if(args[0]==='root')console.log(${JSON.stringify(join(directory, 'npm/lib/node_modules'))});else if(args[0]==='install'){const prefix=args[args.indexOf('--prefix')+1];fs.mkdirSync(prefix,{recursive:true});fs.cpSync(${JSON.stringify(candidate)},path.join(prefix,'lib/node_modules/covro'),{recursive:true});}else process.exit(2);\n`,
+      `#!${process.execPath}\nconst fs=require('node:fs'),path=require('node:path');const args=process.argv.slice(2);if(args[0]==='root')console.log(${JSON.stringify(join(directory, 'npm/lib/node_modules'))});else if(args[0]==='install'){if(args.at(-1)!==${JSON.stringify(`${npmPackageName}@${target}`)})throw new Error('Unexpected npm package selector');const prefix=args[args.indexOf('--prefix')+1];fs.mkdirSync(prefix,{recursive:true});fs.cpSync(${JSON.stringify(candidate)},path.join(prefix,'lib/node_modules',${JSON.stringify(npmPackageName)}),{recursive:true});}else process.exit(2);\n`,
     );
     await chmod(npm, 0o700);
     const env = { ...process.env, PATH: `${commands}:${process.env.PATH}`, COVRO_HOME: home };
