@@ -15,9 +15,9 @@
 <p align="center"><strong>Self-hosted · Desktop & mobile · Your existing Codex login · MIT</strong></p>
 
 <p align="center">
-  <a href="#get-started">Get started</a> ·
-  <a href="#what-you-can-do">Features</a> ·
-  <a href="#access-from-another-device">Remote access</a> ·
+  <a href="#get-started">🚀 Get started</a> ·
+  <a href="#what-you-can-do">✨ Features</a> ·
+  <a href="#access-from-another-device">🌐 Remote access</a> ·
   <a href="README.zh-CN.md">简体中文</a>
 </p>
 
@@ -25,21 +25,25 @@
 
 <p align="center"><sub>Captured from the running app with sample projects and fixture-generated conversations.</sub></p>
 
-## What you can do
+<a id="what-you-can-do"></a>
 
-- **Step away from your desk. Stay with the task.** Follow tool activity, inspect file changes, handle permission requests, and answer Codex's questions from your computer or phone. Closing the page doesn't cancel the task.
-- **See every project in one place.** Run independent tasks in parallel and spot which conversations are working, waiting for approval, or ready to read.
-- **Pick up your Codex CLI conversations.** Browse saved history, resume existing work, or fork a new direction. Rename conversations to find them later and archive them when you're done.
-- **Review the work beside the conversation.** Read Markdown documents in a desktop side panel while you keep talking to Codex. View code, tables, and images, with a full-screen document reader on mobile.
-- **Switch tasks without losing your draft.** Each conversation keeps its own draft, pasted images, and model settings in the current page. Copy or export results when you're done.
+## ✨ What you can do
+
+- 📱 **Step away from your desk. Stay with the task.** Follow tool activity, inspect file changes, handle permission requests, and answer Codex's questions from your computer or phone. Closing the page doesn't cancel the task.
+- 🗂️ **See every project in one place.** Run independent tasks in parallel and spot which conversations are working, waiting for approval, or ready to read.
+- 💬 **Pick up your Codex CLI conversations.** Browse saved history, resume existing work, or fork a new direction. Rename conversations to find them later and archive them when you're done.
+- 📖 **Review the work beside the conversation.** Read Markdown documents in a desktop side panel while you keep talking to Codex. View code, tables, and images, with a full-screen document reader on mobile.
+- ✍️ **Switch tasks without losing your draft.** Each conversation keeps its own draft, pasted images, and model settings in the current page. Copy or export results when you're done.
 
 <details>
-  <summary><strong>A workspace that fits your phone</strong></summary>
+  <summary><strong>📱 A workspace that fits your phone</strong></summary>
   <p>Check a result, answer a question, or send the next instruction without returning to your desk.</p>
   <img src="docs/assets/workspace-mobile.png" alt="Covro conversation on a phone-sized screen" width="320" />
 </details>
 
-## Get started
+<a id="get-started"></a>
+
+## 🚀 Get started
 
 You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The interface currently uses Simplified Chinese.
 
@@ -49,7 +53,9 @@ Recommended Codex CLI: **0.163.0**. Verified versions: `0.163.0`.
 
 <!-- codex-compatibility:end -->
 
-### npm installation
+<a id="npm-installation"></a>
+
+### 📦 npm installation
 
 The first public npm release is being prepared. Until `covro` is published, [run from source](#run-from-source). After publication, install and start with:
 
@@ -71,7 +77,9 @@ covro
 
 The npm CLI uses `~/.covro/config.json` and a fixed data directory beside it. Reuse an existing configuration with `covro --config /absolute/path/config.json`.
 
-### Run from source
+<a id="run-from-source"></a>
+
+### 🛠️ Run from source
 
 To try Covro before the npm release or work on the code, use **pnpm 12.11.2**:
 
@@ -88,7 +96,9 @@ Open **<http://127.0.0.1:8787>**, click **添加项目** (Add project), and ente
 
 For local development, run `pnpm dev` instead and open <http://127.0.0.1:5173>.
 
-## Access from another device
+<a id="access-from-another-device"></a>
+
+## 🌐 Access from another device
 
 Covro runs on your computer; the browser is your control surface. Tasks continue when you close the page, and reopening it reconnects to the service. The host computer must stay awake and online.
 
@@ -142,7 +152,9 @@ Browser tests require the Chromium version used by the existing Playwright depen
 
 Found a problem or have an idea? [Open an issue](https://github.com/yuzheng14/codex-web-ui/issues). Include your OS, Node.js and Codex versions, installation method, and steps to reproduce. Small, focused PRs are welcome. Update both `README.md` and `README.zh-CN.md` when changing user-facing facts or setup instructions.
 
-## Documentation
+<a id="documentation"></a>
+
+## 📚 Documentation
 
 | Guide                                        | Contents                                                                |
 | -------------------------------------------- | ----------------------------------------------------------------------- |
