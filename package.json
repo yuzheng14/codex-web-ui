@@ -1,5 +1,5 @@
 {
-  "name": "covro",
+  "name": "@covro/covro",
   "version": "0.1.0",
   "description": "A self-hosted browser workspace for your local Codex",
   "bin": {
@@ -12,7 +12,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yuzheng14/codex-web-ui.git"
+    "url": "git+https://github.com/yuzheng14/covro.git"
   },
   "publishConfig": {
     "access": "public"

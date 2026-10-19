@@ -13,7 +13,7 @@
 Covro 面向已有 Node.js 和 Codex 环境的用户，npm 包包含构建好的页面、服务和数据库迁移。
 
 ```sh
-npm install -g covro
+npm install -g @covro/covro
 covro
 covro status
 covro update

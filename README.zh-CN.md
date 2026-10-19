@@ -57,10 +57,10 @@
 
 ### 📦 npm 安装
 
-首个公开 npm 版本正在准备中。`covro` 发布前，请先[从源码运行](#从源码运行)；发布后，只需安装并启动：
+首个公开 npm 版本正在准备中。`@covro/covro` 发布前，请先[从源码运行](#从源码运行)；发布后，只需安装并启动：
 
 ```sh
-npm install -g covro
+npm install -g @covro/covro
 covro
 ```
 
@@ -74,6 +74,8 @@ covro
 | `covro run`               | 在前台运行                           |
 | `covro service install`   | 在 macOS 或 Linux 上主动启用登录自启 |
 | `covro service uninstall` | 移除登录自启                         |
+
+npm 包名为 `@covro/covro`，命令为 `covro`。开发渠道使用 `npm install -g @covro/covro@dev` 安装。
 
 npm CLI 默认使用 `~/.covro/config.json`，数据目录固定在配置文件旁。可以通过 `covro --config /absolute/path/config.json` 沿用已有配置。
 

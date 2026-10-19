@@ -1,3 +1,4 @@
+import { npmPackageName } from '../shared/package.js';
 import {
   codexCompatibilitySchema,
   requireCodexCompatibility,
@@ -186,7 +187,7 @@ async function worker(directory: string) {
       if (previous) {
         if (active && !active.maintenance)
           throw new Error('旧服务已恢复业务写入；拒绝用升级前快照覆盖现有数据，请保留现场检查。');
-        if (previous.name !== 'covro' || previous.version !== record.from)
+        if (previous.name !== npmPackageName || previous.version !== record.from)
           throw new Error('旧版备份身份不匹配');
         const snapshot = await readJson<{ complete: boolean }>(join(paths.backup, 'snapshot.json'));
         if (!snapshot?.complete) throw new Error('数据库备份不完整，保留全部现场供检查');
@@ -194,7 +195,7 @@ async function worker(directory: string) {
         const original = await readJson<{ name: string; version: string }>(
           join(paths.root, 'package.json'),
         );
-        if (original?.name !== 'covro' || original.version !== record.from)
+        if (original?.name !== npmPackageName || original.version !== record.from)
           throw new Error('未找到完整的上一版本安装');
       }
       if (active && !active.maintenance) {
@@ -218,7 +219,7 @@ async function worker(directory: string) {
       const restored = await readJson<{ name: string; version: string }>(
         join(paths.root, 'package.json'),
       );
-      if (restored?.name !== 'covro' || restored.version !== record.from)
+      if (restored?.name !== npmPackageName || restored.version !== record.from)
         throw new Error('未找到完整的上一版本安装');
       await update('rolledBack', '已恢复上次未完成的升级，正在启动上一版本');
       try {
@@ -261,14 +262,14 @@ async function worker(directory: string) {
         '--no-fund',
         `--registry=${registry}`,
         '--allow-scripts=better-sqlite3',
-        `covro@${record.target}`,
+        `${npmPackageName}@${record.target}`,
       ],
       { timeout: 10 * 60_000, maxBuffer: 2 * 1024 * 1024 },
     );
     const candidate = await readJson<{ name: string; version: string; covroCodex?: unknown }>(
       join(paths.candidate, 'package.json'),
     );
-    if (candidate?.name !== 'covro' || candidate.version !== record.target)
+    if (candidate?.name !== npmPackageName || candidate.version !== record.target)
       throw new Error('候选包身份或版本不匹配');
     if (!record.codex) throw new Error('缺少 Codex 升级校验记录，请重新检查更新');
     const manifest = codexCompatibilitySchema.parse(candidate.covroCodex);

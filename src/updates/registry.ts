@@ -1,3 +1,4 @@
+import { npmPackageName } from '../shared/package.js';
 import { validVersion } from '../shared/versions.js';
 export { validVersion, compareVersions } from '../shared/versions.js';
 import { execFile } from 'node:child_process';
@@ -16,14 +17,17 @@ export const npmTags: Record<ReleaseChannel, string> = {
   dev: 'dev',
 };
 export const releaseSchema = z.object({
-  name: z.literal('covro'),
+  name: z.literal(npmPackageName),
   version: z.string().refine(validVersion),
   gitHead: z.string().optional(),
   covroCodex: z.unknown().optional(),
 });
+export function packageMetadataUrl(selector: string) {
+  return `${registry}/${encodeURIComponent(npmPackageName)}/${encodeURIComponent(selector)}`;
+}
 export async function lookupRelease(channel: ReleaseChannel, signal?: AbortSignal) {
   // Resolve a channel exactly once. Install the resulting immutable version, never the moving tag.
-  const response = await fetch(`${registry}/covro/${npmTags[channel]}`, {
+  const response = await fetch(packageMetadataUrl(npmTags[channel]), {
     signal: signal
       ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
       : AbortSignal.timeout(15_000),
@@ -49,7 +53,7 @@ export async function inspectInstallation(root: string): Promise<string | undefi
 }
 
 export async function inspectPackageDirectory(root: string, globalRoot: string) {
-  const expected = join(await realpath(globalRoot), 'covro');
+  const expected = join(await realpath(globalRoot), npmPackageName);
   // npm link and pnpm global point outside the package directory. Following
   // that link would let the worker rename a developer's source checkout.
   if ((await lstat(expected)).isSymbolicLink() || (await realpath(root)) !== expected)

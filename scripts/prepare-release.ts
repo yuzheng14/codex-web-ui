@@ -2,7 +2,13 @@ import { verifyCompatibility } from './sync-compatibility.js';
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { compareVersions, npmTags, registry, validVersion } from '../src/updates/registry.js';
+import { npmPackageName } from '../src/shared/package.js';
+import {
+  compareVersions,
+  npmTags,
+  packageMetadataUrl,
+  validVersion,
+} from '../src/updates/registry.js';
 import { releaseChannels, type ReleaseChannel } from '../src/shared/updates.js';
 
 export function releaseVersion(
@@ -31,7 +37,7 @@ export function releaseVersion(
 }
 
 async function metadata(selector: string) {
-  const response = await fetch(`${registry}/covro/${selector}`, {
+  const response = await fetch(packageMetadataUrl(selector), {
     signal: AbortSignal.timeout(15_000),
   });
   if (response.status === 404) return undefined;
@@ -49,7 +55,7 @@ async function main() {
     covroCommit?: string;
     covroChannel?: ReleaseChannel;
   };
-  if (source.name !== 'covro') throw new Error('Unexpected npm package name');
+  if (source.name !== npmPackageName) throw new Error('Unexpected npm package name');
   const version = releaseVersion(
     channel,
     source.version,

@@ -29,13 +29,15 @@ gh workflow run publish.yml --ref main -f channel=beta -f version=0.2.0-beta.1 -
 合并后先查看 main 的 `checks`。publish/release-please 监听 `checks` 的 `workflow_run: completed`，不在合并瞬间启动；只有同仓库 main push 的完整检查通过后才执行。PR 检查通过不能代替合并提交的检查。可以用 `gh run list --workflow checks.yml --branch main`、`gh run list --workflow publish.yml` 和 `gh run list --workflow release-please.yml` 查看各阶段。
 
 - release-please 报 “GitHub Actions is not permitted to create or approve pull requests”：仓库 Settings → Actions → General 的 “Allow GitHub Actions to create and approve pull requests” 尚未开启。该设置包含审批能力，需维护者明确同意；工作流本身不批准或合并 PR。
-- publish 到 npm 返回 E404：检查 `covro` 是否已由当前账号完成首次发布，以及该包的 Trusted Publisher 是否精确绑定本仓库和 `publish.yml`。OIDC 不替代首次建立包所有权的流程，也不需要把 npm token 发给协作者或写进仓库。完成下方配置后可重跑失败的 publish。
+- publish 到 npm 返回 E404：检查 `@covro/covro` 是否已由当前账号完成首次发布，以及该包的 Trusted Publisher 是否精确绑定本仓库和 `publish.yml`。OIDC 不替代首次建立包所有权的流程，也不需要把 npm token 发给协作者或写进仓库。完成下方配置后可重跑失败的 publish。
 - Checks 失败、取消或仍在排队：先处理 checks，后续不会绕过验证发版。
 
 ## 一次性配置
 
-1. 在 npm 确认 `covro` 包所有权并完成首次发布。首次发布属于实际公开发布，应在 PR 审查完成后由维护者使用自己的 npm 身份执行；本改动不会上传账号凭证。
-2. 在 npm 包设置创建 GitHub Actions Trusted Publisher：owner `yuzheng14`、repository `codex-web-ui`、workflow `publish.yml`。使用 GitHub hosted runner 和现有 Node 24 的 npm（OIDC 需要 npm >=11.5.1）；不新增长期 npm token。
+产品和 CLI 仍叫 Covro / `covro`，npm 包固定为 `@covro/covro`。未加 scope 的 `covro` 被 npm 相似包名检查拒绝；发布、渠道查询、候选安装与回滚身份校验均使用 scoped 名称。
+
+1. 在 npm 确认 `@covro/covro` 包所有权并完成首次发布。维护者账号需要已开启 2FA，并有 `@covro` scope 的发布权限；使用 `npm publish <已验证的tgz> --access public --tag dev` 完成首次开发版发布。首次发布属于实际公开发布，应在 PR 审查完成后由维护者使用自己的 npm 身份执行；本改动不会上传账号凭证。
+2. 在 npm 包设置创建 GitHub Actions Trusted Publisher：owner `yuzheng14`、repository `covro`、workflow `publish.yml`。Environment 留空，并允许直接 `npm publish`。使用 GitHub hosted runner 和现有 Node 24 的 npm（OIDC 需要 npm >=11.5.1）；不新增长期 npm token。
 3. 在仓库 Settings → Actions → General 允许 GitHub Actions 创建 PR。release-please 默认使用受限于该工作流的 GITHUB_TOKEN；也可配置已有的 `RELEASE_PLEASE_TOKEN`。不自动批准或合并 Release PR。
 4. checks 提供 workflow_dispatch，release-please 会显式为生成的 PR 派发只读验证，避免依赖机器人 PR 的事件触发行为。稳定发布也显式派发 publish，不依赖 GITHUB_TOKEN 创建 Release 后的隐式事件。
 

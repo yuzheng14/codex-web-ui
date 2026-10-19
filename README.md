@@ -57,10 +57,10 @@ Recommended Codex CLI: **0.163.0**. Verified versions: `0.163.0`.
 
 ### 📦 npm installation
 
-The first public npm release is being prepared. Until `covro` is published, [run from source](#run-from-source). After publication, install and start with:
+The first public npm release is being prepared. Until `@covro/covro` is published, [run from source](#run-from-source). After publication, install and start with:
 
 ```sh
-npm install -g covro
+npm install -g @covro/covro
 covro
 ```
 
@@ -74,6 +74,8 @@ covro
 | `covro run`               | Run in the foreground                        |
 | `covro service install`   | Opt in to login auto-start on macOS or Linux |
 | `covro service uninstall` | Remove login auto-start                      |
+
+The npm package is `@covro/covro`; the command is `covro`. Install the development channel with `npm install -g @covro/covro@dev`.
 
 The npm CLI uses `~/.covro/config.json` and a fixed data directory beside it. Reuse an existing configuration with `covro --config /absolute/path/config.json`.
 
