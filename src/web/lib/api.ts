@@ -82,7 +82,8 @@ export const api = {
       undefined,
       signal,
     ),
-  thread: (threadId: string) => request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}`),
+  thread: (threadId: string, signal?: AbortSignal) =>
+    request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}`, undefined, signal),
   threadHistory: (threadId: string, cursor: string, signal: AbortSignal) =>
     request<ThreadView>(
       `/api/threads/${encodeURIComponent(threadId)}/history?${new URLSearchParams({ cursor })}`,

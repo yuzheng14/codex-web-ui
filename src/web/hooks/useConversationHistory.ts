@@ -151,6 +151,10 @@ export function useConversationHistory(
       if (pending.current === controller) pending.current = undefined;
     }
   }, [cache, projectId, forbidden, publish]);
+  const getHistoryCursor = useCallback(
+    (targetId: string) => windowRef.current?.getHistoryCursor(targetId),
+    [],
+  );
   const valid = !forbidden && state.id === selectedId && state.scope === scope;
   return {
     ...state,
@@ -160,5 +164,6 @@ export function useConversationHistory(
     thread: valid ? state.thread : undefined,
     loadOlder,
     loadCachedOlder,
+    getHistoryCursor,
   };
 }

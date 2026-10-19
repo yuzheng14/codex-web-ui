@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 import { localPreviewPath, relativeToFile } from '../../src/web/lib/local-files';
 import { MarkdownContent } from '../../src/web/components/MarkdownContent';
-import { FilePreviewProvider } from '../../src/web/components/FilePreview';
+import { FilePreviewProvider } from '../../src/web/components/FilePreviewProvider';
 
 it.each([
   ['./docs/方案%20说明.md', './docs/方案 说明.md'],

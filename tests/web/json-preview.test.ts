@@ -5,7 +5,7 @@ import { formatJson } from '../../src/web/lib/json-preview';
 import { localPreviewPath } from '../../src/web/lib/local-files';
 import { JsonContent } from '../../src/web/components/JsonContent';
 import { MarkdownContent } from '../../src/web/components/MarkdownContent';
-import { FilePreviewProvider } from '../../src/web/components/FilePreview';
+import { FilePreviewProvider } from '../../src/web/components/FilePreviewProvider';
 
 const text = (input: string) =>
   formatJson(input)

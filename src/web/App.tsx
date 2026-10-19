@@ -4,7 +4,7 @@ import type { ThreadSummary } from '../shared/types';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useThreadReadState } from './hooks/useThreadReadState';
 import { Sidebar } from './components/Sidebar';
-import { FilePreviewProvider } from './components/FilePreview';
+import { FilePreviewProvider } from './components/FilePreviewProvider';
 import { Conversation } from './components/Conversation';
 import { ThreadTitle } from './components/ThreadTitle';
 import { Composer } from './components/Composer';
@@ -39,10 +39,20 @@ import {
 
 const encode = encodeURIComponent;
 
-function WorkspaceLayout({ threadId, children }: { threadId?: string; children: ReactNode }) {
+function WorkspaceLayout({
+  threadId,
+  getHistoryCursor,
+  children,
+}: {
+  threadId?: string;
+  getHistoryCursor: (targetId: string) => string | undefined;
+  children: ReactNode;
+}) {
   return (
     <div className="app-shell">
-      <FilePreviewProvider threadId={threadId}>{children}</FilePreviewProvider>
+      <FilePreviewProvider threadId={threadId} getHistoryCursor={getHistoryCursor}>
+        {children}
+      </FilePreviewProvider>
     </div>
   );
 }
@@ -306,7 +316,7 @@ export function App() {
   }
 
   return (
-    <WorkspaceLayout threadId={thread?.id}>
+    <WorkspaceLayout threadId={thread?.id} getHistoryCursor={history.getHistoryCursor}>
       <Sidebar
         onGatewaySettings={() => {
           setSidebarOpen(false);

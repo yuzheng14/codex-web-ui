@@ -45,3 +45,15 @@ it('rejects foreign pages and nonadvancing cursors and resets when history becom
   window.update(page(['c'], null));
   expect(window.view.turns.map((turn) => turn.id)).toEqual(['c']);
 });
+it('locates turn and item snapshots in their newest authoritative history page', () => {
+  const window = new HistoryWindow(page(['d', 'e'], 'recent'));
+  window.append('recent', page(['b', 'c', 'd'], 'older'));
+  window.append('older', page(['a', 'b'], null));
+  expect(window.getHistoryCursor('d')).toBeUndefined();
+  expect(window.getHistoryCursor('item-d')).toBeUndefined();
+  expect(window.getHistoryCursor('b')).toBe('recent');
+  expect(window.getHistoryCursor('item-b')).toBe('recent');
+  expect(window.getHistoryCursor('a')).toBe('older');
+  expect(window.getHistoryCursor('item-a')).toBe('older');
+  expect(window.getHistoryCursor('missing')).toBeUndefined();
+});

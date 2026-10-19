@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 import Markdown, { defaultUrlTransform, type Components, type UrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { localPreviewPath, localPreviewUrl, relativeToFile } from '../lib/local-files';
-import { useFilePreview } from './FilePreview';
+import { useFilePreview } from './FilePreviewProvider';
 import { localImagePath, localImageUrl } from '../lib/local-images';
 import { LocalImage, RemoteImage, useImagePreview } from './ImagePreview';
 import { ControlHint } from './ControlHint';
