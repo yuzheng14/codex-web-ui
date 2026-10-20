@@ -13,6 +13,7 @@ export interface FileRoot {
 export interface FileScope {
   cwd: string;
   roots: readonly FileRoot[];
+  excludedRoots?: readonly string[];
 }
 
 /** Capture server-owned roots once; clients cannot nominate a temporary directory. */
@@ -47,7 +48,7 @@ interface FilePolicy {
 function outsideProject(policy: FilePolicy): AppError {
   return new AppError(
     `${policy.code}_OUTSIDE_PROJECT`,
-    `只能预览当前会话所属项目或服务器临时目录内的${policy.label}`,
+    `只能预览当前会话工作区或允许的服务器临时目录内的${policy.label}`,
     403,
   );
 }
@@ -85,6 +86,7 @@ export async function readLocalFile(
   )
     throw outsideProject(policy);
   const isAllowed = (path: string) =>
+    !scope.excludedRoots?.some((root) => containsPath(root, path)) &&
     scope.roots.some((root) => containsPath(root.canonicalRoot, path));
   policy.validatePath(candidate);
 

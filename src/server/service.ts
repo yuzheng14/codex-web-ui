@@ -2,6 +2,9 @@ import type { CodexClient, CodexDiagnostics, CodexEvent } from '../codex/types.j
 import { ShellService } from './shell.js';
 import type { StartShellInput } from '../shared/shell.js';
 import { realpathSync } from 'node:fs';
+import { cp } from 'node:fs/promises';
+import { WorkspaceRegistry } from './workspaces.js';
+import { UNASSIGNED_SCOPE } from '../shared/workspace-scope.js';
 import { AppError } from '../shared/errors.js';
 import { threadNameError } from '../shared/thread-name.js';
 import {
@@ -54,6 +57,7 @@ import { readLocalJson } from './json-files.js';
 export interface GatewayOptions {
   store: OperationStore;
   projects: ProjectRegistry;
+  workspacesRoot?: string;
   codex: CodexClient;
   limits?: { eventBytes: number; itemBytes: number; wsBytes?: number };
   authMode?: SystemInfo['authMode'];
@@ -68,6 +72,7 @@ export class GatewayService {
   private readonly store: OperationStore;
   private readonly turnUsage: TurnUsageStore;
   private readonly projects: ProjectRegistry;
+  private readonly workspaces: WorkspaceRegistry;
   private readonly codex: CodexClient;
   private readonly removeListener: () => void;
   private readonly fileTemporaryRoots = temporaryFileRoots();
@@ -76,6 +81,7 @@ export class GatewayService {
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly archiveChanges = new Set<string>();
+  private readonly archiveRevisions = new Map<string, number>();
   private readonly turnBaselines = new Map<string, Set<string>>();
   private readonly renameChanges = new Set<string>();
   private readonly reads = new Map<string, Promise<ThreadView>>();
@@ -95,6 +101,11 @@ export class GatewayService {
     this.store = options.store;
     this.turnUsage = new TurnUsageStore(this.store.database);
     this.projects = options.projects;
+    this.workspaces = new WorkspaceRegistry(
+      this.store.database,
+      this.projects,
+      options.workspacesRoot,
+    );
     this.codex = options.codex;
     this.shell = new ShellService(this.codex);
     this.events = new EventHub(options.limits?.eventBytes);
@@ -146,6 +157,7 @@ export class GatewayService {
     return { ready: true };
   }
   addProject(input: CreateProjectInput) {
+    this.workspaces.assertProjectDirectory(input.path);
     const project = this.projects.add(input);
     this.events.publishProjects(this.projects.list());
     return project;
@@ -247,14 +259,20 @@ export class GatewayService {
     });
   }
 
-  async readRuntimeSettings(projectId: string) {
-    const project = this.projects.get(projectId);
-    return this.codex.readRuntimeSettings(project.canonicalRoot);
+  async readRuntimeSettings(projectId: string | null) {
+    const cwd =
+      projectId === null
+        ? this.workspaces.defaultsDirectory()
+        : this.projects.get(projectId).canonicalRoot;
+    return this.codex.readRuntimeSettings(cwd);
   }
 
-  async saveModelDefaults(projectId: string, input: SaveModelDefaultsInput): Promise<Operation> {
-    return this.perform('config.modelDefaults', projectId, input, async () => {
-      this.projects.get(projectId);
+  async saveModelDefaults(
+    projectId: string | null,
+    input: SaveModelDefaultsInput,
+  ): Promise<Operation> {
+    return this.perform('config.modelDefaults', projectId ?? UNASSIGNED_SCOPE, input, async () => {
+      if (projectId !== null) this.projects.get(projectId);
       this.ensureReady();
       this.ensureCompatibilityConfirmed();
       this.store.associateProject(input.clientOperationId, projectId);
@@ -263,34 +281,65 @@ export class GatewayService {
     });
   }
 
-  async listThreads(projectId: string, cursor?: string, archived = false): Promise<ThreadPage> {
-    const project = this.projects.get(projectId);
+  async listThreads(
+    projectId: string | null,
+    cursor?: string,
+    archived = false,
+  ): Promise<ThreadPage> {
+    const project = projectId === null ? undefined : this.projects.get(projectId);
+    const directories = project
+      ? project.canonicalRoot
+      : this.workspaces.allocations().map((row) => row.canonicalRoot);
     const titleReads = new Map(
       this.projection
         .values()
         .filter((thread) => thread.projectId === projectId)
         .map((thread) => [thread.id, this.beginTitleRead(thread.id)]),
     );
-    const page = await this.codex.listThreads(project.canonicalRoot, cursor, archived);
-    this.projects.get(projectId);
+    const archiveReads = new Map(
+      this.projection
+        .values()
+        .filter((thread) => thread.projectId === projectId)
+        .map((thread) => [thread.id, this.archiveRevisions.get(thread.id) ?? 0]),
+    );
+    const page =
+      Array.isArray(directories) && !directories.length
+        ? { data: [], nextCursor: null }
+        : await this.codex.listThreads(directories, cursor, archived);
+    if (projectId !== null) this.projects.get(projectId);
     const data: ThreadView[] = [];
     for (const thread of page.data) {
       try {
+        if (
+          projectId === null &&
+          thread.source === 'appServer' &&
+          page.data.filter((entry) => entry.cwd === thread.cwd).length === 1
+        ) {
+          const operationId = this.workspaces.recoverCreation(thread.id, thread.cwd);
+          if (operationId && !this.inFlightOperations.has(operationId)) {
+            const recovered = this.store.confirmWorkspaceCreation(operationId, thread.id);
+            this.events.publish('operation', this.operation(recovered));
+          }
+        }
         const normalized = this.normalize(thread, projectId);
         normalized.hasMessages ??= true;
         const cached = this.projection.get(thread.id);
         if (cached && normalized.hasMessages) cached.hasMessages = true;
         const titleRead = titleReads.get(thread.id);
-        if (cached && titleRead !== undefined) {
-          if (this.titleReads.get(thread.id) === titleRead)
-            this.updateArchiveState(thread.id, Boolean(normalized.archived));
+        if (cached && archiveReads.get(thread.id) === (this.archiveRevisions.get(thread.id) ?? 0))
+          this.updateArchiveState(thread.id, Boolean(normalized.archived));
+        if (cached && titleRead !== undefined)
           this.updateThreadTitle(thread.id, normalized.title, titleRead);
-        }
         data.push(this.threadView(cached ?? normalized));
       } catch (error) {
         if (
           !(error instanceof AppError) ||
-          !['PROJECT_OWNERSHIP', 'PROJECT_UNAVAILABLE', 'PROJECT_NOT_FOUND'].includes(error.code)
+          ![
+            'PROJECT_OWNERSHIP',
+            'PROJECT_UNAVAILABLE',
+            'PROJECT_NOT_FOUND',
+            'WORKSPACE_UNAVAILABLE',
+          ].includes(error.code)
         )
           throw error;
       }
@@ -328,7 +377,7 @@ export class GatewayService {
         .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
         .slice(0, 30);
       for (const thread of managed) {
-        this.projects.assertOwnership(projectId, thread.cwd);
+        this.workspaces.assertOwnership(projectId, thread.cwd, thread.id);
         if (!data.some((entry) => entry.id === thread.id)) data.unshift(this.threadView(thread));
       }
     }
@@ -339,7 +388,7 @@ export class GatewayService {
   }
 
   async listThreadSummaries(
-    projectId: string,
+    projectId: string | null,
     cursor?: string,
     archived = false,
   ): Promise<ThreadSummaryPage> {
@@ -362,7 +411,7 @@ export class GatewayService {
         // Native archive unloads the session. Read fresh metadata before dispatch and
         // keep start/resume out of this window so an active task cannot slip through.
         const actual = await this.codex.readThreadMetadata(threadId);
-        this.projects.assertOwnership(thread.projectId, actual.cwd);
+        this.workspaces.assertOwnership(thread.projectId, actual.cwd, thread.id);
         const current = this.projection.get(threadId)!;
         if (
           input.archived &&
@@ -440,7 +489,7 @@ export class GatewayService {
           actual = await this.codex.readThreadMetadata(threadId);
           if (actual.id !== threadId || this.codex.epoch !== epoch || !this.codex.ready)
             throw new Error('会话或 Codex 实例已变化');
-          this.projects.assertOwnership(thread.projectId, actual.cwd);
+          this.workspaces.assertOwnership(thread.projectId, actual.cwd, thread.id);
         } catch (cause) {
           // A definite read failure does not undo the acknowledged native write.
           throw new Error('重命名已发送，但无法确认会话名称，请核对提交', { cause });
@@ -504,6 +553,7 @@ export class GatewayService {
     const thread = this.projection.get(threadId);
     if (!thread || Boolean(thread.archived) === archived) return;
     thread.archived = archived;
+    this.archiveRevisions.set(threadId, (this.archiveRevisions.get(threadId) ?? 0) + 1);
     if (archived) this.releaseThreadOwnership(threadId);
     this.projection.touch(threadId);
     // A notification may precede the RPC receipt. Other tabs must not resume an
@@ -514,9 +564,9 @@ export class GatewayService {
   async getThreadMetadata(threadId: string): Promise<ThreadView> {
     const cached = this.projection.get(threadId);
     if (cached) {
-      this.projects.assertOwnership(cached.projectId, cached.cwd);
+      this.workspaces.assertOwnership(cached.projectId, cached.cwd, cached.id);
       if (this.codex.ready) await this.refreshThreadMetadata(threadId);
-      this.projects.assertOwnership(cached.projectId, cached.cwd);
+      this.workspaces.assertOwnership(cached.projectId, cached.cwd, cached.id);
       return { ...this.threadView(cached), turns: [], actions: [] };
     }
     // Checking a remembered ID must not load history or resume an unsent thread.
@@ -530,7 +580,7 @@ export class GatewayService {
     if (cached && this.codex.ready) await this.refreshThreadMetadata(threadId);
     const thread = this.projection.get(threadId)!;
     // A completed project can be removed while its metadata request is in flight.
-    this.projects.assertOwnership(thread.projectId, thread.cwd);
+    this.workspaces.assertOwnership(thread.projectId, thread.cwd, thread.id);
     return this.threadView(thread);
   }
 
@@ -540,11 +590,11 @@ export class GatewayService {
     this.ensureReady();
     // Authorize before reading a page, and check ownership again after the await.
     const metadata = this.normalize(await this.codex.readThreadMetadata(threadId));
-    this.projects.assertOwnership(metadata.projectId, metadata.cwd);
+    this.workspaces.assertOwnership(metadata.projectId, metadata.cwd, metadata.id);
     if (!this.codex.readThreadPage)
       throw new AppError('HISTORY_UNAVAILABLE', '当前 Codex 不支持历史分页', 409);
     const page = this.normalize(await this.codex.readThreadPage(threadId, cursor));
-    this.projects.assertOwnership(page.projectId, page.cwd);
+    this.workspaces.assertOwnership(page.projectId, page.cwd, page.id);
     return page;
   }
 
@@ -566,8 +616,8 @@ export class GatewayService {
       );
     const link = this.store.getThreadLink(threadId);
     // Revalidate ownership after the read; a project may have been removed while it was pending.
-    if (link) this.projects.assertOwnership(link.projectId, thread.cwd);
-    else this.projects.findOwner(thread.cwd);
+    if (link) this.workspaces.assertOwnership(link.projectId, thread.cwd, thread.id);
+    else this.workspaces.findOwner(thread.cwd, thread.id);
     return renderThreadExport(thread, {
       executionUncertain: Boolean(this.store.activeForThread(threadId)),
       historyChanged:
@@ -601,23 +651,28 @@ export class GatewayService {
       this.normalize(await this.codex.readThreadMetadata(threadId));
       link = this.store.getThreadLink(threadId)!;
     }
-    const { project, cwd } = this.projects.assertOwnership(link.projectId, link.cwd);
+    const ownership = this.workspaces.assertOwnership(link.projectId, link.cwd, threadId);
+    const { cwd } = ownership;
     const file = await read(path, {
       cwd,
+      excludedRoots: this.workspaces
+        .allocations()
+        .filter((row) => row.threadId !== threadId)
+        .map((row) => row.canonicalRoot),
       roots: [
-        { canonicalRoot: project.canonicalRoot, aliases: [project.rootPath] },
-        ...this.fileTemporaryRoots,
+        { canonicalRoot: ownership.canonicalRoot, aliases: [ownership.rootPath] },
+        ...(link.projectId === null ? [] : this.fileTemporaryRoots),
       ],
     });
     // The project may have been removed or its directory replaced during the read.
-    this.projects.assertOwnership(link.projectId, link.cwd);
+    this.workspaces.assertOwnership(link.projectId, link.cwd, threadId);
     return file;
   }
 
   private async loadThread(threadId: string): Promise<ThreadView> {
     const cached = this.projection.get(threadId);
     if (cached) {
-      this.projects.assertOwnership(cached.projectId, cached.cwd);
+      this.workspaces.assertOwnership(cached.projectId, cached.cwd, cached.id);
       const marker = this.store.activeForThread(threadId);
       if (marker?.turnId && this.codex.ready) {
         await this.refreshExecution(marker);
@@ -657,19 +712,30 @@ export class GatewayService {
     }
   }
 
-  async createThread(projectId: string, input: CreateThreadInput): Promise<Operation> {
-    return this.perform('thread.create', projectId, input, async () => {
-      const project = this.projects.get(projectId);
+  async createThread(projectId: string | null, input: CreateThreadInput): Promise<Operation> {
+    return this.perform('thread.create', projectId ?? UNASSIGNED_SCOPE, input, async () => {
       this.ensureReady();
       this.ensureCompatibilityConfirmed();
+      const cwd =
+        projectId === null
+          ? this.workspaces.allocate(input.clientOperationId).cwd
+          : this.projects.get(projectId).canonicalRoot;
+      if (projectId !== null) this.workspaces.assertProjectDirectory(cwd);
       this.store.associateProject(input.clientOperationId, projectId);
       this.store.dispatch(input.clientOperationId);
-      this.pendingThreadCreations.set(input.clientOperationId, project.canonicalRoot);
+      this.pendingThreadCreations.set(input.clientOperationId, cwd);
       const epoch = this.codex.epoch;
       const settingsSequence = this.runtimeSettingsSequence;
-      const thread = await this.codex.createThread(project.canonicalRoot, input.settings);
+      const thread = await this.codex.createThread(cwd, input.settings);
       if (this.codex.epoch !== epoch || !this.codex.ready)
         throw new Error('创建请求已发送，但 Codex 实例已变化，请核对历史');
+      if (projectId === null) {
+        try {
+          this.workspaces.bind(input.clientOperationId, thread.id, thread.cwd);
+        } catch (cause) {
+          throw new Error('创建请求已发送，但返回的工作目录无法确认，请核对历史', { cause });
+        }
+      }
       const normalized = this.normalize(thread, projectId, true);
       this.projection.thread(
         normalized,
@@ -687,7 +753,7 @@ export class GatewayService {
       this.ensureReady();
       this.ensureArchiveAvailable(thread);
       if (thread.archived) throw new AppError('THREAD_ARCHIVED', '请先取消归档后再恢复会话', 409);
-      this.projects.assertOwnership(thread.projectId, thread.cwd);
+      this.workspaces.assertOwnership(thread.projectId, thread.cwd, thread.id);
       this.store.associateProject(input.clientOperationId, thread.projectId);
       const link = this.store.getThreadLink(threadId);
       if (link?.managedEpoch === this.codex.epoch) {
@@ -701,7 +767,7 @@ export class GatewayService {
           operationId: marker.operationId,
           threadId,
         });
-      const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
+      const ownership = this.workspaces.assertOwnership(thread.projectId, thread.cwd, thread.id);
       this.ensureCompatibilityConfirmed();
       this.store.dispatch(input.clientOperationId);
       // Multiple tabs may open the same history simultaneously. Acquire its writer once.
@@ -756,22 +822,30 @@ export class GatewayService {
       const source = this.projection.get(threadId) ?? (await this.codex.readThread(threadId));
       const link = this.store.getThreadLink(threadId);
       const ownership = link
-        ? this.projects.assertOwnership(link.projectId, source.cwd)
-        : this.projects.findOwner(source.cwd);
+        ? this.workspaces.assertOwnership(link.projectId, source.cwd, threadId)
+        : this.workspaces.findOwner(source.cwd, source.id);
       this.ensureCompatibilityConfirmed();
       const epoch = this.codex.epoch;
-      this.store.associateProject(input.clientOperationId, ownership.project.id);
+      let forkCwd = ownership.cwd;
+      if (ownership.projectId === null) {
+        forkCwd = this.workspaces.allocate(input.clientOperationId).cwd;
+        await cp(ownership.cwd, forkCwd, { recursive: true, verbatimSymlinks: true });
+        this.workspaces.assertOwnership(null, source.cwd, source.id);
+      }
+      this.store.associateProject(input.clientOperationId, ownership.projectId);
       this.store.dispatch(input.clientOperationId);
-      this.pendingThreadCreations.set(input.clientOperationId, ownership.cwd);
+      this.pendingThreadCreations.set(input.clientOperationId, forkCwd);
       const settingsSequence = this.runtimeSettingsSequence;
-      const forked = await this.codex.forkThread(threadId, ownership.cwd, input.settings);
+      const forked = await this.codex.forkThread(threadId, forkCwd, input.settings);
       if (forked.id === threadId || this.codex.epoch !== epoch || !this.codex.ready)
         throw new Error('分叉请求已发送，但返回的新会话无法确认，请核对历史');
       let normalized: ThreadView;
       try {
+        if (ownership.projectId === null)
+          this.workspaces.bind(input.clientOperationId, forked.id, forked.cwd);
         normalized = this.normalize(
           { ...forked, forkedFromId: threadId },
-          ownership.project.id,
+          ownership.projectId,
           true,
         );
       } catch (error) {
@@ -792,7 +866,7 @@ export class GatewayService {
     return this.perform('turn.start', threadId, input, async () => {
       const thread = await this.loadThread(threadId);
       this.ensureManaged(thread);
-      const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
+      const ownership = this.workspaces.assertOwnership(thread.projectId, thread.cwd, thread.id);
       if (isActive(thread.status))
         throw new AppError('THREAD_BUSY', '会话已有活动任务，请追加要求或中断', 409, { threadId });
       this.ensureCompatibilityConfirmed();
@@ -830,7 +904,7 @@ export class GatewayService {
     return this.perform('thread.compact', threadId, input, async () => {
       const thread = await this.loadThread(threadId);
       this.ensureManaged(thread);
-      const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
+      const ownership = this.workspaces.assertOwnership(thread.projectId, thread.cwd, thread.id);
       if (isActive(thread.status) || thread.turns.some((turn) => isActive(turn.status)))
         throw new AppError('THREAD_BUSY', '请等待当前任务结束后再压缩上下文', 409);
       if (!thread.turns.length)
@@ -857,7 +931,7 @@ export class GatewayService {
     return this.perform('review.start', threadId, input, async () => {
       const thread = await this.loadThread(threadId);
       this.ensureManaged(thread);
-      const ownership = this.projects.assertOwnership(thread.projectId, thread.cwd);
+      const ownership = this.workspaces.assertOwnership(thread.projectId, thread.cwd, thread.id);
       if (isActive(thread.status) || thread.turns.some((turn) => isActive(turn.status)))
         throw new AppError('THREAD_BUSY', '会话已有活动任务，结束后才能开始代码审查', 409, {
           threadId,
@@ -971,8 +1045,8 @@ export class GatewayService {
         try {
           const actual = await this.codex.readThread(marker.threadId);
           const link = this.store.getThreadLink(marker.threadId);
-          if (link) this.projects.assertOwnership(link.projectId, actual.cwd);
-          else this.projects.findOwner(actual.cwd);
+          if (link) this.workspaces.assertOwnership(link.projectId, actual.cwd, actual.id);
+          else this.workspaces.findOwner(actual.cwd, actual.id);
           if (this.markerIsActive(actual, marker.turnId))
             throw new AppError('THREAD_BUSY', '上游仍报告该任务活动，不能解除占用', 409, {
               threadId: marker.threadId,
@@ -1096,14 +1170,14 @@ export class GatewayService {
     }
   }
 
-  private normalize(thread: ThreadView, projectId?: string, managed = false): ThreadView {
+  private normalize(thread: ThreadView, projectId?: string | null, managed = false): ThreadView {
     const link = this.store.getThreadLink(thread.id);
     const ownership = link
-      ? this.projects.assertOwnership(link.projectId, thread.cwd)
-      : managed && projectId
-        ? this.projects.assertOwnership(projectId, thread.cwd)
-        : this.projects.findOwner(thread.cwd);
-    if (projectId && ownership.project.id !== projectId)
+      ? this.workspaces.assertOwnership(link.projectId, thread.cwd, thread.id)
+      : managed && projectId !== undefined
+        ? this.workspaces.assertOwnership(projectId, thread.cwd, thread.id)
+        : this.workspaces.findOwner(thread.cwd, thread.id);
+    if (projectId !== undefined && ownership.projectId !== projectId)
       throw new AppError('PROJECT_OWNERSHIP', '会话属于其他项目，不能改变项目归属', 403);
     const managedEpoch = thread.archived
       ? null
@@ -1113,7 +1187,7 @@ export class GatewayService {
     const result: ThreadView = {
       ...thread,
       turns: this.turnUsage.restore(thread.id, thread.turns),
-      projectId: ownership.project.id,
+      projectId: ownership.projectId,
       cwd: ownership.cwd,
       managed: managedEpoch === this.codex.epoch,
       resumeError: managed ? undefined : this.projection.get(thread.id)?.resumeError,
@@ -1123,7 +1197,7 @@ export class GatewayService {
     };
     this.store.linkThread({
       threadId: thread.id,
-      projectId: ownership.project.id,
+      projectId: ownership.projectId,
       cwd: ownership.cwd,
       source: thread.source,
       managedEpoch,
@@ -1175,8 +1249,8 @@ export class GatewayService {
           return;
         const link = this.store.getThreadLink(marker.threadId);
         const ownership = link
-          ? this.projects.assertOwnership(link.projectId, actual.cwd)
-          : this.projects.findOwner(actual.cwd);
+          ? this.workspaces.assertOwnership(link.projectId, actual.cwd, actual.id)
+          : this.workspaces.findOwner(actual.cwd, actual.id);
         if (ownership.workspaceKey !== marker.workspaceKey) return;
         const turn = actual.turns.find((entry) => entry.id === marker.turnId);
         if (
@@ -1389,7 +1463,7 @@ export class GatewayService {
     const encoded = JSON.stringify(summary);
     if (this.summaries.get(threadId) === encoded) return;
     try {
-      this.projects.assertOwnership(thread.projectId, thread.cwd);
+      this.workspaces.assertOwnership(thread.projectId, thread.cwd, thread.id);
     } catch {
       return;
     }
@@ -1447,7 +1521,7 @@ export class GatewayService {
       const thread = await this.codex.readThreadMetadata(threadId);
       const current = this.projection.get(threadId);
       if (!current || thread.id !== threadId) return;
-      this.projects.assertOwnership(current.projectId, thread.cwd);
+      this.workspaces.assertOwnership(current.projectId, thread.cwd, thread.id);
       const settings = thread.runtimeSettings
         ? { ...current.runtimeSettings, ...thread.runtimeSettings }
         : undefined;
@@ -1579,7 +1653,7 @@ export class GatewayService {
         this.projection.expireTurn(thread.id, event.turn.id);
         if (newCompletion) {
           try {
-            this.projects.assertOwnership(thread.projectId, thread.cwd);
+            this.workspaces.assertOwnership(thread.projectId, thread.cwd, thread.id);
             this.events.publishCompletion({
               threadId: thread.id,
               turnId: event.turn.id,

@@ -45,6 +45,7 @@ export async function startGateway(
       store: new OperationStore(db.database),
       projects: new ProjectRegistry(config.projects, db.database),
       codex,
+      workspacesRoot: join(config.dataDir, 'workspaces'),
       limits: config.limits,
       authMode: config.auth.mode,
       demo: config.demo,

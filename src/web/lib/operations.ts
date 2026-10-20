@@ -4,12 +4,12 @@ import { threadNameError } from '../../shared/thread-name';
 import { readableError } from './utils';
 
 const STORAGE_KEY = 'codex-web.operations.v1';
-export type ThreadMutation = { projectId: string } & (
+export type ThreadMutation = { projectId: string | null } & (
   { archived: boolean; title?: never } | { title: string; archived?: never }
 );
 
 function readMutation(kind: string, value?: ThreadMutation): ThreadMutation | undefined {
-  if (typeof value?.projectId !== 'string') return;
+  if (!value || (value.projectId !== null && typeof value.projectId !== 'string')) return;
   if (kind === 'archive' && typeof value.archived === 'boolean')
     return { projectId: value.projectId, archived: value.archived };
   if (kind === 'rename' && typeof value.title === 'string' && !threadNameError(value.title))

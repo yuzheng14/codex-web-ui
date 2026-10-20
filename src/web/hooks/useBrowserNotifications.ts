@@ -1,3 +1,4 @@
+import { scopeKey } from '../../shared/workspace-scope';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnCompletion } from '../../shared/types';
 import {
@@ -93,7 +94,7 @@ export function useBrowserNotifications(options: Options) {
   const notify = useCallback(
     async (completion: TurnCompletion) => {
       if (!notificationsEnabled() || notificationAccess() !== 'granted') return;
-      const projectName = latest.current.projectName(completion.projectId);
+      const projectName = latest.current.projectName(scopeKey(completion.projectId));
       if (!projectName) return;
       try {
         if (!(await claimCompletion(completion.threadId, completion.turnId))) return;
@@ -102,12 +103,12 @@ export function useBrowserNotifications(options: Options) {
           !mounted.current ||
           !notificationsEnabled() ||
           notificationAccess() !== 'granted' ||
-          !latest.current.projectName(completion.projectId)
+          !latest.current.projectName(scopeKey(completion.projectId))
         )
           return;
         const message = completionNotification(completion, projectName);
         show(message.title, message.options, () =>
-          latest.current.openThread(completion.threadId, completion.projectId),
+          latest.current.openThread(completion.threadId, scopeKey(completion.projectId)),
         );
       } catch {
         if (mounted.current)

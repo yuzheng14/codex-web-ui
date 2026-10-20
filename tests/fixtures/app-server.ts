@@ -52,6 +52,7 @@ export interface SimulatorOptions {
   historyPath?: string;
   paginated?: boolean;
   activeArchiveDescendant?: boolean;
+  vanishedLoadedThread?: boolean;
   historyPageSize?: number;
   historyItemSummaries?: boolean;
   history?: { turns: number; itemsPerTurn: number; itemBytes: number };
@@ -1747,7 +1748,8 @@ function receive(request: ClientRequest): void {
       reply(request.id, {
         data: [...threads.values()]
           .filter((thread) => thread.status.type !== 'notLoaded')
-          .map((thread) => thread.id),
+          .map((thread) => thread.id)
+          .concat(options.vanishedLoadedThread ? ['vanished-helper'] : []),
         nextCursor: null,
       });
       break;
@@ -1756,7 +1758,13 @@ function receive(request: ClientRequest): void {
         data: [...threads.values()]
           .filter((thread) => !thread.ephemeral)
           .filter((thread) => archived.has(thread.id) === Boolean(request.params.archived))
-          .filter((thread) => !request.params.cwd || thread.cwd === request.params.cwd)
+          .filter(
+            (thread) =>
+              !request.params.cwd ||
+              (Array.isArray(request.params.cwd)
+                ? request.params.cwd.includes(thread.cwd)
+                : thread.cwd === request.params.cwd),
+          )
           .map((thread) => ({ ...thread, turns: [] })),
         nextCursor: null,
       });

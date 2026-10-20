@@ -201,7 +201,7 @@ it.skipIf(process.platform === 'win32')(
     expect(await response.json()).toMatchObject({
       error: {
         code: 'IMAGE_OUTSIDE_PROJECT',
-        message: '只能预览当前会话所属项目或服务器临时目录内的图片',
+        message: '只能预览当前会话工作区或允许的服务器临时目录内的图片',
       },
     });
     expect(response.status).toBe(403);

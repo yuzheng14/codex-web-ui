@@ -86,7 +86,7 @@ export class OperationStore {
       .get();
   }
 
-  associateProject(id: string, projectId: string): void {
+  associateProject(id: string, projectId: string | null): void {
     this.database
       .update(operations)
       .set({ projectId })
@@ -95,7 +95,7 @@ export class OperationStore {
   }
 
   /** Includes older rows whose project can be recovered from their stable target/link. */
-  pendingProjectOperations(projectId: string): OperationRow[] {
+  pendingProjectOperations(projectId: string | null): OperationRow[] {
     return this.database
       .select()
       .from(operations)
@@ -121,7 +121,9 @@ export class OperationStore {
         const owner =
           operation.projectId ??
           (operation.kind === 'thread.create'
-            ? operation.target
+            ? operation.target === '@unassigned'
+              ? null
+              : operation.target
             : this.getThreadLink(operation.target)?.projectId);
         return owner === projectId;
       });
@@ -173,6 +175,24 @@ export class OperationStore {
           .where(eq(executionMarkers.operationId, id))
           .run();
     });
+    return this.get(id)!;
+  }
+
+  confirmWorkspaceCreation(id: string, threadId: string): OperationRow {
+    const operation = this.get(id)!;
+    this.database
+      .update(operations)
+      .set({
+        state: 'acknowledged',
+        error: null,
+        updatedAt: Date.now(),
+        result: {
+          threadId,
+          ...(operation.kind === 'thread.fork' ? { forkedFromId: operation.target } : {}),
+        },
+      })
+      .where(and(eq(operations.clientOperationId, id), eq(operations.state, 'unknown')))
+      .run();
     return this.get(id)!;
   }
 

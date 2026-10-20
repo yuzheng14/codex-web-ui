@@ -1,3 +1,4 @@
+import { scopeKey } from '../../shared/workspace-scope';
 import type { ThreadSummary } from '../../shared/types';
 import { DeviceCache } from './device-cache';
 
@@ -35,7 +36,7 @@ export class ThreadListCache {
           !row ||
           typeof row.id !== 'string' ||
           !row.id ||
-          row.projectId !== project ||
+          scopeKey(row.projectId) !== project ||
           typeof row.title !== 'string' ||
           typeof row.source !== 'string' ||
           (row.originator != null && typeof row.originator !== 'string') ||
@@ -54,7 +55,7 @@ export class ThreadListCache {
       rows
         .filter(
           (row) =>
-            row.projectId === project &&
+            scopeKey(row.projectId) === project &&
             Boolean(row.archived) === archived &&
             row.historyVisible !== false,
         )

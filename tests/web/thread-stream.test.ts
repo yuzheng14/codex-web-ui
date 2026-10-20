@@ -198,3 +198,32 @@ describe('workspace overview transport', () => {
     expect(handlers.thread).toHaveBeenCalledTimes(2);
   });
 });
+
+it('accepts overview summaries and completion signals with no project association', () => {
+  const { socket, handlers } = start();
+  const general = { ...thread('general'), projectId: null };
+  const summary = toThreadSummary(general);
+  socket.receive({
+    type: 'event',
+    kind: 'threadSummary',
+    threadId: general.id,
+    cursor: { serverEpoch: 'epoch', seq: 1 },
+    payload: summary,
+  });
+  expect(handlers.summary).toHaveBeenCalledWith(summary, { serverEpoch: 'epoch', seq: 1 });
+  const completion = {
+    threadId: general.id,
+    turnId: 'turn',
+    projectId: null,
+    title: 'General conversation',
+    status: 'completed' as const,
+  };
+  socket.receive({
+    type: 'event',
+    kind: 'turnCompletion',
+    threadId: general.id,
+    cursor: { serverEpoch: 'epoch', seq: 2 },
+    payload: completion,
+  });
+  expect(handlers.completion).toHaveBeenCalledWith(completion);
+});

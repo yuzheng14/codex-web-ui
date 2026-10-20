@@ -68,11 +68,20 @@ export const executionMarkers = sqliteTable(
 
 export const threadLinks = sqliteTable('thread_links', {
   threadId: text('thread_id').primaryKey(),
-  projectId: text('project_id').notNull(),
+  projectId: text('project_id'),
   cwd: text('cwd').notNull(),
   source: text('source').notNull(),
   managedEpoch: text('managed_epoch'),
   updatedAt: integer('updated_at').notNull(),
+});
+
+/** Allocations survive failed/unknown RPCs; names and archive state remain in Codex. */
+export const sessionWorkspaces = sqliteTable('session_workspaces', {
+  operationId: text('operation_id').primaryKey(),
+  threadId: text('thread_id').unique(),
+  rootPath: text('root_path').notNull(),
+  canonicalRoot: text('canonical_root').notNull().unique(),
+  createdAt: integer('created_at').notNull(),
 });
 
 export const preferences = sqliteTable('preferences', {

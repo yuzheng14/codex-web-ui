@@ -1,4 +1,5 @@
 import { localPreviewUrl } from './local-files';
+import { scopeApi } from '../../shared/workspace-scope';
 import type {
   ApiError,
   TextFile,
@@ -69,7 +70,7 @@ export const api = {
   historyCacheContext: () => request<{ scope: string }>('/api/history-cache-context'),
   system: () => request<SystemInfo>('/api/system'),
   runtimeSettings: (projectId: string) =>
-    request<RuntimeSettings>(`/api/projects/${encodeURIComponent(projectId)}/runtime-settings`),
+    request<RuntimeSettings>(`${scopeApi(projectId)}/runtime-settings`),
   projects: () => request<{ data: Project[] }>('/api/projects'),
   addProject: (input: { path: string; name?: string }) => request<Project>('/api/projects', input),
   renameProject: (id: string, name: string) =>
@@ -78,7 +79,7 @@ export const api = {
     request<{ removed: true }>(`/api/projects/${encodeURIComponent(id)}/remove`, {}),
   threads: (projectId: string, cursor?: string, archived = false, signal?: AbortSignal) =>
     request<ThreadSummaryPage>(
-      `/api/projects/${encodeURIComponent(projectId)}/threads${archived ? '?archived=true' : ''}${cursor ? `${archived ? '&' : '?'}cursor=${encodeURIComponent(cursor)}` : ''}`,
+      `${scopeApi(projectId)}/threads${archived ? '?archived=true' : ''}${cursor ? `${archived ? '&' : '?'}cursor=${encodeURIComponent(cursor)}` : ''}`,
       undefined,
       signal,
     ),

@@ -1,3 +1,4 @@
+import { scopeKey } from '../../shared/workspace-scope';
 import type {
   Cursor,
   ThreadSummary,
@@ -138,10 +139,10 @@ export class ProjectThreadsStore {
     if (!this.mutations.size) return this.value;
     const value = { ...this.value };
     for (const { change, base } of this.mutations.values()) {
-      const page = value[change.projectId] ?? empty();
+      const page = value[scopeKey(change.projectId)] ?? empty();
       const data = new Map(page.data.map((row) => [row.id, row]));
       if (base && !data.has(base.id)) data.set(base.id, base);
-      value[change.projectId] = { ...page, data: [...data.values()] };
+      value[scopeKey(change.projectId)] = { ...page, data: [...data.values()] };
     }
     for (const [projectId, page] of Object.entries(value))
       value[projectId] = {
@@ -179,7 +180,8 @@ export class ProjectThreadsStore {
     for (const saved of rows) {
       const known = this.authoritative.get(saved.id);
       const row = known ?? saved;
-      if (row.projectId !== projectId || !this.includes(row) || data.has(row.id)) continue;
+      if (scopeKey(row.projectId) !== projectId || !this.includes(row) || data.has(row.id))
+        continue;
       data.set(row.id, row);
       if (!known) unverified.add(row.id);
     }
@@ -254,7 +256,7 @@ export class ProjectThreadsStore {
       : new Set<string>();
     const unverified = new Set(previous.unverified);
     for (const entry of page.data) {
-      if (entry.projectId !== read.projectId) continue;
+      if (scopeKey(entry.projectId) !== read.projectId) continue;
       seen.add(entry.id);
       unverified.delete(entry.id);
       if (newer(entry.id)) {
@@ -272,7 +274,7 @@ export class ProjectThreadsStore {
     }
     // A newly created or newly active conversation may be absent from an older first page.
     for (const entry of this.authoritative.values())
-      if (entry.projectId === read.projectId && this.includes(entry) && newer(entry.id)) {
+      if (scopeKey(entry.projectId) === read.projectId && this.includes(entry) && newer(entry.id)) {
         data.set(entry.id, entry);
         seen.add(entry.id);
       }
@@ -281,7 +283,7 @@ export class ProjectThreadsStore {
     if (page.nextCursor === null)
       for (const entry of [...previous.data, ...this.authoritative.values()]) {
         if (
-          entry.projectId !== read.projectId ||
+          scopeKey(entry.projectId) !== read.projectId ||
           !this.includes(entry) ||
           seen.has(entry.id) ||
           newer(entry.id)
@@ -326,7 +328,7 @@ export class ProjectThreadsStore {
     for (const mutation of this.mutations.values())
       if (mutation.target === summary.id) mutation.base = summary;
     const previous = this.get(summary.projectId);
-    if (this.includes(summary)) this.seen.get(summary.projectId)?.add(summary.id);
+    if (this.includes(summary)) this.seen.get(scopeKey(summary.projectId))?.add(summary.id);
     this.set(summary.projectId, {
       ...previous,
       unverified: previous.unverified?.filter((id) => id !== summary.id),
@@ -338,11 +340,11 @@ export class ProjectThreadsStore {
     return true;
   }
 
-  private get(projectId: string) {
-    return this.value[projectId] ?? empty();
+  private get(projectId: string | null) {
+    return this.value[scopeKey(projectId)] ?? empty();
   }
 
-  private set(projectId: string, state: ProjectThreads) {
-    this.value = { ...this.value, [projectId]: state };
+  private set(projectId: string | null, state: ProjectThreads) {
+    this.value = { ...this.value, [scopeKey(projectId)]: state };
   }
 }

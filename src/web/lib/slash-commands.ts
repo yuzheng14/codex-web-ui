@@ -1,3 +1,4 @@
+import { UNASSIGNED_SCOPE } from '../../shared/workspace-scope';
 import type { Operation, Project, Settings, SystemInfo, ThreadView } from '../../shared/types';
 import { threadNameError } from '../../shared/thread-name';
 import { isActive } from '../components/Status';
@@ -72,6 +73,7 @@ export function validateSlashCommand(input: string, commands: SlashCommand[]): s
 
 export interface SlashCommandContext {
   project?: Project;
+  scopeId?: string;
   selectedId?: string;
   thread?: ThreadView;
   system?: SystemInfo;
@@ -95,10 +97,10 @@ export interface SlashCommandContext {
 
 const definitions: { name: SlashCommandName; description: string }[] = [
   { name: 'help', description: '查看本网页支持的命令和使用方式' },
-  { name: 'new', description: '打开当前项目的新建会话输入页' },
+  { name: 'new', description: '打开当前工作区的新建会话输入页' },
   { name: 'fork', description: '复制当前会话已保存的历史为新会话' },
   { name: 'resume', description: '恢复当前选中的历史会话（不是 CLI 会话选择器）' },
-  { name: 'review', description: '审查当前项目的未提交改动（使用会话当前配置）' },
+  { name: 'review', description: '审查当前工作目录的未提交改动（使用会话当前配置）' },
   { name: 'rename', description: '重命名当前会话，名称可包含空格' },
   { name: 'stop', description: '请求中断当前任务（网页快捷命令）' },
   { name: 'status', description: '打开当前连接、运行状态与提交诊断' },
@@ -137,15 +139,17 @@ function unavailableReason(name: SlashCommandName, context: SlashCommandContext)
     context.operations.some(
       (entry) => (!kind || entry.kind === kind) && blocksTarget(entry, target),
     );
+  const scope = context.scopeId ?? context.project?.id;
   if (name !== 'stop') {
-    if (!context.project) return '请先选择一个项目。';
-    if (!context.project.available) return '当前项目目录不可用，请先检查项目配置。';
+    if (!context.project && scope !== UNASSIGNED_SCOPE) return '请先选择一个项目。';
+    if (context.project && !context.project.available)
+      return '当前项目目录不可用，请先检查项目配置。';
   }
   if (name === 'new') {
     if (context.busy.some((entry) => entry.startsWith('saveModelDefaults:')))
       return '正在保存模型默认值，请完成后再操作。';
-    if (busy('create', context.project!.id)) return '正在新建会话，请等待回执。';
-    if (unsettled(context.project!.id)) return '新建会话的请求尚未确认，请先用 /status 核对提交。';
+    if (busy('create', scope!)) return '正在新建会话，请等待回执。';
+    if (unsettled(scope!)) return '新建会话的请求尚未确认，请先用 /status 核对提交。';
     return undefined;
   }
   const thread = context.thread;
@@ -276,7 +280,10 @@ export function createSlashCommands(getContext: () => SlashCommandContext): Slas
         context.openStatus();
         return { message: '已打开状态诊断；可在面板中刷新或核对提交。' };
       }
-      if (context.project?.id !== initial.project?.id || context.selectedId !== initial.selectedId)
+      if (
+        (context.scopeId ?? context.project?.id) !== (initial.scopeId ?? initial.project?.id) ||
+        context.selectedId !== initial.selectedId
+      )
         return { error: true, message: '当前项目或会话已切换，请重新选择命令。' };
       const reason = unavailableReason(name, context);
       if (reason) return { error: true, message: reason };

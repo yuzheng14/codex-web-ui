@@ -530,7 +530,11 @@ export class CodexAdapter implements CodexClient {
     )
       throw new AppError('VALIDATION_ERROR', '所选推理强度不受当前模型支持');
   }
-  async listThreads(cwd: string, cursor?: string, archived = false): Promise<ThreadPage> {
+  async listThreads(
+    cwd: string | string[],
+    cursor?: string,
+    archived = false,
+  ): Promise<ThreadPage> {
     const sequence = ++this.archiveSequence;
     const result = await this.call('thread/list', {
       cwd,
@@ -618,7 +622,19 @@ export class CodexAdapter implements CodexClient {
         limit: 100,
       });
       for (const id of page.data) {
-        let thread = await read(id);
+        let thread: Thread;
+        try {
+          thread = await read(id);
+        } catch (error) {
+          // A completed helper can unload after the loaded-thread snapshot.
+          if (
+            error instanceof CodexError &&
+            error.rpcCode === -32600 &&
+            error.message === `thread not loaded: ${id}`
+          )
+            continue;
+          throw error;
+        }
         if (thread.status.type !== 'active') continue;
         const ancestors = new Set<string>();
         for (;;) {

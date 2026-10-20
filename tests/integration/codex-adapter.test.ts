@@ -474,6 +474,13 @@ describe('verified protocol adapter with a real subprocess', () => {
     },
   );
 
+  it('archives when an unrelated helper unloads after the loaded-thread snapshot', async () => {
+    const { adapter } = await fixture({ vanishedLoadedThread: true });
+    const thread = await adapter.createThread('/tmp/project');
+    await adapter.archiveThread(thread.id);
+    expect(await adapter.readThreadMetadata(thread.id)).toMatchObject({ archived: true });
+  });
+
   it('does not send archive for an idle parent with an active spawned descendant', async () => {
     const { adapter, requests } = await fixture({ activeArchiveDescendant: true });
     const thread = await adapter.createThread('/tmp');
