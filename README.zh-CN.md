@@ -54,6 +54,8 @@ DB Schema **6** 独立于应用版本管理。发行版声明 Schema 及经过�
 
 受管升级会在替换安装前创建并验证私有备份，覆盖 Covro 数据库与服务配置；备份失败会阻止激活。快照不包含 Codex 历史、凭据或项目文件。详见[备份范围](docs/backups.md)。
 
+使用 `covro backup create`、`covro backup list` 和 `covro backup verify ID` 创建与检查手动备份。先运行 `covro backup restore ID` 预检；停服后加 `--confirm ID` 执行恢复。详见[恢复步骤](docs/backups.md#manual-backups-and-offline-recovery)。
+
 ## 🚀 开始使用
 
 需要 **Node.js 24.x，版本不低于 24.19**，以及已经安装、登录的 **Codex CLI**。界面支持简体中文、英语、日语和韩语。在侧栏选择「语言」；首次访问按浏览器偏好匹配，手动选择会保存在当前设备。

@@ -1,3 +1,4 @@
+import { backupCommand } from './backup.js';
 import type { UpdateStatus } from '../shared/updates.js';
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -14,6 +15,8 @@ export function parseArguments(args: string[]) {
   const positional: string[] = [];
   let configPath: string | undefined;
   let channel: 'stable' | 'beta' | 'dev' | undefined;
+  let confirm: string | undefined;
+  let recoveryDataDir: string | undefined;
   let allowDowngrade = false;
   let allowUnverifiedCodex = false;
   for (let i = 0; i < args.length; i++) {
@@ -21,19 +24,29 @@ export function parseArguments(args: string[]) {
     if (arg === '--config' && args[i + 1]) configPath = args[++i];
     else if (arg === '--channel' && ['stable', 'beta', 'dev'].includes(args[i + 1] ?? ''))
       channel = args[++i] as typeof channel;
+    else if (arg === '--confirm' && args[i + 1]) confirm = args[++i];
+    else if (arg === '--data-dir' && args[i + 1]) recoveryDataDir = args[++i];
     else if (arg === '--allow-downgrade') allowDowngrade = true;
     else if (arg === '--allow-unverified-codex') allowUnverifiedCodex = true;
     else if (arg.startsWith('-') && arg !== '--help' && arg !== '--version')
       throw new Error(`Unknown argument: ${arg}`);
     else positional.push(arg);
   }
-  const [command = 'start', subcommand] = positional;
-  if (positional.length > (['service', 'update'].includes(command) ? 2 : 1))
+  const [command = 'start', subcommand, backupId] = positional;
+  if (
+    positional.length > (command === 'backup' ? 3 : ['service', 'update'].includes(command) ? 2 : 1)
+  )
     throw new Error('Too many arguments');
   if ((channel || allowDowngrade || allowUnverifiedCodex) && command !== 'update')
     throw new Error('升级选项仅用于 update');
+  if ((confirm || recoveryDataDir) && command !== 'backup')
+    throw new Error('恢复选项仅用于 backup');
+  if (confirm && subcommand !== 'restore') throw new Error('--confirm 仅用于 backup restore');
   return {
     command,
+    backupId,
+    confirm,
+    recoveryDataDir,
     subcommand,
     channel,
     allowDowngrade,
@@ -53,19 +66,37 @@ export async function startBackground(location: CovroPaths) {
 }
 
 export async function main(args = process.argv.slice(2)) {
-  const { command, subcommand, channel, allowDowngrade, allowUnverifiedCodex, location } =
-    parseArguments(args);
+  const {
+    command,
+    subcommand,
+    backupId,
+    confirm,
+    recoveryDataDir,
+    channel,
+    allowDowngrade,
+    allowUnverifiedCodex,
+    location,
+  } = parseArguments(args);
   if (command === '--version') {
     console.log(packageInfo.version);
     return;
   }
   if (command === '--help' || command === 'help') {
     console.log(
-      'Covro\n\ncovro [start|run|stop|status|doctor|logs] [--config FILE]\ncovro update [status|repair] [--channel stable|beta|dev] [--allow-downgrade] [--allow-unverified-codex]\ncovro service install|uninstall [--config FILE]\n\n默认后台运行；service install 单独启用登录自启。doctor 从运行实例检查会话和 GitHub 凭证，不显示令牌。',
+      'Covro\n\ncovro [start|run|stop|status|doctor|logs] [--config FILE]\ncovro update [status|repair] [--channel stable|beta|dev] [--allow-downgrade] [--allow-unverified-codex]\ncovro backup create|list|verify ID|restore ID|repair [--config FILE] [--confirm ID] [--data-dir DIR]\ncovro service install|uninstall [--config FILE]\n\n默认后台运行；service install 单独启用登录自启。doctor 从运行实例检查会话和 GitHub 凭证，不显示令牌。',
     );
     return;
   }
-  if (command === 'start') console.log(JSON.stringify(await startBackground(location), null, 2));
+  if (command === 'backup') {
+    console.log(
+      JSON.stringify(
+        await backupCommand(location, subcommand, backupId, confirm, recoveryDataDir),
+        null,
+        2,
+      ),
+    );
+  } else if (command === 'start')
+    console.log(JSON.stringify(await startBackground(location), null, 2));
   else if (command === 'run') {
     await ensureConfig(location);
     await runDaemon(location.config);

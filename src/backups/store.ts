@@ -19,7 +19,7 @@ import {
   type Migration,
 } from '../server/db/history.js';
 import { MAX_CONFIG_BYTES } from '../server/config-store.js';
-import { parseFileConfig } from '../server/config.js';
+import { parseConfig, parseFileConfig } from '../server/config.js';
 import { copyDurable, readJson, saveJson } from '../updates/files.js';
 
 export interface BackupOptions {
@@ -77,7 +77,14 @@ export class BackupStore {
           await readJson(join(this.path(id), 'snapshot.json')),
         );
         if (parsed.success && parsed.data.id === id)
-          records.push({ ...record, path: this.path(id), manifest: parsed.data });
+          records.push({
+            ...record,
+            path: this.path(id),
+            phase: ['waiting', 'copying', 'verifying'].includes(record.phase)
+              ? 'succeeded'
+              : record.phase,
+            manifest: parsed.data,
+          });
         else
           records.push({
             ...record,
@@ -104,6 +111,7 @@ export class BackupStore {
     trigger: BackupManifest['trigger'];
     protectedBy?: string;
     signal?: AbortSignal;
+    reserved?: boolean;
     progress?: (record: BackupRecord) => void;
   }): Promise<BackupManifest> {
     const { Sqlite, migrations, config, dataDir, appVersion, commit } = this.options;
@@ -117,7 +125,15 @@ export class BackupStore {
       throw new Error('Invalid backup directory');
     await chmod(this.options.directory, 0o700);
     // Exclusive creation prevents overwriting a usable backup or replaying the same operation.
-    await mkdir(directory, { mode: 0o700 });
+    if (input.reserved) {
+      const reserved = await readJson<BackupRecord>(join(directory, 'record.json'));
+      if (
+        reserved?.id !== id ||
+        reserved.phase !== 'waiting' ||
+        (await readJson(join(directory, 'snapshot.json')))
+      )
+        throw new Error('Invalid backup reservation');
+    } else await mkdir(directory, { mode: 0o700 });
     const record: BackupRecord = {
       id,
       phase: 'copying',
@@ -138,7 +154,8 @@ export class BackupStore {
       if (!configStat.isFile() || configStat.size > MAX_CONFIG_BYTES)
         throw new Error('Invalid config file');
       const contents = await readFile(config, 'utf8');
-      parseFileConfig(JSON.parse(contents));
+      if (parseConfig(JSON.parse(contents), config).dataDir !== resolve(dataDir))
+        throw new Error('Saved configuration no longer identifies the running data directory');
       const configFile = await open(join(directory, 'config.json'), 'wx', 0o600);
       try {
         await configFile.writeFile(contents);

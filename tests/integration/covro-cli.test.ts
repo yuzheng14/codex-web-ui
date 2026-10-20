@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
 import { afterEach, expect, it } from 'vitest';
+import { verifyDatabaseContract } from '../../scripts/verify-database-contract.js';
 import { parseArguments } from '../../src/cli/main.js';
 
 const exec = promisify(execFile);
@@ -77,8 +78,27 @@ it('runs the real daemon, reuses its private control socket, and preserves its d
   const again = JSON.parse((await cli('start')).stdout) as { pid: number };
   expect(again.pid).toBe(first?.pid);
   expect((await fetch(`${origin}/api/projects`)).ok).toBe(true);
+  const backup = JSON.parse((await cli('backup', 'create')).stdout) as {
+    id: string;
+    phase: string;
+  };
+  expect(backup.phase).toBe('succeeded');
+  const list = JSON.parse((await cli('backup', 'list')).stdout) as { records: { id: string }[] };
+  expect(list.records.some((record) => record.id === backup.id)).toBe(true);
+  await expect(cli('backup', 'restore', backup.id, '--confirm', backup.id)).rejects.toThrow(
+    'covro stop',
+  );
   await cli('stop');
   if (foreground.exitCode === null) await once(foreground, 'exit');
   expect((await cli('status')).stdout).toContain('未运行');
+  expect(JSON.parse((await cli('backup', 'verify', backup.id)).stdout).schemaVersion).toBe(
+    verifyDatabaseContract().schemaVersion,
+  );
+  const preview = JSON.parse((await cli('backup', 'restore', backup.id)).stdout);
+  expect(preview.backupId).toBe(backup.id);
+  const restored = JSON.parse(
+    (await cli('backup', 'restore', backup.id, '--confirm', backup.id)).stdout,
+  );
+  expect(restored.restored).toBe(true);
   expect((await readFile(join(root, 'data/app.sqlite'))).length).toBeGreaterThan(0);
 });

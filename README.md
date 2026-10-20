@@ -54,6 +54,8 @@ DB Schema **6** is tracked independently of the application version. Releases de
 
 Managed upgrades create and validate a private backup of the Covro database and service configuration before replacing the installation. A failed backup blocks activation. These snapshots do not include Codex history, credentials or project files. See [backup scope](docs/backups.md).
 
+Use `covro backup create`, `covro backup list` and `covro backup verify ID` for manual snapshots. Preview offline recovery with `covro backup restore ID`; stop the service and repeat with `--confirm ID` to apply it. See [recovery instructions](docs/backups.md#manual-backups-and-offline-recovery).
+
 ## 🚀 Get started
 
 You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The interface supports Simplified Chinese, English, Japanese and Korean. Choose **Language** in the sidebar; the first visit follows your browser preferences, and manual choices are saved on this device.
