@@ -8,17 +8,16 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-import { access, readFile, mkdir, open, readdir, rm, rename } from 'node:fs/promises';
+import { access, readFile, mkdir, readdir, rm, rename } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { setTimeout } from 'node:timers/promises';
-import { spawn } from 'node:child_process';
-import { homedir } from 'node:os';
 import lockfile from 'proper-lockfile';
 import type Database from 'better-sqlite3';
 import type { UpdateRun } from '../shared/updates.js';
 import type { UpdateContext } from './manager.js';
-import { control, isNotRunning, stopAndWait } from '../cli/control.js';
+import { control, isNotRunning } from '../cli/control.js';
+import { startBackground, stopBackground } from '../cli/background.js';
 import { copyDurable, readJson, saveJson } from './files.js';
 import { activateUpdate, transactionPaths } from './transaction.js';
 import { inspectInstallation, registry } from './registry.js';
@@ -33,65 +32,13 @@ type DaemonStatus = {
   codexReady?: boolean;
 };
 
-async function startService(context: UpdateContext, activation?: string) {
-  const installed = await readJson<{ platform: string; label: string }>(
-    join(context.location.state, 'service.json'),
-  );
-  if (installed) {
-    // The activation run is durable; a service does not need to inherit transient shell variables.
-    if (installed.platform === 'darwin')
-      await exec('launchctl', [
-        'bootstrap',
-        `gui/${process.getuid!()}`,
-        join(homedir(), 'Library/LaunchAgents', `${installed.label}.plist`),
-      ]);
-    else await exec('systemctl', ['--user', 'start', `${installed.label}.service`]);
-  } else {
-    const log = await open(context.location.log, 'a', 0o600);
-    try {
-      const child = spawn(
-        process.execPath,
-        [join(context.root, 'bin/covro.mjs'), 'run', '--config', context.location.config],
-        {
-          detached: true,
-          stdio: ['ignore', log.fd, log.fd],
-          windowsHide: true,
-          env: {
-            ...process.env,
-            COVRO_HOME: context.location.home,
-            ...(activation ? { COVRO_ACTIVATING: activation } : {}),
-          },
-        },
-      );
-      await new Promise<void>((done, reject) => {
-        child.once('spawn', done);
-        child.once('error', reject);
-      });
-      child.unref();
-    } finally {
-      await log.close();
-    }
-  }
+async function startService(context: UpdateContext) {
+  // Shared with `covro start`: never inherit a Background security session on macOS.
+  // Activation is checked from the durable update record by the daemon.
+  await startBackground(context.location, join(context.root, 'bin/covro.mjs'));
 }
 async function stopService(context: UpdateContext) {
-  await stopAndWait(context.location);
-  const installed = await readJson<{ platform: string; label: string }>(
-    join(context.location.state, 'service.json'),
-  );
-  if (installed?.platform === 'linux')
-    await exec('systemctl', ['--user', 'stop', `${installed.label}.service`]);
-  else if (installed?.platform === 'darwin') {
-    const target = `gui/${process.getuid!()}/${installed.label}`;
-    try {
-      await exec('launchctl', ['bootout', target]);
-    } catch (error) {
-      const stillLoaded = await exec('launchctl', ['print', target]).then(
-        () => true,
-        () => false,
-      );
-      if (stillLoaded) throw error;
-    }
-  }
+  await stopBackground(context.location);
 }
 
 async function verifyRestoredService(context: UpdateContext, version: string) {
@@ -317,7 +264,7 @@ async function worker(directory: string) {
       },
       stop: () => stopService(context),
       start: async (candidate) => {
-        await startService(context, candidate ? record!.id : undefined);
+        await startService(context);
         if (!candidate) await verifyRestoredService(context, record!.from);
       },
       verify: async () => {

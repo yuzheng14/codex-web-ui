@@ -84,6 +84,8 @@ The npm CLI uses `~/.covro/config.json` and a fixed data directory beside it. Re
 
 Open **Service configuration → Advanced settings** to edit size limits in MiB (1 MiB = 1024 × 1024 bytes). Decimal values must correspond to whole bytes; existing byte values are preserved exactly. JSON files and the API continue to use bytes. Saved changes take effect after restarting the service.
 
+On macOS, background startup uses the logged-in user's GUI launchd domain so commands can access existing Keychain credentials when their execution permissions allow it. This does not enable login auto-start; use `covro service install` for that. Without a desktop session, headless startup remains available with a Keychain access notice. After installing this fix, restart existing instances with `covro stop` and `covro start`. See [macOS background startup](docs/distribution.md#macos-sessions-and-credentials).
+
 <a id="run-from-source"></a>
 
 ### 🛠️ Run from source

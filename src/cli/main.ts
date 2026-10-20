@@ -1,9 +1,8 @@
 import type { UpdateStatus } from '../shared/updates.js';
-import { spawn } from 'node:child_process';
-import { mkdir, open } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
 import { join } from 'node:path';
-import { setTimeout } from 'node:timers/promises';
-import { control, isNotRunning, stopAndWait } from './control.js';
+import { control, isNotRunning } from './control.js';
+import { startBackground as startManagedBackground, stopBackground } from './background.js';
 import { randomUUID } from 'node:crypto';
 import { ensureConfig, packageInfo, packageRoot, paths, type CovroPaths } from './paths.js';
 import { runDaemon } from './daemon.js';
@@ -50,34 +49,7 @@ export async function startBackground(location: CovroPaths) {
     if (!isNotRunning(error)) throw error;
   }
   await ensureConfig(location);
-  await mkdir(location.state, { recursive: true, mode: 0o700 });
-  const log = await open(location.log, 'a', 0o600);
-  const child = spawn(
-    process.execPath,
-    [join(packageRoot, 'bin/covro.mjs'), 'run', '--config', location.config],
-    {
-      detached: true,
-      stdio: ['ignore', log.fd, log.fd],
-      windowsHide: true,
-    },
-  );
-  let failure: Error | undefined;
-  child.once('error', (error) => {
-    failure = error;
-  });
-  child.unref();
-  await log.close();
-  for (let i = 0; i < 240; i++) {
-    if (failure) throw failure;
-    try {
-      return await control(location, 'status');
-    } catch (error) {
-      if (!isNotRunning(error)) throw error;
-    }
-    if (child.exitCode !== null) throw new Error(`Covro 启动失败，请查看 ${location.log}`);
-    await setTimeout(250);
-  }
-  throw new Error(`Covro 尚未确认启动，请运行 covro status 并查看 ${location.log}`);
+  return startManagedBackground(location, join(packageRoot, 'bin/covro.mjs'));
 }
 
 export async function main(args = process.argv.slice(2)) {
@@ -129,7 +101,7 @@ export async function main(args = process.argv.slice(2)) {
   } else if (command === 'status' || command === 'stop') {
     try {
       if (command === 'stop') {
-        await stopAndWait(location);
+        await stopBackground(location);
         console.log('Covro 已停止');
       } else console.log(JSON.stringify(await control(location, command), null, 2));
     } catch (error) {

@@ -21,6 +21,16 @@ covro service uninstall
 
 macOS 使用当前用户的 launchd，Linux 使用 `systemd --user`，`service install` 显式启用登录自启并启动服务。它记录当前 Node、CLI 的绝对路径及 PATH；移动 Node 安装后需要重新安装该服务。日志由 `covro logs` 显示末尾 64 KiB，外部日志轮转仍由运行环境管理。Windows 支持前台和后台运行，登录自启尚未提供。
 
+<a id="macos-sessions-and-credentials"></a>
+
+## macOS 后台启动
+
+有桌面登录会话时，默认后台启动使用 `gui/<uid>` 的临时 Aqua LaunchAgent。任务定义保存在当前实例状态目录，退出桌面会话后不会在下次登录自动启动；只有 `covro service install` 才会写入 `~/Library/LaunchAgents` 并启用登录自启。`covro stop` 正常关闭实例并卸载任务，但保留显式安装的登录项供下次登录使用。不同配置的任务与生命周期锁互相独立。
+
+临时后台启动通过权限为 `0600` 的本地 socket 在内存中继承调用进程的环境和工作目录，启动完成即移除 socket，不把 `GH_TOKEN`、API key 等环境凭证写入 plist 或日志。登录自启没有可继承的终端环境，因此只记录 Node/CLI 绝对路径、`PATH`、`COVRO_HOME` 和已设置的 `CODEX_HOME`；其他环境配置应遵循原有系统服务的部署方式。升级、回滚和 `update repair` 复用相同启动逻辑；旧版已运行的实例需要在安装修复后执行一次 `covro stop` 和 `covro start`。
+
+没有 GUI 登录会话时，未安装登录服务的实例仍可 headless 后台运行，但不保证能够读取桌面钥匙串。GUI 域查询或加载失败会直接报错，不会静默切换到另一种安全会话。登录服务需要桌面登录会话，不能作为系统启动前的 LaunchDaemon 使用。
+
 配置、数据库和项目文件不存放在 npm 安装目录，更新 npm 包不会替换业务数据。开发源码继续使用 `pnpm dev`，生产源码仍可使用 `pnpm build` 和 `pnpm start -- --config ...`。
 
 ## 更新与发布渠道
