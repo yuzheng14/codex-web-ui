@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { Children, createContext, isValidElement, useContext, type ReactNode } from 'react';
 import Markdown, { defaultUrlTransform, type Components, type UrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { localPreviewPath, localPreviewUrl, relativeToFile } from '../lib/local-files';
@@ -7,6 +7,8 @@ import { localImagePath, localImageUrl } from '../lib/local-images';
 import { LocalImage, RemoteImage, useImagePreview } from './ImagePreview';
 import { ControlHint } from './ControlHint';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock';
+import { MermaidBlock } from './MermaidBlock';
+import { isClosedCodeFence } from '../lib/markdown-fence';
 
 // Preserve the default protocol allowlist for ordinary links and remote images.
 const transformUrl: UrlTransform = (url, key) =>
@@ -16,10 +18,28 @@ const transformUrl: UrlTransform = (url, key) =>
 
 const BaseFileContext = createContext<string | undefined>(undefined);
 const ImageLinkContext = createContext(false);
+const SourceContext = createContext({ text: '', streaming: false });
 
 // Stable renderer identities preserve table focus and image state while streaming.
 const markdownComponents: Components = {
-  pre: MarkdownCodeBlock,
+  pre: function CodeBlock({ children, node }) {
+    const { text, streaming } = useContext(SourceContext);
+    const code = Children.toArray(children)[0];
+    if (
+      isValidElement<{ className?: string; children?: ReactNode }>(code) &&
+      code.type === 'code' &&
+      code.props.className?.toLowerCase() === 'language-mermaid'
+    ) {
+      const fenced = text.slice(node?.position?.start.offset, node?.position?.end.offset);
+      return (
+        <MermaidBlock
+          source={String(code.props.children ?? '')}
+          pending={streaming && !isClosedCodeFence(fenced)}
+        />
+      );
+    }
+    return <MarkdownCodeBlock>{children}</MarkdownCodeBlock>;
+  },
   a: function FileLink({ children, href, title }) {
     const { threadId, open } = useImagePreview();
     const baseFile = useContext(BaseFileContext);
@@ -100,19 +120,29 @@ const markdownComponents: Components = {
   ),
 };
 
-export function MarkdownContent({ text, baseFile }: { text: string; baseFile?: string }) {
+export function MarkdownContent({
+  text,
+  baseFile,
+  streaming = false,
+}: {
+  text: string;
+  baseFile?: string;
+  streaming?: boolean;
+}) {
   return (
     <BaseFileContext value={baseFile}>
-      <div className="markdown">
-        <Markdown
-          skipHtml
-          remarkPlugins={[remarkGfm]}
-          components={markdownComponents}
-          urlTransform={transformUrl}
-        >
-          {text}
-        </Markdown>
-      </div>
+      <SourceContext value={{ text, streaming }}>
+        <div className="markdown">
+          <Markdown
+            skipHtml
+            remarkPlugins={[remarkGfm]}
+            components={markdownComponents}
+            urlTransform={transformUrl}
+          >
+            {text}
+          </Markdown>
+        </div>
+      </SourceContext>
     </BaseFileContext>
   );
 }

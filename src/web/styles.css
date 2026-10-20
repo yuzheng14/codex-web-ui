@@ -1482,6 +1482,89 @@ svg {
   overflow-wrap: normal;
   outline-offset: -3px;
 }
+.mermaid-block {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  color: #48515b;
+  overflow: hidden;
+}
+.mermaid-block:last-child {
+  margin-bottom: 0;
+}
+.mermaid-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: #f7f8f8;
+}
+.mermaid-label {
+  margin-right: auto;
+  font-size: 12px;
+  font-weight: 600;
+}
+.mermaid-toolbar .button {
+  padding: 5px 7px;
+  min-height: 32px;
+  color: inherit;
+}
+.markdown .mermaid-notice,
+.markdown .mermaid-feedback {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+.mermaid-error {
+  color: #ae3e39;
+}
+.mermaid-diagram {
+  padding: 16px;
+  max-height: min(65vh, 640px);
+  overflow: auto;
+  outline-offset: -3px;
+}
+.mermaid-diagram img {
+  display: block;
+  height: auto;
+  margin: 0 auto;
+}
+.mermaid-diagram.mermaid-actual-size img {
+  max-width: none;
+  margin: 0;
+}
+.markdown .mermaid-source {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  max-height: min(65vh, 640px);
+  white-space: pre;
+  overflow: auto;
+  overflow-wrap: normal;
+  outline-offset: -3px;
+}
+.mermaid-block[data-theme='dark'] {
+  background: #20252b;
+  color: #e2e8ee;
+  border-color: #46515b;
+}
+.mermaid-block[data-theme='dark'] .mermaid-toolbar,
+.mermaid-block[data-theme='dark'] .mermaid-source {
+  background: #252c33;
+  border-color: #46515b;
+}
+.mermaid-block[data-theme='dark'] .mermaid-error {
+  color: #ffb5af;
+}
+.mermaid-block[data-theme='dark'] .button-ghost:hover:not(:disabled),
+.mermaid-block[data-theme='dark'] .button[aria-pressed='true'] {
+  background: #36424d;
+}
 .markdown blockquote {
   margin-left: 0;
   border-left: 3px solid #d4dfd6;
