@@ -72,7 +72,7 @@ jobs:
           cache: pnpm
       - if: steps.release.outputs.release_created == 'true'
         run: pnpm install --frozen-lockfile
-      - name: Add the tagged package's Codex compatibility to Release notes
+      - name: Add author mentions and tagged Codex compatibility to Release notes
         if: steps.release.outputs.release_created == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
