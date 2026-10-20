@@ -22,6 +22,7 @@ import {
 import { ControlHint } from './ControlHint';
 import type { SentDraft } from '../lib/conversation-drafts';
 import { useUpgradeReloadState } from '../lib/upgrade-reload';
+import { ComposerResizeHandle } from './ComposerResizeHandle';
 
 interface Props {
   commands: SlashCommand[];
@@ -77,6 +78,7 @@ export function Composer(props: Props) {
   const sendingRef = useRef(new Set<string>());
   const submittedDrafts = useRef(new Map<string, MessageDraft>());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputId = useId();
   const menuId = useId();
   const [focused, setFocused] = useState(false);
   const [menu, setMenu] = useState({ key: '', text: '', selectedIndex: 0, dismissed: false });
@@ -307,6 +309,7 @@ export function Composer(props: Props) {
         </div>
       )}
       <div className="composer-box">
+        <ComposerResizeHandle textareaRef={textareaRef} inputId={inputId} />
         {feedback[key] && (
           <p className="slash-feedback" role={feedback[key].error ? 'alert' : 'status'}>
             {feedback[key].message}
@@ -360,6 +363,7 @@ export function Composer(props: Props) {
           </p>
         )}
         <textarea
+          id={inputId}
           ref={textareaRef}
           aria-label={active ? '追加要求' : '任务内容'}
           aria-haspopup="listbox"

@@ -1818,6 +1818,7 @@ svg {
   }
 }
 .composer-box {
+  position: relative;
   border: 1px solid #d9dfda;
   border-radius: 12px;
   background: #fff;
@@ -1827,6 +1828,52 @@ svg {
 .composer-box:focus-within {
   border-color: #96afa0;
   box-shadow: 0 0 0 2px #5e956410;
+}
+.composer-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #9baaa0;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+}
+.composer-resize-handle svg {
+  position: absolute;
+  top: 0;
+  right: 0;
+  pointer-events: none;
+}
+.composer-resize-handle path {
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.composer-resize-handle:hover,
+.composer-resize-handle:focus-visible,
+.composer-resize-handle:active,
+.composer-resize-handle[data-resizing='true'] {
+  color: var(--accent);
+}
+.composer-resize-handle:focus-visible {
+  outline: none;
+}
+html.composer-resizing,
+html.composer-resizing * {
+  cursor: ns-resize !important;
+  user-select: none !important;
+}
+@media (pointer: coarse) {
+  .composer-resize-handle {
+    width: 44px;
+    height: 44px;
+  }
 }
 .slash-menu {
   border-bottom: 1px solid #e1e8e3;
@@ -1844,6 +1891,9 @@ svg {
 .slash-menu-heading > span,
 .slash-menu-footer {
   color: #748379;
+}
+.slash-menu-heading {
+  padding-right: 48px;
 }
 .slash-options {
   max-height: min(260px, 30dvh);
@@ -1900,6 +1950,7 @@ svg {
   overflow-wrap: anywhere;
 }
 .slash-feedback {
+  padding-right: 48px;
   border-bottom: 1px solid #e1e8e3;
   background: #f4f8f4;
 }
@@ -1908,11 +1959,13 @@ svg {
   background: #fdf7f1;
 }
 .composer-box textarea {
+  --composer-min-height: 93px;
+  --composer-max-height: 230px;
   width: 100%;
-  resize: vertical;
-  min-height: 93px;
-  max-height: 230px;
-  padding: 17px 17px 7px;
+  resize: none;
+  min-height: var(--composer-min-height);
+  max-height: min(var(--composer-max-height), var(--composer-available-height, 230px));
+  padding: 17px 44px 7px 17px;
   border: 0;
   outline: 0;
   font-size: 13px;
@@ -1928,7 +1981,7 @@ svg {
   flex-wrap: wrap;
   gap: 10px;
   margin: 0;
-  padding: 14px 14px 0;
+  padding: 14px 44px 0 14px;
   list-style: none;
 }
 .composer-images li {
@@ -3209,9 +3262,9 @@ dd {
     margin-left: 0;
   }
   .composer-box textarea {
-    min-height: 83px;
+    --composer-min-height: 83px;
     font-size: 13px;
-    padding: 14px 13px 5px;
+    padding: 14px 48px 5px 13px;
   }
   .composer-target {
     max-width: 120px;
