@@ -273,3 +273,117 @@ it('projects only the renamed title, and rolls back onto the latest server field
   store.settleMutation('rename');
   expect(store.snapshot.a?.data).toEqual([latest]);
 });
+
+describe('cached conversation list reconciliation', () => {
+  const cached = (id: string): ThreadSummary => ({
+    ...summary(id),
+    status: 'unknown',
+    managed: false,
+  });
+  it('retains cached tails after one page and only removes absent rows after a complete traversal', () => {
+    const store = new ProjectThreadsStore();
+    store.restoreCached('a', [cached('one'), cached('two'), cached('removed')]);
+    store.finishRead(
+      store.beginRead('a'),
+      page([{ ...summary('one'), title: 'renamed elsewhere' }, summary('new')], 2, 'next'),
+    );
+    expect(store.snapshot.a?.data.map((row) => row.id)).toEqual(['new', 'one', 'removed', 'two']);
+    expect(store.snapshot.a?.unverified).toEqual(['two', 'removed']);
+    expect(store.snapshot.a?.nextCursor).toBe('next');
+    store.finishRead(store.beginRead('a', true), page([summary('two'), summary('one')], 3));
+    expect(store.snapshot.a?.data.map((row) => row.id)).toEqual(['new', 'one', 'two']);
+    expect(store.snapshot.a?.unverified).toEqual([]);
+  });
+  it('ignores late cache rows superseded by HTTP, archive events, receipts or project removal', () => {
+    const store = new ProjectThreadsStore();
+    store.finishRead(store.beginRead('a'), page([summary('one')], 4, 'next'));
+    store.applySummary({ ...summary('archived'), archived: true }, cursor(5));
+    store.restoreCached('a', [cached('one'), cached('archived'), cached('tail')]);
+    expect(store.snapshot.a?.data.map((row) => row.id)).toEqual(['one', 'tail']);
+    expect(store.snapshot.a?.data[0]?.status).toBe('idle');
+    store.beginMutation('rename', 'tail', { projectId: 'a', title: 'chosen name' });
+    store.restoreCached('a', [cached('tail')]);
+    expect(store.snapshot.a?.data[1]?.title).toBe('chosen name');
+    const old = store.beginRead('a');
+    store.settleMutation('rename', {
+      threadId: 'tail',
+      summary: { ...summary('tail'), title: 'chosen name' },
+      cursor: cursor(9),
+    });
+    store.finishRead(old, page([summary('tail')], 6));
+    expect(store.snapshot.a?.data).toEqual([{ ...summary('tail'), title: 'chosen name' }]);
+    expect(store.restoreCached('a', [cached('gone')])).toBe(false);
+  });
+  it('leaves failed cached lists readable and discards them on forbidden results', () => {
+    const store = new ProjectThreadsStore();
+    const read = store.beginRead('a');
+    store.restoreCached('a', [cached('one')]);
+    store.failRead(read, 'offline');
+    expect(store.snapshot.a).toMatchObject({
+      data: [cached('one')],
+      unverified: ['one'],
+      error: 'offline',
+      loading: false,
+    });
+    store.failRead(store.beginRead('a'), 'forbidden', undefined, true);
+    expect(store.snapshot.a?.data).toEqual([]);
+    expect(store.snapshot.a?.unverified).toBeUndefined();
+  });
+  it('never persists optimistic archive or title projections', () => {
+    const store = new ProjectThreadsStore();
+    store.restoreCached('a', [cached('one')]);
+    store.beginMutation('rename', 'one', { projectId: 'a', title: 'pending' });
+    store.beginMutation('archive', 'one', { projectId: 'a', archived: true });
+    expect(store.snapshot.a?.data).toEqual([]);
+    expect(store.cacheRows('a')).toEqual([cached('one')]);
+  });
+});
+
+it('discards only unverified cached rows when cache identity changes, and blocks late forbidden cache reads', () => {
+  const store = new ProjectThreadsStore();
+  store.restoreCached('a', [summary('cached'), summary('live')]);
+  store.applySummary(summary('live', 'a', 'running'), cursor(2));
+  expect(store.discardCached()).toBe(true);
+  expect(store.snapshot.a?.data).toEqual([summary('live', 'a', 'running')]);
+  const denied = store.beginRead('a');
+  store.failRead(denied, 'denied', undefined, true);
+  expect(store.restoreCached('a', [summary('cached')])).toBe(false);
+  expect(store.snapshot.a?.data).toEqual([]);
+});
+
+it('preserves new realtime rows observed between pages even when a later page has a newer global cursor', () => {
+  const store = new ProjectThreadsStore();
+  store.finishRead(store.beginRead('a'), page([summary('one')], 1, 'more'));
+  store.applySummary(summary('new'), cursor(2));
+  store.finishRead(store.beginRead('a', true), page([summary('two')], 3));
+  expect(store.snapshot.a?.data.map((row) => row.id)).toEqual(['new', 'one', 'two']);
+});
+
+it('keeps confirmed archive, restore and rename metadata across filter changes and stale cache hydration', () => {
+  const store = new ProjectThreadsStore();
+  store.applySummary(summary('one'), cursor(1));
+  store.applySummary({ ...summary('one'), archived: true, title: 'confirmed title' }, cursor(3));
+  store.setArchived(true);
+  store.restoreCached('a', [{ ...summary('one'), archived: true }]);
+  expect(store.snapshot.a?.data[0]?.title).toBe('confirmed title');
+  store.setArchived(false);
+  store.restoreCached('a', [summary('one')]);
+  expect(store.snapshot.a?.data ?? []).toEqual([]);
+  store.applySummary({ ...summary('one'), title: 'restored name' }, cursor(5));
+  store.setArchived(true);
+  store.restoreCached('a', [{ ...summary('one'), archived: true }]);
+  expect(store.snapshot.a?.data ?? []).toEqual([]);
+  store.setArchived(false);
+  store.restoreCached('a', [summary('one')]);
+  expect(store.snapshot.a?.data[0]?.title).toBe('restored name');
+});
+
+it('retains absence from a complete server result across filter changes', () => {
+  const store = new ProjectThreadsStore();
+  store.restoreCached('a', [summary('removed')]);
+  store.finishRead(store.beginRead('a'), page([], 2));
+  store.setArchived(true);
+  store.setArchived(false);
+  store.restoreCached('a', [summary('removed')]);
+  expect(store.snapshot.a?.data ?? []).toEqual([]);
+});
