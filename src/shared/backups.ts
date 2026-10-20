@@ -45,17 +45,20 @@ export const backupManifestSchema = z
       value.migrationHashes.length === value.schemaVersion,
   );
 export type BackupManifest = z.infer<typeof backupManifestSchema>;
-export interface BackupRecord {
-  id: string;
-  phase: (typeof backupPhases)[number];
-  trigger: (typeof backupTriggers)[number];
-  createdAt: number;
-  updatedAt: number;
-  path: string;
-  message: string;
-  progress?: number;
-  manifest?: BackupManifest;
-}
+export const backupRecordSchema = z
+  .object({
+    id: backupIdSchema,
+    phase: z.enum(backupPhases),
+    trigger: z.enum(backupTriggers),
+    createdAt: z.number().int().nonnegative().max(8_640_000_000_000_000),
+    updatedAt: z.number().int().nonnegative(),
+    path: z.string(),
+    message: z.string(),
+    progress: z.number().min(0).max(100).optional(),
+    manifest: backupManifestSchema.optional(),
+  })
+  .strict();
+export type BackupRecord = z.infer<typeof backupRecordSchema>;
 export interface BackupStatus {
   directory: string;
   schemaVersion: number;

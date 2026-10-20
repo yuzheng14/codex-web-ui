@@ -179,3 +179,10 @@ it('blocks startup after interrupted replacement and repairs the exact original 
   expect(JSON.parse(await readFile(config, 'utf8')).port).toBe(8787);
   await expect(assertNoPendingRestore(store.options.directory)).resolves.toBeUndefined();
 });
+
+it('fails closed when the durable restore journal is malformed', async () => {
+  const { store } = await setup();
+  await mkdir(store.options.directory, { recursive: true });
+  await writeFile(join(store.options.directory, 'restore.json'), 'null');
+  await expect(assertNoPendingRestore(store.options.directory)).rejects.toThrow();
+});

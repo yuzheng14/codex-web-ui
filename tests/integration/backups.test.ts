@@ -138,3 +138,13 @@ it('cancels incomplete snapshots and excludes concurrent backup/update/restore o
     await release();
   }
 });
+
+it('isolates malformed catalog metadata without crashing the record list', async () => {
+  const { store } = await fixture();
+  await store.create({ id: 'metadata', trigger: 'manual' });
+  await writeFile(
+    join(store.path('metadata'), 'record.json'),
+    JSON.stringify({ id: 'metadata', createdAt: 'invalid', phase: 'succeeded' }),
+  );
+  expect((await store.list())[0]).toMatchObject({ id: 'metadata', phase: 'corrupt', createdAt: 0 });
+});

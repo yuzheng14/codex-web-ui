@@ -40,7 +40,7 @@ async function hash(path: string) {
 }
 export async function assertNoPendingRestore(directory: string) {
   const value = await readJson(join(directory, 'restore.json'));
-  if (!value) return;
+  if (value === undefined) return;
   const journal = journalSchema.parse(value);
   if (['prepared', 'replacing'].includes(journal.phase))
     throw new AppError(

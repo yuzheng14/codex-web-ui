@@ -4726,3 +4726,116 @@ dd {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.backup-dialog {
+  width: min(680px, calc(100vw - 24px));
+}
+.backup-dialog > h3,
+.backup-scope h3 {
+  font-size: 14px;
+  margin: 20px 0 10px;
+}
+.backup-summary,
+.backup-actions,
+.backup-record-heading,
+.backup-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.backup-summary {
+  justify-content: space-between;
+  padding: 14px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.backup-summary strong {
+  color: inherit;
+}
+.backup-actions {
+  margin: 4px 0 16px;
+}
+.backup-progress,
+.backup-record,
+.backup-scope {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  min-width: 0;
+}
+.backup-progress {
+  margin: 14px 0;
+}
+.backup-progress p,
+.backup-record p,
+.backup-scope p {
+  margin: 8px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.backup-progress progress {
+  width: 100%;
+}
+.backup-records {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.backup-record-heading {
+  justify-content: space-between;
+  font-size: 13px;
+}
+.backup-record-heading span,
+.backup-record time {
+  font-size: 12px;
+  color: var(--muted);
+}
+.backup-record time {
+  display: block;
+  margin-top: 8px;
+}
+.backup-record[data-phase='failed'],
+.backup-record[data-phase='corrupt'],
+.backup-record[data-phase='interrupted'] {
+  border-color: var(--destructive);
+}
+.backup-path,
+.backup-restore code {
+  display: block;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 10px 0;
+  color: var(--muted);
+}
+.backup-restore {
+  margin-top: 14px;
+  font-size: 12px;
+}
+.backup-restore summary {
+  cursor: pointer;
+}
+.backup-scope,
+.backup-empty {
+  margin-top: 20px;
+  font-size: 13px;
+}
+.backup-scope h3 {
+  margin-top: 0;
+}
+.backup-notice {
+  font-size: 13px;
+}
+
+.backup-settings-button {
+  display: flex;
+  height: 26px;
+  min-height: 26px;
+  margin: -4px 0 8px -5px;
+  padding: 3px 5px;
+  font-size: 12px;
+}

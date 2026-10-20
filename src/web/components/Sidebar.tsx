@@ -3,7 +3,7 @@ import { displayMessage } from '../i18n/messages';
 import { t, changeLocale, currentLocale } from '../i18n';
 import { useState } from 'react';
 import { localeNames, supportedLocales, type Locale } from '../i18n/locales';
-import { ArrowUpCircle, Bell, Languages } from 'lucide-react';
+import { ArrowUpCircle, Bell, Languages, DatabaseBackup } from 'lucide-react';
 import type { Project, ThreadSummary } from '../../shared/types';
 import type { ProjectThreads } from '../lib/project-threads';
 import { cn } from '../lib/utils';
@@ -44,6 +44,7 @@ interface Props {
   onClose: () => void;
   onNotificationSettings: () => void;
   onGatewaySettings: () => void;
+  onBackups?: () => void;
   notificationStatus: string;
   onUpdates: () => void;
   appVersion?: string;
@@ -375,6 +376,15 @@ export function Sidebar(props: Props) {
           >
             <Icon name="settings" size={15} />
             <span>{t('common:service_settings')}</span>
+          </Button>
+          <Button
+            className="backup-settings-button"
+            variant="ghost"
+            size="sm"
+            onClick={props.onBackups}
+          >
+            <DatabaseBackup size={15} aria-hidden="true" />
+            <span>备份与恢复</span>
           </Button>
           <Button
             className="notification-settings-button"
