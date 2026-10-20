@@ -155,6 +155,8 @@ pnpm test:e2e
 
 浏览器测试需要现有 Playwright 依赖所对应的 Chromium。测试与 CI 使用明确的测试夹具，不发起真实模型请求。
 
+PR 标题须符合 Conventional Commits，例如 `feat(ui): add JSON preview` 或 `fix: preserve scroll position`。支持的 type、Release PR 检查及 squash 合并与发版约定见[开发与 PR 约定](docs/contributing.md)。
+
 遇到问题或有想法，欢迎[提交 Issue](https://github.com/yuzheng14/codex-web-ui/issues)，附上操作系统、Node.js 与 Codex 版本、安装方式和复现步骤。也欢迎范围明确的小 PR。修改面向使用者的事实或安装步骤时，请同步更新 `README.md` 和 `README.zh-CN.md`。
 
 <a id="文档导航"></a>

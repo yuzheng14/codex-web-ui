@@ -1,5 +1,7 @@
 # Covro 发版
 
+PR 标题检查、squash 提交信息与 Conventional Commits type 的约定见[开发与 PR 约定](contributing.md)。发布依据是 main 上最终提交的信息；标题检查本身不会触发版本递增。
+
 正式版本由 `release-please-action` v5.0.0 管理，固定提交 `45996ed1f6d02564a971a2fa1b5860e934307cf7`。main 的 checks 成功后更新 Release PR；合并 Release PR 后生成版本标签、CHANGELOG 和 GitHub Release，并显式触发 npm 发布。首个正式版本是 0.1.0，由包配置的 `initial-version` 指定；首发前 `.release-please-manifest.json` 保持空对象，表示没有已经发布的版本。清单中的版本代表上次发行，不能预填目标版本。首个 Release PR 合并后由 release-please 自动记录版本，后续按 Conventional Commits 递增；`initial-version` 不会锁住后续发行。
 
 首版 CHANGELOG 从完整 main 历史收集 Conventional Commits，默认包含 Features、Bug Fixes 等可发布条目。不设置 `bootstrap-sha` 或 `last-release-sha` 截断首发历史，确保项目早期功能也能进入首版说明；后续正式版按上次发行边界生成增量。修正首发配置后，先合并配置变更，等待 main 的 checks 和 release-please 完成并更新现有 Release PR，核对 CHANGELOG 的历史范围与版本号后再合并 Release PR。
