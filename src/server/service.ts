@@ -16,6 +16,7 @@ import type {
   ArchiveThreadInput,
   ConfirmCompatibilityInput,
   CreateProjectInput,
+  CloneProjectInput,
   CreateThreadInput,
   Cursor,
   ForkThreadInput,
@@ -48,6 +49,7 @@ import { EventHub } from './events.js';
 import { TurnUsageStore } from './db/turn-usage.js';
 import { Projection, isActive, isTerminal } from './projection.js';
 import { ProjectRegistry } from './projects.js';
+import { ProjectClones } from './project-clones.js';
 import { renderThreadExport } from './thread-export.js';
 import { readLocalImage } from './images.js';
 import { temporaryFileRoots, type FileScope } from './local-files.js';
@@ -66,6 +68,7 @@ export interface GatewayOptions {
 
 /** Coordinates durable intent, upstream effects, and the recoverable browser projection. */
 export class GatewayService {
+  readonly projectClones: ProjectClones;
   readonly shell: ShellService;
   readonly events: EventHub;
   readonly projection: Projection;
@@ -106,6 +109,15 @@ export class GatewayService {
       this.projects,
       options.workspacesRoot,
     );
+    this.projectClones = new ProjectClones(
+      (input) => {
+        this.workspaces.assertProjectDirectory(input.path);
+        const project = this.projects.add(input);
+        this.events.publishProjects(this.projects.list());
+        return project;
+      },
+      (path) => this.projects.list().some((project) => project.canonicalRoot === path),
+    );
     this.codex = options.codex;
     this.shell = new ShellService(this.codex);
     this.events = new EventHub(options.limits?.eventBytes);
@@ -140,6 +152,7 @@ export class GatewayService {
     this.maintenance = value;
   }
   prepareUpdate(): { ready: boolean; reason?: string } {
+    if (this.projectClones.hasActive) return { ready: false, reason: '等待项目克隆完成或取消' };
     if (this.shell.active()) return { ready: false, reason: '等待 Shell 命令结束' };
     if (this.inFlightOperations.size || this.resumes.size || this.pendingThreadCreations.size)
       return { ready: false, reason: '等待正在提交或恢复的操作完成' };
@@ -158,9 +171,16 @@ export class GatewayService {
   }
   addProject(input: CreateProjectInput) {
     this.workspaces.assertProjectDirectory(input.path);
+    this.projectClones.assertIdlePath(input.path);
     const project = this.projects.add(input);
     this.events.publishProjects(this.projects.list());
     return project;
+  }
+  cloneProject(input: CloneProjectInput) {
+    if (this.maintenance || !this.accepting)
+      throw new AppError('GATEWAY_STOPPING', '服务正在升级或停止，请稍后重试', 503);
+    this.workspaces.assertProjectDirectory(input.path);
+    return this.projectClones.start(input);
   }
   renameProject(projectId: string, input: RenameProjectInput) {
     const project = this.projects.rename(projectId, input);
@@ -1095,6 +1115,7 @@ export class GatewayService {
 
   async shutdown(): Promise<void> {
     this.accepting = false;
+    await this.projectClones.close();
     this.store.recover();
     this.projection.runtimeReset();
     this.removeListener();

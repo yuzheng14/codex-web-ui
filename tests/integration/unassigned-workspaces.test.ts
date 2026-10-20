@@ -58,6 +58,24 @@ describe('unassigned persistent workspaces', () => {
     expect(service.listProjects()).toEqual([]);
   });
 
+  it('rejects cloning into managed session directories before writing any files', async () => {
+    const thread = await create();
+    const alias = join(db.directory, 'workspace-alias');
+    symlinkSync(root, alias);
+    for (const path of [join(root, 'clone'), join(thread.cwd, 'clone'), join(alias, 'clone')]) {
+      expect(() =>
+        service.cloneProject({
+          clientOperationId: operationId(),
+          repository: 'https://example.test/repository.git',
+          path,
+        }),
+      ).toThrow(expect.objectContaining({ code: 'PROJECT_OWNERSHIP' }));
+      expect(existsSync(path)).toBe(false);
+    }
+    expect(service.projectClones.hasActive).toBe(false);
+    expect(service.listProjects()).toEqual([]);
+  });
+
   it('allocates distinct directories concurrently and deduplicates the same operation', async () => {
     const id = operationId();
     await Promise.all([create(id), service.createThread(null, { clientOperationId: id })]);

@@ -105,7 +105,9 @@ pnpm build
 pnpm start -- --config ./config.local.json
 ```
 
-Open **<http://127.0.0.1:8787>** and click **＋** beside **未关联项目** (Unassigned) in the sidebar to send a task without choosing a project. To work in an existing directory, click **添加项目** (Add project) and enter its path on the computer running Covro.
+Open **<http://127.0.0.1:8787>** and click **＋** beside **未关联项目** (Unassigned) in the sidebar to send a task without choosing a project.
+
+To work in a project directory, click **添加项目** (Add project), then choose an existing host directory or **克隆 Git 仓库** (Clone Git repository). For cloning, enter an HTTPS/SSH repository address, an absolute destination on the host, and an optional project name. Git must be available to the service and uses the host’s existing credentials. Follow progress or cancel in the dialog; once imported, open the project and send your first task. [Clone requirements and recovery](docs/project-clone.md).
 
 Unassigned conversations use separate directories under `<dataDir>/workspaces/`, allocated on the first send. Their files are retained until you explicitly remove them; archiving does not delete files. See [conversation workspaces](docs/workspaces.md) for directory, recovery, and backup details.
 

@@ -198,6 +198,20 @@ export function createApp({
     const op = await service.createThread(null, await parse(c, schemas.createThreadSchema));
     return c.json(op, status(op));
   });
+  app.post('/api/project-clones', async (c) =>
+    c.json(service.cloneProject(await parse(c, schemas.cloneProjectSchema)), 202),
+  );
+  app.get('/api/project-clones/:cloneId', (c) =>
+    c.json(service.projectClones.get(id(c.req.param('cloneId')))),
+  );
+  app.post('/api/project-clones/:cloneId/cancel', async (c) => {
+    await parse(c, schemas.removeProjectSchema);
+    return c.json(service.projectClones.cancel(id(c.req.param('cloneId'))));
+  });
+  app.post('/api/project-clones/:cloneId/register', async (c) => {
+    await parse(c, schemas.removeProjectSchema);
+    return c.json(service.projectClones.retryRegistration(id(c.req.param('cloneId'))));
+  });
   app.get('/api/projects/:projectId/runtime-settings', async (c) =>
     c.json(await service.readRuntimeSettings(id(c.req.param('projectId')))),
   );

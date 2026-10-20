@@ -1,5 +1,5 @@
 import { accessSync, constants, mkdirSync, realpathSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { AppError } from '../shared/errors.js';
 import type { AppDatabase } from './db/index.js';
@@ -156,7 +156,12 @@ export class WorkspaceRegistry {
     try {
       canonical = realpathSync(cwd);
     } catch {
-      return;
+      try {
+        // Clone destinations may not exist yet; their parent must already exist.
+        canonical = join(realpathSync(dirname(cwd)), basename(cwd));
+      } catch {
+        return;
+      }
     }
     this.assertOutsideManaged(canonical);
   }

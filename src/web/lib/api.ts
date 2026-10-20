@@ -6,6 +6,8 @@ import type {
   RuntimeSettings,
   Operation,
   Project,
+  ProjectClone,
+  CloneProjectInput,
   SystemInfo,
   ThreadSummaryPage,
   ThreadView,
@@ -73,6 +75,13 @@ export const api = {
     request<RuntimeSettings>(`${scopeApi(projectId)}/runtime-settings`),
   projects: () => request<{ data: Project[] }>('/api/projects'),
   addProject: (input: { path: string; name?: string }) => request<Project>('/api/projects', input),
+  cloneProject: (input: CloneProjectInput) => request<ProjectClone>('/api/project-clones', input),
+  projectClone: (id: string) =>
+    request<ProjectClone>(`/api/project-clones/${encodeURIComponent(id)}`),
+  cancelProjectClone: (id: string) =>
+    request<ProjectClone>(`/api/project-clones/${encodeURIComponent(id)}/cancel`, {}),
+  registerProjectClone: (id: string) =>
+    request<ProjectClone>(`/api/project-clones/${encodeURIComponent(id)}/register`, {}),
   renameProject: (id: string, name: string) =>
     request<Project>(`/api/projects/${encodeURIComponent(id)}/rename`, { name }),
   removeProject: (id: string) =>

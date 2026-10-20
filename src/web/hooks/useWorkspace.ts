@@ -1101,6 +1101,14 @@ export function useWorkspace() {
   return {
     projects,
     projectsLoaded,
+    openImportedProject: async (id: string) => {
+      projectRevision.current++;
+      await refreshProjects();
+      if (projectsRef.current.some((entry) => entry.id === id)) {
+        cancelResultNavigation();
+        selectProject(id);
+      }
+    },
     addProject: async (input: { path: string; name?: string }) => {
       projectRevision.current++;
       try {

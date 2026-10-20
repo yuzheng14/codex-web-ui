@@ -19,6 +19,7 @@ import { ProjectRegistry, type ProjectConfig } from '../../src/server/projects.j
 import { GatewayService } from '../../src/server/service.js';
 import type { Project, ThreadView } from '../../src/shared/types.js';
 import { deferred, DomainCodex, operationId, threadView } from './domain-helpers.js';
+import { gitCloneFixture } from '../helpers/git-clone.js';
 
 const cleanups: (() => void)[] = [];
 const origin = 'http://127.0.0.1:8787';
@@ -77,6 +78,7 @@ function setup(configure: (directory: string) => ProjectConfig[] = () => []) {
 }
 type Harness = ReturnType<typeof setup>;
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   for (const cleanup of cleanups.splice(0).reverse()) cleanup();
 });
@@ -699,4 +701,88 @@ describe('project identity and removal recovery regressions', () => {
       expect((await harness.post('/api/projects/configured/remove', {})).status).toBe(200);
     },
   );
+});
+
+describe('project clone HTTP lifecycle', () => {
+  it('guards clone routes, blocks registration and upgrades during cloning, and supports cancellation', async () => {
+    const h = setup();
+    for (const [key, value] of Object.entries(gitCloneFixture(h.directory))) vi.stubEnv(key, value);
+    const input = {
+      clientOperationId: operationId(),
+      repository: 'https://example.test/slow.git',
+      path: join(h.directory, 'clone'),
+    };
+    await expectError(
+      await h.post('/api/project-clones', input, 'https://evil.test'),
+      403,
+      'INVALID_ORIGIN',
+    );
+    await expectError(
+      await h.post('/api/project-clones', { ...input, extra: true }),
+      400,
+      'VALIDATION_FAILED',
+    );
+    const started = await h.post('/api/project-clones', input);
+    expect(started.status).toBe(202);
+    expect((await (await h.post('/api/project-clones', input)).json()).id).toBe(
+      input.clientOperationId,
+    );
+    expect(h.service.prepareUpdate()).toEqual({ ready: false, reason: '等待项目克隆完成或取消' });
+    await expectError(
+      await h.post('/api/projects', { path: input.path }),
+      409,
+      'CLONE_IN_PROGRESS',
+    );
+    expect((await h.post(`/api/project-clones/${input.clientOperationId}/cancel`, {})).status).toBe(
+      200,
+    );
+    await vi.waitFor(() =>
+      expect(h.service.projectClones.get(input.clientOperationId).status).toBe('cancelled'),
+    );
+    expect(
+      await (await h.request(`/api/project-clones/${input.clientOperationId}`)).json(),
+    ).toMatchObject({ status: 'cancelled' });
+    expect(h.projects.list()).toEqual([]);
+    expect(h.service.prepareUpdate()).toEqual({ ready: true });
+    await expectError(
+      await h.post('/api/project-clones', { ...input, clientOperationId: operationId() }),
+      503,
+      'UPDATE_MAINTENANCE',
+    );
+    await h.service.shutdown();
+  });
+
+  it('retries only registration after a successful clone and publishes projects', async () => {
+    const h = setup();
+    const fixture = gitCloneFixture(h.directory);
+    for (const [key, value] of Object.entries(fixture)) vi.stubEnv(key, value);
+    const add = vi.spyOn(h.projects, 'add').mockImplementationOnce(() => {
+      throw new Error('database unavailable');
+    });
+    const publish = vi.spyOn(h.service.events, 'publishProjects');
+    const id = operationId();
+    expect(
+      (
+        await h.post('/api/project-clones', {
+          clientOperationId: id,
+          repository: 'git@example.test:org/repo.git',
+          path: join(h.directory, 'clone'),
+          name: 'Imported',
+        })
+      ).status,
+    ).toBe(202);
+    await vi.waitFor(() =>
+      expect(h.service.projectClones.get(id).status).toBe('registration-failed'),
+    );
+    expect(h.projects.list()).toEqual([]);
+    const retry = await h.post(`/api/project-clones/${id}/register`, {});
+    expect(await retry.json()).toMatchObject({
+      status: 'completed',
+      project: { name: 'Imported', available: true },
+    });
+    expect(add).toHaveBeenCalledTimes(2);
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(readFileSync(fixture.COVRO_TEST_GIT_CALLS, 'utf8').trim().split('\n')).toHaveLength(1);
+    await h.service.shutdown();
+  });
 });
