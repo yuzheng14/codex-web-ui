@@ -7,6 +7,7 @@ import { formatTime } from '../lib/utils';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { isActive } from './Status';
+import { ThreadId } from './ThreadId';
 
 const connectionLabels: Record<ConnectionState, string> = {
   connecting: '正在连接',
@@ -170,6 +171,8 @@ export function Diagnostics({
   connection,
   operations,
   thread,
+  selectedId,
+  threadReadFailed,
   onRefresh,
   onReconcile,
   onDiscardMissing,
@@ -182,6 +185,8 @@ export function Diagnostics({
   connection: ConnectionState;
   operations: SavedOperation[];
   thread?: ThreadView;
+  selectedId?: string;
+  threadReadFailed: boolean;
   onRefresh: () => void;
   onReconcile: (id: string) => void;
   onDiscardMissing: (id: string) => void;
@@ -220,6 +225,24 @@ export function Diagnostics({
             {refreshing ? '正在核对…' : '刷新状态'}
           </Button>
         </div>
+        <section className="operation-section" aria-label="当前会话信息">
+          <h3>当前会话</h3>
+          <dl>
+            <dt>Thread ID</dt>
+            <dd>
+              <ThreadId
+                id={thread?.id === selectedId ? thread?.id : undefined}
+                placeholder={
+                  selectedId
+                    ? threadReadFailed
+                      ? '会话详情加载失败'
+                      : '正在加载会话详情…'
+                    : '会话尚未创建'
+                }
+              />
+            </dd>
+          </dl>
+        </section>
         <section className="operation-section">
           <h3>操作与状态核对</h3>
           <p className="subtle" role="status">

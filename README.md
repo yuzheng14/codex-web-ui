@@ -31,7 +31,7 @@
 
 - 📱 **Step away from your desk. Stay with the task.** Follow tool activity, inspect file changes, handle permission requests, and answer Codex's questions from your computer or phone. Closing the page doesn't cancel the task.
 - 🗂️ **See every project in one place.** Run independent tasks in parallel and spot which conversations are working, waiting for approval, or ready to read.
-- 💬 **Pick up your Codex CLI conversations.** Browse saved history, resume existing work, or fork a new direction. Rename conversations to find them later and archive them when you're done.
+- 💬 **Pick up your Codex CLI conversations.** Browse saved history, resume existing work, or fork a new direction. Rename conversations to find them later and archive them when you're done. View and copy the full Thread ID in conversation details or diagnostics.
 - ⚡ **Open long conversations sooner.** Recent messages appear first; scrolling preloads older history. On this device, cached pages can appear while the server checks for updates. [Loading and cache behavior](docs/session-history.md).
 - 📖 **Review the work beside the conversation.** Read Markdown documents with code, tables, and images, or open JSON files in a desktop side panel while you keep talking to Codex. JSON previews include indentation, syntax highlighting, and original text for invalid JSON. Copy the unchanged source, with a full-screen reader on mobile. File previews are read-only; Markdown and JSON files have a 2 MiB limit.
 - 🔎 **Inspect code changes.** Open Codex’s saved patches for a turn or tool in the same read-only panel. Switch files, inspect line numbers, see the exact words changed within each line, and jump between change blocks.
@@ -156,6 +156,8 @@ pnpm test:e2e
 ```
 
 Browser tests require the Chromium version used by the existing Playwright dependency. Tests and CI use explicit fixtures; they do not send real model requests.
+
+PR titles must follow Conventional Commits, for example `feat(ui): add JSON preview` or `fix: preserve scroll position`. See [PR checks and squash merge conventions](docs/contributing.md) for supported types, Release PRs, and release behavior.
 
 Found a problem or have an idea? [Open an issue](https://github.com/yuzheng14/codex-web-ui/issues). Include your OS, Node.js and Codex versions, installation method, and steps to reproduce. Small, focused PRs are welcome. Update both `README.md` and `README.zh-CN.md` when changing user-facing facts or setup instructions.
 

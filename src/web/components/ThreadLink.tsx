@@ -6,6 +6,7 @@ import { formatTime, cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { ControlHint } from './ControlHint';
+import { ThreadId } from './ThreadId';
 import { isActive, runStatusLabels, Status } from './Status';
 
 const statusIcons = {
@@ -205,6 +206,12 @@ export function ThreadLink({
       >
         <h3 id={`${detailsId}-title`}>{title}</h3>
         <dl>
+          <div className="thread-id-row">
+            <dt>Thread ID</dt>
+            <dd>
+              <ThreadId id={thread.id} />
+            </dd>
+          </div>
           <div>
             <dt>创建来源</dt>
             <dd>{origin.label}</dd>
