@@ -5,15 +5,10 @@ import { join } from 'node:path';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { stopAndWait } from './control.js';
 import { saveJson } from '../updates/files.js';
-import { packageRoot, type CovroPaths } from './paths.js';
+import { ensureConfig, packageRoot, type CovroPaths } from './paths.js';
+import { macOSLoginService } from './background.js';
 
 const exec = promisify(execFile);
-const xml = (value: string) =>
-  value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
 const unit = (value: string) =>
   `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('%', '%%')}"`;
 
@@ -24,56 +19,33 @@ export async function service(location: CovroPaths, install: boolean) {
     );
   const label = `dev.covro.${location.key}`;
   const entry = join(packageRoot, 'bin/covro.mjs');
+  if (process.platform === 'darwin') {
+    if (install) await ensureConfig(location);
+    await macOSLoginService(location, entry, install);
+    return;
+  }
   if (install) {
     await stopAndWait(location);
     await mkdir(location.state, { recursive: true, mode: 0o700 });
   }
-  if (process.platform === 'darwin') {
-    const directory = join(homedir(), 'Library/LaunchAgents');
-    const filename = join(directory, `${label}.plist`);
-    const domain = `gui/${process.getuid!()}`;
-    if (!install) {
-      await exec('launchctl', ['bootout', domain, filename]);
-      await rm(filename);
-      await rm(join(location.state, 'service.json'), { force: true });
-      return;
-    }
+  const directory = join(homedir(), '.config/systemd/user');
+  const filename = join(directory, `${label}.service`);
+  if (install) {
     await mkdir(directory, { recursive: true });
-    const args = [process.execPath, entry, 'run', '--config', location.config];
+    if (/[\r\n]/.test([entry, location.config, location.home, process.env.PATH].join('')))
+      throw new Error('服务路径和 PATH 不能包含换行');
     await writeFile(
       filename,
-      `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>
-<key>Label</key><string>${label}</string>
-<key>ProgramArguments</key><array>${args.map((arg) => `<string>${xml(arg)}</string>`).join('')}</array>
-<key>RunAtLoad</key><true/><key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict><key>ThrottleInterval</key><integer>30</integer>
-<key>EnvironmentVariables</key><dict><key>PATH</key><string>${xml(process.env.PATH ?? '/usr/bin:/bin')}</string><key>COVRO_HOME</key><string>${xml(location.home)}</string></dict>
-<key>StandardOutPath</key><string>${xml(location.log)}</string><key>StandardErrorPath</key><string>${xml(location.log)}</string>
-</dict></plist>\n`,
+      `[Unit]\nDescription=Covro\n[Service]\nExecStart=${[process.execPath, entry, 'run', '--config', location.config].map(unit).join(' ')}\nEnvironment=${unit(`COVRO_HOME=${location.home}`)} ${unit(`PATH=${process.env.PATH ?? '/usr/bin:/bin'}`)}\nRestart=on-failure\nRestartSec=30\n[Install]\nWantedBy=default.target\n`,
       { mode: 0o600 },
     );
-    await exec('launchctl', ['enable', `${domain}/${label}`]);
-    await exec('launchctl', ['bootstrap', domain, filename]);
-    await saveJson(join(location.state, 'service.json'), { platform: 'darwin', label });
+    await exec('systemctl', ['--user', 'daemon-reload']);
+    await exec('systemctl', ['--user', 'enable', '--now', `${label}.service`]);
+    await saveJson(join(location.state, 'service.json'), { platform: 'linux', label });
   } else {
-    const directory = join(homedir(), '.config/systemd/user');
-    const filename = join(directory, `${label}.service`);
-    if (install) {
-      await mkdir(directory, { recursive: true });
-      if (/[\r\n]/.test([entry, location.config, location.home, process.env.PATH].join('')))
-        throw new Error('服务路径和 PATH 不能包含换行');
-      await writeFile(
-        filename,
-        `[Unit]\nDescription=Covro\n[Service]\nExecStart=${[process.execPath, entry, 'run', '--config', location.config].map(unit).join(' ')}\nEnvironment=${unit(`COVRO_HOME=${location.home}`)} ${unit(`PATH=${process.env.PATH ?? '/usr/bin:/bin'}`)}\nRestart=on-failure\nRestartSec=30\n[Install]\nWantedBy=default.target\n`,
-        { mode: 0o600 },
-      );
-      await exec('systemctl', ['--user', 'daemon-reload']);
-      await exec('systemctl', ['--user', 'enable', '--now', `${label}.service`]);
-      await saveJson(join(location.state, 'service.json'), { platform: 'linux', label });
-    } else {
-      await exec('systemctl', ['--user', 'disable', '--now', `${label}.service`]);
-      await rm(filename);
-      await rm(join(location.state, 'service.json'), { force: true });
-      await exec('systemctl', ['--user', 'daemon-reload']);
-    }
+    await exec('systemctl', ['--user', 'disable', '--now', `${label}.service`]);
+    await rm(filename);
+    await rm(join(location.state, 'service.json'), { force: true });
+    await exec('systemctl', ['--user', 'daemon-reload']);
   }
 }

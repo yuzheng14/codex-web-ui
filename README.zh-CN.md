@@ -84,6 +84,8 @@ npm CLI 默认使用 `~/.covro/config.json`，数据目录固定在配置文件�
 
 在**服务配置 → 高级设置**中，以 MiB 编辑大小限制（1 MiB = 1024 × 1024 字节）。小数必须精确对应整数字节；已有字节值会原样保留。JSON 文件和 API 继续使用字节，保存后需重启服务生效。
 
+macOS 后台启动使用已登录用户的 GUI launchd 域，使权限允许的命令能够访问已有钥匙串凭证；这不会开启登录自启，登录自启仍需显式运行 `covro service install`。没有桌面会话时仍支持 headless 启动，并提示钥匙串访问限制。安装此修复后，已有实例需要执行 `covro stop` 和 `covro start` 重启。详见[macOS 后台启动](docs/distribution.md#macos-sessions-and-credentials)。
+
 <a id="从源码运行"></a>
 
 ### 🛠️ 从源码运行

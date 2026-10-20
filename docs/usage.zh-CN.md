@@ -22,6 +22,8 @@ covro update --channel dev
 
 默认后台常驻，`covro run` 可在前台调试；`covro service install` 单独启用登录自启。默认配置和数据保存在 `~/.covro/`，也可通过 `--config` 沿用现有配置。
 
+macOS 有桌面会话时使用 GUI launchd 后台运行，以保留系统钥匙串访问条件；不自动开启登录自启。安装会话修复后请停止并重新启动旧实例。详见[后台会话](distribution.md#macos-sessions-and-credentials)。
+
 网页侧栏的「Covro 更新」可检查版本、选择稳定/预览/开发渠道、开启空闲时自动升级，以及一键升级并重启。配置、项目和历史跨版本沿用，新版验证失败会恢复上一可用安装；降级仍需通过数据库兼容检查。发布与平台支持边界见 [分发和升级说明](distribution.md)。
 
 ## 源码开发与本机运行
