@@ -45,8 +45,16 @@ test.afterEach(async () => {
   }
   await rm(directory, { recursive: true, force: true });
 });
+async function openAddProject(page: Page) {
+  if ((page.viewportSize()?.width ?? 1280) < 760)
+    await page.getByRole('button', { name: '打开项目与会话', exact: true }).click();
+  await page
+    .getByRole('complementary', { name: '项目与会话' })
+    .getByRole('button', { name: '添加项目', exact: true })
+    .click();
+}
 async function form(page: Page, repository: string, target = 'project') {
-  await page.getByRole('button', { name: '添加项目', exact: true }).last().click();
+  await openAddProject(page);
   const dialog = page.getByRole('dialog', { name: '添加服务器项目' });
   await dialog.getByRole('button', { name: '克隆 Git 仓库', exact: true }).click();
   await dialog.getByRole('textbox', { name: 'Git 仓库地址', exact: true }).fill(repository);
@@ -108,7 +116,7 @@ test('shows progress, restores after reload, rejects duplicate requests and canc
   });
   expect(duplicate.status()).toBe(409);
   await page.reload();
-  await page.getByRole('button', { name: '添加项目', exact: true }).last().click();
+  await openAddProject(page);
   dialog = page.getByRole('dialog', { name: '添加服务器项目' });
   await dialog.getByRole('button', { name: '克隆 Git 仓库', exact: true }).click();
   await expect(dialog.getByRole('status')).toContainText('正在接收对象 42%');
