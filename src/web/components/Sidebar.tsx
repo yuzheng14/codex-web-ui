@@ -64,15 +64,6 @@ export function Sidebar(props: Props) {
   ];
   const groups = scopes.flatMap((project) => {
     const state = props.projectThreads[project.id];
-    // The global create button is always available; an empty group need not displace project history.
-    if (
-      !project.project &&
-      props.projects.length > 0 &&
-      props.projectId !== UNASSIGNED_SCOPE &&
-      !state?.data.length &&
-      !state?.error
-    )
-      return [];
     const matchesProject = `${project.name} ${project.rootPath}`
       .toLocaleLowerCase()
       .includes(query);
@@ -141,18 +132,6 @@ export function Sidebar(props: Props) {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <ControlHint asChild content="新建会话（无需项目）">
-              <Button
-                className="global-new-thread"
-                variant="secondary"
-                size="icon"
-                aria-label="新建会话（无需项目）"
-                onClick={() => props.onCreate(UNASSIGNED_SCOPE)}
-                disabled={!props.canCreate(UNASSIGNED_SCOPE) || props.creating(UNASSIGNED_SCOPE)}
-              >
-                <Icon name="plus" size={16} />
-              </Button>
-            </ControlHint>
             <span id="sidebar-search-summary" className="sr-only" role="status">
               {query
                 ? `搜索结果 · ${groups.length} 个分组`
@@ -195,6 +174,11 @@ export function Sidebar(props: Props) {
             const activeCount = (state?.data ?? []).filter((entry) =>
               isActive(entry.status),
             ).length;
+            const createLabel = props.creating(project.id)
+              ? '正在创建…'
+              : project.project
+                ? '新建会话'
+                : '新建会话（无需项目）';
             return (
               <section
                 key={project.id}
@@ -222,31 +206,29 @@ export function Sidebar(props: Props) {
                       )}
                     </button>
                   </ControlHint>
+                  <ControlHint content={createLabel}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={createLabel}
+                      onClick={() => props.onCreate(project.id)}
+                      disabled={!props.canCreate(project.id) || props.creating(project.id)}
+                    >
+                      <Icon name={props.creating(project.id) ? 'loader' : 'plus'} size={15} />
+                    </Button>
+                  </ControlHint>
                   {project.project && (
-                    <>
-                      <ControlHint content={props.creating(project.id) ? '正在创建…' : '新建会话'}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={props.creating(project.id) ? '正在创建…' : '新建会话'}
-                          onClick={() => props.onCreate(project.id)}
-                          disabled={!props.canCreate(project.id) || props.creating(project.id)}
-                        >
-                          <Icon name={props.creating(project.id) ? 'loader' : 'plus'} size={15} />
-                        </Button>
-                      </ControlHint>
-                      <ControlHint content={'管理项目'}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`管理项目 ${project.name}`}
-                          onClick={() => props.onManageProject(project.project!)}
-                          disabled={!props.canManageProjects}
-                        >
-                          <Icon name="settings" size={15} />
-                        </Button>
-                      </ControlHint>
-                    </>
+                    <ControlHint content={'管理项目'}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`管理项目 ${project.name}`}
+                        onClick={() => props.onManageProject(project.project!)}
+                        disabled={!props.canManageProjects}
+                      >
+                        <Icon name="settings" size={15} />
+                      </Button>
+                    </ControlHint>
                   )}
                 </h2>
                 {!project.available && (

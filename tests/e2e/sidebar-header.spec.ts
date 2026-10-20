@@ -45,10 +45,11 @@ test.afterEach(async ({ page }) => {
 });
 
 for (const viewport of [
-  { width: 1280, height: 900, minimumRows: 14 },
-  { width: 1024, height: 768, minimumRows: 10 },
-  { width: 390, height: 844, minimumRows: 12 },
-  { width: 320, height: 568, minimumRows: 5 },
+  // The empty unassigned group stays visible so its create button is discoverable.
+  { width: 1280, height: 900, minimumRows: 12 },
+  { width: 1024, height: 768, minimumRows: 9 },
+  { width: 390, height: 844, minimumRows: 11 },
+  { width: 320, height: 568, minimumRows: 3 },
 ]) {
   test(`compact sidebar keeps controls and long project details bounded at ${viewport.width}px`, async ({
     page,
@@ -61,6 +62,12 @@ for (const viewport of [
     await expect(page.locator('[data-thread-id]')).toHaveCount(30);
     const sidebar = page.getByRole('complementary', { name: '项目与会话' });
     await expect(sidebar).toBeInViewport();
+    await expect(
+      sidebar
+        .getByRole('region', { name: '未关联项目', exact: true })
+        .locator('.project-heading')
+        .getByRole('button', { name: '新建会话（无需项目）', exact: true }),
+    ).toBeInViewport();
     const metrics = await sidebar.evaluate((element) => {
       const tolerance = 1 / 64;
       const sidebar = element.getBoundingClientRect();

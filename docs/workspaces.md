@@ -2,7 +2,7 @@
 
 ## Start without a project
 
-Use the global **新建会话** (New conversation) button to start without choosing or registering a project. Project heading buttons still start conversations in that project. With no registered projects, the welcome page accepts a prompt directly.
+Click **＋** beside the **未关联项目** (Unassigned) heading to start without choosing or registering a project. This group remains visible even before its first conversation. Project heading buttons still start conversations in that project. With no registered projects, the welcome page accepts a prompt directly.
 
 The first send allocates `<dataDir>/workspaces/<creation-operation-UUID>/` on the computer running Covro. Opening a blank draft does not allocate a session directory. The shared `workspaces` parent may be created while reading default settings. `dataDir` follows the existing server configuration; there is no new required setting. Conversation titles are independent of directory names. The conversation header exposes its working directory.
 
@@ -18,7 +18,7 @@ File previews authorize the conversation's own workspace. Other allocated sessio
 
 ## 不选择项目直接开始
 
-点击全局 **新建会话**，无需选择或注册项目即可发送任务。项目标题旁的按钮仍在该项目内创建会话。没有注册任何项目时，欢迎页也可以直接输入和发送。
+点击侧栏 **未关联项目** 标题右侧的 **＋**，无需选择或注册项目即可发送任务；还没有这类会话时也会显示该分组。项目标题旁的按钮仍在该项目内创建会话。没有注册任何项目时，欢迎页也可以直接输入和发送。
 
 首次发送会在运行 Covro 的电脑上分配 `<dataDir>/workspaces/<创建操作 UUID>/`。打开空白草稿不会分配会话目录；读取默认设置时可能创建共享的 `workspaces` 父目录。根目录沿用现有服务端 `dataDir` 配置，无需新增配置项。会话改名不改变目录，标题下的“工作目录”可查看实际路径。
 

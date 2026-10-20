@@ -105,7 +105,7 @@ pnpm build
 pnpm start -- --config ./config.local.json
 ```
 
-Open **<http://127.0.0.1:8787>** and use **新建会话** (New conversation) to send a task without choosing a project. To work in an existing directory, click **添加项目** (Add project) and enter its path on the computer running Covro.
+Open **<http://127.0.0.1:8787>** and click **＋** beside **未关联项目** (Unassigned) in the sidebar to send a task without choosing a project. To work in an existing directory, click **添加项目** (Add project) and enter its path on the computer running Covro.
 
 Unassigned conversations use separate directories under `<dataDir>/workspaces/`, allocated on the first send. Their files are retained until you explicitly remove them; archiving does not delete files. See [conversation workspaces](docs/workspaces.md) for directory, recovery, and backup details.
 

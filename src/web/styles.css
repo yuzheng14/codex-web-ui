@@ -4562,9 +4562,6 @@ dd {
   background: #f6bdb6;
 }
 
-.global-new-thread {
-  flex-shrink: 0;
-}
 .workspace-directory {
   margin-top: 4px;
   color: var(--muted);

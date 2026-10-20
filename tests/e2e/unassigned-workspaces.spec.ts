@@ -13,7 +13,9 @@ let runtime: Awaited<ReturnType<typeof startGateway>>;
 const input = (page: Page) => page.getByRole('textbox', { name: '任务内容', exact: true });
 const send = (page: Page) => page.getByRole('button', { name: '发送任务', exact: true });
 const globalNew = (page: Page) =>
-  page.getByRole('button', { name: '新建会话（无需项目）', exact: true });
+  page
+    .getByRole('region', { name: '未关联项目', exact: true })
+    .getByRole('button', { name: '新建会话（无需项目）', exact: true });
 const selected = (page: Page) =>
   page.evaluate(() => localStorage.getItem('codex-web.selected:@unassigned'));
 const start = async () => {
