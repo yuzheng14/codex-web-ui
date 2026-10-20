@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { controlRuntime } from './helpers';
 
 async function ready(page: import('@playwright/test').Page) {
@@ -9,7 +10,7 @@ async function ready(page: import('@playwright/test').Page) {
   await expect(page.locator('.compatibility-dialog[open]')).toHaveCount(0);
 }
 
-const evidence = '/private/tmp/covro-i18n-evidence';
+const evidence = join(tmpdir(), 'covro-i18n-evidence');
 const languages = [
   {
     locale: 'zh-Hans',
