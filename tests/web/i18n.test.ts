@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createTranslator } from '../../src/web/i18n';
+import { createTranslator, i18n, t } from '../../src/web/i18n';
 import { resources } from '../../src/web/i18n/resources';
 import { supportedLocales } from '../../src/web/i18n/locales';
 
@@ -29,6 +29,7 @@ describe('interface translations', () => {
     });
     expect(translator.t('missing')).toBe('English fallback');
     expect(translator.t('blank')).toBe('Nonempty fallback');
+    expect(t('unknown:missing')).toBe(i18n.t('common:requestFailed'));
   });
 
   it('supports interpolation and language-aware plurals', () => {

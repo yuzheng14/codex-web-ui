@@ -39,6 +39,7 @@ export function currentLocale(): Locale {
 
 /** Only application-owned messages enter this function; conversation content stays untouched. */
 export function t(key: string, values: Record<string, unknown> = {}): string {
+  if (!i18n.exists(key, values)) return String(i18n.t('common:requestFailed'));
   const translated = i18n.t(key, values);
   return translated && translated !== key
     ? String(translated)
