@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { Children, createContext, isValidElement, useContext, type ReactNode } from 'react';
 import Markdown, { defaultUrlTransform, type Components, type UrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -52,7 +53,7 @@ const markdownComponents: Components = {
           <a
             href={localPreviewUrl(preview.threadId, path)}
             className="local-file-link"
-            title={title || `预览文件：${path}`}
+            title={title || t('preview:preview_file', { v0: path })}
             onClick={(event) => {
               event.preventDefault();
               preview.open(path);
@@ -68,7 +69,7 @@ const markdownComponents: Components = {
     if (path && threadId) {
       return (
         <ImageLinkContext value={true}>
-          <ControlHint asChild content={title || `预览图片：${path}`}>
+          <ControlHint asChild content={title || t('common:preview_image', { v0: path })}>
             <a
               href={localImageUrl(threadId, path)}
               className="local-image-link"
@@ -76,7 +77,10 @@ const markdownComponents: Components = {
                 event.preventDefault();
                 open({
                   path,
-                  label: typeof children === 'string' ? children : path.split('/').at(-1) || '图片',
+                  label:
+                    typeof children === 'string'
+                      ? children
+                      : path.split('/').at(-1) || t('common:image'),
                 });
               }}
             >
@@ -114,7 +118,12 @@ const markdownComponents: Components = {
     );
   },
   table: ({ children }) => (
-    <div className="markdown-table-scroll" role="region" aria-label="表格" tabIndex={0}>
+    <div
+      className="markdown-table-scroll"
+      role="region"
+      aria-label={t('preview:table')}
+      tabIndex={0}
+    >
       <table>{children}</table>
     </div>
   ),

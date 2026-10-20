@@ -30,7 +30,8 @@
 ## ✨ What you can do
 
 - 📱 **Step away from your desk. Stay with the task.** Follow tool activity, inspect file changes, handle permission requests, and answer Codex's questions from your computer or phone. Closing the page doesn't cancel the task.
-- 💬 **Start without a project.** Use **新建会话** (New conversation) to start in an automatically assigned directory. Conversations and files stay available after refresh, restart, or archive.
+- 💬 **Start without a project.** Use **New session** to start in an automatically assigned directory. Conversations and files stay available after refresh, restart, or archive.
+- 🌐 **Choose your interface language.** Switch between 简体中文, English, 日本語 and 한국어 without leaving your session. Prompts, replies, tool output and paths remain unchanged. [Localization details](docs/i18n.md).
 - 🗂️ **See every project in one place.** Run independent tasks in parallel and spot which conversations are working, waiting for approval, or ready to read.
 - 💬 **Pick up your Codex CLI conversations.** Browse saved history, resume existing work, or fork a new direction. Rename conversations to find them later and archive them when you're done. View and copy the full Thread ID in conversation details or diagnostics.
 - ⚡ **Open long conversations sooner.** Recent messages appear first; scrolling preloads older history. On this device, cached conversation lists and history pages appear while the server checks for updates. [Loading and cache behavior](docs/session-history.md).
@@ -51,7 +52,7 @@ Mermaid diagrams render locally after their code fence closes, with automatic li
 
 ## 🚀 Get started
 
-You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The interface currently uses Simplified Chinese.
+You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The interface supports Simplified Chinese, English, Japanese and Korean. Choose **Language** in the sidebar; the first visit follows your browser preferences, and manual choices are saved on this device.
 
 <!-- codex-compatibility:start -->
 
@@ -105,9 +106,9 @@ pnpm build
 pnpm start -- --config ./config.local.json
 ```
 
-Open **<http://127.0.0.1:8787>** and click **＋** beside **未关联项目** (Unassigned) in the sidebar to send a task without choosing a project.
+Open **<http://127.0.0.1:8787>** and click **＋** beside **Unassigned** in the sidebar to send a task without choosing a project.
 
-To work in a project directory, click **添加项目** (Add project), then choose an existing host directory or **克隆 Git 仓库** (Clone Git repository). For cloning, enter an HTTPS/SSH repository address, an absolute destination on the host, and an optional project name. Git must be available to the service and uses the host’s existing credentials. Follow progress or cancel in the dialog; once imported, open the project and send your first task. [Clone requirements and recovery](docs/project-clone.md).
+To work in a project directory, click **Add project**, then choose an existing host directory or **Clone Git repository**. For cloning, enter an HTTPS/SSH repository address, an absolute destination on the host, and an optional project name. Git must be available to the service and uses the host’s existing credentials. Follow progress or cancel in the dialog; once imported, open the project and send your first task. [Clone requirements and recovery](docs/project-clone.md).
 
 Unassigned conversations use separate directories under `<dataDir>/workspaces/`, allocated on the first send. Their files are retained until you explicitly remove them; archiving does not delete files. See [conversation workspaces](docs/workspaces.md) for directory, recovery, and backup details.
 

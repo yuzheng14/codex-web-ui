@@ -88,6 +88,8 @@ export interface AutoReviewView {
   status: 'inProgress' | 'approved' | 'denied' | 'timedOut' | 'aborted' | 'unknown';
   actionLabel: string;
   actionSummary: string;
+  /** Structured application labels; values remain verbatim upstream data. */
+  presentation?: { kind: string; parts: { label: string; value: string }[] };
   cwd?: string;
   rationale?: string;
   riskLevel?: 'low' | 'medium' | 'high' | 'critical';

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from './ui/button';
 import { ControlHint } from './ControlHint';
@@ -33,22 +34,22 @@ export function MarkdownCodeBlock({ children }: { children?: ReactNode }) {
     <div className="markdown-code-block">
       <div className="markdown-code-toolbar">
         <span className={`code-copy-feedback code-copy-${feedback}`} role="status">
-          {feedback === 'copied' && '已复制'}
-          {feedback === 'failed' && '复制失败，请手动选择代码复制。'}
+          {feedback === 'copied' && t('common:copied')}
+          {feedback === 'failed' && t('preview:copy_failed_select_and_copy_the_code_manually')}
         </span>
-        <ControlHint asChild content="复制代码块">
+        <ControlHint asChild content={t('preview:copy_code_block')}>
           <Button
             variant="ghost"
             size="icon"
             className="code-copy-button"
-            aria-label="复制代码块"
+            aria-label={t('preview:copy_code_block')}
             onClick={() => void copy()}
           >
             <Icon name={feedback === 'copied' ? 'check' : 'copy'} size={16} />
           </Button>
         </ControlHint>
       </div>
-      <pre ref={content} tabIndex={0} aria-label="代码块">
+      <pre ref={content} tabIndex={0} aria-label={t('preview:code_block')}>
         {children}
       </pre>
     </div>

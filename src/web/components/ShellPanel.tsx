@@ -1,3 +1,5 @@
+import { displayMessage } from '../i18n/messages';
+import { t, formatList } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import type { Project } from '../../shared/types';
 import { shellActive, type ShellCommand } from '../../shared/shell';
@@ -7,12 +9,24 @@ import { Icon } from './Icon';
 import './shell-panel.css';
 
 const statusText: Record<ShellCommand['status'], string> = {
-  running: '执行中',
-  stopping: '正在中断',
-  completed: '已完成',
-  failed: '执行失败',
-  interrupted: '已中断',
-  unknown: '结果未知',
+  get running() {
+    return t('common:running');
+  },
+  get stopping() {
+    return t('shell:interrupting');
+  },
+  get completed() {
+    return t('common:completed');
+  },
+  get failed() {
+    return t('common:execution_failed');
+  },
+  get interrupted() {
+    return t('common:interrupted');
+  },
+  get unknown() {
+    return t('shell:result_unknown');
+  },
 };
 export function ShellPanel({
   open,
@@ -51,87 +65,99 @@ export function ShellPanel({
   return (
     <section
       className={`shell-panel${collapsed ? ' shell-collapsed' : ''}`}
-      aria-label="Shell 面板"
+      aria-label={t('shell:shell_panel')}
     >
       <header className="shell-header">
         <div className="shell-heading">
           <Icon name="terminal" size={17} />
           <strong>Shell</strong>
-          <span>{project?.name ?? '请选择项目'}</span>
+          <span>{project?.name ?? t('shell:select_a_project')}</span>
           {active && <span className="shell-running">{statusText[active.status]}</span>}
         </div>
         <div className="shell-actions">
           <Button
             variant="ghost"
             size="icon"
-            aria-label={collapsed ? '展开 Shell' : '收起 Shell'}
+            aria-label={collapsed ? t('shell:expand_shell') : t('shell:collapse_shell')}
             aria-expanded={!collapsed}
             aria-controls="shell-body"
             onClick={onCollapse}
           >
             <Icon name={collapsed ? 'terminal' : 'down'} size={15} />
           </Button>
-          <Button variant="ghost" size="icon" aria-label="关闭 Shell 面板" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('shell:close_shell_panel')}
+            onClick={onClose}
+          >
             <Icon name="close" size={15} />
           </Button>
         </div>
       </header>
       {collapsed ? (
         <p className="shell-collapsed-note">
-          收起不会停止命令{elsewhere.length ? ` · 另有 ${elsewhere.length} 个项目正在执行` : ''}
+          {t('shell:collapsing_does_not_stop_commands', {
+            v0: elsewhere.length
+              ? t('shell:running_in_other_projects', {
+                  count: elsewhere.length,
+                  v0: elsewhere.length,
+                })
+              : '',
+          })}
         </p>
       ) : (
         <div id="shell-body" className="shell-body">
           <div className="shell-location">
-            <span>工作目录</span>
+            <span>{t('common:working_directory')}</span>
             <code>{project?.canonicalRoot ?? '—'}</code>
           </div>
           <p className="shell-help">
-            命令执行面板 · 使用 Codex
-            服务端配置的沙箱，独立于会话权限。每次从项目根目录启动，不支持交互输入。收起、关闭或切换项目均不会停止命令。
+            {t('shell:commands_use_the_codex_server_sandbox_independently_of')}
           </p>
           {elsewhere.length > 0 && (
             <p className="shell-background" role="status">
-              其他项目仍在执行：{elsewhere.map((entry) => entry.projectName).join('、')}
-              。切回对应项目可查看或中断。
+              {t('shell:still_running_in_other_projects_switch_to_view', {
+                v0: formatList(elsewhere.map((entry) => entry.projectName)),
+              })}
             </p>
           )}
           {!shell.connected && (
             <p className="shell-warning" role="status">
-              Shell
-              连接已断开，正在重连。已收到的输出已保留，运行状态待确认；断开浏览器不会停止命令。
+              {t('shell:shell_disconnected_reconnecting_received_output_is_preserved_and')}
             </p>
           )}
           {shell.error && (
             <p className="shell-warning" role="alert">
-              {shell.error}
+              {displayMessage(shell.error)}
             </p>
           )}
           {shell.pending && (
             <div className="shell-warning" role="status">
-              正在核对命令的提交结果：<code>{shell.pending.command}</code>{' '}
+              {t('shell:checking_command_submission')}
+              <code>{shell.pending.command}</code>{' '}
               <Button
                 variant="secondary"
                 size="sm"
                 disabled={!shell.connected || shell.submitting}
                 onClick={() => void shell.retry()}
               >
-                核对并重试原提交
+                {t('shell:check_and_retry_original_submission')}
               </Button>
             </div>
           )}
           <div className="shell-result">
             <div className="shell-result-toolbar">
               <label>
-                近期命令
+                {t('shell:recent_commands')}
                 <select
-                  aria-label="近期 Shell 命令"
+                  aria-label={t('shell:recent_shell_commands')}
                   value={run?.id ?? ''}
                   onChange={(event) =>
                     setSelected((current) => ({ ...current, [projectId]: event.target.value }))
                   }
                 >
-                  {!runs.length && <option value="">尚未执行</option>}
+                  {!runs.length && <option value="">{t('shell:not_run_yet')}</option>}
                   {runs.map((entry) => (
                     <option key={entry.id} value={entry.id}>
                       {statusText[entry.status]} · {entry.command.slice(0, 70)}
@@ -141,7 +167,7 @@ export function ShellPanel({
               </label>
               {run && (
                 <Button variant="ghost" size="sm" onClick={() => changeDraft(run.command)}>
-                  复用命令
+                  {t('shell:reuse_command')}
                 </Button>
               )}
             </div>
@@ -151,7 +177,12 @@ export function ShellPanel({
                   <span aria-hidden="true">$</span>
                   <code>{run.command}</code>
                 </div>
-                <pre ref={output} className="shell-output" aria-label="Shell 输出" tabIndex={0}>
+                <pre
+                  ref={output}
+                  className="shell-output"
+                  aria-label={t('shell:shell_output')}
+                  tabIndex={0}
+                >
                   {run.output.length ? (
                     run.output.map((chunk, index) => (
                       <span
@@ -163,26 +194,28 @@ export function ShellPanel({
                     ))
                   ) : (
                     <span className="shell-output-empty">
-                      {shellActive(run) ? '等待输出…' : '无输出'}
+                      {shellActive(run) ? t('shell:waiting_for_output') : t('shell:no_output')}
                     </span>
                   )}
                 </pre>
                 <div className={`shell-result-status shell-status-${run.status}`} role="status">
                   <span>{statusText[run.status]}</span>
-                  {run.exitCode !== undefined && <span>退出码 {run.exitCode}</span>}
-                  {run.truncated && <span>输出已截断（最多 64 KiB）</span>}
+                  {run.exitCode !== undefined && (
+                    <span>{t('shell:exit_code', { v0: run.exitCode })}</span>
+                  )}
+                  {run.truncated && <span>{t('shell:output_truncated_64_kib_maximum')}</span>}
                 </div>
                 {run.error && (
                   <p className="shell-warning" role="alert">
-                    {run.error}
+                    {displayMessage(run.error)}
                   </p>
                 )}
               </>
             ) : (
               <div className="shell-empty">
                 <Icon name="terminal" size={25} />
-                <p>在项目目录中运行命令，实时查看输出。</p>
-                <span>例如 git status、pwd 或运行项目测试</span>
+                <p>{t('shell:run_commands_in_the_project_directory_and_view')}</p>
+                <span>{t('shell:for_example_git_status_pwd_or_project_tests')}</span>
               </div>
             )}
           </div>
@@ -211,7 +244,7 @@ export function ShellPanel({
             }}
           >
             <label className="sr-only" htmlFor="shell-command-input">
-              Shell 命令
+              {t('shell:shell_command')}
             </label>
             <textarea
               id="shell-command-input"
@@ -219,7 +252,7 @@ export function ShellPanel({
               maxLength={8192}
               value={draft}
               onChange={(event) => changeDraft(event.target.value)}
-              placeholder="输入命令…"
+              placeholder={t('shell:enter_a_command')}
               disabled={!project?.available}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && (event.ctrlKey || event.metaKey))
@@ -228,7 +261,9 @@ export function ShellPanel({
             />
             <div className="shell-submit-row">
               <span>
-                {active ? '命令在服务端运行，可随时中断' : 'Ctrl / ⌘ + Enter 执行 · 最长 10 分钟'}
+                {active
+                  ? t('shell:commands_run_on_the_server_and_can_be')
+                  : t('shell:ctrl_enter_to_run_10_minute_limit')}
               </span>
               {active ? (
                 <Button
@@ -241,8 +276,8 @@ export function ShellPanel({
                 >
                   <Icon name="stop" size={13} />
                   {active.status === 'stopping' || shell.interrupting === active.id
-                    ? '正在中断…'
-                    : '中断命令'}
+                    ? t('shell:interrupting_2')
+                    : t('shell:interrupt_command')}
                 </Button>
               ) : (
                 <Button
@@ -257,7 +292,7 @@ export function ShellPanel({
                   }
                 >
                   <Icon name="terminal" size={14} />
-                  {shell.submitting ? '正在提交…' : '执行命令'}
+                  {shell.submitting ? t('common:submitting') : t('common:run_command')}
                 </Button>
               )}
             </div>

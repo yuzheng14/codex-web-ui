@@ -1,36 +1,74 @@
+import { reviewLabel, reviewSummary } from '../lib/auto-review-labels';
+import { t, currentLocale } from '../i18n';
 import type { AutoReviewView } from '../../shared/types';
 import { Icon } from './Icon';
 import { CollapsibleActivity } from './CollapsibleActivity';
 import './activity-group.css';
 
 const statusLabels: Record<AutoReviewView['status'], string> = {
-  inProgress: '审核中',
-  approved: '已允许',
-  denied: '已拒绝',
-  timedOut: '审核超时',
-  aborted: '审核已中止',
-  unknown: '结果未确认',
+  get inProgress() {
+    return t('approvals:reviewing');
+  },
+  get approved() {
+    return t('approvals:allowed');
+  },
+  get denied() {
+    return t('common:denied');
+  },
+  get timedOut() {
+    return t('common:review_timed_out');
+  },
+  get aborted() {
+    return t('approvals:review_aborted');
+  },
+  get unknown() {
+    return t('common:result_unconfirmed');
+  },
 };
-const riskLabels = { low: '低', medium: '中', high: '高', critical: '极高' };
+const riskLabels = {
+  get low() {
+    return t('approvals:low');
+  },
+  get medium() {
+    return t('approvals:medium');
+  },
+  get high() {
+    return t('approvals:high');
+  },
+  get critical() {
+    return t('approvals:critical');
+  },
+};
 const authorizationLabels = {
-  unknown: '未知',
-  low: '低',
-  medium: '中',
-  high: '高',
+  get unknown() {
+    return t('approvals:unknown');
+  },
+  get low() {
+    return t('approvals:low');
+  },
+  get medium() {
+    return t('approvals:medium');
+  },
+  get high() {
+    return t('approvals:high');
+  },
 };
 
 function reviewTime(timestamp: number): string {
   const date = new Date(timestamp);
   return Number.isFinite(date.getTime())
-    ? date.toLocaleString('zh-CN', { hour12: false })
-    : '未提供有效时间';
+    ? date.toLocaleString(currentLocale(), { hour12: false })
+    : t('approvals:no_valid_time_provided');
 }
 
 export function AutoReviewCard({ review }: { review: AutoReviewView }) {
   return (
     <CollapsibleActivity
       className={`auto-review-card auto-review-${review.status}`}
-      label={`自动审核结果：${review.actionSummary || review.actionLabel}，${statusLabels[review.status]}`}
+      label={t('approvals:automatic_review_2', {
+        v0: reviewSummary(review) || reviewLabel(review),
+        v1: statusLabels[review.status],
+      })}
       summary={
         <>
           <Icon
@@ -46,8 +84,8 @@ export function AutoReviewCard({ review }: { review: AutoReviewView }) {
             size={15}
           />
           <span className="activity-description">
-            <span className="activity-label">自动审核</span>
-            <code className="command-summary">{review.actionSummary || review.actionLabel}</code>
+            <span className="activity-label">{t('approvals:automatic_review')}</span>
+            <code className="command-summary">{reviewSummary(review) || reviewLabel(review)}</code>
           </span>
           <span className="auto-review-status" role="status">
             {statusLabels[review.status]}
@@ -57,19 +95,23 @@ export function AutoReviewCard({ review }: { review: AutoReviewView }) {
     >
       <div className="activity-body auto-review-body">
         <div className="auto-review-operation">
-          <span>{review.actionLabel}</span>
-          <code>{review.actionSummary || '未提供被审核操作。'}</code>
+          <span>{reviewLabel(review)}</span>
+          <code>{reviewSummary(review) || t('approvals:no_reviewed_operation_provided')}</code>
         </div>
         <div className="auto-review-rationale">
-          <strong>审核原因</strong>
-          <p>{review.rationale?.trim() ? review.rationale : '未提供审核原因。'}</p>
+          <strong>{t('approvals:review_rationale')}</strong>
+          <p>
+            {review.rationale?.trim()
+              ? review.rationale
+              : t('approvals:no_review_rationale_provided')}
+          </p>
         </div>
         <details className="auto-review-details">
-          <summary>技术详情</summary>
+          <summary>{t('common:technical_details')}</summary>
           <dl>
             {review.cwd && (
               <>
-                <dt>工作目录</dt>
+                <dt>{t('common:working_directory')}</dt>
                 <dd>
                   <code>{review.cwd}</code>
                 </dd>
@@ -77,33 +119,33 @@ export function AutoReviewCard({ review }: { review: AutoReviewView }) {
             )}
             {review.riskLevel && (
               <>
-                <dt>风险评估</dt>
+                <dt>{t('approvals:risk_assessment')}</dt>
                 <dd>{riskLabels[review.riskLevel]}</dd>
               </>
             )}
             {review.userAuthorization && (
               <>
-                <dt>用户授权评估</dt>
+                <dt>{t('approvals:user_authorization_assessment')}</dt>
                 <dd>{authorizationLabels[review.userAuthorization]}</dd>
               </>
             )}
-            <dt>审核标识</dt>
+            <dt>{t('approvals:review_id')}</dt>
             <dd>
               <code>{review.reviewId}</code>
             </dd>
             {review.targetItemId && (
               <>
-                <dt>操作标识</dt>
+                <dt>{t('approvals:operation_id')}</dt>
                 <dd>
                   <code>{review.targetItemId}</code>
                 </dd>
               </>
             )}
-            <dt>开始时间</dt>
+            <dt>{t('approvals:started_at')}</dt>
             <dd>{reviewTime(review.startedAtMs)}</dd>
             {review.completedAtMs !== undefined && (
               <>
-                <dt>结束时间</dt>
+                <dt>{t('approvals:finished_at')}</dt>
                 <dd>{reviewTime(review.completedAtMs)}</dd>
               </>
             )}

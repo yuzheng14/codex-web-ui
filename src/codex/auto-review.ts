@@ -98,6 +98,65 @@ function describeAction(
   }
 }
 
+function actionPresentation(
+  action: GuardianApprovalReviewAction,
+): NonNullable<AutoReviewView['presentation']> {
+  const raw = (value: string) => ({ label: 'raw', value });
+  switch (action.type) {
+    case 'command':
+      return { kind: action.type, parts: [raw(action.command)] };
+    case 'execve':
+      return {
+        kind: action.type,
+        parts: [
+          { label: 'program', value: action.program },
+          { label: 'arguments', value: action.argv.map((arg) => JSON.stringify(arg)).join(' ') },
+        ],
+      };
+    case 'writeStdin':
+      return {
+        kind: action.type,
+        parts: [{ label: 'process', value: action.processId }, raw(action.stdin)],
+      };
+    case 'applyPatch':
+      return { kind: action.type, parts: action.files.map(raw) };
+    case 'networkAccess':
+      return {
+        kind: action.type,
+        parts: [raw(`${action.protocol}://${action.host}:${action.port}`), raw(action.target)],
+      };
+    case 'mcpToolCall':
+      return {
+        kind: action.type,
+        parts: [
+          raw(
+            [action.connectorName, `${action.server}/${action.toolName}`, action.toolTitle]
+              .filter(Boolean)
+              .join(' · '),
+          ),
+        ],
+      };
+    case 'requestPermissions': {
+      const parts: { label: string; value: string }[] = [];
+      if (action.reason) parts.push(raw(action.reason));
+      const network = action.permissions.network?.enabled;
+      if (network != null)
+        parts.push({ label: network ? 'networkAllowed' : 'networkRestricted', value: '' });
+      const files = action.permissions.fileSystem;
+      for (const path of files?.read ?? []) parts.push({ label: 'read', value: path });
+      for (const path of files?.write ?? []) parts.push({ label: 'write', value: path });
+      for (const entry of files?.entries ?? [])
+        parts.push({
+          label: entry.access,
+          value: entry.path.type === 'path' ? entry.path.path : JSON.stringify(entry.path),
+        });
+      if (files?.globScanMaxDepth !== undefined)
+        parts.push({ label: 'depth', value: String(files.globScanMaxDepth) });
+      return { kind: action.type, parts };
+    }
+  }
+}
+
 /** Display-only data. Notifications never become a PendingAction or a permission response. */
 export function mapAutoReview(params: Notification): AutoReviewView {
   const review = params.review;
@@ -108,6 +167,7 @@ export function mapAutoReview(params: Notification): AutoReviewView {
       ? review.status
       : 'unknown',
     ...describeAction(params.action),
+    presentation: actionPresentation(params.action),
     ...(review.rationale === null ? {} : { rationale: review.rationale }),
     ...(review.riskLevel === null ? {} : { riskLevel: review.riskLevel }),
     ...(review.userAuthorization === null ? {} : { userAuthorization: review.userAuthorization }),

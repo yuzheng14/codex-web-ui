@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+import { displayMessage } from '../i18n/messages';
 import { useEffect, useRef, useState } from 'react';
 import type { Project } from '../../shared/types';
 import { readableError } from '../lib/utils';
@@ -172,7 +174,7 @@ export function ProjectDialog(props: Props) {
           )}
           {error && (
             <p className="inline-error project-dialog-error" role="alert">
-              {error}
+              {displayMessage(error)}
             </p>
           )}
           {props.disabled && <p className="subtle">登录已过期，请重新登录后管理项目。</p>}

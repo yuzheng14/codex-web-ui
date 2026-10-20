@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { TurnCompletion } from '../../shared/types';
 
 export const NOTIFICATIONS_ENABLED_KEY = 'codex-web.notifications-enabled';
@@ -19,12 +20,12 @@ export function notificationsEnabled(): boolean {
 
 export function completionNotification(completion: TurnCompletion, projectName: string) {
   const status = {
-    completed: '已完成',
-    failed: '执行失败',
-    interrupted: '已中断',
+    completed: t('notifications:agentCompleted'),
+    failed: t('notifications:agentFailed'),
+    interrupted: t('notifications:agentInterrupted'),
   }[completion.status];
   return {
-    title: `Agent ${status}`,
+    title: status,
     options: {
       body: `${projectName} · ${completion.title}`,
       tag: JSON.stringify([completion.threadId, completion.turnId]),
@@ -45,7 +46,7 @@ export async function claimCompletion(threadId: string, turnId: string): Promise
     request.onerror = () => reject(request.error);
     request.onblocked = () => {
       blocked = true;
-      reject(new Error('通知记录被其他页面占用，请关闭旧页面后重试。'));
+      reject(new Error(t('notifications:notification_records_are_in_use_by_another_page')));
     };
     request.onsuccess = () => {
       if (blocked) request.result.close();

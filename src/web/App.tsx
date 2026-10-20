@@ -1,4 +1,6 @@
 import { UNASSIGNED_SCOPE } from '../shared/workspace-scope';
+import { displayMessage, messageDetails } from './i18n/messages';
+import { t, useInterfaceLocale } from './i18n';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, Pencil } from 'lucide-react';
 import type { ThreadSummary } from '../shared/types';
@@ -58,6 +60,7 @@ function WorkspaceLayout({
 }
 
 export function App() {
+  useInterfaceLocale();
   const workspace = useWorkspace();
   const [shellOpen, setShellOpen] = useState(false);
   const shell = useShell(shellOpen);
@@ -184,7 +187,7 @@ export function App() {
       return '项目目录不可用，恢复后可 Fork 会话。';
     if (compatibilityConfirmationRequired(system)) return '请先确认当前 Codex 版本的兼容性。';
     if (entry.historyVisible === false || (entry.id === thread?.id && !thread.turns.length))
-      return '发送首条消息后可 Fork 已保存的历史。';
+      return t('workspace:send_the_first_message_to_enable_forking_saved');
     return undefined;
   };
   const forking = Boolean(thread && isForking(thread.id));
@@ -324,10 +327,10 @@ export function App() {
         }}
         notificationStatus={
           workspace.notifications.error
-            ? '请检查设置'
+            ? t('workspace:check_settings')
             : workspace.notifications.enabled && workspace.notifications.access === 'granted'
-              ? '已开启'
-              : '未开启'
+              ? t('common:on')
+              : t('common:off')
         }
         archiveView={workspace.archiveView}
         onArchiveView={workspace.setArchiveView}
@@ -342,10 +345,12 @@ export function App() {
         forkDisabledReason={forkDisabledReason}
         forking={isForking}
         archiveDisabledReason={(entry) => {
-          if (busyFor('archive', entry.id)) return '正在保存…';
-          if (unsettledFor(entry.id)) return '请先核对会话操作的结果';
-          if (!canControl) return '连接恢复后可操作';
-          if (compatibilityConfirmationRequired(system)) return '请先确认 Codex 版本兼容性';
+          if (busyFor('archive', entry.id)) return t('common:saving');
+          if (unsettledFor(entry.id))
+            return t('workspace:check_the_session_operation_results_first');
+          if (!canControl) return t('workspace:available_when_the_connection_recovers');
+          if (compatibilityConfirmationRequired(system))
+            return t('workspace:confirm_codex_version_compatibility_first');
           if (
             !system?.capabilities.includes(entry.archived ? 'thread/unarchive' : 'thread/archive')
           )
@@ -356,9 +361,9 @@ export function App() {
           )
             return '项目目录不可用';
           if (!entry.archived && (isActive(entry.status) || entry.pendingActionCount > 0))
-            return '任务结束并处理完待办后可归档';
+            return t('workspace:finish_the_task_and_resolve_pending_requests_before');
           if (!entry.archived && entry.managed && entry.status === 'unknown')
-            return '会话状态待核对，暂时无法归档';
+            return t('workspace:session_state_needs_checking_archiving_is_temporarily_unavailable');
           return undefined;
         }}
         projects={workspace.projects}
@@ -419,7 +424,7 @@ export function App() {
               className="mobile-only"
               variant="ghost"
               size="icon"
-              aria-label="打开项目与会话"
+              aria-label={t('workspace:open_projects_and_sessions')}
               onClick={() => setSidebarOpen(true)}
             >
               <Icon name="menu" />
@@ -428,12 +433,14 @@ export function App() {
               <div className="breadcrumb">
                 {project?.name ?? '未关联项目'}
                 <Icon name="chevron" size={12} />
-                <span>{workspace.selectedId ? '会话' : '新会话'}</span>
+                <span>
+                  {workspace.selectedId ? t('common:sessions') : t('workspace:new_session')}
+                </span>
               </div>
               {thread ? (
                 <ThreadTitle
                   key={`${thread.projectId}:${thread.id}`}
-                  title={thread.title || '新会话'}
+                  title={thread.title || t('workspace:new_session')}
                   rename={renameCommand}
                   pending={Boolean(
                     thread &&
@@ -447,8 +454,8 @@ export function App() {
                   {workspace.selectedId
                     ? (history.thread?.title ??
                       workspace.threads.find((entry) => entry.id === workspace.selectedId)?.title ??
-                      '正在读取会话…')
-                    : '开始你的下一项任务'}
+                      t('common:loading_session'))
+                    : t('workspace:start_your_next_task')}
                 </h1>
               )}
               {thread && thread.projectId === null && (
@@ -464,7 +471,7 @@ export function App() {
               variant="ghost"
               size="sm"
               className="shell-entry"
-              aria-label="打开 Shell 面板"
+              aria-label={t('workspace:open_shell_panel')}
               aria-expanded={shellOpen && !shellCollapsed}
               onClick={() => {
                 setShellOpen(true);
@@ -474,7 +481,10 @@ export function App() {
               <Icon name="terminal" size={16} />
               <span>Shell</span>
               {shell.commands.some(shellActive) && (
-                <span className="shell-entry-count" aria-label="运行中的 Shell 命令">
+                <span
+                  className="shell-entry-count"
+                  aria-label={t('workspace:running_shell_commands')}
+                >
                   {shell.commands.filter(shellActive).length}
                 </span>
               )}
@@ -482,11 +492,14 @@ export function App() {
             {thread && <Status status={thread.status} offline={offline} />}
             <ConnectionBadge connection={workspace.connection} />
             {thread?.forkedFromId && (
-              <ControlHint id="thread-source-hint" content="返回原会话">
+              <ControlHint
+                id="thread-source-hint"
+                content={t('workspace:return_to_original_session')}
+              >
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="返回原会话"
+                  aria-label={t('workspace:return_to_original_session')}
                   aria-describedby="thread-source-hint"
                   onClick={() => {
                     void workspace.selectThread(thread.forkedFromId!);
@@ -526,33 +539,41 @@ export function App() {
         </header>
         {system?.demo && (
           <div className="demo-banner">
-            模拟测试模式 · 当前执行结果来自显式启用的测试 app-server
+            {t('workspace:simulation_mode_results_come_from_the_explicitly_enabled')}
           </div>
         )}
         {workspace.authRequired ? (
           <div className="error-banner persistent-banner" role="alert">
             <Icon name="alert" />
-            登录已过期。任务不会因页面断开而被取消。
+            {t('workspace:your_login_has_expired_disconnecting_this_page_does')}
             <a className="button button-secondary button-small" href="/">
-              重新打开登录入口
+              {t('workspace:reopen_login')}
             </a>
           </div>
         ) : (
           offline && (
             <div className="connection-banner" role="status">
               <span>
-                实时连接{workspace.connection === 'connecting' ? '正在建立' : '已断开，正在重连'}
-                。当前显示上次已知状态。
+                {t('workspace:live_connection_showing_the_last_known_state', {
+                  v0:
+                    workspace.connection === 'connecting'
+                      ? t('workspace:connecting')
+                      : t('workspace:disconnected_reconnecting'),
+                })}
               </span>
               <Button variant="ghost" size="sm" onClick={workspace.retryConnection}>
-                立即重连
+                {t('workspace:reconnect_now')}
               </Button>
             </div>
           )
         )}
         {system && !system.ready && (
           <div className="error-banner persistent-banner" role="alert">
-            Codex 尚不可用：{system.error ?? '请在私人电脑上检查 Codex 安装、认证与服务状态。'}
+            {t('workspace:codex_is_unavailable', {
+              v0:
+                system.error ??
+                t('workspace:check_the_codex_installation_authentication_and_service_on'),
+            })}
           </div>
         )}
         <CompatibilityNotice
@@ -561,7 +582,7 @@ export function App() {
           canConfirm={canConfirm}
           submitting={compatibilitySubmitting}
           uncertain={compatibilityUncertain}
-          error={workspace.error}
+          error={displayMessage(workspace.error)}
           onRefresh={() => {
             void workspace.refreshSystem();
             void workspace.refreshOperations();
@@ -576,10 +597,16 @@ export function App() {
         {workspace.error && (
           <div className="error-banner dismissible" role="alert">
             <div>
-              <span>{workspace.error}</span>
+              <span>{displayMessage(workspace.error)}</span>
+              {messageDetails(workspace.error) && (
+                <details className="error-technical">
+                  <summary>{t('common:technical_details')}</summary>
+                  <pre>{messageDetails(workspace.error)}</pre>
+                </details>
+              )}
               {workspace.errorDetails !== undefined && (
                 <details className="raw-details">
-                  <summary>错误详情</summary>
+                  <summary>{t('workspace:error_details')}</summary>
                   <pre>{JSON.stringify(workspace.errorDetails, null, 2)}</pre>
                 </details>
               )}
@@ -587,7 +614,7 @@ export function App() {
             <Button
               variant="ghost"
               size="icon"
-              aria-label="关闭错误提示"
+              aria-label={t('workspace:dismiss_error')}
               onClick={workspace.clearError}
             >
               <Icon name="close" size={15} />
@@ -606,15 +633,15 @@ export function App() {
               <span>
                 {entry.kind === 'rename'
                   ? entry.status === 'unknown'
-                    ? '重命名结果待确认'
-                    : '正在保存会话名称…'
+                    ? t('workspace:rename_result_awaiting_confirmation')
+                    : t('workspace:saving_session_name')
                   : entry.mutation!.archived
                     ? entry.status === 'unknown'
-                      ? '归档结果待确认'
-                      : '正在归档会话…'
+                      ? t('workspace:archive_result_awaiting_confirmation')
+                      : t('workspace:archiving_session')
                     : entry.status === 'unknown'
-                      ? '取消归档结果待确认'
-                      : '正在取消归档…'}
+                      ? t('workspace:unarchive_result_awaiting_confirmation')
+                      : t('workspace:unarchiving')}
               </span>
               {entry.status === 'unknown' && (
                 <Button
@@ -623,7 +650,7 @@ export function App() {
                   disabled={checkingStatus}
                   onClick={() => void refreshStatus()}
                 >
-                  {checkingStatus ? '正在核对…' : '核对提交'}
+                  {checkingStatus ? t('common:checking') : t('workspace:check_submission')}
                 </Button>
               )}
             </div>
@@ -632,8 +659,8 @@ export function App() {
           <div className="archive-notice" role="status">
             <Icon name="archive" size={18} />
             <div>
-              <strong>此会话已归档</strong>
-              <p>历史已保留。取消归档后可继续对话。</p>
+              <strong>{t('workspace:this_session_is_archived')}</strong>
+              <p>{t('workspace:history_is_preserved_unarchive_to_continue_the_conversation')}</p>
             </div>
             <Button
               variant="secondary"
@@ -648,7 +675,7 @@ export function App() {
                 void workspace.archiveThread(thread.id, false);
               }}
             >
-              {busyFor('archive') ? '正在保存…' : '取消归档'}
+              {busyFor('archive') ? t('common:saving') : t('common:unarchive')}
             </Button>
           </div>
         )}
@@ -698,7 +725,7 @@ export function App() {
         />
         <div className="bottom-region">
           {actions.length > 0 && (
-            <div className="pending-actions" aria-label="待处理请求">
+            <div className="pending-actions" aria-label={t('workspace:pending_requests')}>
               {actions.map((action) => (
                 <ActionCard
                   key={action.actionId}
@@ -725,10 +752,10 @@ export function App() {
               <Icon name="alert" size={15} />
               <span>
                 {!thread
-                  ? '新建会话的提交结果尚未确认。请先核对提交，避免重复创建。'
+                  ? t('workspace:the_new_session_submission_is_unconfirmed_check_it')
                   : pendingFork
-                    ? 'Fork 结果尚未确认。请核对提交，暂时不能再次 Fork。'
-                    : '提交结果尚未确认。请核对提交，也可以 Fork 已保存的历史为新会话。'}
+                    ? t('workspace:the_fork_result_is_unconfirmed_check_the_submission')
+                    : t('workspace:the_submission_result_is_unconfirmed_check_it_or')}
               </span>
               <Button
                 variant="ghost"
@@ -741,11 +768,11 @@ export function App() {
                   void refreshStatus();
                 }}
               >
-                {checkingStatus ? '正在核对…' : '核对提交'}
+                {checkingStatus ? t('common:checking') : t('workspace:check_submission')}
               </Button>
               {thread && !pendingFork && (
                 <Button variant="secondary" size="sm" disabled={!canFork} onClick={forkThread}>
-                  Fork 为新会话
+                  {t('common:fork_into_a_new_session')}
                 </Button>
               )}
             </div>

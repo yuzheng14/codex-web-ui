@@ -1,9 +1,16 @@
+import { t } from '../i18n';
 import type { PermissionRequest } from '../../shared/types';
 
 const accessLabels: Record<string, string> = {
-  read: '读取',
-  write: '写入',
-  deny: '禁止访问',
+  get read() {
+    return t('approvals:read');
+  },
+  get write() {
+    return t('approvals:write');
+  },
+  get deny() {
+    return t('approvals:deny_access');
+  },
 };
 
 export function PermissionDetails({ request }: { request: PermissionRequest }) {
@@ -17,19 +24,19 @@ export function PermissionDetails({ request }: { request: PermissionRequest }) {
     <div className="permission-details">
       {request.network !== undefined && (
         <div className="permission-network">
-          <strong>网络访问</strong>
+          <strong>{t('approvals:network_access')}</strong>
           <span>
             {request.network === true
-              ? '允许访问网络'
+              ? t('approvals:network_access_allowed')
               : request.network === false
-                ? '不开放额外网络访问'
-                : '未指定网络访问变更'}
+                ? t('approvals:no_additional_network_access')
+                : t('approvals:no_network_access_changes_specified')}
           </span>
         </div>
       )}
       {entries.length > 0 && (
         <div>
-          <h4>文件与目录</h4>
+          <h4>{t('approvals:files_and_directories')}</h4>
           <ul className="permission-paths">
             {entries.map((entry, index) => (
               <li key={`${entry.access}-${entry.path}-${index}`}>
@@ -43,10 +50,10 @@ export function PermissionDetails({ request }: { request: PermissionRequest }) {
         </div>
       )}
       {fileSystem?.globScanMaxDepth !== undefined && (
-        <p>目录匹配搜索深度：{fileSystem.globScanMaxDepth}</p>
+        <p>{t('approvals:directory_matching_depth', { v0: fileSystem.globScanMaxDepth })}</p>
       )}
       {request.network === undefined && entries.length === 0 && (
-        <p>未请求额外网络或文件访问权限。</p>
+        <p>{t('approvals:no_additional_network_or_file_access_requested')}</p>
       )}
     </div>
   );

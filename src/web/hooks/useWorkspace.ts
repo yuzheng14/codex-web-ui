@@ -1,4 +1,6 @@
 import { UNASSIGNED_SCOPE, scopeKey, scopeApi } from '../../shared/workspace-scope';
+import { errorMessage } from '../lib/error-message';
+import { message } from '../i18n/messages';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   Cursor,
@@ -200,7 +202,7 @@ export function useWorkspace() {
     operationsRef.current = next;
     setOperations(next);
     if (!saveOperations(next))
-      setError('浏览器未允许保存操作记录。请保持此页面打开，以便核对未确认的提交。');
+      setError(message('workspace:the_browser_cannot_save_operation_records_keep_this'));
   }, []);
   const loadProjectThreads = useCallback(
     async (id: string, cursor?: string) => {
@@ -665,7 +667,7 @@ export function useWorkspace() {
                 ...entry,
                 status: operation.status,
                 operation,
-                error: operation.error?.message,
+                error: operation.error ? errorMessage(operation.error) : undefined,
                 lookupError: undefined,
                 ...(operation.reconciliation ? { mutation: undefined } : {}),
               }
@@ -673,7 +675,10 @@ export function useWorkspace() {
         ),
       );
       if (operation.status === 'failed' && operation.error?.code !== 'THREAD_IN_USE') {
-        setError(operation.error?.message ?? '操作失败，请查看详情。');
+        setError(
+          (operation.error ? errorMessage(operation.error) : undefined) ??
+            message('workspace:operation_failed_check_details'),
+        );
         setErrorDetails(operation.error?.details);
       }
       if (operation.status === 'acknowledged') {
@@ -925,7 +930,9 @@ export function useWorkspace() {
       draft?: DraftSubmission,
     ) => {
       if (operationNeedsCompatibilityConfirmation(kind, system)) {
-        setError('请先确认当前 Codex 版本的兼容性提示，再发起操作。');
+        setError(
+          message('workspace:confirm_the_codex_version_compatibility_notice_before_starting'),
+        );
         setErrorDetails(undefined);
         return undefined;
       }
@@ -934,7 +941,7 @@ export function useWorkspace() {
         (kind === 'create' || kind === 'saveModelDefaults') &&
         [...busyRef.current].some((entry) => entry.startsWith('saveModelDefaults:'))
       ) {
-        setError('正在保存模型默认值，请完成后再操作。');
+        setError(message('common:model_defaults_are_being_saved_wait_before_proceeding'));
         return undefined;
       }
       if (busyRef.current.has(key)) return;

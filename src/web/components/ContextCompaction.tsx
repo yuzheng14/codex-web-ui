@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { ItemView } from '../../shared/types';
 import { Icon } from './Icon';
 
@@ -13,17 +14,17 @@ export function ContextCompaction({
   const running = status === 'inProgress';
   const label =
     {
-      inProgress: '正在压缩上下文…',
-      completed: '上下文已压缩',
-      failed: '上下文压缩失败',
-      interrupted: '上下文压缩已中断',
-    }[status] ?? '上下文压缩状态未知';
+      inProgress: t('conversation:compacting_context'),
+      completed: t('conversation:context_compacted'),
+      failed: t('conversation:context_compaction_failed'),
+      interrupted: t('conversation:context_compaction_interrupted'),
+    }[status] ?? t('conversation:context_compaction_state_unknown');
   const detail =
     item.error ??
     (running
-      ? '正在整理会话上下文，完成后将继续当前任务。'
+      ? t('conversation:organizing_context_the_current_task_will_continue_when')
       : status === 'unknown'
-        ? '未收到明确的完成结果，请查看后续任务状态。'
+        ? t('conversation:no_definite_completion_result_received_check_subsequent_task')
         : undefined);
   return (
     <div
@@ -31,7 +32,7 @@ export function ContextCompaction({
       data-testid="context-compaction"
       data-state={status}
       role={status === 'failed' ? 'alert' : 'status'}
-      aria-label="上下文压缩状态"
+      aria-label={t('conversation:context_compaction_status')}
     >
       <span className="compaction-icon">
         <Icon
@@ -41,7 +42,7 @@ export function ContextCompaction({
       </span>
       <div>
         <strong>
-          {running && offline && '上次已知：'}
+          {running && offline && t('common:last_known')}
           {label}
         </strong>
         {detail && <p>{detail}</p>}

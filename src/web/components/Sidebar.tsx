@@ -1,5 +1,8 @@
 import { UNASSIGNED_SCOPE } from '../../shared/workspace-scope';
+import { displayMessage } from '../i18n/messages';
+import { t, changeLocale, currentLocale } from '../i18n';
 import { useState } from 'react';
+import { localeNames, supportedLocales, type Locale } from '../i18n/locales';
 import { ArrowUpCircle, Bell } from 'lucide-react';
 import type { Project, ThreadSummary } from '../../shared/types';
 import type { ProjectThreads } from '../lib/project-threads';
@@ -75,9 +78,16 @@ export function Sidebar(props: Props) {
   return (
     <>
       {props.open && (
-        <button className="sidebar-backdrop" aria-label="关闭会话导航" onClick={props.onClose} />
+        <button
+          className="sidebar-backdrop"
+          aria-label={t('sidebar:close_session_navigation')}
+          onClick={props.onClose}
+        />
       )}
-      <aside className={cn('sidebar', props.open && 'sidebar-open')} aria-label="项目与会话">
+      <aside
+        className={cn('sidebar', props.open && 'sidebar-open')}
+        aria-label={t('sidebar:projects_and_sessions')}
+      >
         <div className="sidebar-header">
           <div className="brand">
             <div className="brand-mark">
@@ -87,12 +97,12 @@ export function Sidebar(props: Props) {
               asChild
               side="bottom"
               align="start"
-              content={`Covro ${props.appVersion ?? ''} · ${props.updating ? '更新中' : props.updateAvailable ? '有新版本' : '版本与更新'}`}
+              content={`Covro ${props.appVersion ?? ''} · ${props.updating ? t('sidebar:updating') : props.updateAvailable ? t('sidebar:update_available') : t('sidebar:version_and_updates')}`}
             >
               <button
                 type="button"
                 className="brand-name covro-brand-button"
-                aria-label="Covro 更新"
+                aria-label={t('common:covro_updates')}
                 data-update-available={props.updateAvailable || props.updating}
                 onClick={props.onUpdates}
               >
@@ -107,13 +117,13 @@ export function Sidebar(props: Props) {
               disabled={!props.canManageProjects}
             >
               <Icon name="plus" size={15} />
-              添加项目
+              {t('common:add_project')}
             </Button>
             <Button
               className="mobile-only"
               variant="ghost"
               size="icon"
-              aria-label="关闭导航"
+              aria-label={t('sidebar:close_navigation')}
               onClick={props.onClose}
             >
               <Icon name="close" />
@@ -121,14 +131,14 @@ export function Sidebar(props: Props) {
           </div>
           <div className="project-search">
             <label className="sr-only" htmlFor="project-search">
-              项目与会话
+              {t('sidebar:projects_and_sessions')}
             </label>
             <input
               id="project-search"
               type="search"
-              aria-label="搜索项目与已加载会话"
+              aria-label={t('sidebar:search_projects_and_loaded_sessions')}
               aria-describedby="sidebar-search-summary"
-              placeholder="搜索项目与已加载会话"
+              placeholder={t('sidebar:search_projects_and_loaded_sessions')}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -139,14 +149,18 @@ export function Sidebar(props: Props) {
             </span>
           </div>
           <div className="sidebar-toolbar">
-            <div className="archive-switch" role="group" aria-label="会话列表范围">
+            <div
+              className="archive-switch"
+              role="group"
+              aria-label={t('sidebar:session_list_scope')}
+            >
               <Button
                 variant={props.archiveView ? 'ghost' : 'secondary'}
                 size="sm"
                 aria-pressed={!props.archiveView}
                 onClick={() => props.onArchiveView(false)}
               >
-                会话
+                {t('common:sessions')}
               </Button>
               <Button
                 variant={props.archiveView ? 'secondary' : 'ghost'}
@@ -155,13 +169,13 @@ export function Sidebar(props: Props) {
                 onClick={() => props.onArchiveView(true)}
               >
                 <Icon name="archive" size={14} />
-                已归档会话
+                {t('sidebar:archived_sessions')}
               </Button>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              aria-label="刷新会话列表"
+              aria-label={t('sidebar:refresh_session_list')}
               onClick={props.onRefresh}
               disabled={!props.projectsLoaded}
             >
@@ -169,7 +183,11 @@ export function Sidebar(props: Props) {
             </Button>
           </div>
         </div>
-        <ThreadListNavigation context={`${props.archiveView}:${query}`} rows={props.projectThreads}>
+        <ThreadListNavigation
+          locale={currentLocale()}
+          context={`${props.archiveView}:${query}`}
+          rows={props.projectThreads}
+        >
           {groups.map(({ project, state, threads }) => {
             const activeCount = (state?.data ?? []).filter((entry) =>
               isActive(entry.status),
@@ -199,7 +217,10 @@ export function Sidebar(props: Props) {
                       {activeCount > 0 && (
                         <span
                           className="project-activity"
-                          aria-label={`${activeCount} 个进行中会话`}
+                          aria-label={t('sidebar:active_sessions', {
+                            count: activeCount,
+                            v0: activeCount,
+                          })}
                         >
                           {activeCount}
                         </span>
@@ -233,7 +254,7 @@ export function Sidebar(props: Props) {
                 </h2>
                 {!project.available && (
                   <p className="inline-error project-error" role="status">
-                    {project.error ?? '项目目录不可用'}
+                    {t('common:project_directory_unavailable')}
                   </p>
                 )}
                 <div className="thread-list">
@@ -261,10 +282,10 @@ export function Sidebar(props: Props) {
                     threads.length === 0 && (
                       <p className="sidebar-empty">
                         {query
-                          ? '已加载会话中没有匹配结果。'
+                          ? t('sidebar:no_matches_among_loaded_sessions')
                           : props.archiveView
-                            ? '暂无已归档会话。'
-                            : '暂无会话。创建一个，开始工作。'}
+                            ? t('sidebar:no_archived_sessions_yet')
+                            : t('sidebar:no_sessions_yet_create_one_to_get_started')}
                       </p>
                     )}
                   {state && (
@@ -272,14 +293,14 @@ export function Sidebar(props: Props) {
                       {Boolean(state.unverified?.length) && (
                         <p className="sidebar-pagination-status" role="status">
                           {state.error
-                            ? '本机列表同步失败，可继续浏览。'
+                            ? t('sidebar:local_list_sync_failed_browsing_is_still_available')
                             : state.loading
-                              ? '正在显示本机列表，后台同步中…'
-                              : '部分本机列表尚未同步，加载更多以核对。'}
+                              ? t('sidebar:showing_local_list_syncing_in_background')
+                              : t('sidebar:some_local_entries_are_not_synced_load_more')}
                         </p>
                       )}
                       {state.loading || state.error || state.nextCursor ? (
-                        <ControlHint content={state.error}>
+                        <ControlHint content={displayMessage(state.error)}>
                           <Button
                             variant="ghost"
                             className={cn('load-more', state.error && 'load-more-error')}
@@ -295,19 +316,21 @@ export function Sidebar(props: Props) {
                           >
                             {state.loading
                               ? state.appending
-                                ? '正在加载更多会话…'
-                                : '正在同步会话…'
+                                ? t('sidebar:loading_more_sessions')
+                                : t('sidebar:syncing_sessions')
                               : state.error
-                                ? '加载失败，重试'
-                                : '加载更多会话'}
+                                ? t('sidebar:load_failed_retry')
+                                : t('sidebar:load_more_sessions')}
                           </Button>
                         </ControlHint>
                       ) : state.loaded && state.data.length > 0 && !query ? (
-                        <p className="sidebar-pagination-status">已加载全部会话</p>
+                        <p className="sidebar-pagination-status">
+                          {t('sidebar:all_sessions_loaded')}
+                        </p>
                       ) : null}
                       {state.error && (
                         <span className="sr-only" id={`thread-pagination-error-${project.id}`}>
-                          {state.error}
+                          {displayMessage(state.error)}
                         </span>
                       )}
                     </div>
@@ -319,7 +342,7 @@ export function Sidebar(props: Props) {
           {groups.length === 0 && (
             <p className="sidebar-empty">
               {query
-                ? '没有匹配的项目或已加载会话。'
+                ? t('sidebar:no_matching_projects_or_loaded_sessions')
                 : props.projectsLoaded
                   ? '暂无会话。直接新建会话，或添加项目。'
                   : '正在读取项目…'}
@@ -327,6 +350,20 @@ export function Sidebar(props: Props) {
           )}
         </ThreadListNavigation>
         <div className="sidebar-footer">
+          <label className="language-selector">
+            <span>{t('common:language')}</span>
+            <select
+              aria-label={t('common:language')}
+              value={currentLocale()}
+              onChange={(event) => void changeLocale(event.target.value as Locale)}
+            >
+              {supportedLocales.map((locale) => (
+                <option key={locale} value={locale} lang={locale}>
+                  {localeNames[locale]}
+                </option>
+              ))}
+            </select>
+          </label>
           <Button
             className="gateway-settings-button"
             variant="ghost"
@@ -334,21 +371,23 @@ export function Sidebar(props: Props) {
             onClick={props.onGatewaySettings}
           >
             <Icon name="settings" size={15} />
-            <span>服务配置</span>
+            <span>{t('common:service_settings')}</span>
           </Button>
           <Button
             className="notification-settings-button"
             variant="ghost"
             size="sm"
-            aria-label={`工作完成通知 · ${props.notificationStatus}`}
+            aria-label={t('sidebar:task_completion_notifications', {
+              v0: props.notificationStatus,
+            })}
             onClick={props.onNotificationSettings}
           >
             <Bell size={15} aria-hidden="true" />
-            <span>完成通知</span>
+            <span>{t('sidebar:completion_notifications')}</span>
             <span className="notification-settings-status">{props.notificationStatus}</span>
           </Button>
-          <span className="privacy-mark">服务器执行</span>
-          <p>代码与凭据保留在运行服务的电脑上</p>
+          <span className="privacy-mark">{t('sidebar:runs_on_server')}</span>
+          <p>{t('sidebar:code_and_credentials_stay_on_the_computer_running')}</p>
         </div>
       </aside>
     </>

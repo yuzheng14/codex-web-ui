@@ -1,3 +1,6 @@
+import { errorMessage } from '../lib/error-message';
+import { message, displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import { useEffect, useId, useRef, useState, type ClipboardEvent } from 'react';
 import { emptyDraft, imagePasteError, readImage, type MessageDraft } from '../lib/image-paste';
 import type {
@@ -66,7 +69,7 @@ export function Composer(props: Props) {
           draft.images.some((image) => !image.dataUrl),
         )
       )
-        throw new Error('正在输入或读取图片，完成后会自动加载新版');
+        throw new Error(t('composer:an_update_will_load_automatically_once_typing_or'));
       return draftsRef.current;
     },
     (saved) => {
@@ -126,7 +129,7 @@ export function Composer(props: Props) {
       ? `/${command.name}${parsed.arguments ? ` ${parsed.arguments}` : ''}`
       : current.text;
     const problem = current.images.length
-      ? 'Slash 命令不能附带图片。请先移除图片，或改为普通消息。'
+      ? t('composer:slash_commands_cannot_include_images_remove_the_images')
       : validateSlashCommand(input, props.commands);
     if (problem) {
       setFeedback((previous) => ({ ...previous, [key]: { message: problem, error: true } }));
@@ -136,7 +139,10 @@ export function Composer(props: Props) {
     if (!chosen) return;
     sendingRef.current.add(key);
     setCommandPending((previous) => [...previous, key]);
-    setFeedback((previous) => ({ ...previous, [key]: { message: `正在执行 /${chosen.name}…` } }));
+    setFeedback((previous) => ({
+      ...previous,
+      [key]: { message: message('composer:running', { v0: chosen.name }) },
+    }));
     dismissMenu();
     try {
       const result = await chosen.run(parseSlashCommand(input)?.arguments);
@@ -152,7 +158,10 @@ export function Composer(props: Props) {
         ...previous,
         [key]: {
           error: true,
-          message: error instanceof Error ? error.message : '命令执行失败，请重试。',
+          message:
+            error instanceof Error
+              ? error.message
+              : message('composer:command_failed_please_try_again'),
         },
       }));
     } finally {
@@ -195,7 +204,7 @@ export function Composer(props: Props) {
     }
     const added = files.map((file) => ({
       id: crypto.randomUUID(),
-      name: file.name || '粘贴的图片',
+      name: file.name || t('composer:pasted_image'),
       size: file.size,
     }));
     const pastedText = event.clipboardData.getData('text/plain');
@@ -223,7 +232,7 @@ export function Composer(props: Props) {
               ? {
                   ...previous,
                   images: previous.images.filter((image) => image.id !== id),
-                  error: '图片读取失败，请重新粘贴。',
+                  error: t('common:could_not_read_the_image_please_paste_it'),
                 }
               : previous,
           ),
@@ -275,36 +284,42 @@ export function Composer(props: Props) {
       {props.submitting && (
         <p className="composer-resume-status" role="status">
           <Icon name="refresh" size={14} />
-          {props.thread ? '正在提交消息…' : '正在创建会话并发送首条消息…'}
+          {props.thread
+            ? t('composer:submitting_message')
+            : t('composer:creating_a_session_and_sending_the_first_message')}
         </p>
       )}
       {external && props.resuming && (
         <p className="composer-resume-status" role="status">
           <Icon name="refresh" size={14} />
-          正在恢复会话…
+          {t('composer:resuming_session')}
         </p>
       )}
       {external && props.resumeAttempted && !props.resuming && !resumeError && props.canResume && (
         <Button size="sm" variant="secondary" onClick={props.onResume}>
-          重试恢复
+          {t('composer:retry_resume')}
         </Button>
       )}
       {resumeError && !props.resuming && (
         <div className="session-resume-notice" role="status">
-          <strong>{occupied ? '此会话正被其他进程使用' : '无法恢复会话'}</strong>
+          <strong>
+            {occupied
+              ? t('composer:this_session_is_in_use_by_another_process')
+              : t('composer:unable_to_resume_session')}
+          </strong>
           <p>
             {occupied
-              ? '可以 Fork 已保存的历史继续对话，或在原进程释放会话后重试。新会话使用同一项目目录。'
-              : resumeError.message}
+              ? t('composer:fork_saved_history_to_continue_or_retry_once')
+              : displayMessage(errorMessage(resumeError))}
           </p>
           {occupied && (
             <Button size="sm" variant="secondary" disabled={!props.canFork} onClick={props.onFork}>
               <Icon name="fork" size={14} />
-              {props.forking ? '正在确认 Fork…' : 'Fork 为新会话'}
+              {props.forking ? t('common:confirming_fork') : t('common:fork_into_a_new_session')}
             </Button>
           )}
           <Button size="sm" disabled={!props.canResume} onClick={props.onResume}>
-            重试恢复
+            {t('composer:retry_resume')}
           </Button>
         </div>
       )}
@@ -312,7 +327,7 @@ export function Composer(props: Props) {
         <ComposerResizeHandle textareaRef={textareaRef} inputId={inputId} />
         {feedback[key] && (
           <p className="slash-feedback" role={feedback[key].error ? 'alert' : 'status'}>
-            {feedback[key].message}
+            {displayMessage(feedback[key].message)}
           </p>
         )}
         {menuOpen && (
@@ -328,13 +343,13 @@ export function Composer(props: Props) {
           />
         )}
         {images.length > 0 && (
-          <ul className="composer-images" aria-label="待发送的图片">
+          <ul className="composer-images" aria-label={t('composer:images_to_send')}>
             {images.map((image, index) => (
               <li key={image.id}>
                 {image.dataUrl ? (
-                  <img src={image.dataUrl} alt={`待发送的图片 ${index + 1}`} />
+                  <img src={image.dataUrl} alt={t('composer:image_to_send', { v0: index + 1 })} />
                 ) : (
-                  <span role="status">读取中…</span>
+                  <span role="status">{t('common:loading_2')}</span>
                 )}
                 <ControlHint asChild content={image.name}>
                   <span className="composer-image-name">{image.name}</span>
@@ -342,7 +357,7 @@ export function Composer(props: Props) {
                 <Button
                   variant="secondary"
                   size="sm"
-                  aria-label={`移除图片 ${index + 1}`}
+                  aria-label={t('composer:remove_image', { v0: index + 1 })}
                   onClick={() =>
                     updateDraft(key, (previous) => ({
                       ...previous,
@@ -359,13 +374,13 @@ export function Composer(props: Props) {
         )}
         {draft.error && (
           <p className="composer-image-error" role="alert">
-            {draft.error}
+            {displayMessage(draft.error)}
           </p>
         )}
         <textarea
           id={inputId}
           ref={textareaRef}
-          aria-label={active ? '追加要求' : '任务内容'}
+          aria-label={active ? t('composer:additional_instructions') : t('composer:task_content')}
           aria-haspopup="listbox"
           aria-controls={menuOpen ? menuId : undefined}
           aria-autocomplete="list"
@@ -378,10 +393,10 @@ export function Composer(props: Props) {
           readOnly={Boolean(props.thread?.archived)}
           placeholder={
             props.thread?.archived
-              ? '取消归档后可继续对话…'
+              ? t('composer:unarchive_to_continue_the_conversation')
               : active
-                ? '补充要求或调整方向…'
-                : '描述任务、粘贴图片，或输入 / 查看命令…'
+                ? t('composer:add_requirements_or_adjust_direction')
+                : t('composer:describe_a_task_paste_an_image_or_type')
           }
           maxLength={100000}
           onChange={(event) => {
@@ -470,9 +485,9 @@ export function Composer(props: Props) {
           }
         >
           {active && (
-            <ControlHint content="中断">
+            <ControlHint content={t('composer:interrupt')}>
               <Button
-                aria-label={props.interrupting ? '请求中…' : '中断'}
+                aria-label={props.interrupting ? t('composer:requesting') : t('composer:interrupt')}
                 variant="secondary"
                 size="sm"
                 onClick={props.onInterrupt}
@@ -480,7 +495,7 @@ export function Composer(props: Props) {
               >
                 <Icon name="stop" size={13} />
                 <span className="composer-action-label">
-                  {props.interrupting ? '请求中…' : '中断'}
+                  {props.interrupting ? t('composer:requesting') : t('composer:interrupt')}
                 </span>
               </Button>
             </ControlHint>
@@ -488,20 +503,24 @@ export function Composer(props: Props) {
           <ControlHint
             id={shortcutId}
             className="composer-submit"
-            content={slash ? 'Enter 执行命令 / Esc 关闭菜单' : 'Enter 发送 / Shift + Enter 换行'}
+            content={
+              slash
+                ? t('composer:enter_to_run_command_esc_to_close_menu')
+                : t('composer:enter_to_send_shift_enter_for_a_new')
+            }
           >
             <Button
               size="sm"
               aria-label={
                 slash
                   ? executingCommand
-                    ? '正在执行命令…'
-                    : '执行命令'
+                    ? t('composer:running_command')
+                    : t('common:run_command')
                   : props.submitting
-                    ? '正在提交…'
+                    ? t('common:submitting')
                     : active
-                      ? '追加要求'
-                      : '发送任务'
+                      ? t('composer:additional_instructions')
+                      : t('composer:send_task')
               }
               aria-describedby={shortcutId}
               onPointerDown={(event) => {
@@ -518,13 +537,13 @@ export function Composer(props: Props) {
               <span className="composer-action-label">
                 {slash
                   ? executingCommand
-                    ? '正在执行…'
-                    : '执行命令'
+                    ? t('composer:running_2')
+                    : t('common:run_command')
                   : props.submitting
-                    ? '正在提交…'
+                    ? t('common:submitting')
                     : active
-                      ? '追加要求'
-                      : '发送任务'}
+                      ? t('composer:additional_instructions')
+                      : t('composer:send_task')}
               </span>
             </Button>
           </ControlHint>
@@ -532,8 +551,8 @@ export function Composer(props: Props) {
       </div>
       <p className="composer-note">
         {active
-          ? '关闭页面不会停止任务。中断以 Codex 返回的实际状态为准。'
-          : 'Codex 使用服务器项目与权限执行，请核对操作和变更。'}
+          ? t('composer:closing_this_page_does_not_stop_tasks_interruptions')
+          : t('composer:codex_runs_with_the_server_project_s_permissions')}
       </p>
     </div>
   );

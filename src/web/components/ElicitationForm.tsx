@@ -1,3 +1,5 @@
+import { displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import { useState } from 'react';
 import type {
   ActionResolution,
@@ -26,15 +28,18 @@ function initialDraft(fields: ElicitationField[]): Draft {
 
 function fieldHint(field: ElicitationField): string {
   const hints: string[] = [];
-  if (field.type === 'integer') hints.push('填写整数');
-  if (field.minimum !== undefined) hints.push(`最小 ${field.minimum}`);
-  if (field.maximum !== undefined) hints.push(`最大 ${field.maximum}`);
-  if (field.minLength !== undefined) hints.push(`至少 ${field.minLength} 个字符`);
-  if (field.maxLength !== undefined) hints.push(`最多 ${field.maxLength} 个字符`);
-  if (field.minItems !== undefined) hints.push(`至少选择 ${field.minItems} 项`);
-  if (field.maxItems !== undefined) hints.push(`最多选择 ${field.maxItems} 项`);
-  if (field.format === 'date-time')
-    hints.push('日期与时间需包含时区，例如 2026-10-14T12:30:00+08:00');
+  if (field.type === 'integer') hints.push(t('approvals:enter_an_integer'));
+  if (field.minimum !== undefined) hints.push(t('approvals:minimum', { v0: field.minimum }));
+  if (field.maximum !== undefined) hints.push(t('approvals:maximum', { v0: field.maximum }));
+  if (field.minLength !== undefined)
+    hints.push(t('approvals:at_least_characters', { count: field.minLength, v0: field.minLength }));
+  if (field.maxLength !== undefined)
+    hints.push(t('approvals:at_most_characters', { count: field.maxLength, v0: field.maxLength }));
+  if (field.minItems !== undefined)
+    hints.push(t('approvals:select_at_least_items', { count: field.minItems, v0: field.minItems }));
+  if (field.maxItems !== undefined)
+    hints.push(t('approvals:select_at_most_items', { count: field.maxItems, v0: field.maxItems }));
+  if (field.format === 'date-time') hints.push(t('approvals:include_a_time_zone_e_g_2026_10'));
   return hints.join(' · ');
 }
 
@@ -47,15 +52,15 @@ function contentFor(fields: ElicitationField[], draft: Draft) {
       value === undefined ||
       ((field.type === 'number' || field.type === 'integer') && value === '')
     ) {
-      if (field.required) errors[field.name] = '请填写此必填项。';
+      if (field.required) errors[field.name] = t('approvals:this_field_is_required');
       continue;
     }
     const typedValue = field.type === 'number' || field.type === 'integer' ? Number(value) : value;
     try {
       validateElicitationFieldValue(field, typedValue);
       content[field.name] = typedValue;
-    } catch (error) {
-      errors[field.name] = error instanceof Error ? error.message : '请检查此字段的填写要求。';
+    } catch {
+      errors[field.name] = t('approvals:check_the_requirements_for_this_field');
     }
   }
   return { content, errors };
@@ -91,22 +96,22 @@ export function ElicitationForm({
     status !== 'pending'
       ? actionStatusLabel(status)
       : request.approval
-        ? '允许本次'
+        ? t('approvals:allow_once')
         : request.mode === 'url'
-          ? '我已完成'
+          ? t('approvals:i_m_done')
           : fields.length === 0
-            ? '确认继续'
+            ? t('common:confirm_and_continue')
             : fields.every((field) => ['boolean', 'enum', 'multiEnum'].includes(field.type))
-              ? '确认选择'
-              : '提交回答';
+              ? t('common:confirm_selection')
+              : t('common:submit_answer');
   const [draft, setDraft] = useState<Draft>(() => initialDraft(fields));
   const [attempted, setAttempted] = useState(false);
   const { content, errors } = contentFor(fields, draft);
   const externalUrl = safeExternalUrl(request.url);
   const unavailable =
-    request.schemaError ||
+    (request.schemaError ? t('errors:unsupportedSchema') : undefined) ||
     (request.mode === 'url' && !externalUrl
-      ? '此请求没有可安全打开的 HTTP 或 HTTPS 地址，无法确认完成。'
+      ? t('approvals:this_request_has_no_safe_http_or_https')
       : undefined);
   const change = (name: string, value: DraftValue | undefined) =>
     setDraft((previous) => ({ ...previous, [name]: value }));
@@ -127,11 +132,12 @@ export function ElicitationForm({
       }}
     >
       <p className="elicitation-source">
-        来源：<strong>{request.serverName}</strong>
+        {t('approvals:source')}
+        <strong>{request.serverName}</strong>
       </p>
       {request.approval?.allowSession && (
         <p className="elicitation-scope subtle">
-          本会话允许仅适用于当前请求对应的工具或连接范围，并受审批策略约束；新会话需重新确认。
+          {t('approvals:session_approval_applies_only_to_this_request_s')}
         </p>
       )}
       {unavailable && (
@@ -141,8 +147,8 @@ export function ElicitationForm({
       )}
       {request.mode === 'url' ? (
         <div className="elicitation-url">
-          <span>访问地址</span>
-          <code>{request.url ?? '未提供地址'}</code>
+          <span>{t('approvals:url')}</span>
+          <code>{request.url ?? t('approvals:no_url_provided')}</code>
           {externalUrl && (
             <a
               href={externalUrl}
@@ -150,10 +156,10 @@ export function ElicitationForm({
               rel="noopener noreferrer"
               referrerPolicy="no-referrer"
             >
-              在新标签页打开
+              {t('approvals:open_in_new_tab')}
             </a>
           )}
-          <p>完成页面中的操作后，点击“我已完成”继续。</p>
+          <p>{t('approvals:complete_the_steps_on_the_page_then_click')}</p>
         </div>
       ) : (
         !unavailable && (
@@ -177,7 +183,7 @@ export function ElicitationForm({
                     <label id={`${id}-label`} htmlFor={field.type === 'multiEnum' ? undefined : id}>
                       {field.title}
                       <span className="field-necessity" aria-hidden="true">
-                        {field.required ? '必填' : '可选'}
+                        {field.required ? t('approvals:required') : t('approvals:optional')}
                       </span>
                     </label>
                     {!field.required && value !== undefined && (
@@ -187,7 +193,8 @@ export function ElicitationForm({
                         disabled={disabled}
                         onClick={() => change(field.name, undefined)}
                       >
-                        不填写<span className="sr-only">{field.title}</span>
+                        {t('approvals:leave_blank')}
+                        <span className="sr-only">{field.title}</span>
                       </button>
                     )}
                   </div>
@@ -224,11 +231,11 @@ export function ElicitationForm({
                         )
                       }
                     >
-                      <option value="">请选择</option>
+                      <option value="">{t('approvals:select_an_option')}</option>
                       {field.type === 'boolean' ? (
                         <>
-                          <option value="true">是</option>
-                          <option value="false">否</option>
+                          <option value="true">{t('approvals:yes')}</option>
+                          <option value="false">{t('approvals:no')}</option>
                         </>
                       ) : (
                         field.options?.map((option) => (
@@ -289,7 +296,9 @@ export function ElicitationForm({
                       aria-required={field.required}
                       aria-invalid={Boolean(error)}
                       aria-describedby={describedBy}
-                      placeholder={!field.required ? '未填写（可选）' : undefined}
+                      placeholder={
+                        !field.required ? t('approvals:not_provided_optional') : undefined
+                      }
                       autoComplete="off"
                       onChange={(event) => change(field.name, event.target.value)}
                     />
@@ -301,7 +310,7 @@ export function ElicitationForm({
                   )}
                   {error && (
                     <p id={`${id}-error`} className="elicitation-error" role="alert">
-                      {error}
+                      {displayMessage(error)}
                     </p>
                   )}
                 </div>
@@ -312,7 +321,7 @@ export function ElicitationForm({
       )}
       {attempted && Object.keys(errors).length > 0 && !unavailable && (
         <p className="elicitation-error" role="alert">
-          请检查标出的字段后再提交。
+          {t('approvals:check_the_highlighted_fields_before_submitting')}
         </p>
       )}
       <div className="action-options">
@@ -327,7 +336,7 @@ export function ElicitationForm({
             disabled={disabled}
             onClick={() => onResolve({ decision: 'accept', persist: 'session' })}
           >
-            本会话允许
+            {t('approvals:allow_for_this_session')}
           </Button>
         )}
         <Button
@@ -335,14 +344,14 @@ export function ElicitationForm({
           disabled={disabled}
           onClick={() => onResolve({ decision: 'decline' })}
         >
-          拒绝
+          {t('approvals:deny')}
         </Button>
         <Button
           variant="ghost"
           disabled={disabled}
           onClick={() => onResolve({ decision: 'cancel' })}
         >
-          取消
+          {t('common:cancel')}
         </Button>
       </div>
     </form>

@@ -1,14 +1,15 @@
+import { t } from '../i18n';
 import type { PendingAction } from '../../shared/types';
 
 export function actionStatusLabel(status: PendingAction['status']): string {
   switch (status) {
     case 'pending':
-      return '需要你处理';
+      return t('approvals:action_required');
     case 'responding':
-      return '正在提交…';
+      return t('common:submitting');
     case 'responded':
-      return '已处理';
+      return t('approvals:handled');
     case 'expired':
-      return '请求已失效';
+      return t('approvals:request_expired');
   }
 }

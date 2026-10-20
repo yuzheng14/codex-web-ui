@@ -1,10 +1,15 @@
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { ControlHint } from './ControlHint';
 
 export function ThreadId({ id, placeholder }: { id?: string; placeholder?: string }) {
-  return id ? <CopyableThreadId key={id} id={id} /> : <span>{placeholder ?? '会话尚未创建'}</span>;
+  return id ? (
+    <CopyableThreadId key={id} id={id} />
+  ) : (
+    <span>{placeholder ?? t('common:session_not_created_yet')}</span>
+  );
 }
 
 function CopyableThreadId({ id }: { id: string }) {
@@ -41,12 +46,12 @@ function CopyableThreadId({ id }: { id: string }) {
     <div className="thread-id">
       <div className="thread-id-value">
         <code>{id}</code>
-        <ControlHint asChild content="复制完整 Thread ID">
+        <ControlHint asChild content={t('sidebar:copy_full_thread_id')}>
           <Button
             variant="ghost"
             size="icon"
             className="thread-id-copy"
-            aria-label="复制 Thread ID"
+            aria-label={t('sidebar:copy_thread_id')}
             onClick={() => void copy()}
           >
             <Icon name={feedback === 'copied' ? 'check' : 'copy'} size={14} />
@@ -54,8 +59,8 @@ function CopyableThreadId({ id }: { id: string }) {
         </ControlHint>
       </div>
       <span className={`thread-id-feedback thread-id-${feedback}`} role="status">
-        {feedback === 'copied' && '已复制'}
-        {feedback === 'failed' && '复制失败，请手动选择 ID 复制。'}
+        {feedback === 'copied' && t('common:copied')}
+        {feedback === 'failed' && t('sidebar:copy_failed_select_and_copy_the_id_manually')}
       </span>
     </div>
   );

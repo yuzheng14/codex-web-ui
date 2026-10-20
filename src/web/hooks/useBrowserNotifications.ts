@@ -1,4 +1,6 @@
 import { scopeKey } from '../../shared/workspace-scope';
+import { message } from '../i18n/messages';
+import { t } from '../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnCompletion } from '../../shared/types';
 import {
@@ -54,7 +56,9 @@ export function useBrowserNotifications(options: Options) {
         localStorage.setItem(NOTIFICATIONS_ENABLED_KEY, '0');
         setEnabled(false);
       } catch {
-        setError('无法保存通知设置，请允许此站点使用浏览器存储后重试。');
+        setError(
+          message('notifications:cannot_save_notification_settings_allow_browser_storage_for'),
+        );
       }
       return;
     }
@@ -71,7 +75,12 @@ export function useBrowserNotifications(options: Options) {
         setEnabled(true);
       }
     } catch {
-      if (mounted.current) setError('无法启用通知，请检查浏览器通知权限及此站点的存储设置。');
+      if (mounted.current)
+        setError(
+          message(
+            'notifications:cannot_enable_notifications_check_notification_permissions_and_site',
+          ),
+        );
     } finally {
       requestInFlight.current = false;
       if (mounted.current) setRequesting(false);
@@ -87,7 +96,7 @@ export function useBrowserNotifications(options: Options) {
     };
     notification.onerror = () => {
       if (mounted.current)
-        setError('浏览器未能显示通知，请检查浏览器与系统的通知设置。页内状态与未读提示仍然可用。');
+        setError(message('notifications:the_browser_could_not_show_notifications_check_browser'));
     };
   }, []);
 
@@ -113,7 +122,7 @@ export function useBrowserNotifications(options: Options) {
       } catch {
         if (mounted.current)
           setError(
-            '无法显示通知或保存去重记录，请检查浏览器通知权限与站点存储。页内状态与未读提示仍然可用。',
+            message('notifications:cannot_show_notifications_or_save_deduplication_records_check'),
           );
       }
     },
@@ -124,9 +133,13 @@ export function useBrowserNotifications(options: Options) {
     if (!notificationsEnabled() || notificationAccess() !== 'granted') return;
     setError(undefined);
     try {
-      show('通知测试', { body: 'Agent 工作结束时，会在这里显示项目、会话和结束状态。' });
+      show(t('notifications:test_notification'), {
+        body: t('notifications:project_session_and_completion_status_will_appear_here'),
+      });
     } catch {
-      setError('当前浏览器无法显示系统通知，请检查浏览器与系统的通知设置。');
+      setError(
+        message('notifications:this_browser_cannot_show_system_notifications_check_browser'),
+      );
     }
   };
 

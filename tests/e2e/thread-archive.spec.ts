@@ -259,7 +259,12 @@ test('failed archive and restore writes keep the saved state and show an actiona
   await expect(row(page, id).locator('.thread-link')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('.archive-notice')).toHaveCount(0);
   await page.unroute(path);
+  // The row disappears optimistically. Wait for the actual write before querying archives.
+  const committed = page.waitForResponse(
+    (response) => response.url().endsWith(`/api/threads/${id}/archive`) && response.ok(),
+  );
   await archive(page, id);
+  await committed;
   await expectEmpty(page);
   await openArchived(page, id);
   await reject();

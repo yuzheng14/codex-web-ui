@@ -4604,3 +4604,77 @@ dd {
   color: #748078;
   line-height: 1.7;
 }
+
+.language-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.language-selector select {
+  min-width: 0;
+  max-width: 65%;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: #252b32;
+}
+.language-selector select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.action-options,
+.composer-actions,
+.sidebar-toolbar,
+.settings-pending {
+  flex-wrap: wrap;
+}
+.action-options > button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  height: auto;
+  min-height: 32px;
+}
+.permission-description,
+.settings-note,
+.sidebar-footer p {
+  overflow-wrap: anywhere;
+}
+
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.sidebar-footer .gateway-settings-button {
+  margin: 0;
+  align-self: flex-start;
+}
+.sidebar-footer .notification-settings-button {
+  position: static;
+  align-self: flex-start;
+  height: auto;
+  white-space: normal;
+}
+.sidebar-footer p {
+  margin: 0;
+}
+
+.error-banner.dismissible {
+  flex-wrap: wrap;
+}
+.error-technical {
+  flex-basis: 100%;
+  min-width: 0;
+}
+.error-technical pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-bottom: 0;
+}

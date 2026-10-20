@@ -1,3 +1,5 @@
+import { message } from '../i18n/messages';
+import { t } from '../i18n';
 import { HttpError } from './api';
 import type { ApiError } from '../../shared/types';
 
@@ -15,21 +17,24 @@ export async function downloadThreadExport(threadId: string): Promise<{ partial:
       const body = (await response.json()) as { error?: ApiError };
       throw new HttpError(
         response.status,
-        body.error ?? { code: 'EXPORT_FAILED', message: '无法读取会话历史，未下载文件。' },
+        body.error ?? {
+          code: 'EXPORT_FAILED',
+          message: message('workspace:cannot_read_session_history_no_file_downloaded'),
+        },
       );
     }
     throw new HttpError(response.status === 200 ? 401 : response.status, {
       code: 'AUTH_REQUIRED',
-      message: '登录已过期或历史接口未返回 Markdown，请重新登录后重试。',
+      message: message('workspace:login_expired_or_history_response_was_not_markdown'),
     });
   }
   const filename = /filename="(codex-thread-[A-Za-z0-9_-]+\.md)"/.exec(
     response.headers.get('content-disposition') ?? '',
   )?.[1];
-  if (!filename) throw new Error('导出响应缺少有效文件名，未下载文件。');
+  if (!filename) throw new Error(t('workspace:export_response_has_no_valid_filename_no_file'));
   const completeness = response.headers.get('x-export-completeness');
   if (completeness !== 'partial' && completeness !== 'saved-history')
-    throw new Error('导出响应缺少历史完整性说明，未下载文件。');
+    throw new Error(t('workspace:export_response_lacks_history_completeness_information_no_file'));
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

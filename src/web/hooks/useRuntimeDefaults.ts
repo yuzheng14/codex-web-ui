@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useState } from 'react';
 import type { RuntimeSettings } from '../../shared/types';
 import { api } from '../lib/api';
@@ -19,7 +20,7 @@ export function useRuntimeDefaults(projectId?: string, runtimeKey?: string) {
         if (!cancelled) setResult({ key, value });
       },
       () => {
-        if (!cancelled) setResult({ key, error: '无法读取默认配置' });
+        if (!cancelled) setResult({ key, error: t('workspace:cannot_read_default_settings') });
       },
     );
     return () => {

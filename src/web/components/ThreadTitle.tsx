@@ -1,3 +1,5 @@
+import { message, displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Pencil } from 'lucide-react';
 import { MAX_THREAD_NAME_CHARACTERS, threadNameError } from '../../shared/thread-name';
@@ -28,7 +30,7 @@ export function ThreadTitle({
   const composing = useRef(false);
   const compositionEndedAt = useRef(-Infinity);
   const id = useId();
-  const reason = rename.unavailableReason?.replaceAll('/status', '状态诊断');
+  const reason = rename.unavailableReason?.replaceAll('/status', t('common:diagnostics'));
 
   useEffect(() => {
     if (editing) {
@@ -63,7 +65,7 @@ export function ThreadTitle({
 
   async function save() {
     if (submitting.current || reason) return;
-    const problem = draft.trim() ? threadNameError(draft) : '请输入会话名称。';
+    const problem = draft.trim() ? threadNameError(draft) : t('sidebar:enter_a_session_name');
     if (problem) {
       setError(problem);
       inputRef.current?.focus();
@@ -75,7 +77,8 @@ export function ThreadTitle({
     finish();
     try {
       const result = await rename.run(draft);
-      if (result.error) setError(result.message.replaceAll('/status', '状态诊断'));
+      if (result.error)
+        setError(result.message.replaceAll('/status', message('common:diagnostics')));
       else setError(undefined);
     } catch (problem) {
       setError(readableError(problem));
@@ -92,7 +95,7 @@ export function ThreadTitle({
           <h1 className="sr-only">{title}</h1>
           <form
             className="thread-title-form"
-            aria-label="重命名会话"
+            aria-label={t('sidebar:rename_session')}
             aria-busy={saving}
             onSubmit={(event) => {
               event.preventDefault();
@@ -102,7 +105,7 @@ export function ThreadTitle({
             <div className="thread-title-fields">
               <input
                 ref={inputRef}
-                aria-label="会话名称"
+                aria-label={t('sidebar:session_name')}
                 aria-describedby={`${id}-help${error ? ` ${id}-error` : ''}`}
                 aria-invalid={Boolean(error)}
                 value={draft}
@@ -144,21 +147,21 @@ export function ThreadTitle({
                   if (event.key === 'Enter') compositionEndedAt.current = -Infinity;
                 }}
               />
-              <ControlHint content="保存会话名称">
+              <ControlHint content={t('sidebar:save_session_name')}>
                 <Button
                   type="submit"
                   size="icon"
-                  aria-label="保存会话名称"
+                  aria-label={t('sidebar:save_session_name')}
                   disabled={saving || Boolean(reason)}
                 >
                   <Icon name="check" size={16} />
                 </Button>
               </ControlHint>
-              <ControlHint content="取消重命名">
+              <ControlHint content={t('sidebar:cancel_rename')}>
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="取消重命名"
+                  aria-label={t('sidebar:cancel_rename')}
                   disabled={saving}
                   onClick={finish}
                 >
@@ -168,12 +171,16 @@ export function ThreadTitle({
             </div>
             <p id={`${id}-help`} className="thread-title-help">
               {saving
-                ? '正在保存…'
-                : (reason ?? `Enter 保存 · Esc 取消 · 最多 ${MAX_THREAD_NAME_CHARACTERS} 个字符`)}
+                ? t('common:saving')
+                : (reason ??
+                  t('sidebar:enter_to_save_esc_to_cancel_up_to', {
+                    count: MAX_THREAD_NAME_CHARACTERS,
+                    v0: MAX_THREAD_NAME_CHARACTERS,
+                  }))}
             </p>
             {error && (
               <p id={`${id}-error`} className="thread-title-error" role="alert">
-                {error}
+                {displayMessage(error)}
               </p>
             )}
           </form>
@@ -182,14 +189,14 @@ export function ThreadTitle({
         <ControlHint
           id={`${id}-hint`}
           className="thread-title-hint"
-          content={reason ?? '点击标题重命名会话'}
+          content={reason ?? t('sidebar:click_title_to_rename_session')}
         >
           <h1 aria-label={title}>
             <button
               ref={triggerRef}
               type="button"
               className="thread-title-trigger"
-              aria-label="重命名会话"
+              aria-label={t('sidebar:rename_session')}
               aria-describedby={`${id}-hint`}
               aria-disabled={Boolean(reason)}
               onClick={() => {

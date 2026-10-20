@@ -1,3 +1,5 @@
+import { displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import {
   createContext,
   useContext,
@@ -64,7 +66,7 @@ function useImage(threadId: string | undefined, { path, url: remoteUrl }: ImageS
     let url: string | undefined;
     const timeout = setTimeout(() => {
       controller.abort();
-      setState({ error: '图片加载超时，请重试。' });
+      setState({ error: t('preview:image_loading_timed_out_please_retry') });
     }, 35_000);
     setState({});
     void fetchLocalImage(threadId, path, controller.signal)
@@ -92,8 +94,8 @@ function useImage(threadId: string | undefined, { path, url: remoteUrl }: ImageS
     fail: () =>
       setState({
         error: remoteUrl
-          ? '图片加载失败，可能已失效、访问受限或网络不可用。'
-          : '图片无法解码，文件可能已损坏或格式不受浏览器支持。',
+          ? t('preview:image_failed_to_load_it_may_have_expired')
+          : t('preview:cannot_decode_image_the_file_may_be_damaged'),
       }),
   };
 }
@@ -111,16 +113,16 @@ function ImageError({
 }) {
   return (
     <span className="local-image-error" role="alert">
-      <span>{error}</span>
+      <span>{displayMessage(error)}</span>
       <code>{path}</code>
       {url && (
         <a href={url} target="_blank" rel="noopener noreferrer">
-          打开原图
+          {t('preview:open_original_image')}
         </a>
       )}
       {retry && (
         <button type="button" className="image-retry" onClick={retry}>
-          重试加载图片
+          {t('preview:retry_loading_image')}
         </button>
       )}
     </span>
@@ -141,7 +143,7 @@ function ReplyImage({
   const { threadId, open } = useImagePreview();
   const image = useImage(threadId, source);
   const { path, url } = source;
-  const label = alt || (path ? path.split('/').at(-1) : undefined) || '图片';
+  const label = alt || (path ? path.split('/').at(-1) : undefined) || t('common:image');
   const thumbnail = (
     <>
       <img
@@ -161,18 +163,18 @@ function ReplyImage({
     <span className="local-image">
       {image.error ? (
         <ImageError
-          error={image.error}
+          error={displayMessage(image.error)}
           path={url ?? path}
           retry={interactive ? image.retry : undefined}
           url={interactive ? url : undefined}
         />
       ) : image.src ? (
         interactive ? (
-          <ControlHint asChild content={title || '点击放大图片'}>
+          <ControlHint asChild content={title || t('preview:click_to_enlarge_image')}>
             <button
               type="button"
               className="local-image-open"
-              aria-label={`预览图片：${label}`}
+              aria-label={t('common:preview_image', { v0: label })}
               onClick={() => open({ ...source, label })}
             >
               {thumbnail}
@@ -185,7 +187,8 @@ function ReplyImage({
         )
       ) : (
         <span className="local-image-loading" role="status">
-          正在加载图片…<code>{url || path}</code>
+          {t('preview:loading_image')}
+          <code>{url || path}</code>
         </span>
       )}
     </span>
@@ -200,7 +203,7 @@ export function RemoteImage({ src, ...props }: ImageProps & { src: string }) {
   if (!src)
     return (
       <span className="local-image-error" role="alert">
-        图片地址不可用。
+        {t('preview:image_url_unavailable')}
       </span>
     );
   return <ReplyImage source={{ url: src }} {...props} />;
@@ -249,7 +252,7 @@ function ImagePreviewDialog({
     <dialog
       ref={dialog}
       className="image-preview-dialog"
-      aria-label="图片预览"
+      aria-label={t('preview:image_preview')}
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -270,39 +273,50 @@ function ImagePreviewDialog({
     >
       <div className="image-preview-heading">
         <h2>{target.label}</h2>
-        <Button autoFocus variant="ghost" size="icon" aria-label="关闭图片预览" onClick={onClose}>
+        <Button
+          autoFocus
+          variant="ghost"
+          size="icon"
+          aria-label={t('preview:close_image_preview')}
+          onClick={onClose}
+        >
           <Icon name="close" size={19} />
         </Button>
       </div>
-      <div className="image-preview-toolbar" aria-label="图片缩放">
+      <div className="image-preview-toolbar" aria-label={t('preview:image_zoom')}>
         <Button
           variant="secondary"
           size="sm"
-          aria-label="缩小图片"
+          aria-label={t('preview:zoom_out')}
           disabled={!loaded || zoom <= 0.5}
           onClick={() => setZoom((value) => Math.max(0.5, value - 0.25))}
         >
           −
         </Button>
-        <output aria-label="图片缩放比例">{Math.round(zoom * 100)}%</output>
+        <output aria-label={t('preview:image_zoom_level')}>{Math.round(zoom * 100)}%</output>
         <Button
           variant="secondary"
           size="sm"
-          aria-label="放大图片"
+          aria-label={t('preview:zoom_in')}
           disabled={!loaded || zoom >= 4}
           onClick={() => setZoom((value) => Math.min(4, value + 0.25))}
         >
           ＋
         </Button>
         <Button variant="ghost" size="sm" disabled={!loaded} onClick={() => setZoom(1)}>
-          适应窗口
+          {t('preview:fit_to_window')}
         </Button>
-        <span className="image-preview-shortcuts">＋ / − 缩放 · Esc 关闭</span>
+        <span className="image-preview-shortcuts">{t('preview:to_zoom_esc_to_close')}</span>
       </div>
-      <div className="image-preview-viewport" ref={viewport} tabIndex={0} aria-label="图片查看区域">
+      <div
+        className="image-preview-viewport"
+        ref={viewport}
+        tabIndex={0}
+        aria-label={t('preview:image_viewing_area')}
+      >
         {image.error ? (
           <ImageError
-            error={image.error}
+            error={displayMessage(image.error)}
             path={target.url ?? target.path}
             retry={image.retry}
             url={target.url}
@@ -329,15 +343,15 @@ function ImagePreviewDialog({
           </div>
         ) : (
           <span className="local-image-loading" role="status">
-            正在加载图片…
+            {t('preview:loading_image')}
           </span>
         )}
       </div>
       <p className="image-preview-path">
-        <span>{target.url ? '原图链接' : '原始路径'}</span>
+        <span>{target.url ? t('preview:original_image_link') : t('preview:original_path_2')}</span>
         {target.url ? (
           <a href={target.url} target="_blank" rel="noopener noreferrer">
-            打开原图
+            {t('preview:open_original_image')}
           </a>
         ) : (
           <code>{target.path}</code>

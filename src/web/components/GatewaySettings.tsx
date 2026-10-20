@@ -1,3 +1,5 @@
+import { message, displayMessage } from '../i18n/messages';
+import { t, formatList } from '../i18n';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Download, Upload, Settings2 } from 'lucide-react';
 import type {
@@ -20,7 +22,8 @@ import {
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 
-const message = (error: unknown) => (error instanceof Error ? error.message : '操作失败，请重试。');
+const describeFailure = (error: unknown) =>
+  error instanceof Error ? error.message : t('settings:operation_failed_please_retry');
 
 export function GatewaySettings({ onClose }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -52,7 +55,7 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
         }
       })
       .catch((failure: unknown) => {
-        if (!controller.signal.aborted) setError(message(failure));
+        if (!controller.signal.aborted) setError(describeFailure(failure));
       })
       .finally(() => {
         if (!controller.signal.aborted) setBusy(false);
@@ -82,7 +85,7 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
     try {
       await action();
     } catch (failure) {
-      setError(message(failure));
+      setError(describeFailure(failure));
       if (failure instanceof HttpError && failure.problem.code === 'CONFIG_CONFLICT')
         setConflict(true);
     } finally {
@@ -105,12 +108,13 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
     event.target.value = '';
     if (!file) return;
     await run(async () => {
-      if (file.size > 256 * 1024) throw new Error('配置文件不能超过 256 KiB。');
+      if (file.size > 256 * 1024)
+        throw new Error(t('settings:configuration_files_cannot_exceed_256_kib'));
       let value: unknown;
       try {
         value = JSON.parse(await file.text());
       } catch {
-        throw new Error('无法解析 JSON，请检查配置文件格式。');
+        throw new Error(t('settings:cannot_parse_json_check_the_file_format'));
       }
       setImported(await api.importGatewayConfig(value));
       setReview(undefined);
@@ -129,7 +133,7 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setNotice('已导出配置文件中的已保存配置；未保存的编辑不包含在内。');
+      setNotice(message('settings:exported_saved_configuration_from_the_file_unsaved_edits'));
     });
   }
   const running = snapshot && configForm(snapshot.running);
@@ -172,7 +176,9 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
         )}
         {form[item.key] !== running[item.key] && (
           <small className="gateway-running">
-            当前运行：{configFieldValue(item, running[item.key]) || '未设置'}
+            {t('settings:currently_running', {
+              v0: configFieldValue(item, running[item.key]) || t('settings:not_set'),
+            })}
           </small>
         )}
       </label>
@@ -192,85 +198,101 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
       <div className="project-dialog-heading">
         <div>
           <Settings2 size={20} aria-hidden="true" />
-          <h2 id="gateway-title">服务配置</h2>
+          <h2 id="gateway-title">{t('common:service_settings')}</h2>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          aria-label="关闭服务配置"
+          aria-label={t('settings:close_service_settings')}
           disabled={busy}
           onClick={close}
         >
           <Icon name="close" size={17} />
         </Button>
       </div>
-      <p className="gateway-intro">配置运行此网页服务的电脑。保存后需手动重启服务生效。</p>
+      <p className="gateway-intro">
+        {t('settings:configure_the_computer_running_this_service_restart_it')}
+      </p>
       {error && (
         <p className="gateway-error" role="alert">
-          {error}
+          {displayMessage(error)}
         </p>
       )}
       {!snapshot && (
         <Button variant="secondary" disabled={busy} onClick={() => void reload()}>
-          {busy ? '正在读取配置…' : '重新读取配置'}
+          {busy ? t('settings:loading_configuration') : t('settings:reload_configuration')}
         </Button>
       )}
       {snapshot && form && (
         <>
           <div className="gateway-file">
-            <span>配置文件</span>
+            <span>{t('settings:configuration_file')}</span>
             <code>{snapshot.path}</code>
           </div>
           <div className="gateway-status" role="status" data-pending={snapshot.restartRequired}>
             <strong>
-              {snapshot.restartRequired ? '已保存，待重启生效' : '已保存配置与当前运行配置一致'}
+              {snapshot.restartRequired
+                ? t('settings:saved_restart_to_apply')
+                : t('settings:saved_and_running_configurations_match')}
             </strong>
-            <span>保存不会重启服务或中断当前任务。</span>
+            <span>{t('settings:saving_does_not_restart_the_service_or_interrupt')}</span>
           </div>
           {!snapshot.writable && <p className="gateway-error">{snapshot.readOnlyReason}</p>}
           {notice && (
             <p className="gateway-notice" role="status">
-              {notice}
+              {displayMessage(notice)}
             </p>
           )}
           {conflict && (
             <div className="gateway-conflict">
-              <p>重新读取会丢弃当前编辑，并载入文件的最新内容。</p>
+              <p>{t('settings:reloading_discards_current_edits_and_loads_the_latest')}</p>
               <Button variant="secondary" disabled={busy} onClick={() => void reload()}>
-                丢弃编辑并重新读取
+                {t('settings:discard_edits_and_reload')}
               </Button>
             </div>
           )}
           {confirmClose ? (
-            <section className="gateway-review" aria-label="放弃编辑确认">
-              <h3>放弃未保存的更改？</h3>
-              <p>配置文件尚未修改。</p>
+            <section className="gateway-review" aria-label={t('settings:confirm_discarding_edits')}>
+              <h3>{t('settings:discard_unsaved_changes')}</h3>
+              <p>{t('settings:the_configuration_file_has_not_been_changed')}</p>
               <div className="project-dialog-actions">
                 <Button variant="secondary" onClick={() => setConfirmClose(false)}>
-                  继续编辑
+                  {t('settings:keep_editing')}
                 </Button>
                 <Button variant="destructive" onClick={onClose}>
-                  放弃更改并关闭
+                  {t('settings:discard_changes_and_close')}
                 </Button>
               </div>
             </section>
           ) : preview ? (
             <section
               className="gateway-review"
-              aria-label={imported ? '导入配置预览' : '保存配置预览'}
+              aria-label={
+                imported
+                  ? t('settings:import_configuration_preview')
+                  : t('settings:save_configuration_preview')
+              }
             >
-              <h3>{imported ? '预览导入配置' : '确认配置更改'}</h3>
+              <h3>
+                {imported
+                  ? t('settings:preview_imported_configuration')
+                  : t('settings:confirm_configuration_changes')}
+              </h3>
               <p>
                 {imported
-                  ? '应用到表单后仍需检查并保存，才会修改配置文件。导入将替换当前表单中的可编辑配置。'
-                  : '以下更改将在服务重启后生效。请确认新的访问地址和认证配置。'}
+                  ? t('settings:applying_to_the_form_replaces_editable_settings_but')
+                  : t('settings:these_changes_apply_after_restarting_the_service_confirm')}
               </p>
               {imported && (
                 <p>
-                  保留当前数据目录和项目初始配置。
-                  {imported.preserved.length > 0
-                    ? `已忽略导入文件中的 ${imported.preserved.join('、')}。`
-                    : ''}
+                  {t('settings:keep_the_current_data_directory_and_initial_project', {
+                    v0:
+                      imported.preserved.length > 0
+                        ? t('settings:ignored_from_the_imported_file', {
+                            v0: formatList(imported.preserved),
+                          })
+                        : '',
+                  })}
                 </p>
               )}
               {changes.length ? (
@@ -278,16 +300,20 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
                   {changes.map((change) => (
                     <div key={change.label}>
                       <strong>{change.label}</strong>
-                      <span>已保存：{change.before || '未设置'}</span>
-                      <span>更改为：{change.after || '未设置'}</span>
+                      <span>
+                        {t('settings:saved', { v0: change.before || t('settings:not_set') })}
+                      </span>
+                      <span>
+                        {t('settings:change_to', { v0: change.after || t('settings:not_set') })}
+                      </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p>与已保存配置没有差异。</p>
+                <p>{t('settings:no_differences_from_the_saved_configuration')}</p>
               )}
               <details className="gateway-json">
-                <summary>查看完整 JSON</summary>
+                <summary>{t('settings:view_full_json')}</summary>
                 <pre>{JSON.stringify(preview, null, 2)}</pre>
               </details>
               <div className="project-dialog-actions">
@@ -299,7 +325,7 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
                     setReview(undefined);
                   }}
                 >
-                  返回编辑
+                  {t('settings:back_to_editing')}
                 </Button>
                 {imported ? (
                   <Button
@@ -308,10 +334,12 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
                       setForm(configForm(imported.config));
                       setFieldErrors({});
                       setImported(undefined);
-                      setNotice('导入配置已应用到表单，尚未保存。');
+                      setNotice(
+                        message('settings:imported_configuration_applied_to_form_not_saved_yet'),
+                      );
                     }}
                   >
-                    应用到表单
+                    {t('settings:apply_to_form')}
                   </Button>
                 ) : (
                   <Button
@@ -324,13 +352,17 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
                         setReview(undefined);
                         setNotice(
                           next.restartRequired
-                            ? '配置已保存。请在方便时手动重启服务。'
-                            : '配置已保存，与当前运行配置一致。',
+                            ? message(
+                                'settings:configuration_saved_restart_the_service_manually_when_convenient',
+                              )
+                            : message(
+                                'settings:configuration_saved_and_matches_the_running_configuration',
+                              ),
                         );
                       })
                     }
                   >
-                    {busy ? '正在保存…' : '确认保存'}
+                    {busy ? t('common:saving') : t('settings:confirm_save')}
                   </Button>
                 )}
               </div>
@@ -345,7 +377,7 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
                   onClick={() => fileInput.current?.click()}
                 >
                   <Upload size={15} aria-hidden="true" />
-                  导入配置
+                  {t('settings:import_configuration')}
                 </Button>
                 <Button
                   variant="secondary"
@@ -354,19 +386,19 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
                   onClick={() => void exportFile()}
                 >
                   <Download size={15} aria-hidden="true" />
-                  导出已保存配置
+                  {t('settings:export_saved_configuration')}
                 </Button>
                 <input
                   ref={fileInput}
                   type="file"
                   accept=".json,application/json"
-                  aria-label="选择配置文件"
+                  aria-label={t('settings:choose_configuration_file')}
                   hidden
                   onChange={(event) => void importFile(event)}
                 />
               </div>
               <p className="gateway-help">
-                导入仅更新服务设置；导出包含文件中的项目初始配置，不包含页面注册项目、会话、数据库或登录凭据。
+                {t('settings:import_updates_service_settings_only_export_includes_initial')}
               </p>
               <form
                 onSubmit={(event) => {
@@ -392,26 +424,28 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
               >
                 <fieldset disabled={busy || !snapshot.writable}>
                   <section className="gateway-section">
-                    <h3>网络与访问</h3>
+                    <h3>{t('settings:network_and_access')}</h3>
                     <div className="gateway-fields">
                       {configFields.filter((item) => item.group === 'network').map(field)}
                       <label className="project-field">
-                        <span>认证模式</span>
+                        <span>{t('common:authentication_mode')}</span>
                         <select
-                          aria-label="认证模式"
+                          aria-label={t('common:authentication_mode')}
                           value={form.mode}
                           onChange={(event) =>
                             setForm({ ...form, mode: event.target.value as ConfigForm['mode'] })
                           }
                         >
-                          <option value="local">本机 / Tailscale（local）</option>
+                          <option value="local">{t('settings:local_tailscale_local')}</option>
                           <option value="cloudflare-access">Cloudflare Access</option>
                         </select>
                         <small>
-                          本机模式仅监听回环地址；公开互联网入口使用 Cloudflare Access。
+                          {t('settings:local_mode_listens_only_on_loopback_addresses_use')}
                         </small>
                         {form.mode !== running?.mode && (
-                          <small className="gateway-running">当前运行：{running?.mode}</small>
+                          <small className="gateway-running">
+                            {t('settings:currently_running', { v0: running?.mode })}
+                          </small>
                         )}
                       </label>
                     </div>
@@ -423,28 +457,30 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
                     </div>
                   </section>
                   <section className="gateway-section">
-                    <h3>数据与项目</h3>
+                    <h3>{t('settings:data_and_projects')}</h3>
                     <div className="gateway-file">
-                      <span>数据目录（只读）</span>
+                      <span>{t('settings:data_directory_read_only')}</span>
                       <code>{snapshot.saved.dataDir}</code>
-                      <span>当前运行目录</span>
+                      <span>{t('settings:current_runtime_directory')}</span>
                       <code>{snapshot.running.dataDir}</code>
                     </div>
                     <p className="gateway-help">
-                      数据目录变更需要迁移数据库，请在服务停止后处理。项目请在侧栏添加、重命名或移除；此处不覆盖已保存的项目管理结果。
+                      {t('settings:changing_the_data_directory_requires_database_migration_while')}
                     </p>
                   </section>
                   <details className="gateway-section">
-                    <summary>高级设置</summary>
+                    <summary>{t('settings:advanced_settings')}</summary>
                     <div className="gateway-fields">
                       {configFields.filter((item) => item.group === 'advanced').map(field)}
                     </div>
                   </details>
                 </fieldset>
                 <div className="gateway-save-bar">
-                  <span>{dirty ? '有未保存的更改' : '没有未保存的更改'}</span>
+                  <span>
+                    {dirty ? t('settings:unsaved_changes') : t('settings:no_unsaved_changes')}
+                  </span>
                   <Button type="submit" disabled={busy || !dirty || !snapshot.writable || conflict}>
-                    {busy ? '正在校验…' : '检查更改'}
+                    {busy ? t('settings:validating') : t('settings:review_changes')}
                   </Button>
                 </div>
               </form>

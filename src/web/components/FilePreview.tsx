@@ -1,3 +1,5 @@
+import { message, displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Copy, FileText, Check } from 'lucide-react';
 import { FilePreviewPanel } from './FilePreviewPanel';
@@ -34,7 +36,7 @@ export function FilePreview({
     const controller = new AbortController();
     const timeout = setTimeout(() => {
       controller.abort();
-      setError('文件加载超时，请重试。');
+      setError(message('preview:file_loading_timed_out_please_retry'));
     }, 35_000);
     setFile(undefined);
     setError(undefined);
@@ -60,11 +62,11 @@ export function FilePreview({
     setFeedback('');
     try {
       await navigator.clipboard.writeText(file.content);
-      setFeedback(`已复制 ${kind} 原文`);
+      setFeedback(message('preview:copied_source', { v0: kind }));
       resetTimer.current = setTimeout(() => setFeedback(''), 2500);
     } catch {
       setView('source');
-      setFeedback('复制失败，请在原文中手动选择复制。');
+      setFeedback(message('preview:copy_failed_select_and_copy_the_source_manually'));
     } finally {
       copying.current = false;
     }
@@ -75,28 +77,28 @@ export function FilePreview({
 
   return (
     <FilePreviewPanel
-      label={`${kind} 文件预览`}
-      closeLabel="关闭文件预览"
+      label={t('preview:file_preview', { v0: kind })}
+      closeLabel={t('preview:close_file_preview')}
       title={path.split('/').at(-1) ?? path}
-      subtitle={`${kind} 文件`}
+      subtitle={t('preview:file', { v0: kind })}
       icon={<FileText size={19} className="file-preview-icon" aria-hidden="true" />}
       onClose={onClose}
       actions={
         <Button variant="secondary" size="sm" disabled={!file} onClick={() => void copy()}>
-          {feedback.startsWith('已复制') ? <Check size={15} /> : <Copy size={15} />}
-          复制原文
+          {feedback.startsWith(t('common:copied')) ? <Check size={15} /> : <Copy size={15} />}
+          {t('preview:copy_source')}
         </Button>
       }
     >
       <div className="file-preview-toolbar">
-        <div role="group" aria-label="文件展示方式">
+        <div role="group" aria-label={t('preview:file_display_mode')}>
           <Button
             variant="ghost"
             size="sm"
             aria-pressed={view === 'preview'}
             onClick={() => setView('preview')}
           >
-            预览
+            {t('preview:preview')}
           </Button>
           <Button
             variant="ghost"
@@ -104,27 +106,27 @@ export function FilePreview({
             aria-pressed={view === 'source'}
             onClick={() => setView('source')}
           >
-            原文
+            {t('preview:source')}
           </Button>
         </div>
-        <span>只读</span>
+        <span>{t('common:read_only')}</span>
       </div>
       <p className="file-preview-feedback" role="status">
-        {feedback}
+        {displayMessage(feedback)}
       </p>
       <div
         className="file-preview-scroll"
         key={`${attempt}:${view}`}
         tabIndex={0}
-        aria-label="文件内容"
+        aria-label={t('preview:file_content')}
       >
         {error ? (
           <div className="file-preview-error" role="alert">
             <FileText size={28} aria-hidden="true" />
-            <h3>无法预览此文件</h3>
-            <p>{error}</p>
+            <h3>{t('preview:cannot_preview_this_file')}</h3>
+            <p>{displayMessage(error)}</p>
             <Button variant="secondary" onClick={() => setAttempt((value) => value + 1)}>
-              重新加载
+              {t('common:reload')}
             </Button>
           </div>
         ) : file ? (
@@ -141,14 +143,14 @@ export function FilePreview({
               ref={source}
               className="file-preview-source"
               tabIndex={0}
-              aria-label={`${kind} 原文`}
+              aria-label={t('preview:source_2', { v0: kind })}
             >
               {file.content}
             </pre>
           )
         ) : (
           <p className="file-preview-loading" role="status">
-            正在加载文件…
+            {t('preview:loading_file')}
           </p>
         )}
       </div>

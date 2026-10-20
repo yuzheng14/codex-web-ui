@@ -1,4 +1,5 @@
 import { scopeKey } from '../../shared/workspace-scope';
+import { t } from '../i18n';
 import type { ThreadSummaryPage } from '../../shared/types';
 
 /** Ownership, visibility and live updates can still leave empty or duplicate CWD-filtered pages. */
@@ -21,9 +22,9 @@ export async function readThreadPage(options: {
     if (!options.isCurrent()) return;
     boundary ??= page.cursor;
     if (boundary.serverEpoch !== page.cursor.serverEpoch)
-      throw new Error('会话服务已重启，请重试加载会话。');
+      throw new Error(t('sidebar:the_session_service_restarted_retry_loading_sessions'));
     if (page.nextCursor !== null && (!page.nextCursor || visited.has(page.nextCursor)))
-      throw new Error('会话分页游标未前进，请重试或刷新会话列表。');
+      throw new Error(t('sidebar:session_pagination_did_not_advance_retry_or_refresh'));
     for (const thread of page.data) {
       if (
         scopeKey(thread.projectId) === options.projectId &&
@@ -36,5 +37,5 @@ export async function readThreadPage(options: {
       return { data: [...data.values()], nextCursor: page.nextCursor, cursor: boundary };
     cursor = page.nextCursor;
   }
-  throw new Error('会话分页读取过多，请重试或刷新会话列表。');
+  throw new Error(t('sidebar:too_many_session_pages_read_retry_or_refresh'));
 }

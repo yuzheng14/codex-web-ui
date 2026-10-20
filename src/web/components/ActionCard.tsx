@@ -1,3 +1,5 @@
+import { actionTitle, actionOptionLabel } from '../lib/action-labels';
+import { t } from '../i18n';
 import { useState } from 'react';
 import type { ActionResolution, PendingAction } from '../../shared/types';
 import { Button } from './ui/button';
@@ -32,23 +34,23 @@ export function ActionCard({
   return (
     <section
       className={`action-card${action.kind === 'unsupported' ? ' action-card-unsupported' : ''}`}
-      aria-label={action.title}
+      aria-label={actionTitle(action)}
     >
       <div className="action-heading">
         <span className="action-icon">
           <Icon name={action.kind === 'questions' ? 'chat' : 'alert'} size={17} />
         </span>
-        <h3>{action.title}</h3>
+        <h3>{actionTitle(action)}</h3>
         <span className="action-state">
           {action.kind === 'unsupported' && action.status === 'expired'
-            ? '请求未能处理'
+            ? t('approvals:request_could_not_be_handled')
             : actionStatusLabel(action.status)}
         </span>
       </div>
       {action.reason && <p>{action.reason}</p>}
       {action.cwd && (
         <p className="mono subtle action-cwd">
-          <span>工作目录：</span>
+          <span>{t('approvals:working_directory')}</span>
           {action.cwd}
         </p>
       )}
@@ -67,12 +69,12 @@ export function ActionCard({
         >
           <summary>
             {action.kind === 'network'
-              ? '网络访问目标'
+              ? t('approvals:network_destination')
               : action.kind === 'file'
-                ? '变更详情'
+                ? t('approvals:change_details')
                 : action.kind === 'permissions' || action.kind === 'elicitation'
-                  ? '技术详情'
-                  : '请求详情'}
+                  ? t('common:technical_details')
+                  : t('approvals:request_details')}
           </summary>
           <pre>{JSON.stringify(action.details, null, 2)}</pre>
         </details>
@@ -129,14 +131,14 @@ export function ActionCard({
                       setAnswers((previous) => ({ ...previous, [question.id]: '__other__' }))
                     }
                   />
-                  <span>其他回答</span>
+                  <span>{t('approvals:another_answer')}</span>
                 </label>
               )}
               {(question.options.length === 0 || answers[question.id] === '__other__') && (
                 <input
                   className="text-input"
                   type={question.isSecret ? 'password' : 'text'}
-                  aria-label={`${question.header}：自由回答`}
+                  aria-label={t('common:free_text_answer', { v0: question.header })}
                   value={
                     question.options.length === 0
                       ? (answers[question.id] ?? '')
@@ -151,14 +153,18 @@ export function ActionCard({
                         }))
                       : setOther((previous) => ({ ...previous, [question.id]: event.target.value }))
                   }
-                  placeholder="输入你的回答"
+                  placeholder={t('common:enter_your_answer')}
                   autoComplete="off"
                 />
               )}
             </fieldset>
           ))}
           <Button type="submit" disabled={disabled || !pending || !canSubmit}>
-            {!pending ? actionStatusLabel(action.status) : choosing ? '确认选择' : '提交回答'}
+            {!pending
+              ? actionStatusLabel(action.status)
+              : choosing
+                ? t('common:confirm_selection')
+                : t('common:submit_answer')}
           </Button>
         </form>
       ) : (
@@ -170,13 +176,15 @@ export function ActionCard({
               disabled={disabled || !pending}
               onClick={() => onResolve({ decision: option.id })}
             >
-              {option.label}
+              {actionOptionLabel(action, option)}
             </Button>
           ))}
         </div>
       )}
       {action.kind === 'unsupported' && (
-        <p className="inline-error">当前版本不支持此交互请求，未发送批准。请查看兼容性诊断。</p>
+        <p className="inline-error">
+          {t('approvals:this_interaction_is_unsupported_no_approval_was_sent')}
+        </p>
       )}
     </section>
   );

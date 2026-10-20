@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ThreadView } from '../../shared/types';
 import { Button } from './ui/button';
@@ -58,11 +59,11 @@ export function StickyPrompt({ thread, onJump }: { thread?: ThreadView; onJump: 
   return (
     <div className="sticky-prompt-slot" ref={slotRef}>
       {activePrompt && (
-        <ControlHint asChild content="回到 Prompt 原文">
+        <ControlHint asChild content={t('conversation:back_to_original_prompt')}>
           <Button
             variant="ghost"
             className="sticky-prompt"
-            aria-label="回到 Prompt 原文"
+            aria-label={t('conversation:back_to_original_prompt')}
             onClick={(event) => {
               const scroll = slotRef.current?.parentElement?.querySelector('.conversation-scroll');
               const prompt = [
@@ -80,9 +81,12 @@ export function StickyPrompt({ thread, onJump }: { thread?: ThreadView; onJump: 
                 offset;
             }}
           >
-            <span className="sticky-prompt-label">你的要求</span>
+            <span className="sticky-prompt-label">{t('conversation:your_instructions')}</span>
             <span className="sticky-prompt-text">
-              {activePrompt.text?.trim() || (imageCount ? `${imageCount} 张图片` : '用户 Prompt')}
+              {activePrompt.text?.trim() ||
+                (imageCount
+                  ? t('conversation:images', { count: imageCount, v0: imageCount })
+                  : t('conversation:user_prompt'))}
             </span>
             <Icon name="down" size={14} style={{ transform: 'rotate(180deg)' }} />
           </Button>

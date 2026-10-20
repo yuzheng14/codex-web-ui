@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 /** The preview consumes Codex's saved patch, never the current working tree. */
 export interface DiffLine {
   kind: 'added' | 'removed' | 'context' | 'note';
@@ -21,10 +22,18 @@ export interface DiffFile {
   incomplete: boolean;
 }
 export const diffKindLabels: Record<DiffFile['kind'], string> = {
-  added: '新增',
-  deleted: '删除',
-  modified: '修改',
-  renamed: '重命名',
+  get added() {
+    return t('common:added');
+  },
+  get deleted() {
+    return t('common:removed');
+  },
+  get modified() {
+    return t('preview:modified');
+  },
+  get renamed() {
+    return t('preview:renamed');
+  },
 };
 
 /** Count received code rows and UTF-16 characters; this is a rendering policy, not truncation. */
@@ -38,8 +47,9 @@ export function diffCollapseReason(file: DiffFile): string | undefined {
   }
   // Non-code states remain visible, even when unsupported metadata is large.
   if (!lines) return undefined;
-  if (lines > 300) return `此文件共 ${lines} 行，超过 300 行，默认折叠。`;
-  if (characters > 50_000) return '此文件超过 50,000 字符，默认折叠。';
+  if (lines > 300)
+    return t('preview:new_this_file_has_lines_exceeding_300_collapsed', { v0: lines });
+  if (characters > 50_000) return t('preview:new_this_file_exceeds_50_000_characters_collapsed');
   return undefined;
 }
 
@@ -104,12 +114,13 @@ export function parseDiff(input: string, fallback?: { path: string; kind: string
   for (const line of lines) {
     if (line.startsWith('diff --git ')) {
       const paths = /^diff --git ("(?:\\.|[^"\\])*"|a\/.*?) ("(?:\\.|[^"\\])*"|b\/.*)$/.exec(line);
-      startFile(paths ? pathName(paths[2]!) : (fallback?.path ?? '未知文件'));
+      startFile(paths ? pathName(paths[2]!) : (fallback?.path ?? t('preview:unknown_file')));
       continue;
     }
     // A line starting --- or +++ inside a hunk is source code, not a file header.
     if (hunk && (oldLeft > 0 || newLeft > 0) && /^[ +\-\\]/.test(line)) {
-      if (line.startsWith('\\')) hunk.lines.push({ kind: 'note', text: '文件末尾没有换行' });
+      if (line.startsWith('\\'))
+        hunk.lines.push({ kind: 'note', text: t('preview:no_newline_at_end_of_file') });
       else if (line.startsWith('+')) {
         hunk.lines.push({ kind: 'added', text: line.slice(1), newLine: newLine++ });
         newLeft--;
@@ -131,7 +142,7 @@ export function parseDiff(input: string, fallback?: { path: string; kind: string
       continue;
     }
     if (line.startsWith('--- ')) {
-      if (!file || hasNewHeader) startFile(fallback?.path ?? '未知文件');
+      if (!file || hasNewHeader) startFile(fallback?.path ?? t('preview:unknown_file'));
       finishHunk();
       hasOldHeader = true;
       const path = pathName(line.slice(4));
@@ -141,7 +152,7 @@ export function parseDiff(input: string, fallback?: { path: string; kind: string
         file!.path = path;
       }
     } else if (line.startsWith('+++ ')) {
-      file ??= startFile(fallback?.path ?? '未知文件');
+      file ??= startFile(fallback?.path ?? t('preview:unknown_file'));
       hasNewHeader = true;
       const path = pathName(line.slice(4));
       if (path === '/dev/null') file.kind = 'deleted';
@@ -150,7 +161,7 @@ export function parseDiff(input: string, fallback?: { path: string; kind: string
         if (file.oldPath && file.oldPath !== path) file.kind = 'renamed';
       }
     } else if (line.startsWith('@@')) {
-      file ??= startFile(fallback?.path ?? '未知文件');
+      file ??= startFile(fallback?.path ?? t('preview:unknown_file'));
       finishHunk();
       const range = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
       if (!range) {
@@ -165,9 +176,9 @@ export function parseDiff(input: string, fallback?: { path: string; kind: string
       hunk = { header: line, lines: [] };
       file.hunks.push(hunk);
     } else if (line.startsWith('\\ No newline') && hunk) {
-      hunk.lines.push({ kind: 'note', text: '文件末尾没有换行' });
+      hunk.lines.push({ kind: 'note', text: t('preview:no_newline_at_end_of_file') });
     } else if (line || file) {
-      file ??= startFile(fallback?.path ?? '未知文件');
+      file ??= startFile(fallback?.path ?? t('preview:unknown_file'));
       if (line.startsWith('[输出已截断') || line.startsWith('[内容已截断')) file.incomplete = true;
       if (line.startsWith('new file mode')) file.kind = 'added';
       else if (line.startsWith('deleted file mode')) file.kind = 'deleted';

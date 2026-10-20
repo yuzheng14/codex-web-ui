@@ -1,3 +1,4 @@
+import { message } from '../i18n/messages';
 import { localFilePath } from './local-files';
 import { HttpError } from './api';
 
@@ -42,15 +43,15 @@ export async function fetchLocalImage(
     }
     throw new Error(
       response.status === 401 || response.status === 403
-        ? '无法读取图片，请确认登录状态和文件访问权限。'
-        : `图片加载失败（${response.status}），请重试。`,
+        ? message('preview:cannot_read_image_check_login_and_file_access')
+        : message('preview:image_loading_failed_please_retry', { v0: response.status }),
     );
   }
   if (!type || !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(type))
     throw new Error(
       type === 'text/html'
-        ? '登录可能已过期，请重新登录后预览图片。'
-        : '服务器未返回支持的图片格式。',
+        ? message('preview:your_login_may_have_expired_log_in_again')
+        : message('preview:the_server_did_not_return_a_supported_image'),
     );
   return response.blob();
 }

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { TurnView } from '../../shared/types';
 import { formatTurnCompletedAt, formatTurnDuration } from '../lib/turn-timing';
 import { formatTurnTps } from '../lib/turn-tps';
@@ -14,25 +15,36 @@ export function TurnCompletion({ turn }: { turn: TurnView }) {
     (item) => item.type === 'agentMessage' && item.text?.trim(),
   )?.text;
   return (
-    <div className="turn-completion" role="group" aria-label="本轮完成信息">
+    <div
+      className="turn-completion"
+      role="group"
+      aria-label={t('conversation:turn_completion_details')}
+    >
       <span className="turn-completion-status">
         <Icon name="check" size={14} />
-        已完成
+        {t('common:completed')}
       </span>
-      <span> · {duration ? `耗时 ${duration}` : '耗时未知'}</span>
+      <span>
+        {' '}
+        · {duration ? t('conversation:took', { v0: duration }) : t('conversation:duration_unknown')}
+      </span>
       <span>
         {' · '}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="turn-tps" tabIndex={0}>
-                {tps === undefined ? 'TPS 未知' : `平均 ${tps} TPS`}
+                {tps === undefined
+                  ? t('conversation:tps_unknown')
+                  : t('conversation:average_tps', { v0: tps })}
               </span>
             </TooltipTrigger>
             <TooltipContent>
               {tps === undefined
-                ? '缺少完整的本轮 token 统计或有效耗时，无法计算 TPS。'
-                : `本轮输出 ${turn.outputTokens} tokens（含推理 token）÷ 整轮耗时（秒）。耗时包含工具调用、审批、等待等时间，因此该值通常低于纯模型生成时的 TPS。`}
+                ? t('conversation:tps_cannot_be_calculated_without_complete_token_counts')
+                : t('conversation:output_tokens_including_reasoning_total_turn_duration_in', {
+                    v0: turn.outputTokens,
+                  })}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -41,10 +53,11 @@ export function TurnCompletion({ turn }: { turn: TurnView }) {
         {' · '}
         {completed ? (
           <>
-            完成于 <time dateTime={completed.dateTime}>{completed.label}</time>
+            {t('conversation:completed_at')}{' '}
+            <time dateTime={completed.dateTime}>{completed.label}</time>
           </>
         ) : (
-          '完成时间未知'
+          t('conversation:completion_time_unknown')
         )}
       </span>
       {reply && <ReplyCopyButton text={reply} />}

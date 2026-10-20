@@ -1,9 +1,11 @@
+import { t } from '../i18n';
 import { Component, createRef, type ReactNode } from 'react';
 
 type Anchor = { id: string; top: number } | null;
 interface Props {
   context: string;
   rows: object;
+  locale: string;
   children: ReactNode;
 }
 
@@ -14,7 +16,7 @@ export class ThreadListNavigation extends Component<Props> {
     const list = this.list.current;
     if (
       !list ||
-      previous.rows === this.props.rows ||
+      (previous.rows === this.props.rows && previous.locale === this.props.locale) ||
       list.scrollTop === 0 ||
       previous.context !== this.props.context
     )
@@ -38,7 +40,7 @@ export class ThreadListNavigation extends Component<Props> {
       <nav
         ref={this.list}
         className="project-list"
-        aria-label="会话历史"
+        aria-label={t('sidebar:session_history')}
         style={{ overflowAnchor: 'none' }}
       >
         {this.props.children}

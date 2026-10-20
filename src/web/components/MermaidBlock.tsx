@@ -1,3 +1,5 @@
+import { message, displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { renderMermaid } from '../lib/mermaid';
 import { Button } from './ui/button';
@@ -55,11 +57,11 @@ export function MermaidBlock({ source, pending }: { source: string; pending: boo
     clearTimeout(resetTimer.current);
     try {
       await navigator.clipboard.writeText(source);
-      setFeedback('已复制 Mermaid 源码');
+      setFeedback(message('preview:new_mermaid_source_copied'));
       resetTimer.current = setTimeout(() => setFeedback(''), 2000);
     } catch {
       setSourceView(true);
-      setFeedback('复制失败，请在源码中手动选择复制。');
+      setFeedback(message('preview:new_copy_failed_select_and_copy_the_source'));
     } finally {
       copying.current = false;
     }
@@ -76,7 +78,7 @@ export function MermaidBlock({ source, pending }: { source: string; pending: boo
           aria-pressed={sourceView}
           onClick={() => setSourceView((value) => !value)}
         >
-          {sourceView ? '查看图表' : '查看源码'}
+          {sourceView ? t('preview:new_view_diagram') : t('preview:new_view_source')}
         </Button>
         <Button
           variant="ghost"
@@ -85,44 +87,44 @@ export function MermaidBlock({ source, pending }: { source: string; pending: boo
           aria-pressed={actualSize}
           onClick={() => setActualSize((value) => !value)}
         >
-          {actualSize ? '适应宽度' : '实际大小'}
+          {actualSize ? t('preview:new_fit_width') : t('preview:new_actual_size')}
         </Button>
         <Button variant="ghost" size="sm" onClick={() => void copy()}>
-          复制源码
+          {t('preview:new_copy_source')}
         </Button>
       </div>
       {feedback && (
         <p className="mermaid-feedback" role="status">
-          {feedback}
+          {displayMessage(feedback)}
         </p>
       )}
       {pending ? (
         <p className="mermaid-notice" role="status">
-          正在接收 Mermaid 源码，代码块完整后显示图表。
+          {t('preview:new_receiving_mermaid_source_the_diagram_appears_when')}
         </p>
       ) : current?.failed ? (
         <p className="mermaid-notice mermaid-error" role="alert">
-          Mermaid 图表无法渲染，请检查语法或复制源码到编辑器修正。
+          {t('preview:new_cannot_render_this_mermaid_diagram_check_the')}
         </p>
       ) : !current?.url ? (
         <p className="mermaid-notice" role="status">
-          正在渲染 Mermaid 图表…
+          {t('preview:new_rendering_mermaid_diagram')}
         </p>
       ) : null}
       {showSource ? (
-        <pre className="mermaid-source" tabIndex={0} aria-label="Mermaid 源码">
+        <pre className="mermaid-source" tabIndex={0} aria-label={t('preview:new_mermaid_source')}>
           <code>{source}</code>
         </pre>
       ) : current?.url ? (
         <div
           className={`mermaid-diagram${actualSize ? ' mermaid-actual-size' : ''}`}
           role="region"
-          aria-label="Mermaid 图表区域"
+          aria-label={t('preview:new_mermaid_diagram_region')}
           tabIndex={0}
         >
           <img
             src={current.url}
-            alt="Mermaid 图表"
+            alt={t('preview:new_mermaid_diagram')}
             onError={() => setResult({ source, dark, failed: true })}
           />
         </div>

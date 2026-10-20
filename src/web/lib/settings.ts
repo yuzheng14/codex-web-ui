@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type {
   ModelDefaults,
   ModelInfo,
@@ -5,7 +6,7 @@ import type {
   RuntimeSettings,
   Settings,
 } from '../../shared/types';
-import { permissionModes } from '../../shared/permissions';
+import { permissionModes } from './permissions';
 
 export function reportedPermissionMode(current?: RuntimeSettings) {
   if (current?.permissionMode) return current.permissionMode;
@@ -14,12 +15,19 @@ export function reportedPermissionMode(current?: RuntimeSettings) {
   return undefined;
 }
 
-export function permissionLabel(current: RuntimeSettings | undefined, unknown = '未报告'): string {
+export function permissionLabel(
+  current: RuntimeSettings | undefined,
+  unknown = t('common:not_reported'),
+): string {
   const mode = reportedPermissionMode(current);
   if (mode === 'custom')
-    return current?.permissionProfile ? `自定义 · ${current.permissionProfile.id}` : '自定义';
+    return current?.permissionProfile
+      ? t('settings:custom', { v0: current.permissionProfile.id })
+      : t('settings:custom_2');
   if (mode) return permissionModes[mode].label;
-  return current?.sandbox || current?.permissionProfile ? '无法判断模式' : unknown;
+  return current?.sandbox || current?.permissionProfile
+    ? t('settings:cannot_determine_mode')
+    : unknown;
 }
 
 export function choosePermissionMode(
@@ -79,8 +87,11 @@ export function chooseModel(
   return pendingSettings(next, current);
 }
 
-export function speedLabel(tier: string | null | undefined, unknown = '未报告'): string {
-  if (tier === null || tier === 'default') return 'Fast 关';
-  if (tier === 'fast') return 'Fast 开';
+export function speedLabel(
+  tier: string | null | undefined,
+  unknown = t('common:not_reported'),
+): string {
+  if (tier === null || tier === 'default') return t('settings:fast_off');
+  if (tier === 'fast') return t('settings:fast_on');
   return tier === undefined ? `Fast ${unknown}` : tier;
 }

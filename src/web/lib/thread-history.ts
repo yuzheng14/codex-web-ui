@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { ThreadView, TurnView } from '../../shared/types';
 
 /** Replace whole turns by stable ID: snapshots can correct items, status and output. */
@@ -30,21 +31,21 @@ export class HistoryWindow {
   }
   append(cursor: string, page: ThreadView) {
     if (page.id !== this.latest.id || page.projectId !== this.latest.projectId)
-      throw new Error('历史分片不属于当前会话。');
+      throw new Error(t('errors:this_history_chunk_does_not_belong_to_the'));
     if (this.cursor !== cursor || this.chunks.some((chunk) => chunk.cursor === cursor)) return;
     if (
       page.history?.olderCursor &&
       (page.history.olderCursor === cursor ||
         this.chunks.some((chunk) => chunk.cursor === page.history!.olderCursor))
     )
-      throw new Error('历史分页未前进，请重试同步会话。');
+      throw new Error(t('errors:history_pagination_did_not_advance_retry_syncing_the'));
     this.chunks.push({ cursor, page });
   }
   replace(cursor: string, page: ThreadView) {
     const index = this.chunks.findIndex((chunk) => chunk.cursor === cursor);
     if (index < 0) return this.append(cursor, page);
     if (page.id !== this.latest.id || page.projectId !== this.latest.projectId)
-      throw new Error('历史分片不属于当前会话。');
+      throw new Error(t('errors:this_history_chunk_does_not_belong_to_the'));
     const previous = this.chunks[index]!;
     this.chunks[index] = { cursor, page };
     if (previous.page.history?.olderCursor !== page.history?.olderCursor)
