@@ -99,5 +99,12 @@
   "SHELL_NOT_FOUND": "未找到 Shell 执行记录，请核对服务器结果。",
   "IMAGE_NOT_FOUND": "图片文件不存在或已被删除",
   "IMAGE_UNREADABLE": "图片文件不可读取",
-  "UNSUPPORTED_IMAGE_TYPE": "仅支持 PNG、JPEG、WebP 和 GIF 图片"
+  "UNSUPPORTED_IMAGE_TYPE": "仅支持 PNG、JPEG、WebP 和 GIF 图片",
+  "UNAVAILABLE": "服务暂时不可用，请稍后重试。",
+  "READ_FAILED": "会话历史暂时无法读取，请重试。",
+  "EXPORT_FAILED": "无法读取完整历史，未下载文件。请稍后重试。",
+  "MARKDOWN_NOT_FOUND": "文件不存在或已被删除。",
+  "JSON_NOT_FOUND": "文件不存在或已被删除。",
+  "MARKDOWN_TOO_LARGE": "Markdown 文件超过 2 MiB 预览上限。",
+  "JSON_TOO_LARGE": "JSON 文件超过 2 MiB 预览上限。"
 }

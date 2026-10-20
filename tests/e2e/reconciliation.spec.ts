@@ -227,9 +227,9 @@ test('a failed receipt lookup is visible and retry does not resubmit the task', 
   await input(page).fill('回执丢失时保留的草稿');
   await send(page).click();
   await checkButton(page).click();
-  await expect(panel(page).getByText('无法确认提交：核对服务暂时不可用')).toBeVisible();
+  await expect(panel(page).getByText(/无法确认提交：.*服务暂时不可用/)).toBeVisible();
   await expect(page.locator('.error-banner.dismissible')).toContainText(
-    '无法确认提交：核对服务暂时不可用',
+    /无法确认提交：.*服务暂时不可用/,
   );
   await expect(panel(page).getByRole('button', { name: '清除此浏览器的待核对记录' })).toHaveCount(
     0,

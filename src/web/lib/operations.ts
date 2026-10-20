@@ -26,7 +26,7 @@ export interface SavedOperation {
   status: Operation['status'];
   operation?: Operation;
   error?: string;
-  lookupError?: { message: string; missing: boolean };
+  lookupError?: { message: string; missing: boolean; details?: string };
   projectId?: string;
   navigateToResult?: boolean;
   mutation?: ThreadMutation;
@@ -41,11 +41,14 @@ export function operationLookupError(problem: unknown): NonNullable<SavedOperati
     problem.problem.code === 'OPERATION_NOT_FOUND';
   return {
     missing,
+    details: problem instanceof HttpError ? problem.problem.message : undefined,
     get message() {
       return displayMessage(
         missing
           ? t('errors:submission_cannot_be_confirmed_record_not_found_404')
-          : t('errors:submission_cannot_be_confirmed', { v0: readableError(problem) }),
+          : t('errors:submission_cannot_be_confirmed', {
+              v0: displayMessage(readableError(problem)),
+            }),
       );
     },
   };

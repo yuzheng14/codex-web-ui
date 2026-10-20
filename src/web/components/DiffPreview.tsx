@@ -98,7 +98,7 @@ export function DiffPreview({
     <FilePreviewPanel
       label={t('preview:code_change_preview')}
       title={t('preview:code_changes')}
-      subtitle={t('preview:read_only', { v0: target.scope })}
+      subtitle={t('preview:read_only', { v0: displayMessage(target.scope) })}
       icon={<FileCode2 size={19} className="file-preview-icon" aria-hidden="true" />}
       onClose={onClose}
     >

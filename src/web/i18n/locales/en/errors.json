@@ -99,5 +99,12 @@
   "SHELL_NOT_FOUND": "Shell execution record not found. Check the result on the server.",
   "IMAGE_NOT_FOUND": "The image file does not exist or was deleted.",
   "IMAGE_UNREADABLE": "The image file cannot be read.",
-  "UNSUPPORTED_IMAGE_TYPE": "Only PNG, JPEG, WebP and GIF images are supported."
+  "UNSUPPORTED_IMAGE_TYPE": "Only PNG, JPEG, WebP and GIF images are supported.",
+  "UNAVAILABLE": "The service is temporarily unavailable. Please retry later.",
+  "READ_FAILED": "Session history cannot be read right now. Please retry.",
+  "EXPORT_FAILED": "Could not read the complete history. No file was downloaded. Please retry later.",
+  "MARKDOWN_NOT_FOUND": "The file does not exist or was deleted.",
+  "JSON_NOT_FOUND": "The file does not exist or was deleted.",
+  "MARKDOWN_TOO_LARGE": "This Markdown file exceeds the 2 MiB preview limit.",
+  "JSON_TOO_LARGE": "This JSON file exceeds the 2 MiB preview limit."
 }

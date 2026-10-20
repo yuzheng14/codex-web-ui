@@ -146,7 +146,7 @@ for (const viewport of [
     const threadId = await start(page, '[codex-retry-recover] 恢复模型连接后继续任务');
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await expect(notice(page)).toHaveAttribute('data-state', 'retrying');
-    await expect(notice(page)).toContainText('Codex Reconnecting…');
+    await expect(notice(page)).toContainText('Codex 正在重新连接…');
     await expect(notice(page)).toContainText('Codex 会自动重试');
     await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
     await expect(page.getByRole('textbox', { name: '追加要求', exact: true })).toHaveValue('');

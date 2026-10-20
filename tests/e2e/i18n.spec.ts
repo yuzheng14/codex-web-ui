@@ -157,6 +157,9 @@ for (const language of languages) {
       await page.getByRole('link', { name: '配置文件', exact: true }).click();
       await expect(page.locator('.file-preview[open]')).toBeVisible();
       await expect(page.locator('.file-preview .json-preview')).toContainText('原文保持不变');
+      await expect(page.locator('.turn-heading .status').last()).toHaveText(
+        { 'zh-Hans': '已完成', en: 'Completed', ja: '完了', ko: '완료' }[language.locale],
+      );
       await selector.selectOption('en');
       await expect(page.locator('.file-preview[open]')).toBeVisible();
       await selector.selectOption(language.locale);
@@ -165,6 +168,39 @@ for (const language of languages) {
       await page.screenshot({
         path: `${evidence}/${language.locale}-preview.png`,
         fullPage: true,
+        animations: 'disabled',
+      });
+      await page.locator('.file-preview-header button').first().click();
+      const turns = await page.locator('.turn').count();
+      await input.fill('[diff-preview] 原文保留');
+      await input.press('Enter');
+      await expect(page.locator('.turn')).toHaveCount(turns + 1);
+      await expect(page.locator('.turn-heading .status').last()).toHaveText(
+        { 'zh-Hans': '已完成', en: 'Completed', ja: '完了', ko: '완료' }[language.locale],
+      );
+      await page.locator('.turn-diff').last().click();
+      await expect(page.locator('.file-preview .diff-file')).toHaveCount(5);
+      await expect(page.locator('.file-preview')).not.toContainText('covro-message:');
+      await expect(page.locator('.file-preview')).toContainText('src/预览 workspace.ts');
+      await page.screenshot({
+        path: `${evidence}/${language.locale}-diff.png`,
+        animations: 'disabled',
+      });
+      await page.locator('.file-preview-header button').first().click();
+      await input.fill('[mermaid] 保留图表源码');
+      await input.press('Enter');
+      await expect(page.locator('.turn')).toHaveCount(turns + 2);
+      const diagram = page.locator('.mermaid-diagram img').first();
+      await expect(diagram).toBeVisible();
+      await expect
+        .poll(() => diagram.evaluate((image: HTMLImageElement) => image.naturalWidth))
+        .toBeGreaterThan(0);
+      await expect(page.locator('.turn-heading .status').last()).toHaveText(
+        { 'zh-Hans': '已完成', en: 'Completed', ja: '完了', ko: '완료' }[language.locale],
+      );
+      await page.locator('.mermaid-block').first().scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: `${evidence}/${language.locale}-mermaid.png`,
         animations: 'disabled',
       });
     });

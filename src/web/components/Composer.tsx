@@ -312,6 +312,12 @@ export function Composer(props: Props) {
               ? t('composer:fork_saved_history_to_continue_or_retry_once')
               : displayMessage(errorMessage(resumeError))}
           </p>
+          {!occupied && (
+            <details className="raw-details">
+              <summary>{t('common:technical_details')}</summary>
+              <pre>{resumeError.message}</pre>
+            </details>
+          )}
           {occupied && (
             <Button size="sm" variant="secondary" disabled={!props.canFork} onClick={props.onFork}>
               <Icon name="fork" size={14} />

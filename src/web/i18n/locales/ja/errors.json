@@ -99,5 +99,12 @@
   "SHELL_NOT_FOUND": "Shell の実行記録がありません。サーバーで結果を確認してください。",
   "IMAGE_NOT_FOUND": "画像ファイルが存在しないか削除されました。",
   "IMAGE_UNREADABLE": "画像ファイルを読み取れません。",
-  "UNSUPPORTED_IMAGE_TYPE": "PNG、JPEG、WebP、GIF の画像のみ対応しています。"
+  "UNSUPPORTED_IMAGE_TYPE": "PNG、JPEG、WebP、GIF の画像のみ対応しています。",
+  "UNAVAILABLE": "サービスを一時的に利用できません。後でもう一度お試しください。",
+  "READ_FAILED": "現在セッション履歴を読み取れません。再試行してください。",
+  "EXPORT_FAILED": "履歴全体を読み取れないため、ダウンロードは行いません。後で再試行してください。",
+  "MARKDOWN_NOT_FOUND": "ファイルが存在しないか削除されました。",
+  "JSON_NOT_FOUND": "ファイルが存在しないか削除されました。",
+  "MARKDOWN_TOO_LARGE": "Markdown ファイルはプレビューの上限 2 MiB を超えています。",
+  "JSON_TOO_LARGE": "JSON ファイルはプレビューの上限 2 MiB を超えています。"
 }

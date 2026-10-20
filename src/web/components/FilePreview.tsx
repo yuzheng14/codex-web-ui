@@ -1,4 +1,4 @@
-import { message, displayMessage } from '../i18n/messages';
+import { message, displayMessage, messageDetails } from '../i18n/messages';
 import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Copy, FileText, Check } from 'lucide-react';
@@ -125,6 +125,12 @@ export function FilePreview({
             <FileText size={28} aria-hidden="true" />
             <h3>{t('preview:cannot_preview_this_file')}</h3>
             <p>{displayMessage(error)}</p>
+            {messageDetails(error) && (
+              <details>
+                <summary>{t('common:technical_details')}</summary>
+                <pre>{messageDetails(error)}</pre>
+              </details>
+            )}
             <Button variant="secondary" onClick={() => setAttempt((value) => value + 1)}>
               {t('common:reload')}
             </Button>

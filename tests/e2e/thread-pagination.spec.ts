@@ -123,7 +123,7 @@ test('a failed append is retryable from the same cursor without losing earlier p
   await more(page).click();
   await expect(
     projectGroup(page).getByRole('button', { name: '加载失败，重试', exact: true }),
-  ).toHaveAccessibleDescription('会话读取暂时失败');
+  ).toHaveAccessibleDescription(/服务暂时不可用/);
   await expect(more(page)).toHaveCount(0);
   await expect(projectGroup(page).getByText('正在读取会话…')).toHaveCount(0);
   await expect(row(page, 'one')).toBeVisible();

@@ -90,6 +90,14 @@ function OperationCard({
         <dd>{entry.target}</dd>
         <dt>{t('errors:operation_id')}</dt>
         <dd>{entry.clientOperationId}</dd>
+        {entry.lookupError?.details && (
+          <dd>
+            <details className="raw-details">
+              <summary>{t('common:technical_details')}</summary>
+              <pre>{entry.lookupError.details}</pre>
+            </details>
+          </dd>
+        )}
         {execution && (
           <>
             <dt>{t('common:sessions')}</dt>
