@@ -8,10 +8,9 @@
   "select_a_command_or_type_help_for_available": "コマンドを選ぶか、/help で利用可能なコマンドを確認してください。",
   "does_not_accept_arguments_usage": "/{{v0}} に引数は指定できません。使い方：{{v1}}",
   "view_supported_commands_and_usage": "このページで使えるコマンドと使い方を表示",
-  "open_a_new_session_draft_in_the_current": "現在のプロジェクトの新規セッション入力画面を開く",
+  "open_a_new_session_draft_in_the_current": "現在のワークスペースの新規セッション入力画面を開く",
   "copy_saved_session_history_into_a_new_session": "保存済み履歴を新しいセッションにコピー",
   "resume_the_selected_session_not_the_cli_session": "選択中の履歴セッションを再開（CLI の一覧選択ではありません）",
-  "review_uncommitted_project_changes_using_current_session_settings": "現在のセッション設定で未コミットの変更をレビュー",
   "rename_this_session_spaces_are_allowed": "このセッションの名前を変更（スペース使用可）",
   "request_interruption_of_the_current_task_web_shortcut": "現在のタスクの中断を要求（ウェブ専用）",
   "open_connection_runtime_and_submission_diagnostics": "接続、実行状態、送信結果の診断を開く",
@@ -82,5 +81,6 @@
   "renameEmpty": "セッション名を入力してください。使い方：/rename <名前>",
   "renameLong": "セッション名は {{max}} 文字以内です。",
   "renameControls": "セッション名に改行や制御文字は使用できません。",
-  "commandLine": "/{{name}}{{arguments}}：{{description}}"
+  "commandLine": "/{{name}}{{arguments}}：{{description}}",
+  "review_uncommitted_working_directory_changes": "現在のセッション設定で作業ディレクトリの未コミット変更をレビュー"
 }

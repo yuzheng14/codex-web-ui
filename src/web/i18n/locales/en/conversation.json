@@ -96,5 +96,7 @@
   "images_one": "{{v0}} image",
   "images_have_no_preview_other": "{{v0}} images have no preview",
   "images_have_no_preview_one": "{{v0}} image have no preview",
-  "activityWithCommand": "{{label}}: {{command}}"
+  "activityWithCommand": "{{label}}: {{command}}",
+  "start_in_project": "Sending starts a new session in “{{v0}}”.",
+  "start_without_project": "Start without choosing a project. Sending assigns a separate working directory; the session and files are retained."
 }

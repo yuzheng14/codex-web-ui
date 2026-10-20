@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { UNASSIGNED_SCOPE, scopeKey, scopeApi } from '../../shared/workspace-scope';
 import { errorMessage } from '../lib/error-message';
 import { message } from '../i18n/messages';
@@ -831,7 +832,7 @@ export function useWorkspace() {
   const notifications = useBrowserNotifications({
     projectName: (id) =>
       id === UNASSIGNED_SCOPE
-        ? '未关联项目'
+        ? t('common:unassigned')
         : projectsRef.current.find((project) => project.id === id)?.name,
     openThread: (id, project) => {
       cancelResultNavigation();

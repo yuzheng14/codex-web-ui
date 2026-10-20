@@ -53,5 +53,7 @@
   "manage_project": "管理项目",
   "execution_failed": "执行失败",
   "covro_updates": "Covro 更新",
-  "model_defaults_are_being_saved_wait_before_proceeding": "正在保存模型默认值，请完成后再操作。"
+  "model_defaults_are_being_saved_wait_before_proceeding": "正在保存模型默认值，请完成后再操作。",
+  "unassigned": "未关联项目",
+  "close": "关闭"
 }

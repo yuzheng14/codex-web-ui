@@ -53,5 +53,7 @@
   "manage_project": "프로젝트 관리",
   "execution_failed": "실행 실패",
   "covro_updates": "Covro 업데이트",
-  "model_defaults_are_being_saved_wait_before_proceeding": "모델 기본값을 저장 중입니다. 완료 후 진행하세요."
+  "model_defaults_are_being_saved_wait_before_proceeding": "모델 기본값을 저장 중입니다. 완료 후 진행하세요.",
+  "unassigned": "프로젝트 미연결",
+  "close": "닫기"
 }

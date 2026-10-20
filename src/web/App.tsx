@@ -177,15 +177,16 @@ export function App() {
   const forkDisabledReason = (
     entry: Pick<ThreadSummary, 'id' | 'projectId' | 'historyVisible'>,
   ) => {
-    if (isForking(entry.id)) return '正在确认 Fork…请等待提交回执，暂时不能再次 Fork。';
-    if (!supportsFork) return '当前 Codex 版本不支持 Fork 会话。';
-    if (!canControl) return '连接恢复且 Codex 就绪后可 Fork 会话。';
+    if (isForking(entry.id)) return t('workspace:confirming_the_fork_wait_for_the_receipt_before');
+    if (!supportsFork) return t('workspace:this_codex_version_does_not_support_session_forks');
+    if (!canControl) return t('workspace:you_can_fork_once_the_connection_recovers_and');
     if (
       entry.projectId !== null &&
       !workspace.projects.find((project) => project.id === entry.projectId)?.available
     )
-      return '项目目录不可用，恢复后可 Fork 会话。';
-    if (compatibilityConfirmationRequired(system)) return '请先确认当前 Codex 版本的兼容性。';
+      return t('workspace:the_project_directory_is_unavailable_restore_access_before');
+    if (compatibilityConfirmationRequired(system))
+      return t('workspace:confirm_compatibility_with_the_current_codex_version_first');
     if (entry.historyVisible === false || (entry.id === thread?.id && !thread.turns.length))
       return t('workspace:send_the_first_message_to_enable_forking_saved');
     return undefined;
@@ -354,12 +355,12 @@ export function App() {
           if (
             !system?.capabilities.includes(entry.archived ? 'thread/unarchive' : 'thread/archive')
           )
-            return '当前 Codex 不支持此操作';
+            return t('workspace:this_codex_version_does_not_support_this_operation');
           if (
             entry.projectId !== null &&
             !workspace.projects.find((project) => project.id === entry.projectId)?.available
           )
-            return '项目目录不可用';
+            return t('common:project_directory_unavailable');
           if (!entry.archived && (isActive(entry.status) || entry.pendingActionCount > 0))
             return t('workspace:finish_the_task_and_resolve_pending_requests_before');
           if (!entry.archived && entry.managed && entry.status === 'unknown')
@@ -431,7 +432,7 @@ export function App() {
             </Button>
             <div>
               <div className="breadcrumb">
-                {project?.name ?? '未关联项目'}
+                {project?.name ?? t('common:unassigned')}
                 <Icon name="chevron" size={12} />
                 <span>
                   {workspace.selectedId ? t('common:sessions') : t('workspace:new_session')}
@@ -460,7 +461,7 @@ export function App() {
               )}
               {thread && thread.projectId === null && (
                 <details className="workspace-directory">
-                  <summary>工作目录</summary>
+                  <summary>{t('common:working_directory')}</summary>
                   <code>{thread.cwd}</code>
                 </details>
               )}

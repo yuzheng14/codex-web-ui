@@ -53,6 +53,7 @@ describe('remote project cloning', () => {
     const done = await settled(h.manager, first.id);
     expect(done).toMatchObject({
       status: 'completed',
+      progressStage: 'completed',
       project: { name: '克隆项目', available: true },
     });
     expect(readFileSync(join(input.path, 'README.md'), 'utf8')).toBe('# Cloned project\n');
@@ -121,7 +122,11 @@ describe('remote project cloning', () => {
     for (const mode of ['auth', 'missing']) {
       const input = h.input(`https://example.test/${mode}.git`, join(directory, mode));
       const failed = await settled(h.manager, h.manager.start(input).id);
-      expect(failed.status).toBe('failed');
+      expect(failed).toMatchObject({
+        status: 'failed',
+        progressStage: 'failed',
+        errorCode: mode === 'auth' ? 'CLONE_AUTH_FAILED' : 'CLONE_REPOSITORY_UNAVAILABLE',
+      });
       expect(failed.error).toMatch(mode === 'auth' ? /认证失败/ : /仓库不存在/);
       expect(JSON.stringify(failed)).not.toMatch(/TOP_SECRET|HIDDEN_TOKEN|user:|example.test/);
     }
@@ -134,6 +139,8 @@ describe('remote project cloning', () => {
     const failed = await settled(h.manager, h.manager.start(h.input()).id);
     expect(failed).toMatchObject({
       status: 'failed',
+      progressStage: 'failed',
+      errorCode: 'CLONE_GIT_MISSING',
       error: expect.stringContaining('未安装 Git'),
     });
     expect(h.register).not.toHaveBeenCalled();
@@ -156,7 +163,11 @@ describe('remote project cloning', () => {
     writeFileSync(join(input.path, 'keep'), 'preserved');
     h.manager.cancel(job.id);
     h.manager.cancel(job.id);
-    expect((await settled(h.manager, job.id)).status).toBe('cancelled');
+    expect(await settled(h.manager, job.id)).toMatchObject({
+      status: 'cancelled',
+      progressStage: 'cancelled',
+      errorCode: 'CLONE_CANCELLED',
+    });
     expect(readFileSync(join(input.path, 'keep'), 'utf8')).toBe('preserved');
     expect(h.register).not.toHaveBeenCalled();
     expect(() => h.manager.start(h.input())).toThrow(
@@ -171,10 +182,18 @@ describe('remote project cloning', () => {
     });
     const input = h.input();
     const failed = await settled(h.manager, h.manager.start(input).id);
-    expect(failed.status).toBe('registration-failed');
+    expect(failed).toMatchObject({
+      status: 'registration-failed',
+      progressStage: 'registration_failed',
+      errorCode: 'CLONE_REGISTRATION_FAILED',
+    });
     expect(failed.error).not.toContain('SECRET');
     expect(h.projects.list()).toEqual([]);
-    expect(h.manager.retryRegistration(failed.id).status).toBe('completed');
+    expect(h.manager.retryRegistration(failed.id)).toMatchObject({
+      status: 'completed',
+      progressStage: 'completed',
+    });
+    expect(h.manager.get(failed.id).errorCode).toBeUndefined();
     expect(h.register).toHaveBeenCalledTimes(2);
     expect(readFileSync(h.env.COVRO_TEST_GIT_CALLS, 'utf8').trim().split('\n')).toHaveLength(1);
     const slow = h.manager.start(h.input('https://example.test/slow.git', join(directory, 'slow')));

@@ -8,10 +8,9 @@
   "select_a_command_or_type_help_for_available": "请选择命令，或输入 /help 查看可用命令。",
   "does_not_accept_arguments_usage": "/{{v0}} 不接受参数。用法：{{v1}}",
   "view_supported_commands_and_usage": "查看本网页支持的命令和使用方式",
-  "open_a_new_session_draft_in_the_current": "打开当前项目的新建会话输入页",
+  "open_a_new_session_draft_in_the_current": "打开当前工作区的新建会话输入页",
   "copy_saved_session_history_into_a_new_session": "复制当前会话已保存的历史为新会话",
   "resume_the_selected_session_not_the_cli_session": "恢复当前选中的历史会话（不是 CLI 会话选择器）",
-  "review_uncommitted_project_changes_using_current_session_settings": "审查当前项目的未提交改动（使用会话当前配置）",
   "rename_this_session_spaces_are_allowed": "重命名当前会话，名称可包含空格",
   "request_interruption_of_the_current_task_web_shortcut": "请求中断当前任务（网页快捷命令）",
   "open_connection_runtime_and_submission_diagnostics": "打开当前连接、运行状态与提交诊断",
@@ -82,5 +81,6 @@
   "renameEmpty": "请输入会话名称。用法：/rename <名称>",
   "renameLong": "会话名称最多 {{max}} 个字符。",
   "renameControls": "会话名称不能包含换行或控制字符。",
-  "commandLine": "/{{name}}{{arguments}}：{{description}}"
+  "commandLine": "/{{name}}{{arguments}}：{{description}}",
+  "review_uncommitted_working_directory_changes": "审查当前工作目录的未提交改动（使用会话当前配置）"
 }

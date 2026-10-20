@@ -1,3 +1,7 @@
+import { t, formatNumber } from '../i18n';
+import { displayMessage, messageDetails } from '../i18n/messages';
+import { errorMessage } from '../lib/error-message';
+import { cloneProgress } from '../lib/project-clone-labels';
 import { useEffect, useRef, useState } from 'react';
 import type { ProjectClone } from '../../shared/types';
 import { api, HttpError } from '../lib/api';
@@ -136,13 +140,11 @@ export function CloneProjectForm(props: {
         void start();
       }}
     >
-      <p id="project-dialog-description">
-        从 Git 仓库克隆到运行 Covro 的服务器，完成后自动添加项目。
-      </p>
+      <p id="project-dialog-description">{t('sidebar:clone_intro')}</p>
       {!job && !jobId && (
         <>
           <label className="project-field">
-            <span>Git 仓库地址</span>
+            <span>{t('sidebar:clone_repository')}</span>
             <input
               autoFocus
               required
@@ -154,15 +156,12 @@ export function CloneProjectForm(props: {
               onChange={(event) => setRepository(event.target.value)}
               disabled={props.disabled || sending}
               aria-describedby="clone-auth-help"
-              aria-label="Git 仓库地址"
+              aria-label={t('sidebar:clone_repository')}
             />
-            <small id="clone-auth-help">
-              支持 HTTPS 和 SSH（如 git@github.com:owner/repo.git）。使用服务器已有的 Git
-              认证，请勿在地址中填写密码或令牌。
-            </small>
+            <small id="clone-auth-help">{t('sidebar:clone_auth_help')}</small>
           </label>
           <label className="project-field">
-            <span>服务器目标目录</span>
+            <span>{t('sidebar:clone_target')}</span>
             <input
               required
               maxLength={4096}
@@ -173,17 +172,15 @@ export function CloneProjectForm(props: {
               onChange={(event) => setPath(event.target.value)}
               disabled={props.disabled || sending}
               aria-describedby="clone-path-help"
-              aria-label="服务器目标目录"
+              aria-label={t('sidebar:clone_target')}
             />
-            <small id="clone-path-help">
-              填写服务器上的绝对路径。父目录须已存在且可写；目标目录须不存在或为空，不会覆盖已有文件。
-            </small>
+            <small id="clone-path-help">{t('sidebar:clone_path_help')}</small>
           </label>
           <label className="project-field">
-            <span>项目名称（可选）</span>
+            <span>{t('sidebar:project_name_optional')}</span>
             <input
               maxLength={100}
-              placeholder="默认使用目录名称"
+              placeholder={t('sidebar:defaults_to_directory_name')}
               value={name}
               onChange={(event) => setName(event.target.value)}
               disabled={props.disabled || sending}
@@ -194,25 +191,46 @@ export function CloneProjectForm(props: {
       {(job || jobId) && (
         <div className="project-clone-status" role="status" aria-live="polite">
           <strong>
-            {job?.progress ?? '正在核对克隆状态…'}
-            {job?.percent !== undefined ? ` ${job.percent}%` : ''}
+            {job?.percent !== undefined
+              ? t('sidebar:clone_progress_percent', {
+                  v0: cloneProgress(job),
+                  v1: formatNumber(job.percent / 100, {
+                    style: 'percent',
+                    maximumFractionDigits: 0,
+                  }),
+                })
+              : job
+                ? cloneProgress(job)
+                : t('sidebar:clone_checking')}
           </strong>
-          {running(job) && <progress aria-label="克隆进度" max={100} value={job?.percent} />}
+          {running(job) && (
+            <progress aria-label={t('sidebar:clone_progress')} max={100} value={job?.percent} />
+          )}
           <code>{job?.path ?? path}</code>
-          {running(job) && <small>关闭或刷新页面不会取消克隆。需要停止时请点击“取消克隆”。</small>}
+          {running(job) && <small>{t('sidebar:clone_background_help')}</small>}
         </div>
       )}
       {job?.error && (
         <p className="inline-error project-dialog-error" role="alert">
-          {job.error}
+          {displayMessage(
+            errorMessage({ code: job.errorCode ?? 'CLONE_FAILED', message: job.error }),
+          )}
         </p>
       )}
       {error && (
         <p className="inline-error project-dialog-error" role="alert">
-          {error}
+          {displayMessage(error)}
         </p>
       )}
-      {props.disabled && <p className="subtle">登录已过期，请重新登录后管理项目。</p>}
+      {(job?.error || messageDetails(error)) && (
+        <details className="project-clone-details">
+          <summary>{t('common:technical_details')}</summary>
+          <pre>{job?.error ?? messageDetails(error)}</pre>
+        </details>
+      )}
+      {props.disabled && (
+        <p className="subtle">{t('sidebar:your_login_expired_log_in_again_to_manage')}</p>
+      )}
       <div className="project-dialog-actions">
         {running(job) ? (
           <Button
@@ -220,20 +238,22 @@ export function CloneProjectForm(props: {
             disabled={props.disabled || sending || job?.status === 'cancelling'}
             onClick={() => void action('cancel')}
           >
-            {job?.status === 'cancelling' ? '正在取消…' : '取消克隆'}
+            {job?.status === 'cancelling'
+              ? t('sidebar:clone_cancelling')
+              : t('sidebar:clone_cancel')}
           </Button>
         ) : (
           <Button variant="secondary" disabled={busy} onClick={props.onClose}>
-            关闭
+            {t('common:close')}
           </Button>
         )}
         {job?.status === 'completed' ? (
           <Button disabled={props.disabled || sending} onClick={() => void action('open')}>
-            打开项目
+            {t('sidebar:clone_open')}
           </Button>
         ) : job?.status === 'registration-failed' ? (
           <Button disabled={props.disabled || sending} onClick={() => void action('register')}>
-            重试添加项目
+            {t('sidebar:clone_register_retry')}
           </Button>
         ) : terminal ? (
           <Button
@@ -246,7 +266,7 @@ export function CloneProjectForm(props: {
               setError(undefined);
             }}
           >
-            使用空目录重试
+            {t('sidebar:clone_empty_retry')}
           </Button>
         ) : (
           !jobId && (
@@ -254,7 +274,7 @@ export function CloneProjectForm(props: {
               type="submit"
               disabled={props.disabled || sending || !repository.trim() || !path.trim()}
             >
-              {sending ? '正在提交…' : '克隆并添加项目'}
+              {sending ? t('common:submitting') : t('sidebar:clone_start')}
             </Button>
           )
         )}

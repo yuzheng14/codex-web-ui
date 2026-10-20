@@ -27,7 +27,11 @@ export function ProjectDialog(props: Props) {
   const [cloneMode, setCloneMode] = useState(false);
   const [error, setError] = useState<string>();
   const disabled = props.disabled || busy;
-  const title = removing ? '移除项目' : props.project ? '管理项目' : '添加服务器项目';
+  const title = removing
+    ? t('sidebar:remove_project_2')
+    : props.project
+      ? t('common:manage_project')
+      : t('sidebar:add_server_project');
 
   useEffect(() => {
     const element = dialog.current;
@@ -75,7 +79,7 @@ export function ProjectDialog(props: Props) {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="关闭项目管理"
+          aria-label={t('sidebar:close_project_management')}
           disabled={busy}
           onClick={props.onClose}
         >
@@ -83,14 +87,14 @@ export function ProjectDialog(props: Props) {
         </Button>
       </div>
       {!props.project && (
-        <div className="project-import-modes" role="group" aria-label="项目来源">
+        <div className="project-import-modes" role="group" aria-label={t('sidebar:import_source')}>
           <Button
             variant={cloneMode ? 'ghost' : 'secondary'}
             disabled={busy}
             aria-pressed={!cloneMode}
             onClick={() => setCloneMode(false)}
           >
-            已有目录
+            {t('sidebar:import_existing')}
           </Button>
           <Button
             variant={cloneMode ? 'secondary' : 'ghost'}
@@ -98,7 +102,7 @@ export function ProjectDialog(props: Props) {
             aria-pressed={cloneMode}
             onClick={() => setCloneMode(true)}
           >
-            克隆 Git 仓库
+            {t('sidebar:import_clone')}
           </Button>
         </div>
       )}
@@ -118,29 +122,29 @@ export function ProjectDialog(props: Props) {
         >
           {removing ? (
             <>
-              <p id="project-dialog-description">确定从工作空间移除「{props.project?.name}」？</p>
+              <p id="project-dialog-description">
+                {t('sidebar:remove_from_this_workspace', { v0: props.project?.name })}
+              </p>
               <div className="project-removal-note">
-                <p>只移除项目列表中的记录，服务器上的文件和会话历史都会保留。</p>
-                <p>
-                  之后重新添加同一目录，即可继续访问原有会话。进行中的任务或未确认的操作需要先处理完成。
-                </p>
+                <p>{t('sidebar:only_the_project_list_entry_is_removed_server')}</p>
+                <p>{t('sidebar:add_the_same_directory_later_to_access_its')}</p>
               </div>
             </>
           ) : (
             <>
               <p id="project-dialog-description">
                 {props.project
-                  ? '为项目设置便于识别的名称，或从工作空间移除项目。'
-                  : '添加运行 Codex Web UI 的服务器上已有的目录。添加后即可查看历史会话并开始工作。'}
+                  ? t('sidebar:set_a_recognizable_project_name_or_remove_it')
+                  : t('sidebar:add_an_existing_directory_on_the_server_running')}
               </p>
               {props.project ? (
                 <div className="project-directory">
-                  <span>服务器目录</span>
+                  <span>{t('sidebar:server_directory')}</span>
                   <code>{props.project.rootPath}</code>
                 </div>
               ) : (
                 <label className="project-field">
-                  <span>服务器目录</span>
+                  <span>{t('sidebar:server_directory')}</span>
                   <input
                     autoFocus
                     required
@@ -150,21 +154,23 @@ export function ProjectDialog(props: Props) {
                     value={path}
                     onChange={(event) => setPath(event.target.value)}
                     aria-describedby="project-path-help"
-                    aria-label="服务器目录"
+                    aria-label={t('sidebar:server_directory')}
                     disabled={disabled}
                   />
                   <small id="project-path-help">
-                    填写服务器上的绝对路径，不是当前浏览器所在设备的目录。目录需要已存在，且服务有权访问。
+                    {t('sidebar:enter_an_existing_absolute_path_on_the_server')}
                   </small>
                 </label>
               )}
               <label className="project-field">
-                <span>{props.project ? '项目名称' : '项目名称（可选）'}</span>
+                <span>
+                  {props.project ? t('sidebar:project_name') : t('sidebar:project_name_optional')}
+                </span>
                 <input
                   autoFocus={Boolean(props.project)}
                   required={Boolean(props.project)}
                   maxLength={100}
-                  placeholder="默认使用目录名称"
+                  placeholder={t('sidebar:defaults_to_directory_name')}
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   disabled={disabled}
@@ -177,7 +183,9 @@ export function ProjectDialog(props: Props) {
               {displayMessage(error)}
             </p>
           )}
-          {props.disabled && <p className="subtle">登录已过期，请重新登录后管理项目。</p>}
+          {props.disabled && (
+            <p className="subtle">{t('sidebar:your_login_expired_log_in_again_to_manage')}</p>
+          )}
           <div className="project-dialog-actions">
             {props.project && !removing && (
               <Button
@@ -189,7 +197,7 @@ export function ProjectDialog(props: Props) {
                   setRemoving(true);
                 }}
               >
-                移除项目…
+                {t('sidebar:remove_project')}
               </Button>
             )}
             <Button
@@ -202,7 +210,7 @@ export function ProjectDialog(props: Props) {
                 } else props.onClose();
               }}
             >
-              {removing ? '返回' : '取消'}
+              {removing ? t('sidebar:back') : t('common:cancel')}
             </Button>
             <Button
               type="submit"
@@ -211,13 +219,13 @@ export function ProjectDialog(props: Props) {
             >
               {busy
                 ? removing
-                  ? '正在移除…'
-                  : '正在保存…'
+                  ? t('sidebar:removing')
+                  : t('common:saving')
                 : removing
-                  ? '确认移除'
+                  ? t('sidebar:confirm_removal')
                   : props.project
-                    ? '保存名称'
-                    : '添加项目'}
+                    ? t('sidebar:save_name')
+                    : t('common:add_project')}
             </Button>
           </div>
         </form>

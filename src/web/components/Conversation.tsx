@@ -541,19 +541,19 @@ function ConversationContent({
                 <div className="empty-symbol">
                   <Icon name="code" size={36} />
                 </div>
-                <p className="eyebrow">你的开发工作空间</p>
-                <h1>从一个想法，开始工作。</h1>
+                <p className="eyebrow">{t('conversation:your_development_workspace')}</p>
+                <h1>{t('conversation:start_with_an_idea')}</h1>
                 <p>
-                  描述你要完成的任务，也可以粘贴图片、问题或错误信息。
+                  {t('conversation:describe_your_task_or_paste_an_image_question')}
                   <br />
                   {projectName
-                    ? `发送后将在「${projectName}」中开始新会话。`
-                    : '无需选择项目，发送后自动分配独立工作目录；会话和文件将持续保留。'}
+                    ? t('conversation:start_in_project', { v0: projectName })
+                    : t('conversation:start_without_project')}
                 </p>
                 {needsProject && (
                   <Button variant="ghost" onClick={onAddProject} disabled={!canAddProject}>
                     <Icon name="plus" size={16} />
-                    添加项目
+                    {t('common:add_project')}
                   </Button>
                 )}
                 <div className="empty-features">

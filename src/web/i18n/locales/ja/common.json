@@ -53,5 +53,7 @@
   "manage_project": "プロジェクトを管理",
   "execution_failed": "実行失敗",
   "covro_updates": "Covro の更新",
-  "model_defaults_are_being_saved_wait_before_proceeding": "モデルの既定値を保存中です。完了までお待ちください。"
+  "model_defaults_are_being_saved_wait_before_proceeding": "モデルの既定値を保存中です。完了までお待ちください。",
+  "unassigned": "プロジェクト未関連付け",
+  "close": "閉じる"
 }

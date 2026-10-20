@@ -4647,23 +4647,47 @@ dd {
 }
 
 .sidebar-footer {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+}
+.sidebar-footer .language-selector {
+  justify-content: flex-start;
   gap: 6px;
+}
+.sidebar-footer .language-selector svg {
+  flex-shrink: 0;
+}
+.sidebar-footer .language-selector select {
+  flex-shrink: 0;
+  width: 90px;
+  max-width: 100%;
 }
 .sidebar-footer .gateway-settings-button {
   margin: 0;
-  align-self: flex-start;
+  justify-self: end;
 }
 .sidebar-footer .notification-settings-button {
   position: static;
-  align-self: flex-start;
+  justify-self: start;
+  max-width: 100%;
+  min-width: 0;
   height: auto;
   white-space: normal;
 }
+.sidebar-footer .privacy-mark {
+  justify-self: end;
+}
 .sidebar-footer p {
+  grid-column: 1 / -1;
   margin: 0;
+}
+.project-clone-details pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .error-banner.dismissible {

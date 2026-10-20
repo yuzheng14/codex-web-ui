@@ -91,33 +91,62 @@ function checkEmpty(path: string): void {
   }
 }
 
-function failure(output: string, missingGit: boolean): string {
-  if (missingGit) return '服务器未安装 Git，或服务的 PATH 中找不到 Git。安装并配置后重试。';
+function failure(
+  output: string,
+  missingGit: boolean,
+): { code: NonNullable<ProjectClone['errorCode']>; message: string } {
+  if (missingGit)
+    return {
+      code: 'CLONE_GIT_MISSING',
+      message: '服务器未安装 Git，或服务的 PATH 中找不到 Git。安装并配置后重试。',
+    };
   if (
     /authentication failed|could not read username|permission denied|publickey|terminal prompts disabled|credential|access denied|401|403/i.test(
       output,
     )
   )
-    return 'Git 认证失败或没有仓库访问权限。请在运行服务的主机上配置 Git 凭据或 SSH 密钥后重试。';
+    return {
+      code: 'CLONE_AUTH_FAILED',
+      message:
+        'Git 认证失败或没有仓库访问权限。请在运行服务的主机上配置 Git 凭据或 SSH 密钥后重试。',
+    };
   if (/host key verification failed/i.test(output))
-    return 'SSH 主机验证失败。请在运行服务的主机上确认并配置仓库主机的 SSH 信任后重试。';
+    return {
+      code: 'CLONE_HOST_KEY_FAILED',
+      message: 'SSH 主机验证失败。请在运行服务的主机上确认并配置仓库主机的 SSH 信任后重试。',
+    };
   if (
     /repository .*not found|does not appear to be a git repository|not a repository|404/i.test(
       output,
     )
   )
-    return '仓库不存在或不可访问。请检查仓库地址和主机上的 Git 访问权限。';
+    return {
+      code: 'CLONE_REPOSITORY_UNAVAILABLE',
+      message: '仓库不存在或不可访问。请检查仓库地址和主机上的 Git 访问权限。',
+    };
   if (
     /could not resolve|failed to connect|unable to access|connection|timed out|certificate/i.test(
       output,
     )
   )
-    return '无法连接 Git 仓库。请检查服务器网络、代理和证书配置后重试。';
+    return {
+      code: 'CLONE_NETWORK_FAILED',
+      message: '无法连接 Git 仓库。请检查服务器网络、代理和证书配置后重试。',
+    };
   if (/already exists and is not an empty directory/i.test(output))
-    return '目标目录已包含文件，Git 已停止克隆；不会覆盖或删除已有文件。';
+    return {
+      code: 'CLONE_TARGET_NOT_EMPTY',
+      message: '目标目录已包含文件，Git 已停止克隆；不会覆盖或删除已有文件。',
+    };
   if (/no space left|disk quota/i.test(output))
-    return '服务器磁盘空间不足，请释放空间后使用新的空目录重试。';
-  return 'Git 克隆失败。请检查仓库地址、主机上的 Git 认证、目录权限和磁盘空间后重试。';
+    return {
+      code: 'CLONE_DISK_FULL',
+      message: '服务器磁盘空间不足，请释放空间后使用新的空目录重试。',
+    };
+  return {
+    code: 'CLONE_FAILED',
+    message: 'Git 克隆失败。请检查仓库地址、主机上的 Git 认证、目录权限和磁盘空间后重试。',
+  };
 }
 
 /** Transient jobs never persist repository URLs, credentials, or raw Git output. */
@@ -185,6 +214,7 @@ export class ProjectClones {
         name: parsed.name,
         status: 'cloning',
         progress: '正在连接仓库…',
+        progressStage: 'connecting',
       },
       fingerprint,
       done: Promise.resolve(),
@@ -211,6 +241,7 @@ export class ProjectClones {
     if (job && active(job) && job.view.status !== 'cancelling') {
       job.view.status = 'cancelling';
       job.view.progress = '正在取消，等待 Git 退出…';
+      job.view.progressStage = 'cancelling';
       this.signal(job, 'SIGTERM');
     }
     return this.get(id);
@@ -228,10 +259,14 @@ export class ProjectClones {
       job.view.project = this.register({ path: job.view.path, name: job.view.name });
       job.view.status = 'completed';
       job.view.progress = '克隆完成，项目已添加';
+      job.view.progressStage = 'completed';
+      delete job.view.errorCode;
       delete job.view.error;
     } catch {
       job.view.status = 'registration-failed';
       job.view.progress = '克隆已完成，项目尚未添加';
+      job.view.progressStage = 'registration_failed';
+      job.view.errorCode = 'CLONE_REGISTRATION_FAILED';
       job.view.error =
         '项目注册失败。已克隆的文件保留在目标目录；可重试添加项目，无需再次克隆，也可通过“已有目录”添加。';
     }
@@ -294,15 +329,15 @@ export class ProjectClones {
             line,
           );
         if (!match || job.view.status !== 'cloning') continue;
-        const labels: Record<string, string> = {
-          'Receiving objects': '正在接收对象',
-          'Resolving deltas': '正在解析差异',
-          'Updating files': '正在检出文件',
-          'Checking out files': '正在检出文件',
-          'Counting objects': '正在统计对象',
-          'Compressing objects': '正在压缩对象',
+        const labels: Record<string, [NonNullable<ProjectClone['progressStage']>, string]> = {
+          'Receiving objects': ['receiving', '正在接收对象'],
+          'Resolving deltas': ['resolving', '正在解析差异'],
+          'Updating files': ['checking_out', '正在检出文件'],
+          'Checking out files': ['checking_out', '正在检出文件'],
+          'Counting objects': ['counting', '正在统计对象'],
+          'Compressing objects': ['compressing', '正在压缩对象'],
         };
-        job.view.progress = labels[match[1]!]!;
+        [job.view.progressStage, job.view.progress] = labels[match[1]!]!;
         job.view.percent = Math.min(100, Number(match[2]));
       }
     };
@@ -330,11 +365,16 @@ export class ProjectClones {
     if (job.view.status === 'cancelling') {
       job.view.status = timedOut ? 'failed' : 'cancelled';
       job.view.progress = timedOut ? '克隆超时，已停止' : '已取消克隆';
+      job.view.progressStage = timedOut ? 'timed_out' : 'cancelled';
+      job.view.errorCode = timedOut ? 'CLONE_TIMED_OUT' : 'CLONE_CANCELLED';
       job.view.error = `${timedOut ? '克隆超过 30 分钟，已停止。' : ''}未添加项目，也未删除任何文件。目标目录可能残留文件，请检查后使用新的空目录重试。`;
     } else if (code !== 0) {
       job.view.status = 'failed';
       job.view.progress = '克隆失败';
-      job.view.error = `${failure(output, missingGit)} 未添加项目；目标目录可能残留文件，请检查后使用新的空目录重试。`;
+      job.view.progressStage = 'failed';
+      const problem = failure(output, missingGit);
+      job.view.errorCode = problem.code;
+      job.view.error = `${problem.message} 未添加项目；目标目录可能残留文件，请检查后使用新的空目录重试。`;
     } else this.finishRegistration(job);
   }
 

@@ -114,3 +114,41 @@ it('retains message identity and uses the selected language for stored notices a
   expect(displayMessage(notice)).not.toContain('settings:');
   await i18n.changeLanguage('zh-Hans');
 });
+
+it.each(supportedLocales)(
+  '%s translates clone stages and legacy lifecycle states without altering diagnostics',
+  async (locale) => {
+    const { cloneProgress } = await import('../../src/web/lib/project-clone-labels');
+    const { errorMessage } = await import('../../src/web/lib/error-message');
+    const { displayMessage, messageDetails } = await import('../../src/web/i18n/messages');
+    await i18n.changeLanguage(locale);
+    const original = {
+      id: 'clone-1',
+      path: '/workspace/原文',
+      status: 'cloning',
+      progressStage: 'receiving',
+      progress: '服务器原始进度',
+      percent: 42,
+    } as const;
+    expect(cloneProgress(original)).toBe(
+      {
+        'zh-Hans': '正在接收对象',
+        en: 'Receiving objects',
+        ja: 'オブジェクトを受信中',
+        ko: '객체 수신 중',
+      }[locale],
+    );
+    expect(cloneProgress({ ...original, progressStage: undefined, status: 'completed' })).toBe(
+      t('sidebar:clone_stage_completed'),
+    );
+    const failure = errorMessage({
+      code: 'CLONE_AUTH_FAILED',
+      message: '原始诊断 /workspace/原文',
+    });
+    expect(displayMessage(failure)).not.toContain('CLONE_AUTH_FAILED');
+    expect(messageDetails(failure)).toBe('原始诊断 /workspace/原文');
+    expect(original.progress).toBe('服务器原始进度');
+    expect(original.path).toBe('/workspace/原文');
+    await i18n.changeLanguage('zh-Hans');
+  },
+);

@@ -138,7 +138,7 @@ const definitions: { name: SlashCommandName; description: string }[] = [
   {
     name: 'review',
     get description() {
-      return t('commands:review_uncommitted_project_changes_using_current_session_settings');
+      return t('commands:review_uncommitted_working_directory_changes');
     },
   },
   {
@@ -210,15 +210,15 @@ function unavailableReason(name: SlashCommandName, context: SlashCommandContext)
     );
   const scope = context.scopeId ?? context.project?.id;
   if (name !== 'stop') {
-    if (!context.project && scope !== UNASSIGNED_SCOPE) return '请先选择一个项目。';
+    if (!context.project && scope !== UNASSIGNED_SCOPE) return t('commands:select_a_project_first');
     if (context.project && !context.project.available)
-      return '当前项目目录不可用，请先检查项目配置。';
+      return t('commands:the_project_directory_is_unavailable_check_project_configuration');
   }
   if (name === 'new') {
     if (context.busy.some((entry) => entry.startsWith('saveModelDefaults:')))
-      return '正在保存模型默认值，请完成后再操作。';
-    if (busy('create', scope!)) return '正在新建会话，请等待回执。';
-    if (unsettled(scope!)) return '新建会话的请求尚未确认，请先用 /status 核对提交。';
+      return t('common:model_defaults_are_being_saved_wait_before_proceeding');
+    if (busy('create', scope!)) return t('commands:creating_a_session_wait_for_the_receipt');
+    if (unsettled(scope!)) return t('commands:session_creation_is_unconfirmed_use_status_to_check');
     return undefined;
   }
   const thread = context.thread;
@@ -418,7 +418,10 @@ export function createSlashCommands(getContext: () => SlashCommandContext): Slas
           },
         };
       }
-      if ((context.scopeId ?? context.project?.id) !== (initial.scopeId ?? initial.project?.id) || context.selectedId !== initial.selectedId)
+      if (
+        (context.scopeId ?? context.project?.id) !== (initial.scopeId ?? initial.project?.id) ||
+        context.selectedId !== initial.selectedId
+      )
         return {
           error: true,
           get message() {

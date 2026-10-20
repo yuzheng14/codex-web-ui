@@ -96,5 +96,7 @@
   "images_one": "{{v0}} 张图片",
   "images_have_no_preview_other": "{{v0}} 张图片未提供预览",
   "images_have_no_preview_one": "{{v0}} 张图片未提供预览",
-  "activityWithCommand": "{{label}}：{{command}}"
+  "activityWithCommand": "{{label}}：{{command}}",
+  "start_in_project": "发送后将在「{{v0}}」中开始新会话。",
+  "start_without_project": "无需选择项目，发送后自动分配独立工作目录；会话和文件将持续保留。"
 }

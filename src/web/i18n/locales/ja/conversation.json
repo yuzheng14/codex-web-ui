@@ -96,5 +96,7 @@
   "images_one": "画像 {{v0}} 枚",
   "images_have_no_preview_other": "画像 {{v0}} 枚はプレビューがありません",
   "images_have_no_preview_one": "画像 {{v0}} 枚はプレビューがありません",
-  "activityWithCommand": "{{label}}：{{command}}"
+  "activityWithCommand": "{{label}}：{{command}}",
+  "start_in_project": "送信すると「{{v0}}」で新しいセッションが始まります。",
+  "start_without_project": "プロジェクトを選ばずに開始できます。送信すると専用の作業ディレクトリが割り当てられ、セッションとファイルは保持されます。"
 }

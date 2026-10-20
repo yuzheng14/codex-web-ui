@@ -69,6 +69,32 @@ export interface ProjectClone {
   name?: string;
   status: 'cloning' | 'cancelling' | 'cancelled' | 'failed' | 'registration-failed' | 'completed';
   progress: string;
+  /** Stable presentation codes; legacy progress/error text remains available for diagnostics. */
+  progressStage?:
+    | 'connecting'
+    | 'receiving'
+    | 'resolving'
+    | 'checking_out'
+    | 'counting'
+    | 'compressing'
+    | 'cancelling'
+    | 'completed'
+    | 'registration_failed'
+    | 'timed_out'
+    | 'cancelled'
+    | 'failed';
+  errorCode?:
+    | 'CLONE_GIT_MISSING'
+    | 'CLONE_AUTH_FAILED'
+    | 'CLONE_HOST_KEY_FAILED'
+    | 'CLONE_REPOSITORY_UNAVAILABLE'
+    | 'CLONE_NETWORK_FAILED'
+    | 'CLONE_TARGET_NOT_EMPTY'
+    | 'CLONE_DISK_FULL'
+    | 'CLONE_FAILED'
+    | 'CLONE_REGISTRATION_FAILED'
+    | 'CLONE_TIMED_OUT'
+    | 'CLONE_CANCELLED';
   percent?: number;
   error?: string;
   project?: Project;

@@ -8,10 +8,9 @@
   "select_a_command_or_type_help_for_available": "Select a command, or type /help for available commands.",
   "does_not_accept_arguments_usage": "/{{v0}} does not accept arguments. Usage: {{v1}}",
   "view_supported_commands_and_usage": "View supported commands and usage",
-  "open_a_new_session_draft_in_the_current": "Open a new-session draft in the current project",
+  "open_a_new_session_draft_in_the_current": "Open a new-session draft in the current workspace",
   "copy_saved_session_history_into_a_new_session": "Copy saved session history into a new session",
   "resume_the_selected_session_not_the_cli_session": "Resume the selected session (not the CLI session picker)",
-  "review_uncommitted_project_changes_using_current_session_settings": "Review uncommitted project changes using current session settings",
   "rename_this_session_spaces_are_allowed": "Rename this session; spaces are allowed",
   "request_interruption_of_the_current_task_web_shortcut": "Request interruption of the current task (web shortcut)",
   "open_connection_runtime_and_submission_diagnostics": "Open connection, runtime and submission diagnostics",
@@ -82,5 +81,6 @@
   "renameEmpty": "Enter a session name. Usage: /rename <name>",
   "renameLong": "Session names may contain at most {{max}} characters.",
   "renameControls": "Session names cannot contain line breaks or control characters.",
-  "commandLine": "/{{name}}{{arguments}}: {{description}}"
+  "commandLine": "/{{name}}{{arguments}}: {{description}}",
+  "review_uncommitted_working_directory_changes": "Review uncommitted changes in the current working directory using session settings"
 }

@@ -96,5 +96,7 @@
   "images_one": "이미지 {{v0}}장",
   "images_have_no_preview_other": "이미지 {{v0}}장에 미리 보기가 없습니다",
   "images_have_no_preview_one": "이미지 {{v0}}장에 미리 보기가 없습니다",
-  "activityWithCommand": "{{label}}: {{command}}"
+  "activityWithCommand": "{{label}}: {{command}}",
+  "start_in_project": "전송하면 “{{v0}}”에서 새 세션이 시작됩니다.",
+  "start_without_project": "프로젝트를 선택하지 않고 시작할 수 있습니다. 전송하면 독립된 작업 디렉터리가 할당되며 세션과 파일이 계속 보관됩니다."
 }

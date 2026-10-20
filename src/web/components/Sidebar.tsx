@@ -3,7 +3,7 @@ import { displayMessage } from '../i18n/messages';
 import { t, changeLocale, currentLocale } from '../i18n';
 import { useState } from 'react';
 import { localeNames, supportedLocales, type Locale } from '../i18n/locales';
-import { ArrowUpCircle, Bell } from 'lucide-react';
+import { ArrowUpCircle, Bell, Languages } from 'lucide-react';
 import type { Project, ThreadSummary } from '../../shared/types';
 import type { ProjectThreads } from '../lib/project-threads';
 import { cn } from '../lib/utils';
@@ -57,7 +57,7 @@ export function Sidebar(props: Props) {
   const scopes = [
     {
       id: UNASSIGNED_SCOPE,
-      name: '未关联项目',
+      name: t('common:unassigned'),
       rootPath: '',
       available: true,
       error: undefined,
@@ -144,8 +144,11 @@ export function Sidebar(props: Props) {
             />
             <span id="sidebar-search-summary" className="sr-only" role="status">
               {query
-                ? `搜索结果 · ${groups.length} 个分组`
-                : `全部会话 · ${props.projects.length} 个项目`}
+                ? t('sidebar:search_results_groups', { v0: groups.length, count: groups.length })
+                : t('sidebar:all_sessions_projects', {
+                    v0: props.projects.length,
+                    count: props.projects.length,
+                  })}
             </span>
           </div>
           <div className="sidebar-toolbar">
@@ -193,10 +196,10 @@ export function Sidebar(props: Props) {
               isActive(entry.status),
             ).length;
             const createLabel = props.creating(project.id)
-              ? '正在创建…'
+              ? t('sidebar:creating')
               : project.project
-                ? '新建会话'
-                : '新建会话（无需项目）';
+                ? t('sidebar:new_session')
+                : t('sidebar:new_unassigned_session');
             return (
               <section
                 key={project.id}
@@ -239,11 +242,11 @@ export function Sidebar(props: Props) {
                     </Button>
                   </ControlHint>
                   {project.project && (
-                    <ControlHint content={'管理项目'}>
+                    <ControlHint content={t('common:manage_project')}>
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label={`管理项目 ${project.name}`}
+                        aria-label={t('sidebar:manage_project', { v0: project.name })}
                         onClick={() => props.onManageProject(project.project!)}
                         disabled={!props.canManageProjects}
                       >
@@ -344,14 +347,14 @@ export function Sidebar(props: Props) {
               {query
                 ? t('sidebar:no_matching_projects_or_loaded_sessions')
                 : props.projectsLoaded
-                  ? '暂无会话。直接新建会话，或添加项目。'
-                  : '正在读取项目…'}
+                  ? t('sidebar:no_sessions_yet')
+                  : t('sidebar:loading_projects')}
             </p>
           )}
         </ThreadListNavigation>
         <div className="sidebar-footer">
-          <label className="language-selector">
-            <span>{t('common:language')}</span>
+          <label className="language-selector" title={t('common:language')}>
+            <Languages size={16} aria-hidden="true" />
             <select
               aria-label={t('common:language')}
               value={currentLocale()}
