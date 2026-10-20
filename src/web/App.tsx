@@ -504,6 +504,8 @@ export function App() {
               connection={workspace.connection}
               operations={workspace.operations}
               thread={thread}
+              selectedId={workspace.selectedId}
+              threadReadFailed={Boolean(workspace.threadReadFailure?.id === workspace.selectedId)}
               busy={workspace.busy}
               open={diagnosticsOpen}
               onOpenChange={setDiagnosticsOpen}
