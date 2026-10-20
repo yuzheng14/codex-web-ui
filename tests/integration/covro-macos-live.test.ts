@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, it } from 'vitest';
@@ -18,6 +18,8 @@ it.runIf(process.platform === 'darwin' && process.env.COVRO_TEST_LAUNCHD === '1'
   async () => {
     const root = await mkdtemp(join(tmpdir(), 'c188-live-'));
     const home = join(root, 'h');
+    const bin = join(root, 'bin');
+    await mkdir(bin);
     const listener = createServer().listen(0, '127.0.0.1');
     await once(listener, 'listening');
     const address = listener.address();
@@ -37,9 +39,20 @@ it.runIf(process.platform === 'darwin' && process.env.COVRO_TEST_LAUNCHD === '1'
     const env = {
       ...process.env,
       COVRO_HOME: home,
+      PATH: `${bin}:${process.env.PATH}`,
       GH_TOKEN: 'fake-private-token-188',
       GITHUB_TOKEN: '',
+      COVRO_TEST_CWD: await realpath(root),
     };
+    await writeFile(
+      join(bin, 'gh'),
+      `#!${process.execPath}
+const inherited = process.env.GH_TOKEN === ['fake', 'private', 'token', '188'].join('-') && process.cwd() === process.env.COVRO_TEST_CWD;
+if (process.argv[2] === 'auth') { if (inherited) process.stdout.write(process.env.GH_TOKEN); else process.exitCode = 1; }
+else process.stdout.write('HTTP/2.0 200 OK\\n');
+`,
+      { mode: 0o700 },
+    );
     const cli = (...args: string[]) =>
       exec(process.execPath, [entry, ...args, '--config', config], {
         env,
@@ -79,7 +92,15 @@ it.runIf(process.platform === 'darwin' && process.env.COVRO_TEST_LAUNCHD === '1'
       const starts = await Promise.all([cli('start'), cli('start')]);
       const first = JSON.parse(starts[0]!.stdout);
       expect(JSON.parse(starts[1]!.stdout).pid).toBe(first.pid);
-      await expect(exec('/bin/launchctl', ['print', files.target])).resolves.toBeDefined();
+      expect(first.launchContext.manager).toBe('Aqua');
+      const report = JSON.parse((await cli('doctor')).stdout);
+      expect(report).toMatchObject({
+        pid: first.pid,
+        result: 'authenticated',
+        credentialSource: 'environment',
+        sandbox: 'not-tested',
+      });
+      expect(JSON.stringify(report)).not.toContain(env.GH_TOKEN);
       expect(await readFile(files.temporary, 'utf8')).not.toContain(env.GH_TOKEN);
       await expect(readFile(loginFiles.login)).rejects.toMatchObject({ code: 'ENOENT' });
       const other = JSON.parse((await otherCli('start')).stdout);
@@ -88,19 +109,20 @@ it.runIf(process.platform === 'darwin' && process.env.COVRO_TEST_LAUNCHD === '1'
       await expect(exec('/bin/launchctl', ['print', files.target])).rejects.toBeDefined();
       const second = JSON.parse((await cli('start')).stdout);
       expect(second.pid).not.toBe(first.pid);
+      expect(second.launchContext.manager).toBe('Aqua');
       // The same functions are bundled into the updater for activation, rollback and repair.
       await stopBackground(location);
       const restored = (await startBackground(location, entry)) as {
-        pid: number;
+        launchContext: { manager: string };
       };
-      expect(restored.pid).toBeGreaterThan(0);
+      expect(restored.launchContext.manager).toBe('Aqua');
       await cli('service', 'install');
       await cli('service', 'install');
       expect(await readFile(loginFiles.login, 'utf8')).toContain('<string>Aqua</string>');
       expect(await readFile(loginFiles.login, 'utf8')).not.toContain(env.GH_TOKEN);
       await cli('stop');
       const loginRestart = JSON.parse((await cli('start')).stdout);
-      expect(loginRestart.pid).toBeGreaterThan(0);
+      expect(loginRestart.launchContext.manager).toBe('Aqua');
       await cli('service', 'uninstall');
       await cli('service', 'uninstall');
       await expect(readFile(loginFiles.login)).rejects.toMatchObject({ code: 'ENOENT' });

@@ -61,7 +61,7 @@ export async function main(args = process.argv.slice(2)) {
   }
   if (command === '--help' || command === 'help') {
     console.log(
-      'Covro\n\ncovro [start|run|stop|status|logs] [--config FILE]\ncovro update [status|repair] [--channel stable|beta|dev] [--allow-downgrade] [--allow-unverified-codex]\ncovro service install|uninstall [--config FILE]\n\n默认后台运行；service install 单独启用登录自启。',
+      'Covro\n\ncovro [start|run|stop|status|doctor|logs] [--config FILE]\ncovro update [status|repair] [--channel stable|beta|dev] [--allow-downgrade] [--allow-unverified-codex]\ncovro service install|uninstall [--config FILE]\n\n默认后台运行；service install 单独启用登录自启。doctor 从运行实例检查会话和 GitHub 凭证，不显示令牌。',
     );
     return;
   }
@@ -98,7 +98,7 @@ export async function main(args = process.argv.slice(2)) {
         2,
       ),
     );
-  } else if (command === 'status' || command === 'stop') {
+  } else if (command === 'status' || command === 'stop' || command === 'doctor') {
     try {
       if (command === 'stop') {
         await stopBackground(location);
