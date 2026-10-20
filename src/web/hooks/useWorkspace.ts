@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   Cursor,
   Operation,
@@ -30,6 +30,8 @@ import { operationNeedsCompatibilityConfirmation } from '../lib/compatibility';
 import { SystemSnapshotGuard } from '../lib/system';
 import { ProjectThreadsStore } from '../lib/project-threads';
 import { readThreadPage } from '../lib/thread-pagination';
+import { ThreadListCache } from '../lib/thread-list-cache';
+import { useDeviceCacheScope } from './useDeviceCacheScope';
 import { useBrowserNotifications } from './useBrowserNotifications';
 import {
   ConversationDrafts,
@@ -71,6 +73,60 @@ export function useWorkspace() {
   const [error, setError] = useState<string>();
   const [errorDetails, setErrorDetails] = useState<unknown>();
   const [authRequired, setAuthRequired] = useState(false);
+  const cacheScope = useDeviceCacheScope(
+    authRequired || connection === 'authenticationRequired',
+    connection,
+    projects,
+    system,
+  );
+  const listCache = useMemo(
+    () => (cacheScope ? new ThreadListCache(cacheScope) : undefined),
+    [cacheScope],
+  );
+  const persistedLists = useMemo(() => new Map<string, ThreadSummary[]>(), [listCache]);
+  const listCacheRef = useRef(listCache);
+  const listReads = useRef(new Map<string, AbortController>());
+  listCacheRef.current = listCache;
+  const cacheProjects = JSON.stringify(
+    projects.filter((project) => project.available).map((project) => project.id),
+  );
+  useLayoutEffect(() => {
+    // A changed or no longer confirmed identity must not keep another scope's reading rows.
+    if (projectStore.current.discardCached()) setProjectThreads(projectStore.current.snapshot);
+  }, [listCache]);
+  useEffect(() => {
+    let active = true;
+    const store = projectStore.current;
+    for (const id of JSON.parse(cacheProjects) as string[])
+      void listCache?.read(id, archiveView).then((rows) => {
+        if (
+          active &&
+          rows &&
+          projectsRef.current.some((project) => project.id === id && project.available) &&
+          store.restoreCached(id, rows)
+        )
+          setProjectThreads(store.snapshot);
+      });
+    return () => {
+      active = false;
+    };
+  }, [listCache, cacheProjects, archiveView]);
+  useEffect(() => {
+    if (!listCache) return;
+    // Coalesce overview bursts and keep optimistic intents out of persistent snapshots.
+    const timer = setTimeout(() => {
+      for (const id of JSON.parse(cacheProjects) as string[]) {
+        const page = projectStore.current.snapshot[id];
+        const rows = projectStore.current.cacheRows(id);
+        const key = `${id}:${archiveView}`;
+        if (rows && page?.loaded && persistedLists.get(key) !== rows) {
+          persistedLists.set(key, rows);
+          void listCache.write(id, archiveView, rows);
+        }
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [listCache, persistedLists, cacheProjects, archiveView, projectThreads]);
   const [busy, setBusy] = useState<string[]>([]);
   const busyRef = useRef(new Set<string>());
   const streamRef = useRef<ThreadStream | undefined>(undefined);
@@ -149,14 +205,23 @@ export function useWorkspace() {
       const store = projectStore.current;
       const previous = store.snapshot[id];
       // React may not have rendered the disabled button yet; guard synchronously as well.
+      if (previous?.loading && Boolean(cursor) === Boolean(previous.appending)) return;
       if (cursor && (previous?.loading || previous?.nextCursor !== cursor)) return;
       const archived = store.archived;
-      const knownIds = new Set(cursor ? previous?.data.map((thread) => thread.id) : []);
+      const unverified = new Set(previous?.unverified);
+      const knownIds = new Set(
+        cursor
+          ? previous?.data.filter((thread) => !unverified.has(thread.id)).map((thread) => thread.id)
+          : [],
+      );
+      listReads.current.get(id)?.abort();
+      const controller = new AbortController();
+      listReads.current.set(id, controller);
       const read = store.beginRead(id, Boolean(cursor));
       setProjectThreads(projectStore.current.snapshot);
       try {
         // Bound the entire filtered-page scan, including response bodies, to one request budget.
-        const signal = AbortSignal.timeout(35_000);
+        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(35_000)]);
         const page = await readThreadPage({
           projectId: id,
           archived,
@@ -167,9 +232,13 @@ export function useWorkspace() {
         });
         if (page && store.finishRead(read, page)) setProjectThreads(projectStore.current.snapshot);
       } catch (problem) {
-        if (store.failRead(read, readableError(problem), cursor))
+        const forbidden = problem instanceof HttpError && [401, 403, 404].includes(problem.status);
+        if (forbidden && store.isCurrent(read)) void listCacheRef.current?.remove(id);
+        if (store.failRead(read, readableError(problem), cursor, forbidden))
           setProjectThreads(projectStore.current.snapshot);
         if (problem instanceof HttpError && problem.authenticationRequired) report(problem);
+      } finally {
+        if (listReads.current.get(id) === controller) listReads.current.delete(id);
       }
     },
     [report],
@@ -470,7 +539,9 @@ export function useWorkspace() {
           detailReadSequence.current++;
         }
         for (const project of removed) {
+          listReads.current.get(project.id)?.abort();
           projectStore.current.removeProject(project.id);
+          void listCacheRef.current?.remove(project.id);
           streamRef.current?.cache.removeProject(project.id);
         }
         setProjectThreads(projectStore.current.snapshot);
@@ -1105,6 +1176,7 @@ export function useWorkspace() {
         await refreshThread();
     },
     projectThreads,
+    cacheScope,
     threads: projectThreads[projectId]?.data ?? [],
     nextCursor: projectThreads[projectId]?.nextCursor ?? null,
     thread: visibleThread,

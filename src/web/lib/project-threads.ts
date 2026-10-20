@@ -11,9 +11,13 @@ export interface ProjectThreads {
   data: ThreadSummary[];
   nextCursor: string | null;
   loading: boolean;
+  appending?: boolean;
+  cacheBlocked?: boolean;
   error?: string;
   retryCursor?: string;
   loaded?: boolean;
+  /** Cached rows not yet observed in this server pagination pass. */
+  unverified?: string[];
 }
 
 interface Read {
@@ -37,7 +41,9 @@ export class ProjectThreadsStore {
   private value: Record<string, ProjectThreads> = {};
   private readonly sequences = new Map<string, number>();
   private readonly versions = new Map<string, SummaryVersion>();
+  private readonly authoritative = new Map<string, ThreadSummary>();
   private revision = 0;
+  private readonly seen = new Map<string, Set<string>>();
   archived = false;
   private readonly mutations = new Map<
     string,
@@ -120,9 +126,7 @@ export class ProjectThreadsStore {
     for (const projectId of this.sequences.keys())
       this.sequences.set(projectId, this.sequences.get(projectId)! + 1);
     this.value = {};
-    for (const id of this.versions.keys())
-      if (![...this.mutations.values()].some((mutation) => mutation.target === id))
-        this.versions.delete(id);
+    this.seen.clear();
     return true;
   }
 
@@ -147,6 +151,47 @@ export class ProjectThreadsStore {
     return value;
   }
 
+  /** Persist authoritative rows, never the optimistic projection. */
+  cacheRows(projectId: string) {
+    return this.value[projectId]?.data;
+  }
+
+  discardCached() {
+    let changed = false;
+    for (const [id, page] of Object.entries(this.value)) {
+      if (!page.unverified?.length) continue;
+      const unverified = new Set(page.unverified);
+      this.set(id, {
+        ...page,
+        data: page.data.filter((row) => !unverified.has(row.id)),
+        unverified: [],
+      });
+      changed = true;
+    }
+    return changed;
+  }
+
+  restoreCached(projectId: string, rows: ThreadSummary[]) {
+    const previous = this.get(projectId);
+    if (previous.cacheBlocked || (previous.loaded && previous.nextCursor === null)) return false;
+    const data = new Map(previous.data.map((row) => [row.id, row]));
+    const unverified = new Set(previous.unverified);
+    for (const saved of rows) {
+      const known = this.authoritative.get(saved.id);
+      const row = known ?? saved;
+      if (row.projectId !== projectId || !this.includes(row) || data.has(row.id)) continue;
+      data.set(row.id, row);
+      if (!known) unverified.add(row.id);
+    }
+    if (data.size === previous.data.length) return false;
+    this.set(projectId, {
+      ...previous,
+      data: sort([...data.values()]),
+      unverified: [...unverified],
+    });
+    return true;
+  }
+
   findProject(threadId: string) {
     return Object.entries(this.value).find(([, page]) =>
       page.data.some((thread) => thread.id === threadId),
@@ -159,8 +204,13 @@ export class ProjectThreadsStore {
     // Keep the sequence as a tombstone so an older read cannot restore a removed project.
     this.sequences.set(projectId, (this.sequences.get(projectId) ?? 0) + 1);
     const next = { ...this.value };
-    for (const thread of next[projectId]?.data ?? []) this.versions.delete(thread.id);
+    for (const [id, thread] of this.authoritative)
+      if (thread.projectId === projectId) {
+        this.authoritative.delete(id);
+        this.versions.delete(id);
+      }
     delete next[projectId];
+    this.seen.delete(projectId);
     this.value = next;
   }
 
@@ -170,6 +220,7 @@ export class ProjectThreadsStore {
     this.set(projectId, {
       ...this.get(projectId),
       loading: true,
+      appending: append,
       error: undefined,
       retryCursor: undefined,
     });
@@ -184,7 +235,10 @@ export class ProjectThreadsStore {
     if (!this.isCurrent(read)) return false;
     const previous = this.get(read.projectId);
     const data = new Map<string, ThreadSummary>(
-      (read.append ? previous.data : []).map((entry) => [entry.id, entry]),
+      (read.append || page.nextCursor !== null ? previous.data : []).map((entry) => [
+        entry.id,
+        entry,
+      ]),
     );
     const newer = (id: string) => {
       const version = this.versions.get(id);
@@ -195,23 +249,52 @@ export class ProjectThreadsStore {
           : version.revision > read.revision),
       );
     };
+    const seen = read.append
+      ? (this.seen.get(read.projectId) ?? new Set<string>())
+      : new Set<string>();
+    const unverified = new Set(previous.unverified);
     for (const entry of page.data) {
       if (entry.projectId !== read.projectId) continue;
+      seen.add(entry.id);
+      unverified.delete(entry.id);
       if (newer(entry.id)) {
-        const current = previous.data.find((thread) => thread.id === entry.id);
-        if (current) data.set(entry.id, current);
+        const current = this.authoritative.get(entry.id);
+        if (current && this.includes(current)) data.set(entry.id, current);
+        else data.delete(entry.id);
       } else {
         if (this.includes(entry)) data.set(entry.id, entry);
         else data.delete(entry.id);
         this.versions.set(entry.id, { cursor: page.cursor, revision: ++this.revision });
+        this.authoritative.set(entry.id, entry);
         for (const mutation of this.mutations.values())
           if (mutation.target === entry.id) mutation.base = entry;
       }
     }
     // A newly created or newly active conversation may be absent from an older first page.
-    for (const entry of previous.data) if (newer(entry.id)) data.set(entry.id, entry);
+    for (const entry of this.authoritative.values())
+      if (entry.projectId === read.projectId && this.includes(entry) && newer(entry.id)) {
+        data.set(entry.id, entry);
+        seen.add(entry.id);
+      }
+    this.seen.set(read.projectId, seen);
+    // Absence is authoritative only after traversing the complete current result, never one page.
+    if (page.nextCursor === null)
+      for (const entry of [...previous.data, ...this.authoritative.values()]) {
+        if (
+          entry.projectId !== read.projectId ||
+          !this.includes(entry) ||
+          seen.has(entry.id) ||
+          newer(entry.id)
+        )
+          continue;
+        data.delete(entry.id);
+        // Retain absence across filter changes so an older persistent snapshot cannot resurrect it.
+        this.authoritative.set(entry.id, { ...entry, historyVisible: false });
+        this.versions.set(entry.id, { cursor: page.cursor, revision: ++this.revision });
+      }
     this.set(read.projectId, {
       data: sort([...data.values()]),
+      unverified: page.nextCursor === null ? [] : [...unverified],
       nextCursor: page.nextCursor,
       loading: false,
       loaded: true,
@@ -219,9 +302,15 @@ export class ProjectThreadsStore {
     return true;
   }
 
-  failRead(read: Read, error: string, retryCursor?: string) {
+  failRead(read: Read, error: string, retryCursor?: string, forbidden = false) {
     if (!this.isCurrent(read)) return false;
-    this.set(read.projectId, { ...this.get(read.projectId), loading: false, error, retryCursor });
+    this.set(read.projectId, {
+      ...(forbidden ? empty() : this.get(read.projectId)),
+      loading: false,
+      error,
+      retryCursor,
+      cacheBlocked: forbidden,
+    });
     return true;
   }
 
@@ -233,11 +322,14 @@ export class ProjectThreadsStore {
     )
       return false;
     this.versions.set(summary.id, { cursor, revision: ++this.revision });
+    this.authoritative.set(summary.id, summary);
     for (const mutation of this.mutations.values())
       if (mutation.target === summary.id) mutation.base = summary;
     const previous = this.get(summary.projectId);
+    if (this.includes(summary)) this.seen.get(summary.projectId)?.add(summary.id);
     this.set(summary.projectId, {
       ...previous,
+      unverified: previous.unverified?.filter((id) => id !== summary.id),
       data: sort([
         ...(this.includes(summary) ? [summary] : []),
         ...previous.data.filter((entry) => entry.id !== summary.id),

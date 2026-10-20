@@ -310,8 +310,12 @@ test('archiving another conversation preserves the current draft, loaded pages a
     }),
   );
   await page.getByRole('button', { name: '刷新会话列表' }).click();
-  await expect(projectGroup(page).locator('.thread-row')).toHaveCount(10);
+  // A first-page refresh must preserve the rows already delivered through realtime.
+  await expect(
+    page.locator([current, ...ids].map((id) => `[data-thread-id="${id}"]`).join(',')),
+  ).toHaveCount(19);
   await projectGroup(page).getByRole('button', { name: '加载更多会话' }).click();
+  await expect(projectGroup(page).getByText('已加载全部会话', { exact: true })).toBeAttached();
   await expect(
     page.locator([current, ...ids].map((id) => `[data-thread-id="${id}"]`).join(',')),
   ).toHaveCount(19);

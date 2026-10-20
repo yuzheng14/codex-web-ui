@@ -23,7 +23,6 @@ import { ProjectDialog } from './components/ProjectDialog';
 import { NotificationSettings } from './components/NotificationSettings';
 import { GatewaySettings } from './components/GatewaySettings';
 import { UpdateSettings } from './components/UpdateSettings';
-import { api } from './lib/api';
 import { useConversationHistory } from './hooks/useConversationHistory';
 import { useUpdates } from './hooks/useUpdates';
 import { useShell } from './hooks/useShell';
@@ -98,25 +97,6 @@ export function App() {
     setProjectDialog({ kind: 'add' });
   };
   const { thread, system } = workspace;
-  const [historyScope, setHistoryScope] = useState<string>();
-  useEffect(() => {
-    if (workspace.authRequired) {
-      setHistoryScope(undefined);
-      return;
-    }
-    let active = true;
-    void api
-      .historyCacheContext()
-      .then(({ scope }) => {
-        if (active) setHistoryScope(scope);
-      })
-      .catch(() => {
-        /* A confirmed scope remains usable during a transient outage. */
-      });
-    return () => {
-      active = false;
-    };
-  }, [workspace.authRequired, workspace.connection, workspace.projects, system?.codexEpoch]);
   const historyForbidden =
     workspace.authRequired ||
     Boolean(
@@ -126,7 +106,7 @@ export function App() {
     );
   const history = useConversationHistory(thread, workspace.selectedId, {
     projectId: workspace.projectId,
-    scope: historyScope,
+    scope: workspace.cacheScope,
     forbidden: historyForbidden,
   });
   const resumeAttempt = useRef<string | undefined>(undefined);

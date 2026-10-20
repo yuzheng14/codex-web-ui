@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { isActive } from './Status';
 import { ThreadLink } from './ThreadLink';
+import { ThreadListNavigation } from './ThreadListNavigation';
 
 interface Props {
   archiveView: boolean;
@@ -154,7 +155,7 @@ export function Sidebar(props: Props) {
             </Button>
           </div>
         </div>
-        <nav className="project-list" aria-label="会话历史">
+        <ThreadListNavigation context={`${props.archiveView}:${query}`} rows={props.projectThreads}>
           {groups.map(({ project, state, threads }) => {
             const activeCount = (state?.data ?? []).filter((entry) =>
               isActive(entry.status),
@@ -246,6 +247,15 @@ export function Sidebar(props: Props) {
                     )}
                   {state && (
                     <div className="thread-pagination" aria-live="polite" aria-busy={state.loading}>
+                      {Boolean(state.unverified?.length) && (
+                        <p className="sidebar-pagination-status" role="status">
+                          {state.error
+                            ? '本机列表同步失败，可继续浏览。'
+                            : state.loading
+                              ? '正在显示本机列表，后台同步中…'
+                              : '部分本机列表尚未同步，加载更多以核对。'}
+                        </p>
+                      )}
                       {state.loading || state.error || state.nextCursor ? (
                         <ControlHint content={state.error}>
                           <Button
@@ -262,7 +272,9 @@ export function Sidebar(props: Props) {
                             }}
                           >
                             {state.loading
-                              ? '正在加载更多会话…'
+                              ? state.appending
+                                ? '正在加载更多会话…'
+                                : '正在同步会话…'
                               : state.error
                                 ? '加载失败，重试'
                                 : '加载更多会话'}
@@ -291,7 +303,7 @@ export function Sidebar(props: Props) {
                   : '正在读取项目…'}
             </p>
           )}
-        </nav>
+        </ThreadListNavigation>
         <div className="sidebar-footer">
           <Button
             className="gateway-settings-button"
