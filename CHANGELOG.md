@@ -6,10 +6,10 @@
 ### Features
 
 * **cli:** diagnose running-instance GitHub credential access ([#199](https://github.com/yuzheng14/covro/issues/199)) ([9aa427a](https://github.com/yuzheng14/covro/commit/9aa427ad5b5835f1b9a5be4936bab66567655442))
-* **shell:** 新增项目 Shell 命令执行面板 ([#182](https://github.com/yuzheng14/covro/issues/182)) ([143a52a](https://github.com/yuzheng14/covro/commit/143a52af6e24e6a953ebd6cbf049a5c851e4df92))
+* **shell:** add a project shell command execution panel ([#182](https://github.com/yuzheng14/covro/issues/182)) ([143a52a](https://github.com/yuzheng14/covro/commit/143a52af6e24e6a953ebd6cbf049a5c851e4df92))
 * **ui:** add structured code previews with inline diff highlights ([#173](https://github.com/yuzheng14/covro/issues/173)) ([e8ff82d](https://github.com/yuzheng14/covro/commit/e8ff82d66f2333b7e22ec0b4cd333da733e00749)), closes [#169](https://github.com/yuzheng14/covro/issues/169)
 * **ui:** show and copy conversation thread IDs ([#192](https://github.com/yuzheng14/covro/issues/192)) ([47086be](https://github.com/yuzheng14/covro/commit/47086bea739ae45d38a7eea1439cd08280cde5f4))
-* **ui:** 支持 JSON 文件预览 ([#176](https://github.com/yuzheng14/covro/issues/176)) ([5b53c24](https://github.com/yuzheng14/covro/commit/5b53c24220be418ab43b5eca9ebba1b54f89483d))
+* **ui:** support JSON file previews ([#176](https://github.com/yuzheng14/covro/issues/176)) ([5b53c24](https://github.com/yuzheng14/covro/commit/5b53c24220be418ab43b5eca9ebba1b54f89483d))
 
 
 ### Bug Fixes
