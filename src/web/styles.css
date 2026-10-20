@@ -4678,3 +4678,26 @@ dd {
   overflow-wrap: anywhere;
   margin-bottom: 0;
 }
+
+/* A desktop preview narrows the workspace without changing the viewport breakpoint. */
+@media (min-width: 761px) {
+  .topbar {
+    flex-wrap: wrap;
+  }
+  .topbar-title {
+    flex: 1 1 180px;
+  }
+  .topbar-status {
+    flex: 0 1 auto;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  .breadcrumb {
+    white-space: nowrap;
+    overflow: hidden;
+  }
+}
+.gateway-error pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

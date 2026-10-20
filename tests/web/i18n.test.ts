@@ -96,8 +96,12 @@ it('retains message identity and uses the selected language for stored notices a
   const original = { code: 'THREAD_IN_USE', message: '原始诊断 /work/例子.ts' };
   const stored = readableError(new HttpError(409, original));
   const notice = message('common:copied', {});
+  const { configFields } = await import('../../src/web/lib/gateway-config');
+  const size = configFields.find((field) => field.key === 'wsBytes')!;
   await i18n.changeLanguage('en');
   expect(displayMessage(stored)).toContain('another process');
+  expect(size.label).toBe('WebSocket buffer limit (MiB)');
+  expect(size.help).toContain('default 4 MiB');
   expect(original.message).toBe('原始诊断 /work/例子.ts');
   expect(t('conversation:activities', { v0: 1, count: 1 })).toBe('1 activity');
   expect(t('conversation:activities', { v0: 1234, count: 1234 })).toBe('1,234 activities');
@@ -105,6 +109,8 @@ it('retains message identity and uses the selected language for stored notices a
   expect(t('unknown:missing')).toBe('Request failed. Please try again.');
   await i18n.changeLanguage('ja');
   expect(displayMessage(stored)).toContain('別のプロセス');
+  expect(size.label).toBe('WebSocket バッファー上限（MiB）');
+  expect(size.help).toContain('既定 4 MiB');
   expect(displayMessage(notice)).not.toContain('settings:');
   await i18n.changeLanguage('zh-Hans');
 });

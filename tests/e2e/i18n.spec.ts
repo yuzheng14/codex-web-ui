@@ -160,6 +160,8 @@ for (const language of languages) {
       await selector.selectOption('en');
       await expect(page.locator('.file-preview[open]')).toBeVisible();
       await selector.selectOption(language.locale);
+      expect((await page.locator('.topbar-title').boundingBox())!.width).toBeGreaterThan(150);
+      expect((await page.locator('.breadcrumb').boundingBox())!.height).toBeLessThan(25);
       await page.screenshot({
         path: `${evidence}/${language.locale}-preview.png`,
         fullPage: true,

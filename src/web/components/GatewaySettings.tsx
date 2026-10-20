@@ -1,4 +1,5 @@
-import { message, displayMessage } from '../i18n/messages';
+import { errorMessage } from '../lib/error-message';
+import { message, displayMessage, messageDetails } from '../i18n/messages';
 import { t, formatList } from '../i18n';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Download, Upload, Settings2 } from 'lucide-react';
@@ -23,7 +24,11 @@ import { Button } from './ui/button';
 import { Icon } from './Icon';
 
 const describeFailure = (error: unknown) =>
-  error instanceof Error ? error.message : t('settings:operation_failed_please_retry');
+  error instanceof HttpError
+    ? errorMessage(error.problem)
+    : error instanceof Error
+      ? error.message
+      : t('settings:operation_failed_please_retry');
 
 export function GatewaySettings({ onClose }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -214,9 +219,15 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
         {t('settings:configure_the_computer_running_this_service_restart_it')}
       </p>
       {error && (
-        <p className="gateway-error" role="alert">
-          {displayMessage(error)}
-        </p>
+        <div className="gateway-error" role="alert">
+          <p>{displayMessage(error)}</p>
+          {messageDetails(error) && (
+            <details>
+              <summary>{t('common:technical_details')}</summary>
+              <pre>{messageDetails(error)}</pre>
+            </details>
+          )}
+        </div>
       )}
       {!snapshot && (
         <Button variant="secondary" disabled={busy} onClick={() => void reload()}>
