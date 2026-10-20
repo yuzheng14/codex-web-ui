@@ -1,13 +1,24 @@
 import { Component, createRef, type ReactNode } from 'react';
 
 type Anchor = { id: string; top: number } | null;
+interface Props {
+  context: string;
+  rows: object;
+  children: ReactNode;
+}
 
 /** Capture before React moves keyed rows, then retain the reader's visible row after sorting. */
-export class ThreadListNavigation extends Component<{ context: string; children: ReactNode }> {
+export class ThreadListNavigation extends Component<Props> {
   private readonly list = createRef<HTMLElement>();
-  getSnapshotBeforeUpdate(previous: Readonly<{ context: string; children: ReactNode }>): Anchor {
+  getSnapshotBeforeUpdate(previous: Readonly<Props>): Anchor {
     const list = this.list.current;
-    if (!list || list.scrollTop === 0 || previous.context !== this.props.context) return null;
+    if (
+      !list ||
+      previous.rows === this.props.rows ||
+      list.scrollTop === 0 ||
+      previous.context !== this.props.context
+    )
+      return null;
     const top = list.getBoundingClientRect().top;
     const row = [...list.querySelectorAll<HTMLElement>('[data-thread-id]')].find(
       (row) => row.getBoundingClientRect().top >= top + 32,

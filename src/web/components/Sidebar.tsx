@@ -155,7 +155,7 @@ export function Sidebar(props: Props) {
             </Button>
           </div>
         </div>
-        <ThreadListNavigation context={`${props.archiveView}:${query}`}>
+        <ThreadListNavigation context={`${props.archiveView}:${query}`} rows={props.projectThreads}>
           {groups.map(({ project, state, threads }) => {
             const activeCount = (state?.data ?? []).filter((entry) =>
               isActive(entry.status),
