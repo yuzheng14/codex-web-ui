@@ -24,6 +24,8 @@
   },
   "scripts": {
     "dev": "concurrently -k -n api,web 'node --import tsx --watch src/server/main.ts --config config.local.json --dev' 'vite'",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
