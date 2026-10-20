@@ -50,6 +50,8 @@ Mermaid diagrams render locally after their code fence closes, with automatic li
 
 <a id="get-started"></a>
 
+DB Schema **5** is tracked independently of the application version. Releases declare the schema and the verified backup migration range; an older application cannot open a newer database. See [database compatibility](docs/database.md).
+
 ## 🚀 Get started
 
 You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The interface supports Simplified Chinese, English, Japanese and Korean. Choose **Language** in the sidebar; the first visit follows your browser preferences, and manual choices are saved on this device.

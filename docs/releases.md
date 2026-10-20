@@ -107,3 +107,11 @@ gh workflow run publish.yml --repo yuzheng14/covro --ref main -f channel=beta -f
 发布验证包括锁定依赖安装、生产启动检查和 npm 包文件白名单。`scripts/verify-package.ts` 确认 CLI、页面、迁移和升级工作进程均入包，并排除本地配置、数据库、测试和源码目录。`scripts/verify-upgrade.ts` 使用真实后台服务、升级工作进程与 SQLite，配合明确的本地 npm 分发夹具，验证成功切换、迁移后启动失败回滚、激活中断后的修复、仍在运行的旧服务修复，以及恢复写入后拒绝快照覆盖；候选包安装由夹具提供，不执行真实 npm 安装或发布。版本号与 commit 在构建前写入临时发布工作区，不回写开发分支。
 
 参考：[release-please Action](https://github.com/googleapis/release-please-action)、[npm Trusted Publishers](https://docs.npmjs.com/trusted-publishers/)。
+
+## Database compatibility
+
+`package.json.covroDatabase` declares the current DB Schema ordinal, minimum restorable schema and backup format. Schema 5 corresponds to the five immutable committed migrations (0000–0004); the Drizzle journal's own `version` describes its file format, not Covro's database version. Each new migration increments the public ordinal, including changes to persisted data semantics that break older writers. Do not reuse an ordinal or edit an applied migration.
+
+CI, package verification and publication preparation validate the declaration against the committed journal. All npm channels carry the same declaration. Stable GitHub Release notes read the exact tag and append an idempotent Database compatibility section alongside Codex compatibility. When publishing a Beta GitHub Release, include the same database declaration from its exact source tag.
+
+See [database compatibility](database.md) for restoration and downgrade rules.
