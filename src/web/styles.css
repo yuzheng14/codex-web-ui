@@ -4187,7 +4187,7 @@ dd {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 12px;
+  padding: 0 12px 12px;
   scroll-padding-top: 12px;
 }
 .diff-file {
@@ -4197,10 +4197,18 @@ dd {
   overflow: clip;
   margin-bottom: 16px;
 }
+/* Put the initial inset on the first file so pinned headings meet the toolbar. */
+.diff-file:first-child {
+  margin-top: 12px;
+}
 .diff-file:last-child {
   margin-bottom: 0;
 }
 .diff-file-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 1px 0 var(--border);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -4418,7 +4426,10 @@ dd {
     font-size: 11px;
   }
   .diff-files {
-    padding: 8px;
+    padding: 0 8px 8px;
+  }
+  .diff-file:first-child {
+    margin-top: 8px;
   }
   .diff-file-heading {
     padding: 8px;

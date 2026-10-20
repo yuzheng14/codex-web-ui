@@ -254,3 +254,65 @@ for (const width of [1600, 390]) {
     await screenshot(page, `inline-${width}`);
   });
 }
+
+for (const width of [1600, 390, 320]) {
+  test(`${width}px: keeps the current file heading pinned and collapses from the reading position`, async ({
+    page,
+  }) => {
+    await send(page, '[diff-preview-mixed]');
+    await page.setViewportSize({ width, height: width === 1600 ? 1000 : 844 });
+    await trigger(page).click();
+    const file = preview(page).getByRole('region', { name: 'src/generated/large.ts', exact: true });
+    const scroller = preview(page).getByLabel('变更文件列表');
+    await file.getByRole('button', { name: '展开变更' }).click();
+    await file.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+    await scroller.evaluate((element) => {
+      element.scrollTop += 600;
+    });
+    const pinnedTop =
+      (await scroller.boundingBox())!.y +
+      (await scroller.evaluate((element) => parseFloat(getComputedStyle(element).paddingTop)));
+    const heading = file.locator('.diff-file-heading');
+    await expect(heading.getByRole('button', { name: '收起变更' })).toBeInViewport();
+    expect(Math.abs((await heading.boundingBox())!.y - pinnedTop)).toBeLessThan(2);
+    expect((await file.boundingBox())!.y).toBeLessThan((await scroller.boundingBox())!.y - 400);
+    await screenshot(page, `sticky-${width}`);
+    await heading.getByRole('button', { name: '收起变更' }).click();
+    await expect(file.locator('.diff-table')).toHaveCount(0);
+    await expect(heading.getByRole('button', { name: '展开变更' })).toBeFocused();
+    await expect(file.getByRole('heading')).toBeInViewport();
+    // The previous heading must leave with its file; the next owns the pinned controls.
+    const next = preview(page).getByRole('region', { name: 'docs/新功能.md', exact: true });
+    await next.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+    await scroller.evaluate((element) => {
+      element.scrollTop += 40;
+    });
+    const nextHeading = next.locator('.diff-file-heading');
+    expect(Math.abs((await nextHeading.boundingBox())!.y - pinnedTop)).toBeLessThan(2);
+    const previousHeading = preview(page)
+      .getByRole('region', { name: 'src/预览 workspace.ts', exact: true })
+      .locator('.diff-file-heading');
+    const previousBox = (await previousHeading.boundingBox())!;
+    expect(previousBox.y + previousBox.height).toBeLessThanOrEqual(pinnedTop + 1);
+    await expect(nextHeading.getByRole('button', { name: '收起变更' })).toBeInViewport();
+  });
+
+  test(`${width}px: hunk navigation leaves the target below the pinned file heading`, async ({
+    page,
+  }) => {
+    await send(page);
+    await page.setViewportSize({ width, height: width === 1600 ? 1000 : 844 });
+    await trigger(page).click();
+    const file = preview(page).getByRole('region', { name: 'src/预览 workspace.ts', exact: true });
+    await file.getByRole('button', { name: '下一个变更区块' }).click();
+    const heading = (await file.locator('.diff-file-heading').boundingBox())!;
+    const hunk = file.locator('.diff-hunk').nth(1);
+    expect((await hunk.boundingBox())!.y).toBeGreaterThanOrEqual(heading.y + heading.height);
+    await expect(hunk).toBeInViewport();
+    await file.getByRole('button', { name: '上一个变更区块' }).click();
+    const restoredHeading = (await file.locator('.diff-file-heading').boundingBox())!;
+    expect((await file.locator('.diff-hunk').first().boundingBox())!.y).toBeGreaterThanOrEqual(
+      restoredHeading.y + restoredHeading.height,
+    );
+  });
+}

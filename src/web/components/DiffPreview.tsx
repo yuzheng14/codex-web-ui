@@ -270,7 +270,17 @@ function DiffFileBody({ file, wrap }: { file: DiffFile; wrap: boolean }) {
     );
   function jump(index: number) {
     setHunkIndex(index);
-    hunks.current[index]?.scrollIntoView({ block: 'start' });
+    const hunk = hunks.current[index];
+    const scroller = hunk?.closest('.diff-files');
+    const heading = hunk?.closest('.diff-file')?.querySelector('.diff-file-heading');
+    if (hunk && scroller && heading) {
+      // Leave room for the pinned heading, including wrapped paths on narrow screens.
+      scroller.scrollTop +=
+        hunk.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top -
+        heading.getBoundingClientRect().height -
+        12;
+    }
   }
   return (
     <>
