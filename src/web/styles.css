@@ -4171,45 +4171,81 @@ dd {
   line-height: 1.7;
   border-bottom: 1px solid var(--border);
 }
-.diff-file-picker {
+.diff-list-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border);
-  font-size: 11px;
-  flex-shrink: 0;
-}
-.diff-file-picker label,
-.diff-file-picker > span {
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 16px;
   color: var(--muted);
-  white-space: nowrap;
+  font-size: 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
 }
-.diff-file-picker select {
+.diff-files {
   flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0 12px 12px;
+  scroll-padding-top: 12px;
+}
+.diff-file {
   min-width: 0;
-  max-width: 100%;
-  height: 36px;
-  padding: 0 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: #fff;
-  color: inherit;
-  font: inherit;
+  border-radius: 8px;
+  overflow: clip;
+  margin-bottom: 16px;
+}
+/* Put the initial inset on the first file so pinned headings meet the toolbar. */
+.diff-file:first-child {
+  margin-top: 12px;
+}
+.diff-file:last-child {
+  margin-bottom: 0;
 }
 .diff-file-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 1px 0 var(--border);
   display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 16px 20px 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f7f9f8;
   font-size: 12px;
 }
-.diff-file-heading > code {
-  flex: 1;
+.diff-file-heading h3 {
+  flex: 1 1 180px;
   min-width: 0;
+  margin: 0;
   overflow-wrap: anywhere;
-  white-space: normal;
+  font-size: inherit;
+  font-weight: 500;
   line-height: 1.7;
+}
+.diff-file-heading h3 code {
+  white-space: normal;
+}
+.diff-file-heading .button {
+  margin-left: auto;
+}
+.diff-collapsed {
+  margin: 0;
+  padding: 16px 12px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.diff-file .diff-empty {
+  min-height: 0;
+  padding: 24px 16px;
+}
+.diff-collapse-bottom {
+  display: flex;
+  margin: 8px auto;
 }
 .diff-kind {
   flex-shrink: 0;
@@ -4244,7 +4280,7 @@ dd {
   color: #ab453d;
 }
 .diff-rename {
-  padding: 0 20px;
+  padding: 8px 12px;
   margin: 0;
   font-size: 11px;
   overflow-wrap: anywhere;
@@ -4253,18 +4289,11 @@ dd {
 .diff-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 4px 12px 10px;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.diff-controls [role='group'] {
-  display: flex;
-  align-items: center;
-  gap: 3px;
+  justify-content: flex-end;
+  padding: 4px 8px;
+  gap: 6px;
   color: var(--muted);
   font-size: 11px;
-  white-space: nowrap;
 }
 .diff-warning {
   margin: 0;
@@ -4275,12 +4304,8 @@ dd {
   line-height: 1.6;
 }
 .diff-content {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow-x: auto;
   border-top: 1px solid var(--border);
-  scroll-padding-top: 28px;
 }
 .diff-table {
   width: 100%;
@@ -4293,9 +4318,6 @@ dd {
   tab-size: 4;
 }
 .diff-table th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   padding: 5px 7px;
   color: var(--muted);
   background: #f7f9f8;
@@ -4403,20 +4425,21 @@ dd {
     padding: 12px 16px;
     font-size: 11px;
   }
-  .diff-file-picker {
-    padding: 10px 12px;
-    gap: 6px;
+  .diff-files {
+    padding: 0 8px 8px;
   }
-  .diff-file-picker label {
-    display: none;
-  }
-  .diff-file-picker select {
-    height: 42px;
-    font-size: 12px;
+  .diff-file:first-child {
+    margin-top: 8px;
   }
   .diff-file-heading {
-    padding: 12px 16px 8px;
-    flex-wrap: wrap;
+    padding: 8px;
+    gap: 6px;
+  }
+  .diff-file-heading h3 {
+    flex-basis: 100%;
+  }
+  .diff-file-heading .button {
+    min-height: 40px;
   }
   .diff-controls {
     padding: 4px 8px 8px;
