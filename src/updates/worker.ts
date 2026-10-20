@@ -1,3 +1,8 @@
+import { BackupStore, backupDirectory, verifyLegacySnapshot } from '../backups/store.js';
+import { acquireMaintenanceLock } from '../backups/lock.js';
+import { acquireInstanceLock } from '../server/instance-lock.js';
+import { inspectDatabase, readMigrations } from '../server/db/history.js';
+import { databaseCompatibilitySchema } from '../shared/database.js';
 import { npmPackageName } from '../shared/package.js';
 import {
   codexCompatibilitySchema,
@@ -7,8 +12,7 @@ import {
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
-import { createHash } from 'node:crypto';
-import { access, readFile, mkdir, readdir, rm, rename } from 'node:fs/promises';
+import { access, mkdir, readdir, rm, rename } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { setTimeout } from 'node:timers/promises';
@@ -68,26 +72,14 @@ async function verifyMigrations(context: UpdateContext, candidate: string) {
   }
   const db = new Sqlite(filename, { readonly: true, fileMustExist: true });
   try {
-    const table = db
-      .prepare("SELECT name FROM sqlite_master WHERE name = '__drizzle_migrations'")
-      .get();
-    if (!table) return;
-    const applied = db
-      .prepare('SELECT hash FROM __drizzle_migrations ORDER BY created_at')
-      .all() as { hash: string }[];
-    const journal = JSON.parse(
-      await readFile(join(candidate, 'dist/drizzle/meta/_journal.json'), 'utf8'),
-    ) as { entries: { tag: string }[] };
-    const hashes = await Promise.all(
-      journal.entries.map(async (entry) => {
-        if (!/^[a-zA-Z0-9_-]+$/.test(entry.tag)) throw new Error('候选包包含无效迁移路径');
-        return createHash('sha256')
-          .update(await readFile(join(candidate, 'dist/drizzle', `${entry.tag}.sql`)))
-          .digest('hex');
-      }),
-    );
-    if (applied.some((entry, i) => entry.hash !== hashes[i]))
-      throw new Error('目标版本不兼容当前数据库迁移历史。请等待兼容版本，或使用独立测试数据目录。');
+    const migrations = readMigrations(join(candidate, 'dist/drizzle'));
+    const metadata = await readJson<{ covroDatabase?: unknown }>(join(candidate, 'package.json'));
+    if (metadata?.covroDatabase) {
+      const contract = databaseCompatibilitySchema.parse(metadata.covroDatabase);
+      if (contract.schemaVersion !== migrations.length)
+        throw new Error('目标版本的 Schema 声明与迁移不一致');
+    }
+    inspectDatabase(db, migrations);
   } finally {
     db.close();
   }
@@ -115,10 +107,44 @@ async function worker(directory: string) {
     record.id,
     context.dataDir,
     context.location.config,
-    join(directory, `backup-${record.id}`),
+    join(backupDirectory(context.location.home, context.dataDir), record.id),
   );
+  let releaseMaintenance: (() => Promise<void>) | undefined;
+  let releaseData: (() => Promise<void>) | undefined;
+  const previousMetadata = await readJson<{ version: string }>(
+    join(paths.previous, 'package.json'),
+  );
+  const originalRoot = previousMetadata?.version === record.from ? paths.previous : context.root;
+  const originalMetadata = await readJson<{
+    version: string;
+    covroCommit?: string;
+    covroDatabase?: unknown;
+  }>(join(originalRoot, 'package.json'));
+  const Sqlite = createRequire(join(originalRoot, 'package.json'))(
+    'better-sqlite3',
+  ) as typeof Database;
+  const migrations = readMigrations(join(originalRoot, 'dist/drizzle'));
+  const backups = new BackupStore({
+    directory: backupDirectory(context.location.home, context.dataDir),
+    config: paths.config,
+    dataDir: paths.dataDir,
+    appVersion: record.from,
+    commit: originalMetadata?.covroCommit,
+    contract: databaseCompatibilitySchema.parse(
+      originalMetadata?.covroDatabase ?? {
+        schemaVersion: migrations.length,
+        minRestorableSchemaVersion: 1,
+        backupFormatVersion: 1,
+      },
+    ),
+    Sqlite,
+    migrations,
+  });
   try {
     if (process.argv[3] === '--repair') {
+      releaseMaintenance = await acquireMaintenanceLock(context.dataDir);
+      if (!(await readJson(join(paths.backup, 'snapshot.json'))))
+        paths.backup = join(directory, `backup-${record.id}`);
       const active = await control<DaemonStatus>(context.location, 'status').catch(
         (error: unknown) => {
           if (isNotRunning(error)) return undefined;
@@ -136,8 +162,19 @@ async function worker(directory: string) {
           throw new Error('旧服务已恢复业务写入；拒绝用升级前快照覆盖现有数据，请保留现场检查。');
         if (previous.name !== npmPackageName || previous.version !== record.from)
           throw new Error('旧版备份身份不匹配');
-        const snapshot = await readJson<{ complete: boolean }>(join(paths.backup, 'snapshot.json'));
-        if (!snapshot?.complete) throw new Error('数据库备份不完整，保留全部现场供检查');
+        const snapshot = await readJson<{ complete: boolean; formatVersion?: number }>(
+          join(paths.backup, 'snapshot.json'),
+        );
+        if (snapshot?.formatVersion === 1) {
+          const verified = await backups.verify(record.id);
+          if (
+            verified.appVersion !== record.from ||
+            verified.protectedBy !== record.id ||
+            verified.configPath !== paths.config ||
+            verified.dataDir !== paths.dataDir
+          )
+            throw new Error('备份身份不匹配');
+        } else await verifyLegacySnapshot(paths.backup, Sqlite, join(originalRoot, 'dist/drizzle'));
       } else {
         const original = await readJson<{ name: string; version: string }>(
           join(paths.root, 'package.json'),
@@ -150,6 +187,7 @@ async function worker(directory: string) {
         if (!admission.ready) throw new Error('仍有任务、审批或待核对操作，不能恢复旧安装');
       }
       await stopService(context);
+      releaseData = await acquireInstanceLock(context.dataDir);
       if (previous) {
         await rm(paths.root, { recursive: true, force: true });
         await rename(paths.previous, paths.root);
@@ -170,6 +208,8 @@ async function worker(directory: string) {
         throw new Error('未找到完整的上一版本安装');
       await update('rolledBack', '已恢复上次未完成的升级，正在启动上一版本');
       try {
+        await releaseData?.();
+        releaseData = undefined;
         await startService(context);
         await verifyRestoredService(context, record.from);
         await update('rolledBack', '已恢复上次未完成的升级，上一版本已就绪');
@@ -244,7 +284,16 @@ async function worker(directory: string) {
       { timeout: 30_000 },
     );
     await verifyMigrations(context, paths.candidate);
+    releaseMaintenance = await acquireMaintenanceLock(context.dataDir);
     await activateUpdate(paths, {
+      backup: async () => {
+        releaseData = await acquireInstanceLock(context.dataDir);
+        await backups.create({ id: record!.id, trigger: 'preUpgrade', protectedBy: record!.id });
+      },
+      restore: async () => {
+        releaseData ??= await acquireInstanceLock(context.dataDir);
+        await backups.restoreFiles(record!.id);
+      },
       phase: update,
       waitForIdle: async () => {
         // Queue without blocking normal work; admission closes atomically only after all blockers clear.
@@ -264,6 +313,8 @@ async function worker(directory: string) {
       },
       stop: () => stopService(context),
       start: async (candidate) => {
+        await releaseData?.();
+        releaseData = undefined;
         await startService(context);
         if (!candidate) await verifyRestoredService(context, record!.from);
       },
@@ -308,6 +359,8 @@ async function worker(directory: string) {
     console.error(message(error));
     process.exitCode = record.committed || record.phase === 'rolledBack' ? 0 : 1;
   } finally {
+    await releaseData?.();
+    await releaseMaintenance?.();
     await release();
     // Keep the last good installation and database backup for explicit recovery.
     if (record.phase === 'succeeded' || record.phase === 'rolledBack') {

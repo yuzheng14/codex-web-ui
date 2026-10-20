@@ -1,3 +1,4 @@
+import { backupDirectory } from '../src/backups/store.js';
 import { npmPackageName } from '../src/shared/package.js';
 import { CODEX_COMPATIBILITY } from '../src/codex/compatibility.js';
 /** Real daemon/worker/SQLite verification; npm transport is an explicit local fixture. */
@@ -101,6 +102,8 @@ for (const mode of [
         when: last.when + 1,
         tag: '9999_upgrade_probe',
       });
+      next.covroDatabase = { ...next.covroDatabase, schemaVersion: journal.entries.length };
+      await saveJson(join(candidate, 'package.json'), next);
       await saveJson(journalFile, journal);
       await writeFile(
         join(candidate, 'dist/drizzle/9999_upgrade_probe.sql'),
@@ -304,7 +307,7 @@ for (const mode of [
         id,
         context.dataDir,
         config,
-        join(updateDir, `backup-${id}`),
+        join(backupDirectory(home, context.dataDir), id),
       );
       if (
         await readFile(join(snapshot.backup, 'snapshot.json'), 'utf8').then(

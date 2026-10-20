@@ -1,3 +1,7 @@
+import { BackupStore } from '../../src/backups/store.js';
+import { migrateSqlite, readMigrations } from '../../src/server/db/history.js';
+import { defaultMigrationsFolder } from '../../src/server/db/migrate.js';
+import { databaseCompatibilitySchema } from '../../src/shared/database.js';
 import { mkdtemp, mkdir, readFile, rm, writeFile, symlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -102,13 +106,28 @@ async function fixture() {
   await writeFile(join(paths.candidate, 'version'), 'new');
   await writeFile(paths.config, '{"dataDir":"./data"}');
   const db = new Database(join(paths.dataDir, 'app.sqlite'));
-  db.exec(
-    "CREATE TABLE operations (id TEXT PRIMARY KEY, state TEXT); INSERT INTO operations VALUES ('original', 'unknown')",
-  );
+  const migrations = readMigrations(defaultMigrationsFolder);
+  migrateSqlite(db, migrations);
+  db.exec("INSERT INTO preferences VALUES ('original', '\"kept\"')");
   db.close();
+  const backups = new BackupStore({
+    directory: dirname(paths.backup),
+    config: paths.config,
+    dataDir: paths.dataDir,
+    appVersion: packageInfo.version,
+    contract: databaseCompatibilitySchema.parse(packageInfo.covroDatabase),
+    migrations,
+    Sqlite: Database,
+  });
   const phases: string[] = [];
   const effects: UpdateEffects = {
     waitForIdle: vi.fn(async () => {}),
+    backup: async () => {
+      await backups.create({ id: 'backup', trigger: 'preUpgrade' });
+    },
+    restore: async () => {
+      await backups.restoreFiles('backup');
+    },
     stop: vi.fn(async () => {}),
     start: vi.fn(async () => {}),
     verify: vi.fn(async () => {}),
@@ -124,7 +143,7 @@ it('restores the complete package and original SQLite records after a candidate 
   const { paths, effects, phases } = await fixture();
   effects.verify = async () => {
     const db = new Database(join(paths.dataDir, 'app.sqlite'));
-    db.exec('ALTER TABLE operations ADD COLUMN changed TEXT; DELETE FROM operations');
+    db.exec('ALTER TABLE preferences ADD COLUMN changed TEXT; DELETE FROM preferences');
     db.close();
     throw new Error('candidate failed readiness');
   };
@@ -132,8 +151,8 @@ it('restores the complete package and original SQLite records after a candidate 
   expect(await readFile(join(paths.root, 'version'), 'utf8')).toBe('old');
   const db = new Database(join(paths.dataDir, 'app.sqlite'));
   try {
-    expect(db.prepare('SELECT * FROM operations').all()).toEqual([
-      { id: 'original', state: 'unknown' },
+    expect(db.prepare('SELECT * FROM preferences').all()).toEqual([
+      { key: 'original', value: '"kept"' },
     ]);
   } finally {
     db.close();
@@ -146,7 +165,7 @@ it('keeps the candidate and new data after a committed activation response is lo
   const { paths, effects } = await fixture();
   effects.commit = async () => {
     const db = new Database(join(paths.dataDir, 'app.sqlite'));
-    db.exec("INSERT INTO operations VALUES ('new-write', 'acknowledged')");
+    db.exec("INSERT INTO preferences VALUES ('new-write', '\"acknowledged\"')");
     db.close();
     throw new Error('response lost');
   };
@@ -155,7 +174,7 @@ it('keeps the candidate and new data after a committed activation response is lo
   expect(await readFile(join(paths.root, 'version'), 'utf8')).toBe('new');
   const db = new Database(join(paths.dataDir, 'app.sqlite'));
   try {
-    expect(db.prepare('SELECT COUNT(*) AS count FROM operations').get()).toEqual({ count: 2 });
+    expect(db.prepare('SELECT COUNT(*) AS count FROM preferences').get()).toEqual({ count: 2 });
   } finally {
     db.close();
   }
@@ -212,4 +231,16 @@ it('rejects npm-linked source checkouts and Git workspaces before replacing an i
   await writeFile(join(installation, '.git'), 'gitdir: /source/worktree');
   expect(await inspectPackageDirectory(installation, globalRoot)).toContain('Git 工作区');
   expect(await readFile(join(paths.root, 'version'), 'utf8')).toBe('old');
+});
+
+it('does not replace the package or migrate when the required backup fails', async () => {
+  const { paths, effects } = await fixture();
+  effects.backup = async () => {
+    throw new Error('Backup disk full');
+  };
+  await expect(activateUpdate(paths, effects)).rejects.toThrow('Backup disk full');
+  expect(await readFile(join(paths.root, 'version'), 'utf8')).toBe('old');
+  expect(effects.start).toHaveBeenCalledWith(false);
+  expect(effects.verify).not.toHaveBeenCalled();
+  expect(effects.commit).not.toHaveBeenCalled();
 });
