@@ -4580,6 +4580,7 @@ dd {
 
 .project-import-modes {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 16px;
 }

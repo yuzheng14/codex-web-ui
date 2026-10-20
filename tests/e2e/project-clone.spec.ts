@@ -262,6 +262,12 @@ for (const language of localizedProjects) {
       const target = join(directory, 'localized-project');
       await dialog.getByRole('textbox', { name: language.target, exact: true }).fill(target);
       await capture('clone-form');
+      await page.setViewportSize({ width: 390, height: 844 });
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      await capture('clone-form-mobile');
+      await page.setViewportSize({ width: 1440, height: 1000 });
       const peer = await context.newPage();
       await peer.goto(origin);
       const alternate = language.locale === 'en' ? 'ja' : 'en';
@@ -300,12 +306,18 @@ for (const language of localizedProjects) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
       await capture('clone-progress-mobile');
       await dialog.getByRole('button', { name: language.cancel, exact: true }).click();
       await expect(dialog.getByRole('status')).toContainText(language.cancelled);
       await expect(dialog.getByRole('alert')).toContainText(language.recovery);
       await expect(dialog).not.toContainText('covro-message:');
       await expect(page.locator('.composer-box textarea')).toHaveValue(draft);
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
       await capture('clone-cancelled-mobile');
       expect((await (await page.request.get(`${origin}/api/projects`)).json()).data).toEqual([]);
       await peer.close();

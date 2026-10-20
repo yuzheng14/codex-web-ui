@@ -353,7 +353,7 @@ export function Sidebar(props: Props) {
           )}
         </ThreadListNavigation>
         <div className="sidebar-footer">
-          <label className="language-selector" title={t('common:language')}>
+          <label className="language-selector">
             <Languages size={16} aria-hidden="true" />
             <select
               aria-label={t('common:language')}
