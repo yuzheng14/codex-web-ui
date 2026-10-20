@@ -155,6 +155,8 @@ pnpm test:e2e
 
 Browser tests require the Chromium version used by the existing Playwright dependency. Tests and CI use explicit fixtures; they do not send real model requests.
 
+PR titles must follow Conventional Commits, for example `feat(ui): add JSON preview` or `fix: preserve scroll position`. See [PR checks and squash merge conventions](docs/contributing.md) for supported types, Release PRs, and release behavior.
+
 Found a problem or have an idea? [Open an issue](https://github.com/yuzheng14/codex-web-ui/issues). Include your OS, Node.js and Codex versions, installation method, and steps to reproduce. Small, focused PRs are welcome. Update both `README.md` and `README.zh-CN.md` when changing user-facing facts or setup instructions.
 
 <a id="documentation"></a>
