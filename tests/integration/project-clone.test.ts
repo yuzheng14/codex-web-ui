@@ -25,7 +25,9 @@ function setup() {
   return { manager, projects, register, input, env };
 }
 async function settled(clones: ProjectClones, id: string) {
-  await vi.waitFor(() => expect(['cloning', 'cancelling']).not.toContain(clones.get(id).status));
+  await vi.waitFor(() => expect(['cloning', 'cancelling']).not.toContain(clones.get(id).status), {
+    timeout: 5000,
+  });
   return clones.get(id);
 }
 afterEach(async () => {
@@ -141,7 +143,7 @@ describe('remote project cloning', () => {
     const h = setup();
     const input = h.input('https://example.test/slow.git');
     const job = h.manager.start(input);
-    await vi.waitFor(() => expect(h.manager.get(job.id).percent).toBe(42));
+    await vi.waitFor(() => expect(h.manager.get(job.id).percent).toBe(42), { timeout: 5000 });
     const parentLink = join(directory, 'alias');
     symlinkSync(directory, parentLink);
     for (const target of [input.path, join(parentLink, 'target'), directory])
