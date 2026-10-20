@@ -4577,3 +4577,30 @@ dd {
   overflow-wrap: anywhere;
   user-select: text;
 }
+
+.project-import-modes {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.project-clone-status {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 10px;
+  background: #f4f7f5;
+  font-size: 13px;
+}
+.project-clone-status progress {
+  width: 100%;
+  accent-color: #47775e;
+}
+.project-clone-status code {
+  overflow-wrap: anywhere;
+}
+.project-clone-status small {
+  color: #748078;
+  line-height: 1.7;
+}

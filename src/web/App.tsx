@@ -822,6 +822,7 @@ export function App() {
           project={managedProject}
           disabled={workspace.authRequired}
           onAdd={workspace.addProject}
+          onImported={workspace.openImportedProject}
           onRename={workspace.renameProject}
           onRemove={workspace.removeProject}
           onClose={() =>

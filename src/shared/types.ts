@@ -59,6 +59,20 @@ export interface CreateProjectInput {
   path: string;
   name?: string;
 }
+export interface CloneProjectInput extends CreateProjectInput {
+  clientOperationId: string;
+  repository: string;
+}
+export interface ProjectClone {
+  id: string;
+  path: string;
+  name?: string;
+  status: 'cloning' | 'cancelling' | 'cancelled' | 'failed' | 'registration-failed' | 'completed';
+  progress: string;
+  percent?: number;
+  error?: string;
+  project?: Project;
+}
 export interface RenameProjectInput {
   name: string;
 }
