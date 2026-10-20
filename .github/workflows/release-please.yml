@@ -48,7 +48,7 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-      - name: Run checks on generated Release PRs
+      - name: Run checks and title validation on generated Release PRs
         if: steps.release.outputs.prs_created == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -60,6 +60,7 @@ jobs:
             if (!Number.isInteger(pr.number)) throw new Error('Invalid release PR number');
             const branch = execFileSync('gh', ['api', `repos/${process.env.GITHUB_REPOSITORY}/pulls/${pr.number}`, '--jq', '.head.ref'], {encoding:'utf8'}).trim();
             execFileSync('gh', ['workflow', 'run', 'checks.yml', '--ref', branch], {stdio:'inherit'});
+            execFileSync('gh', ['workflow', 'run', 'pr-title.yml', '--ref', branch, '-f', `pr_number=${pr.number}`], {stdio:'inherit'});
           }
           JS
       - uses: pnpm/action-setup@v4
