@@ -17,6 +17,12 @@
 - 任何涉及 UI 的更改，都必须使用 browser use 或 Playwright 打开实际页面，并对对应变更区域截图。
 - 必须将截图贴到对应 PR 的评论（PR comment）中，便于评审者直接查看改动效果。
 
+## PR 与合并提交的 Issue 关闭语句
+
+- `Closes #<issue>` / `Fixes #<issue>` 必须放在 PR 描述和最终合并提交信息（包括 squash commit）的最后一行，与前文空一行，不得放在开头或正文中间。
+- 关闭语句必须独占一行，仅包含关键词和 Issue 编号，不附加标点或说明。关闭多个 Issue 时，在末尾逐行列出，每行一个，之后不得再追加正文。
+- 合并前确认最终提交信息保留这些末尾语句，确保 release-please 能按 Conventional Commits footer 解析 Issue 引用并写入 changelog。本约定适用于后续 PR，不追溯修改历史 PR 或 changelog。
+
 ## Slash Command 实现追踪
 
 - [Issue #69：Slash Command 完整支持矩阵与后续实现追踪](https://github.com/yuzheng14/codex-web-ui/issues/69) 是本项目 Slash Command 支持情况的统一追踪入口。
