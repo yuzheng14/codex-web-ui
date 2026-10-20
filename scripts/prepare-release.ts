@@ -6,6 +6,7 @@ import { npmPackageName } from '../src/shared/package.js';
 import { compareVersions, npmTags, validVersion } from '../src/updates/registry.js';
 import { releaseChannels, type ReleaseChannel } from '../src/shared/updates.js';
 import { readPackageRegistry, releaseCommit, type PackageRegistry } from './release-registry.js';
+import { planDevGitHubRelease } from './dev-github-release.js';
 
 function developmentBase(current: string, firstRelease: boolean) {
   const [major, minor, patch] = current.split('-')[0]!.split('.');
@@ -133,6 +134,8 @@ async function main() {
   if (source.name !== npmPackageName) throw new Error('Unexpected npm package name');
   const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const history = await readPackageRegistry();
+  const isAncestor = (older: string, newer: string) =>
+    execFileSync('git', ['merge-base', older, newer], { encoding: 'utf8' }).trim() === older;
   const { version, skip, reason } = planRelease(
     {
       channel,
@@ -150,8 +153,7 @@ async function main() {
       )['.'],
     },
     history,
-    (older, newer) =>
-      execFileSync('git', ['merge-base', older, newer], { encoding: 'utf8' }).trim() === older,
+    isAncestor,
   );
   if (channel === 'stable') {
     const tagged = execFileSync('git', ['rev-parse', `refs/tags/v${version}^{commit}`], {
@@ -160,6 +162,10 @@ async function main() {
     if (tagged !== sha) throw new Error('Stable publication must use its exact GitHub Release tag');
   }
   const tag = npmTags[channel];
+  const devRelease =
+    channel === 'dev'
+      ? planDevGitHubRelease({ version, commit: sha, skip }, history, isAncestor)
+      : undefined;
   if (!skip) {
     source.version = version;
     source.covroCommit = sha;
@@ -173,7 +179,7 @@ async function main() {
     }
     writeFileSync(filename, `${JSON.stringify(source, null, 2)}\n`);
   }
-  const output = `version=${version}\ntag=${tag}\nskip=${skip}\n`;
+  const output = `version=${version}\ntag=${tag}\nskip=${skip}\ndev_release_version=${devRelease?.version ?? ''}\ndev_base_version=${devRelease?.previous?.version ?? ''}\ndev_base_commit=${devRelease?.previous?.commit ?? ''}\n`;
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, output);
   console.log(`${output}reason=${reason}`);
 }
