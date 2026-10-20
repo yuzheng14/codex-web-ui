@@ -298,7 +298,8 @@ test.describe('touch navigation', () => {
     await page.getByRole('button', { name: '打开项目与会话' }).tap();
     await page.getByRole('button', { name: '刷新会话列表' }).tap();
     await expect(link(page, first)).toBeVisible();
-    await expect(link(page, second)).toHaveCount(0);
+    // A partial refresh preserves the already loaded second row.
+    await expect(link(page, second)).toBeVisible();
     await expect(threadRow(page, first).locator('.thread-status-indicator')).toHaveAccessibleName(
       '等待审批 · 2 项待处理',
     );
@@ -321,6 +322,7 @@ test.describe('touch navigation', () => {
     await testInfo.attach('sidebar-details-touch', { path: screenshot, contentType: 'image/png' });
     await detailsButton.tap();
     await projectGroup(page).getByRole('button', { name: '加载更多会话', exact: true }).tap();
+    await expect(projectGroup(page).getByText('已加载全部会话', { exact: true })).toBeVisible();
     await expect(link(page, second)).toBeVisible();
     const search = page.getByRole('searchbox', { name: '搜索项目与已加载会话' });
     await search.fill('第二页');

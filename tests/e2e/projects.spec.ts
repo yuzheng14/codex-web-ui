@@ -311,8 +311,10 @@ test('each project retains its loaded pages when navigating to another project',
   });
   await page.getByRole('button', { name: '刷新会话列表' }).click();
   await expect(row(page, a1)).toBeVisible();
-  await expect(row(page, a2)).toHaveCount(0);
+  // Refreshing one page keeps previously observed rows until the traversal finishes.
+  await expect(row(page, a2)).toBeVisible();
   await projectGroup(page).getByRole('button', { name: '加载更多会话', exact: true }).click();
+  await expect(projectGroup(page).getByText('已加载全部会话', { exact: true })).toBeVisible();
   await expect(row(page, a2)).toBeVisible();
   await row(page, a2).click();
   await expect(page.locator('.turn')).toHaveCount(1);
