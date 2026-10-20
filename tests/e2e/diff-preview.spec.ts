@@ -111,6 +111,7 @@ for (const width of [1600, 390, 320]) {
     expect(
       Math.abs((await large.evaluate((element) => element.getBoundingClientRect().top)) - top),
     ).toBeLessThan(2);
+    await large.evaluate((element) => element.scrollIntoView({ block: 'start' }));
     await screenshot(page, `expanded-${width}`);
     await large.getByRole('button', { name: '收起变更' }).last().click();
     await expect(large.locator('.diff-table')).toHaveCount(0);
