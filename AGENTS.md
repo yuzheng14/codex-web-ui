@@ -20,7 +20,7 @@
 ## PR 与合并提交的 Issue 关闭语句
 
 - `Closes #<issue>` / `Fixes #<issue>` 必须放在 PR 描述和最终合并提交信息（包括 squash commit）的最后一行，与前文空一行，不得放在开头或正文中间。
-- 关闭语句必须独占一行，仅包含关键词和 Issue 编号，不附加标点或说明。关闭多个 Issue 时，在末尾逐行列出，每行一个，之后不得再追加正文。
+- 关闭语句必须独占一行，仅包含关键词和 Issue 编号，不附加标点或说明。GitHub 本身允许同一行关闭多个 Issue；但当前锁定的 [release-please 17.6.0](https://github.com/googleapis/release-please/blob/v17.6.0/src/commit.ts#L192-L230) 每条 footer 仅解析一个纯数字 Issue 引用，因此本项目要求多个 Issue 在末尾逐行列出，每行一个，之后不得再追加正文。
 - 合并前确认最终提交信息保留这些末尾语句，确保 release-please 能按 Conventional Commits footer 解析 Issue 引用并写入 changelog。本约定适用于后续 PR，不追溯修改历史 PR 或 changelog。
 
 ## Slash Command 实现追踪
