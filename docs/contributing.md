@@ -61,4 +61,4 @@ gh api --method POST repos/yuzheng14/covro/rulesets --input .github/rulesets/pr-
 
 分支内的临时提交不要求全部符合规范。如果未来启用 merge commit 或 rebase 合并，必须另外校验保留下来的每条提交，PR 标题检查不能代替它们。Stack 中每层仍使用该层已通过检查的标题。
 
-现有 `release-please-config.json` 的 `node` 发布策略可解析以上 type：`feat` 驱动功能版本，`fix`、`deps`、`perf` 驱动修复版本；其他 type 通常不单独触发版本。任意 type 都可以通过 `!` 表达破坏性变更。当前 `bump-minor-pre-major: true` 使 1.0.0 之前的破坏性变更递增次版本。发布说明另由 `changelog-type: github` 生成，默认列出发行范围内所有已合并 PR，带 `by @username` 和贡献者信息，不按提交 type 筛选。版本递增和说明展示是两个规则；详见[发版操作](releases.md)。格式合法不代表应当发版，应按实际变化选择 type。
+现有 `release-please-config.json` 的 `node` 发布策略可解析以上 type：`feat` 驱动功能版本，`fix`、`deps`、`perf` 驱动修复版本；其他 type 通常不单独触发版本或显示在默认 Changelog 中。任意 type 都可以通过 `!` 表达破坏性变更。当前 `bump-minor-pre-major: true` 使 1.0.0 之前的破坏性变更递增次版本。继续保留默认 Changelog 分组与筛选，正式 GitHub Release 发布时在原条目上补充 `by @username`，让 GitHub 显示原生 Contributors 头像区；Release PR 和 CHANGELOG 不额外改写署名。详见[发版操作](releases.md)。格式合法不代表应当发版，应按实际变化选择 type。

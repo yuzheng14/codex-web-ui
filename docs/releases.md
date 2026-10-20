@@ -10,11 +10,13 @@ PR 标题检查、squash 提交信息与 Conventional Commits type 的约定见[
 
 ## Release notes 与贡献者
 
-`release-please-config.json` 使用 `changelog-type: github`，由现有 release-please 调用 [GitHub 自动生成 Release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes)。新版本的 `CHANGELOG.md` 区块、Release PR 正文与 GitHub Release 使用相同的生成内容：每条已合并 PR 带作者 `by @username`、PR 链接和完整版本比较链接。发布后追加的 Codex 兼容信息保留这些内容。
+继续使用 release-please 默认的 Conventional Commits 说明生成器，保留 Features、Bug Fixes 等分组、原有条目筛选、作用域、顺序和链接。`CHANGELOG.md` 与 Release PR 正文保持该格式，不切换到 GitHub 的 `What's Changed` 全 PR 列表。
 
-有首次贡献者时，GitHub 会生成 `New Contributors` 区块；没有首次贡献者时不会显示。Release 页面的 Contributors 头像由 GitHub 展示，头像面板不作为 Markdown 写入 `CHANGELOG.md`。
+正式 GitHub Release 创建后，现有 `scripts/release-compatibility.ts` 从每条说明中的本仓库 commit 链接查询 GitHub 作者，在原条目末尾补充 `by @username`，再追加确切标签的 Codex 兼容信息。只处理该 Release 的正文，不修改 CHANGELOG、Release PR 或旧 Release；重跑不重复添加署名。API 查询失败会使步骤失败，不会写入部分补全的说明；未关联 GitHub 账号的作者保留原条目并记录提示，不猜测用户名。
 
-GitHub 默认的 `What's Changed` 列出范围内已合并的 PR，包含文档、CI 等类型，不再按 Conventional Commits 的 Features / Bug Fixes 筛选或分组。若要定制分类或排除规则，使用 `.github/release.yml` 的 PR label / author 规则，见上述 GitHub 文档。版本计算仍由 release-please 的 `node` 策略解析 Conventional Commits；更换说明生成器不会使纯文档或 CI 改动单独触发版本递增。
+[GitHub 原生 Contributors 头像区根据 Release 正文中的 `@mention` 显示](https://github.blog/changelog/2021-09-14-releases-now-have-an-avatar-list/)，无需替换原来的分组生成器，也不需要手写头像 HTML。它列出被提及的 GitHub 账号，既包括已有贡献者，也包括首次贡献者；与仅列首次贡献者的 `New Contributors` Markdown 区块不同。头像面板不会写入 CHANGELOG，也不会出现在 Release PR 的预览中。
+
+固定的 release-please 17.6.0 有 [`include-commit-authors` 丢失作者信息的已知问题](https://github.com/googleapis/release-please/issues/2903)，因此使用现有发布后处理步骤补齐署名，不依赖该开关。本改动不更换 Action、不新增依赖或权限；版本计算、Dev/Beta 触发和发布方式不变。
 
 PR 标题是自动说明的文字来源，面向发布的标题使用英文。新版本在 Release PR 中仍可能被重新生成，人工校对后若 main 更新，应再次检查；已经发布的旧版本 CHANGELOG 区块不会随新版本重新生成。
 
