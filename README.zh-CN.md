@@ -82,6 +82,8 @@ npm 包名为 `@covro/covro`，命令为 `covro`。开发渠道使用 `npm insta
 
 npm CLI 默认使用 `~/.covro/config.json`，数据目录固定在配置文件旁。可以通过 `covro --config /absolute/path/config.json` 沿用已有配置。
 
+在**服务配置 → 高级设置**中，以 MiB 编辑大小限制（1 MiB = 1024 × 1024 字节）。小数必须精确对应整数字节；已有字节值会原样保留。JSON 文件和 API 继续使用字节，保存后需重启服务生效。
+
 <a id="从源码运行"></a>
 
 ### 🛠️ 从源码运行

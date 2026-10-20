@@ -82,6 +82,8 @@ The npm package is `@covro/covro`; the command is `covro`. Install the developme
 
 The npm CLI uses `~/.covro/config.json` and a fixed data directory beside it. Reuse an existing configuration with `covro --config /absolute/path/config.json`.
 
+Open **Service configuration → Advanced settings** to edit size limits in MiB (1 MiB = 1024 × 1024 bytes). Decimal values must correspond to whole bytes; existing byte values are preserved exactly. JSON files and the API continue to use bytes. Saved changes take effect after restarting the service.
+
 <a id="run-from-source"></a>
 
 ### 🛠️ Run from source
