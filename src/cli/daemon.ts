@@ -6,6 +6,7 @@ import { startGateway } from '../server/main.js';
 import { packageInfo, paths } from './paths.js';
 import { UpdateManager } from '../updates/manager.js';
 import { saveJson } from '../updates/files.js';
+import { doctor, launchContext } from './doctor.js';
 
 export async function runDaemon(configPath: string) {
   const location = paths(configPath);
@@ -14,6 +15,7 @@ export async function runDaemon(configPath: string) {
   let config: Awaited<ReturnType<typeof loadConfig>>;
   let runtime: Awaited<ReturnType<typeof startGateway>> | undefined;
   let updates: UpdateManager | undefined;
+  const context = await launchContext();
   const server = createServer((request, response) => {
     void (async () => {
       response.setHeader('content-type', 'application/json');
@@ -35,8 +37,11 @@ export async function runDaemon(configPath: string) {
             maintenance: runtime?.service.isInMaintenance(),
             codexVersion: runtime?.codex.diagnostics().codexVersion ?? null,
             codexReady: runtime?.codex.ready ?? false,
+            launchContext: context,
           }),
         );
+      } else if (request.url === '/doctor') {
+        response.end(JSON.stringify(await doctor()));
       } else if (request.url === '/stop') {
         await stop(() => response.end(JSON.stringify({ stopped: true })));
       } else if (request.url === '/prepare-update') {

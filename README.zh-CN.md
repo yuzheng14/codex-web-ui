@@ -69,14 +69,15 @@ covro
 
 `covro` 默认在后台启动，并输出本机访问地址。打开 **<http://127.0.0.1:8787>** 即可开始使用。关掉终端后，仍可继续通过浏览器工作。
 
-| 命令                      | 用途                                 |
-| ------------------------- | ------------------------------------ |
-| `covro status`            | 查看运行实例与访问地址               |
-| `covro logs`              | 查看最近的服务日志                   |
-| `covro stop`              | 停止服务                             |
-| `covro run`               | 在前台运行                           |
-| `covro service install`   | 在 macOS 或 Linux 上主动启用登录自启 |
-| `covro service uninstall` | 移除登录自启                         |
+| 命令                      | 用途                                         |
+| ------------------------- | -------------------------------------------- |
+| `covro status`            | 查看运行实例与访问地址                       |
+| `covro doctor`            | 诊断运行实例的会话和 GitHub 凭证，不输出令牌 |
+| `covro logs`              | 查看最近的服务日志                           |
+| `covro stop`              | 停止服务                                     |
+| `covro run`               | 在前台运行                                   |
+| `covro service install`   | 在 macOS 或 Linux 上主动启用登录自启         |
+| `covro service uninstall` | 移除登录自启                                 |
 
 npm 包名为 `@covro/covro`，命令为 `covro`。开发渠道使用 `npm install -g @covro/covro@dev` 安装。
 
@@ -84,7 +85,7 @@ npm CLI 默认使用 `~/.covro/config.json`，数据目录固定在配置文件�
 
 在**服务配置 → 高级设置**中，以 MiB 编辑大小限制（1 MiB = 1024 × 1024 字节）。小数必须精确对应整数字节；已有字节值会原样保留。JSON 文件和 API 继续使用字节，保存后需重启服务生效。
 
-macOS 后台启动使用已登录用户的 GUI launchd 域，使权限允许的命令能够访问已有钥匙串凭证；这不会开启登录自启，登录自启仍需显式运行 `covro service install`。没有桌面会话时仍支持 headless 启动，并提示钥匙串访问限制。安装此修复后，已有实例需要执行 `covro stop` 和 `covro start` 重启。详见[macOS 后台启动](docs/distribution.md#macos-sessions-and-credentials)。
+macOS 后台启动使用已登录用户的 GUI launchd 域，使权限允许的命令能够访问已有钥匙串凭证；这不会开启登录自启，登录自启仍需显式运行 `covro service install`。没有桌面会话时仍支持 headless 启动，并提示钥匙串访问限制。安装此修复后，已有实例需要执行 `covro stop` 和 `covro start` 重启。详见[启动与凭证诊断](docs/distribution.md#macos-sessions-and-credentials)。
 
 <a id="从源码运行"></a>
 

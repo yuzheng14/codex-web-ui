@@ -69,14 +69,15 @@ covro
 
 `covro` starts in the background and prints the local address. Open **<http://127.0.0.1:8787>** to get started. Close the terminal and keep working in your browser.
 
-| Command                   | Purpose                                      |
-| ------------------------- | -------------------------------------------- |
-| `covro status`            | Show the running instance and its address    |
-| `covro logs`              | Read recent service logs                     |
-| `covro stop`              | Stop the service                             |
-| `covro run`               | Run in the foreground                        |
-| `covro service install`   | Opt in to login auto-start on macOS or Linux |
-| `covro service uninstall` | Remove login auto-start                      |
+| Command                   | Purpose                                                                                |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| `covro status`            | Show the running instance and its address                                              |
+| `covro doctor`            | Diagnose the running instance's session and GitHub credentials without printing tokens |
+| `covro logs`              | Read recent service logs                                                               |
+| `covro stop`              | Stop the service                                                                       |
+| `covro run`               | Run in the foreground                                                                  |
+| `covro service install`   | Opt in to login auto-start on macOS or Linux                                           |
+| `covro service uninstall` | Remove login auto-start                                                                |
 
 The npm package is `@covro/covro`; the command is `covro`. Install the development channel with `npm install -g @covro/covro@dev`.
 
@@ -84,7 +85,7 @@ The npm CLI uses `~/.covro/config.json` and a fixed data directory beside it. Re
 
 Open **Service configuration → Advanced settings** to edit size limits in MiB (1 MiB = 1024 × 1024 bytes). Decimal values must correspond to whole bytes; existing byte values are preserved exactly. JSON files and the API continue to use bytes. Saved changes take effect after restarting the service.
 
-On macOS, background startup uses the logged-in user's GUI launchd domain so commands can access existing Keychain credentials when their execution permissions allow it. This does not enable login auto-start; use `covro service install` for that. Without a desktop session, headless startup remains available with a Keychain access notice. After installing this fix, restart existing instances with `covro stop` and `covro start`. See [macOS background startup](docs/distribution.md#macos-sessions-and-credentials).
+On macOS, background startup uses the logged-in user's GUI launchd domain so commands can access existing Keychain credentials when their execution permissions allow it. This does not enable login auto-start; use `covro service install` for that. Without a desktop session, headless startup remains available with a Keychain access notice. After installing this fix, restart existing instances with `covro stop` and `covro start`. See [startup and credential diagnostics](docs/distribution.md#macos-sessions-and-credentials).
 
 <a id="run-from-source"></a>
 

@@ -6,6 +6,7 @@ Covro 通过 npm 分发已构建的前后端与数据库迁移，用户使用现
 npm install -g @covro/covro
 covro
 covro status
+covro doctor
 covro logs
 covro stop
 covro run
@@ -23,13 +24,28 @@ macOS 使用当前用户的 launchd，Linux 使用 `systemd --user`，`service i
 
 <a id="macos-sessions-and-credentials"></a>
 
-## macOS 后台启动
+## macOS 会话与凭证诊断
 
 有桌面登录会话时，默认后台启动使用 `gui/<uid>` 的临时 Aqua LaunchAgent。任务定义保存在当前实例状态目录，退出桌面会话后不会在下次登录自动启动；只有 `covro service install` 才会写入 `~/Library/LaunchAgents` 并启用登录自启。`covro stop` 正常关闭实例并卸载任务，但保留显式安装的登录项供下次登录使用。不同配置的任务与生命周期锁互相独立。
 
 临时后台启动通过权限为 `0600` 的本地 socket 在内存中继承调用进程的环境和工作目录，启动完成即移除 socket，不把 `GH_TOKEN`、API key 等环境凭证写入 plist 或日志。登录自启没有可继承的终端环境，因此只记录 Node/CLI 绝对路径、`PATH`、`COVRO_HOME` 和已设置的 `CODEX_HOME`；其他环境配置应遵循原有系统服务的部署方式。升级、回滚和 `update repair` 复用相同启动逻辑；旧版已运行的实例需要在安装修复后执行一次 `covro stop` 和 `covro start`。
 
 没有 GUI 登录会话时，未安装登录服务的实例仍可 headless 后台运行，但不保证能够读取桌面钥匙串。GUI 域查询或加载失败会直接报错，不会静默切换到另一种安全会话。登录服务需要桌面登录会话，不能作为系统启动前的 LaunchDaemon 使用。
+
+`covro status` 的 `launchContext` 来自运行实例。`covro doctor` 同样通过私有控制 socket 在实例内部执行检查，而不是检查当前终端；它尝试读取 GitHub 凭证，并仅在读取成功后请求 `github.com/user`，不输出令牌、原始命令输出或账户资料：
+
+| `result`                  | 含义与下一步                                                                        |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `authenticated`           | 实例普通子进程的凭证读取与认证请求成功                                              |
+| `credential-unavailable`  | 凭证读取失败；分别检查启动会话、钥匙串/沙箱访问和是否配置了凭证，尚不能判断令牌失效 |
+| `authentication-rejected` | 凭证已读取，但 GitHub 返回 401；检查撤销、失效或环境变量覆盖                        |
+| `request-forbidden`       | GitHub 返回 403；检查权限、组织策略或限额                                           |
+| `request-failed`          | 凭证已读取，但网络、代理或服务请求未成功；不能据此判断令牌失效                      |
+| `gh-unavailable`          | 运行实例的 `PATH` 中没有 GitHub CLI                                                 |
+
+`credentialSource=stored` 表示读取 GitHub CLI 已保存的凭证，不区分钥匙串与内联配置；`environment` 表示设置了优先使用的 `GH_TOKEN` 或 `GITHUB_TOKEN`。macOS 的 `manager=Background` 等非 Aqua 值说明启动上下文可能限制钥匙串访问；它本身不证明钥匙串已锁定或令牌无效。
+
+诊断结果的 `scope=daemon-child-process`、`sandbox=not-tested` 明确限定检查范围。Agent 和 Shell 继续使用 Codex 原有权限策略。若实例诊断成功，而只有受限命令读取失败，应继续检查该命令的实际沙箱与审批环境；不要通过关闭全局沙箱、保存明文令牌或反复登录来代替定位。关于原始复现与验证边界，见 [macOS 后台会话验证](macos-background-verification.md)。
 
 配置、数据库和项目文件不存放在 npm 安装目录，更新 npm 包不会替换业务数据。开发源码继续使用 `pnpm dev`，生产源码仍可使用 `pnpm build` 和 `pnpm start -- --config ...`。
 
