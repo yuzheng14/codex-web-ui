@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
+import { ControlHint } from './ControlHint';
 
 /** Resize the bottom-anchored editor from its top edge, including outside the handle. */
 export function ComposerResizeHandle({
@@ -9,11 +10,13 @@ export function ComposerResizeHandle({
   inputId: string;
 }) {
   const [size, setSize] = useState({ min: 93, max: 230, height: 93 });
+  const [resizing, setResizing] = useState(false);
   const limits = useRef(size);
   const drag = useRef<{ pointerId: number; y: number; height: number } | null>(null);
 
   function stopDragging() {
     drag.current = null;
+    setResizing(false);
     document.documentElement.classList.remove('composer-resizing');
   }
 
@@ -41,8 +44,14 @@ export function ComposerResizeHandle({
         : parseFloat(bottomMax);
       const conversation = panel.querySelector<HTMLElement>('.conversation-area');
       const reserved = Array.from(panel.children).reduce((height, element) => {
-        if (element === bottom) return height;
         const style = getComputedStyle(element);
+        if (
+          element === bottom ||
+          style.position === 'absolute' ||
+          style.position === 'fixed' ||
+          style.display === 'none'
+        )
+          return height;
         return (
           height +
           (element === conversation
@@ -101,58 +110,64 @@ export function ComposerResizeHandle({
   }, [textareaRef]);
 
   return (
-    <button
-      type="button"
-      className="composer-resize-handle"
-      role="separator"
-      aria-label="调整输入框高度"
-      aria-orientation="horizontal"
-      aria-controls={inputId}
-      aria-valuemin={Math.round(size.min)}
-      aria-valuemax={Math.round(size.max)}
-      aria-valuenow={Math.round(size.height)}
-      aria-valuetext={`${Math.round(size.height)} 像素`}
-      title="向上拖动增高，向下拖动缩小；也可用方向键调整"
-      onPointerDown={(event) => {
-        if (!event.isPrimary || event.button !== 0 || !textareaRef.current) return;
-        event.preventDefault();
-        event.currentTarget.setPointerCapture(event.pointerId);
-        drag.current = {
-          pointerId: event.pointerId,
-          y: event.clientY,
-          height: textareaRef.current.getBoundingClientRect().height,
-        };
-        document.documentElement.classList.add('composer-resizing');
-      }}
-      onPointerMove={(event) => {
-        if (drag.current?.pointerId !== event.pointerId) return;
-        event.preventDefault();
-        resize(drag.current.height + drag.current.y - event.clientY);
-      }}
-      onPointerUp={(event) => {
-        if (drag.current?.pointerId !== event.pointerId) return;
-        stopDragging();
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      }}
-      onPointerCancel={stopDragging}
-      onLostPointerCapture={stopDragging}
-      onKeyDown={(event) => {
-        const height = textareaRef.current?.getBoundingClientRect().height ?? size.height;
-        const step = event.shiftKey ? 40 : 10;
-        const next = {
-          ArrowUp: height + step,
-          ArrowDown: height - step,
-          Home: size.min,
-          End: size.max,
-        }[event.key];
-        if (next === undefined) return;
-        event.preventDefault();
-        resize(next);
-      }}
+    <ControlHint
+      asChild
+      suppressed={resizing}
+      content="向上拖动增高，向下拖动缩小；也可用方向键调整"
     >
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M4 4a16 16 0 0 1 16 16M10 4a10 10 0 0 1 10 10" />
-      </svg>
-    </button>
+      <button
+        type="button"
+        className="composer-resize-handle"
+        role="separator"
+        aria-label="调整输入框高度"
+        aria-orientation="horizontal"
+        aria-controls={inputId}
+        aria-valuemin={Math.round(size.min)}
+        aria-valuemax={Math.round(size.max)}
+        aria-valuenow={Math.round(size.height)}
+        aria-valuetext={`${Math.round(size.height)} 像素`}
+        onPointerDown={(event) => {
+          if (!event.isPrimary || event.button !== 0 || !textareaRef.current) return;
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          drag.current = {
+            pointerId: event.pointerId,
+            y: event.clientY,
+            height: textareaRef.current.getBoundingClientRect().height,
+          };
+          document.documentElement.classList.add('composer-resizing');
+          setResizing(true);
+        }}
+        onPointerMove={(event) => {
+          if (drag.current?.pointerId !== event.pointerId) return;
+          event.preventDefault();
+          resize(drag.current.height + drag.current.y - event.clientY);
+        }}
+        onPointerUp={(event) => {
+          if (drag.current?.pointerId !== event.pointerId) return;
+          stopDragging();
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={stopDragging}
+        onLostPointerCapture={stopDragging}
+        onKeyDown={(event) => {
+          const height = textareaRef.current?.getBoundingClientRect().height ?? size.height;
+          const step = event.shiftKey ? 40 : 10;
+          const next = {
+            ArrowUp: height + step,
+            ArrowDown: height - step,
+            Home: size.min,
+            End: size.max,
+          }[event.key];
+          if (next === undefined) return;
+          event.preventDefault();
+          resize(next);
+        }}
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 4a16 16 0 0 1 16 16M10 4a10 10 0 0 1 10 10" />
+        </svg>
+      </button>
+    </ControlHint>
   );
 }

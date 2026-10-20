@@ -43,17 +43,25 @@ test('top-right drag follows the pointer both ways, captures outside and preserv
   const bottom = before.y + before.height;
   const x = grip.x + grip.width / 2;
   const y = grip.y + grip.height / 2;
-  await page.mouse.move(x, y);
+  await handle(page).hover();
+  await expect(page.getByRole('tooltip')).toHaveText(
+    '向上拖动增高，向下拖动缩小；也可用方向键调整',
+  );
   await page.mouse.down();
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
   await page.mouse.move(x - 120, y - 70, { steps: 10 });
-  await expect(input(page)).toHaveCSS('height', `${textarea.height + 70}px`);
+  await expect
+    .poll(async () => Math.round((await input(page).boundingBox())!.height))
+    .toBe(Math.round(textarea.height + 70));
   expect((await box(page).boundingBox())!.y).toBeCloseTo(before.y - 70, 0);
   await expectBottom(page, bottom);
   await expect(page.locator('html')).toHaveClass(/composer-resizing/);
   await expect(input(page)).toHaveCSS('cursor', 'ns-resize');
   await expect(input(page)).toBeFocused();
   await page.mouse.move(x - 150, y - 25, { steps: 10 });
-  await expect(input(page)).toHaveCSS('height', `${textarea.height + 25}px`);
+  await expect
+    .poll(async () => Math.round((await input(page).boundingBox())!.height))
+    .toBe(Math.round(textarea.height + 25));
   expect((await box(page).boundingBox())!.y).toBeCloseTo(before.y - 25, 0);
   await expectBottom(page, bottom);
   // Releasing over Send must not turn the drag into a submission.
