@@ -8,7 +8,7 @@ import {
 } from '../../src/server/db/history.js';
 import { defaultMigrationsFolder } from '../../src/server/db/migrate.js';
 import { verifyDatabaseContract } from '../../scripts/verify-database-contract.js';
-import { releaseDatabaseNotes } from '../../scripts/release-compatibility.js';
+import { releaseDatabaseNotes, requireReleaseTag } from '../../scripts/release-compatibility.js';
 
 const databases: Database.Database[] = [];
 afterEach(() => {
@@ -85,4 +85,10 @@ it('adds tagged database compatibility notes idempotently and refuses unknown de
   expect(releaseDatabaseNotes(notes, contract)).toBe(notes);
   expect(() => releaseDatabaseNotes(notes, undefined)).toThrow();
   expect(() => requireRestorable(6, contract)).toThrow('不兼容');
+});
+
+it('reads Beta compatibility from its source tag without confusing its unstamped source package version', () => {
+  expect(() => requireReleaseTag('v0.3.0-beta.1', '0.2.0')).not.toThrow();
+  expect(() => requireReleaseTag('v0.3.0', '0.2.0')).toThrow('does not match');
+  expect(() => requireReleaseTag('v0.3.0-dev.1', '0.2.0')).toThrow('Invalid');
 });

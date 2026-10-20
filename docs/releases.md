@@ -67,7 +67,7 @@ git push origin refs/tags/v0.1.0-beta.1
 
 也可以在 GitHub 的 Releases 页面创建并发布带同名 Beta 标签的 Release，建议标记为 prerelease。草稿不会发版；监听 `published`，因此从草稿发布的 prerelease 也能触发。版本及渠道由标签名决定，不读取 Release 标题或 `target_commitish`；普通 `vX.Y.Z` Release 不走此入口，正式版继续由 release-please 派发。
 
-标签推送和 Release 发布都由 `publish.yml` 的 Beta 路由解析标签，支持轻量和附注标签，将剥离后的确切 commit 派发给 main 上的同一个 `publish.yml`。后者重新核对 main 祖先关系、确切 Beta 版本标签与源码一致、该提交的成功 verify，再执行原有构建、验证、OIDC 发布与可见性等待。npm Trusted Publisher 仍只需绑定 `publish.yml`；路由仅有 `contents: read` / `actions: write`，不获取 npm 发布身份。
+标签推送和 Release 发布都由 `publish.yml` 的 Beta 路由解析标签，支持轻量和附注标签，将剥离后的确切 commit 派发给 main 上的同一个 `publish.yml`。后者重新核对 main 祖先关系、确切 Beta 版本标签与源码一致、该提交的成功 verify，再执行原有构建、验证、OIDC 发布与可见性等待。npm Trusted Publisher 仍只需绑定 `publish.yml`；路由使用 `actions: write` 派发发布，并使用 `contents: write` 为已发布的 Beta Release 补充确切标签的兼容说明，不获取 npm 发布身份。
 
 推标签后再发布同一 Release 会产生相同版本、相同 commit 的请求，发布端核对身份后跳过重复版本。已经使用的标签不要移动或强推；每轮使用一个新 Beta 号，并等待本轮完成再发布下一轮。GitHub 并发组只保留一个等待任务，连续提交多轮请求可能替换较早的排队请求。
 
@@ -112,6 +112,6 @@ gh workflow run publish.yml --repo yuzheng14/covro --ref main -f channel=beta -f
 
 `package.json.covroDatabase` declares the current DB Schema ordinal, minimum restorable schema and backup format. Schema 5 corresponds to the five immutable committed migrations (0000–0004); the Drizzle journal's own `version` describes its file format, not Covro's database version. Each new migration increments the public ordinal, including changes to persisted data semantics that break older writers. Do not reuse an ordinal or edit an applied migration.
 
-CI, package verification and publication preparation validate the declaration against the committed journal. All npm channels carry the same declaration. Stable GitHub Release notes read the exact tag and append an idempotent Database compatibility section alongside Codex compatibility. When publishing a Beta GitHub Release, include the same database declaration from its exact source tag.
+CI, package verification and publication preparation validate the declaration against the committed journal. All npm channels carry the same declaration. Stable GitHub Release notes read the exact tag and append an idempotent Database compatibility section alongside Codex compatibility. Published Beta GitHub Releases use the same exact-tag compatibility note generator; the Beta router has contents: write solely to update those notes. Beta source tags retain the source package version, while npm publication stamps the requested Beta version in its temporary workspace.
 
 See [database compatibility](database.md) for restoration and downgrade rules.

@@ -1,4 +1,6 @@
-import { chmodSync, mkdirSync } from 'node:fs';
+import { inspectDatabase, readMigrations } from './history.js';
+import { runtimeMigrationsFolder } from './migrate.js';
+import { chmodSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
@@ -8,6 +10,14 @@ export type AppDatabase = BetterSQLite3Database<typeof schema> & { $client: Data
 
 /** The caller must hold the data directory instance lock before opening/migrating. */
 export function openDatabase(filename: string): { database: AppDatabase; close: () => void } {
+  if (filename !== ':memory:' && existsSync(filename)) {
+    const preflight = new Database(filename, { readonly: true, fileMustExist: true });
+    try {
+      inspectDatabase(preflight, readMigrations(runtimeMigrationsFolder));
+    } finally {
+      preflight.close();
+    }
+  }
   if (filename !== ':memory:') {
     mkdirSync(dirname(filename), { recursive: true, mode: 0o700 });
     chmodSync(dirname(filename), 0o700);

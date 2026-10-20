@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: read
+      contents: write
       actions: write
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +48,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/dispatch-beta-release.ts
+      - uses: pnpm/action-setup@v4
+        if: github.event_name == 'release'
+      - if: github.event_name == 'release'
+        run: pnpm install --frozen-lockfile
+      - name: Add tagged compatibility declarations to Beta Release notes
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: node --import tsx scripts/release-compatibility.ts
   npm:
     if: >-
       github.ref == 'refs/heads/main' &&

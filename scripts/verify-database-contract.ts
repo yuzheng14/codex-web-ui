@@ -10,6 +10,12 @@ export function verifyDatabaseContract(root = '.') {
   const contract = databaseCompatibilitySchema.parse(metadata.covroDatabase);
   if (readMigrations(`${root}/drizzle`).length !== contract.schemaVersion)
     throw new Error('DB Schema version must match the committed migration count');
+  for (const name of ['README.md', 'README.zh-CN.md']) {
+    if (
+      !readFileSync(`${root}/${name}`, 'utf8').includes(`DB Schema **${contract.schemaVersion}**`)
+    )
+      throw new Error(`${name} must declare the current DB Schema`);
+  }
   return contract;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
