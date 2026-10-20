@@ -3408,6 +3408,36 @@ dd {
 .thread-details dd {
   margin: 0;
 }
+.thread-details dl > .thread-id-row {
+  grid-template-columns: 5em minmax(0, 1fr);
+}
+.thread-id-value {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+.thread-id-value code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  user-select: text;
+}
+.thread-id-copy {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+}
+.thread-id-feedback {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.thread-id-failed {
+  color: var(--destructive);
+}
 .thread-details .status {
   padding: 0;
   background: transparent;
