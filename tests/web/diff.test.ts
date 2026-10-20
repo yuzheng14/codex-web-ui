@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDiff } from '../../src/web/lib/diff';
+import { diffCollapseReason, parseDiff } from '../../src/web/lib/diff';
 
 describe('saved unified patches', () => {
   it('tracks old and new line numbers across changes and multiple hunks', () => {
@@ -120,5 +120,36 @@ describe('saved unified patches', () => {
     expect(
       parseDiff('diff --git a/a b/a\nGIT binary patch\nliteral 4\n!secret-payload\n')[0],
     ).toMatchObject({ binary: true, metadata: [], hunks: [] });
+  });
+});
+
+describe('diff disclosure thresholds', () => {
+  function added(lines: number, text = 'x') {
+    return parseDiff(
+      `@@ -0,0 +1,${lines} @@\n${Array.from({ length: lines }, () => '+' + text).join('\n')}\n`,
+      { path: 'a', kind: 'add' },
+    )[0]!;
+  }
+  it('expands 300 received rows and folds 301 without marking content truncated', () => {
+    expect(diffCollapseReason(added(300))).toBeUndefined();
+    const file = added(301);
+    expect(diffCollapseReason(file)).toContain('超过 300 行');
+    expect(file.incomplete).toBe(false);
+    expect(file.additions).toBe(301);
+  });
+  it('folds very long lines by character volume, including the hunk header', () => {
+    const file = added(1);
+    file.hunks[0]!.lines[0]!.text = 'x'.repeat(50_000 - file.hunks[0]!.header.length);
+    expect(diffCollapseReason(file)).toBeUndefined();
+    file.hunks[0]!.lines[0]!.text += 'x';
+    expect(diffCollapseReason(file)).toContain('50,000 字符');
+  });
+  it('keeps binary, empty and unsupported state messages visible', () => {
+    for (const file of [
+      ...parseDiff('diff --git a/a b/a\nBinary files a/a and b/a differ'),
+      ...parseDiff('', { path: 'empty', kind: 'add' }),
+      ...parseDiff('unsupported '.repeat(10_000)),
+    ])
+      expect(diffCollapseReason(file)).toBeUndefined();
   });
 });

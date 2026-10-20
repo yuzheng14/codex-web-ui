@@ -36,7 +36,7 @@ export function diffPreviewChanges(scenario: string): FileUpdateChange[] {
       },
     ];
   const path = 'src/预览 workspace.ts';
-  return [
+  const changes: FileUpdateChange[] = [
     {
       path,
       kind: { type: 'update', move_path: null },
@@ -79,4 +79,26 @@ export function diffPreviewChanges(scenario: string): FileUpdateChange[] {
       diff: 'diff --git a/docs/guide.md b/docs/readme.md\nsimilarity index 100%\nrename from docs/guide.md\nrename to docs/readme.md\n',
     },
   ];
+  if (scenario.includes('mixed')) {
+    changes[0]!.diff = changes[0]!.diff.split('@@ -20')[0]!;
+    changes.push({
+      path: 'src/generated/large.ts',
+      kind: { type: 'add' },
+      diff:
+        'diff --git a/src/generated/large.ts b/src/generated/large.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/generated/large.ts\n@@ -0,0 +1,480 @@\n' +
+        Array.from({ length: 480 }, (_, i) => `+export const value${i} = ${i};`).join('\n') +
+        '\n',
+    });
+  }
+  if (scenario.includes('volume')) {
+    changes.push({
+      path: 'src/large-line.ts',
+      kind: { type: 'add' },
+      diff:
+        'diff --git a/src/large-line.ts b/src/large-line.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/large-line.ts\n@@ -0,0 +1 @@\n+' +
+        'long-line '.repeat(5100) +
+        '\n',
+    });
+  }
+  return changes;
 }

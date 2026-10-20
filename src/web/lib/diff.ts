@@ -27,6 +27,22 @@ export const diffKindLabels: Record<DiffFile['kind'], string> = {
   renamed: '重命名',
 };
 
+/** Count received code rows and UTF-16 characters; this is a rendering policy, not truncation. */
+export function diffCollapseReason(file: DiffFile): string | undefined {
+  let lines = 0;
+  let characters = 0;
+  for (const hunk of file.hunks) {
+    lines += hunk.lines.length;
+    characters += hunk.header.length;
+    for (const line of hunk.lines) characters += line.text.length;
+  }
+  // Non-code states remain visible, even when unsupported metadata is large.
+  if (!lines) return undefined;
+  if (lines > 300) return `此文件共 ${lines} 行，超过 300 行，默认折叠。`;
+  if (characters > 50_000) return '此文件超过 50,000 字符，默认折叠。';
+  return undefined;
+}
+
 function pathName(value: string, prefix = true) {
   let path = value.split('\t')[0]!;
   if (path.startsWith('"') && path.endsWith('"')) {
