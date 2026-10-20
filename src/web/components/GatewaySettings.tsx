@@ -9,10 +9,13 @@ import { api, HttpError } from '../lib/api';
 import {
   configChanges,
   configFields,
+  configFieldValue,
+  configFormErrors,
   configForm,
   formConfig,
   type ConfigField,
   type ConfigForm,
+  type ConfigFormErrors,
 } from '../lib/gateway-config';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
@@ -29,6 +32,7 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<ConfigFormErrors>({});
   const [conflict, setConflict] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const dirty =
@@ -90,6 +94,7 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
       const next = await api.gatewayConfig();
       setSnapshot(next);
       setForm(configForm(next.saved));
+      setFieldErrors({});
       setReview(undefined);
       setImported(undefined);
       setConflict(false);
@@ -136,11 +141,13 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
     const props = {
       id: `gateway-${item.key}`,
       'aria-labelledby': `gateway-${item.key}-label`,
-      'aria-describedby': `gateway-${item.key}-help`,
+      'aria-describedby': `gateway-${item.key}-help${fieldErrors[item.key] ? ` gateway-${item.key}-error` : ''}`,
+      'aria-invalid': !!fieldErrors[item.key],
       value: form[item.key],
       disabled: busy || !snapshot?.writable,
       onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setForm({ ...form, [item.key]: event.target.value });
+        setFieldErrors((previous) => ({ ...previous, [item.key]: undefined }));
         setNotice('');
       },
     };
@@ -150,11 +157,23 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
         {'multiline' in item ? (
           <textarea {...props} rows={3} spellCheck={false} />
         ) : (
-          <input {...props} type={'type' in item ? item.type : 'text'} spellCheck={false} />
+          <input
+            {...props}
+            type={'type' in item ? item.type : 'text'}
+            inputMode={'unit' in item ? 'decimal' : undefined}
+            spellCheck={false}
+          />
         )}
         <small id={`gateway-${item.key}-help`}>{item.help}</small>
+        {fieldErrors[item.key] && (
+          <small id={`gateway-${item.key}-error`} className="gateway-error" role="alert">
+            {fieldErrors[item.key]}
+          </small>
+        )}
         {form[item.key] !== running[item.key] && (
-          <small className="gateway-running">当前运行：{running[item.key] || '未设置'}</small>
+          <small className="gateway-running">
+            当前运行：{configFieldValue(item, running[item.key]) || '未设置'}
+          </small>
         )}
       </label>
     );
@@ -287,6 +306,7 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
                     disabled={busy}
                     onClick={() => {
                       setForm(configForm(imported.config));
+                      setFieldErrors({});
                       setImported(undefined);
                       setNotice('导入配置已应用到表单，尚未保存。');
                     }}
@@ -351,6 +371,18 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
+                  const errors = configFormErrors(form);
+                  setFieldErrors(errors);
+                  const invalid = configFields.find((item) => errors[item.key]);
+                  if (invalid) {
+                    requestAnimationFrame(() => {
+                      const input = document.getElementById(`gateway-${invalid.key}`);
+                      input?.closest('details')?.setAttribute('open', '');
+                      input?.focus({ preventScroll: true });
+                      input?.closest('label')?.scrollIntoView({ block: 'center' });
+                    });
+                    return;
+                  }
                   void run(async () => {
                     setReview(
                       (await api.importGatewayConfig(formConfig(form, snapshot.saved))).config,
