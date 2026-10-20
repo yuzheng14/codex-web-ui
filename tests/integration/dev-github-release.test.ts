@@ -64,6 +64,10 @@ it('handles the first Dev and stable-only history, including legacy multi-part D
     planDevGitHubRelease(target, registry([['0.1.0-dev.39202054561.1', old]]), ancestor)?.previous
       ?.commit,
   ).toBe(old);
+  expect(
+    planDevGitHubRelease(target, registry([['0.2.1-dev.1+build.1', old]]), ancestor)?.previous
+      ?.version,
+  ).toBe('0.2.1-dev.1+build.1');
 });
 
 it('repairs the original published snapshot on retries without using newer Dev/stable as its base', () => {
@@ -272,9 +276,32 @@ it('uses the initial notes range without history and refuses to overwrite an exi
 it('runs the real CLI with npm/gh fixtures, handles 404, and sends native notes as JSON without shell evaluation', () => {
   const directory = mkdtempSync(join(tmpdir(), 'covro-dev-github-cli-'));
   try {
-    const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+    const git = (...args: string[]) =>
+      execFileSync(
+        'git',
+        [
+          '-c',
+          'user.name=Covro fixture',
+          '-c',
+          'user.email=fixture@example.invalid',
+          '-c',
+          'commit.gpgsign=false',
+          ...args,
+        ],
+        {
+          cwd: directory,
+          encoding: 'utf8',
+          env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' },
+        },
+      ).trim();
+    git('init', '-q', '-b', 'main');
+    writeFileSync(join(directory, 'source.txt'), 'base');
+    git('add', '.');
+    git('commit', '-qm', 'base');
+    const base = git('rev-parse', 'HEAD');
+    writeFileSync(join(directory, 'source.txt'), 'new Dev');
+    git('commit', '-qam', 'Dev');
     const commit = git('rev-parse', 'HEAD');
-    const base = git('rev-parse', 'HEAD^');
     const history = registry([
       ['0.2.0', base],
       [version, commit],
@@ -324,12 +351,13 @@ console.log(JSON.stringify(result));
         process.execPath,
         [
           '--import',
-          'tsx',
+          import.meta.resolve('tsx'),
           '--import',
           join(directory, 'fetch.mjs'),
           resolve('scripts/dev-github-release.ts'),
         ],
         {
+          cwd: directory,
           encoding: 'utf8',
           stdio: ['pipe', 'pipe', 'pipe'],
           env: {

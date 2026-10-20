@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { compareVersions, validVersion } from '../src/shared/versions.js';
 import { readPackageRegistry, releaseCommit, type PackageRegistry } from './release-registry.js';
 
-const devVersion = /^\d+\.\d+\.\d+-dev(?:\.\d+)+$/;
+const devVersion = /^\d+\.\d+\.\d+-dev(?:\.\d+)+(?:\+[0-9A-Za-z.-]+)?$/;
 const stableVersion = /^\d+\.\d+\.\d+$/;
 const identity = z.object({
   version: z
