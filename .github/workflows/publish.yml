@@ -62,7 +62,7 @@ jobs:
       group: ${{ inputs.channel == 'beta' && 'covro-npm-publish-beta' || inputs.channel == 'stable' && 'covro-npm-publish-stable' || 'covro-npm-publish' }}
       cancel-in-progress: false
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -123,3 +123,11 @@ jobs:
       - name: Wait for the published version and channel to become visible
         if: steps.prepare.outputs.skip != 'true'
         run: node --import tsx scripts/verify-published-release.ts
+      - name: Create the Dev GitHub prerelease
+        if: steps.prepare.outputs.dev_release_version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEV_RELEASE_VERSION: ${{ steps.prepare.outputs.dev_release_version }}
+          DEV_BASE_VERSION: ${{ steps.prepare.outputs.dev_base_version }}
+          DEV_BASE_COMMIT: ${{ steps.prepare.outputs.dev_base_commit }}
+        run: node --import tsx scripts/dev-github-release.ts

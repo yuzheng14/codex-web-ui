@@ -44,6 +44,18 @@ publish 工作流按 stable、beta、dev 分开串行，自动 Dev 不会取消�
 
 从 Dev 切到同基线的正式版时，SemVer 顺序为 `0.1.0-dev.N < 0.1.0`；正式版之后的 Dev 基线变为 `0.1.1-dev.N`，大于 `0.1.0`。自动发版不会绕过已有的更高渠道版本或无法确认的源码历史。
 
+### 自动创建 Dev GitHub Pre-release
+
+Dev 的 npm 版本、源码 commit 和渠道标签确认可见后，在同一个串行发布任务中创建 `vX.Y.Z-dev.N` 标签及同名 GitHub Pre-release。说明使用 GitHub 的 Generate Release Notes API，包含原生 PR 作者、贡献者和完整比较链接；不使用正式版的 Features / Bug Fixes 分组，也不改写 CHANGELOG。明确设置 `prerelease: true`、`make_latest: false`，GitHub 与 npm 的稳定版 latest 均不受影响。
+
+比较起点在 npm 发布前固定：从 npm 完整版本历史中找出此前最高 Dev 版本及最高稳定版本，比较其源码 commit 在 main 历史中的先后，选择较新的那个；同一 commit 优先稳定版。Beta 不参与候选。重跑旧版本时，跳过源码位于目标之后的发行，继续寻找目标的已发布祖先；身份缺失或历史分叉会失败，不按发布时间或版本数字猜测提交先后。没有任何 Dev/稳定版历史时，不传 `previous_tag_name`，使用 GitHub 默认的初次说明生成范围。
+
+旧 Dev 可能只有 npm 包而没有 Git 标签。首次需要它作为起点时，按 npm 记录的确切 commit 补建该版本标签，再传入 `previous_tag_name`。已有标签必须剥离附注标签后与 npm commit 一致，冲突时失败，不移动或强推标签。
+
+未发布的过时源码仍直接跳过，不创建标签或 Release。npm 已发布但 GitHub 创建失败时，包不会回滚；重新运行原发布任务，会识别同一 commit 的已发布 Dev 版本并补齐 GitHub Release，即使 main 已前进也不重新发布 npm 包。已有的正确 Pre-release 保留原正文；标签、版本、源码或 Release 类型不一致时失败。GitHub 创建步骤也占用原 Dev 发布位置，完成后下一轮才继续。
+
+复用 runner 已有的 `gh` 与 `GITHUB_TOKEN`，仅发布 job 的 `contents` 改为 `write`，用于生成说明和创建标签/Release；不增加外部依赖或长期凭证。Dev 标签不匹配 Beta 标签规则，通过 `GITHUB_TOKEN` 创建的 Release 也不会递归触发普通发布事件。正式版继续走 release-please，Beta 继续由维护者指定。
+
 ### 通过标签或 GitHub Release 发布 Beta
 
 Beta 版本由维护者手动指定，首次可用 `v0.1.0-beta.1`，后续递增为 `v0.1.0-beta.2`。选取已经进入 main 且完整 `checks/verify` 通过的提交，推送一个新标签即可：
