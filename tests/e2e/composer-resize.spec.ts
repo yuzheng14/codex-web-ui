@@ -180,7 +180,15 @@ test('the shell panel retains its compact editor limits', async ({ page }) => {
   expect(max).toBeLessThanOrEqual(90);
   await handle(page).focus();
   await handle(page).press('End');
-  await expect(input(page)).toHaveCSS('height', `${max}px`);
+  // Font metrics and layout rounding can change the available space after a resize.
+  await expect
+    .poll(async () =>
+      Math.abs(
+        (await input(page).boundingBox())!.height -
+          Number(await handle(page).getAttribute('aria-valuemax')),
+      ),
+    )
+    .toBeLessThan(1);
   await handle(page).press('Home');
   await expect(input(page)).toHaveCSS('height', '48px');
   await page.getByRole('button', { name: '关闭 Shell 面板', exact: true }).click();
