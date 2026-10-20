@@ -21,7 +21,7 @@ PR 标题采用 [Conventional Commits 1.0.0](https://www.conventionalcommits.org
 <type>[optional scope][!]: <description>
 ```
 
-允许的小写 type 与 [ani-dock 的规则](https://github.com/yuzheng14/ani-dock/blob/main/.github/workflows/pr-title.yml) 一致：`feat`、`fix`、`deps`、`perf`、`build`、`revert`、`docs`、`refactor`、`test`、`ci`、`chore`。scope 可省略；填写时用非空括号，例如 `(ui)`。破坏性变更使用紧邻冒号的 `!`。冒号后必须有空格及非空描述，描述可以使用中文。标题必须为单行。
+允许的小写 type 与 [ani-dock 的规则](https://github.com/yuzheng14/ani-dock/blob/main/.github/workflows/pr-title.yml) 一致：`feat`、`fix`、`deps`、`perf`、`build`、`revert`、`docs`、`refactor`、`test`、`ci`、`chore`。scope 可省略；填写时用非空括号，例如 `(ui)`。破坏性变更使用紧邻冒号的 `!`。冒号后必须有空格及非空描述。用于合并到 main 和生成发布说明的标题使用英文，与 `AGENTS.md` 一致；PR 讨论和详细说明可以使用中文。标题必须为单行。
 
 ```text
 feat(ui): add JSON preview
@@ -61,4 +61,4 @@ gh api --method POST repos/yuzheng14/covro/rulesets --input .github/rulesets/pr-
 
 分支内的临时提交不要求全部符合规范。如果未来启用 merge commit 或 rebase 合并，必须另外校验保留下来的每条提交，PR 标题检查不能代替它们。Stack 中每层仍使用该层已通过检查的标题。
 
-现有 `release-please-config.json` 的 `node` 发布策略可解析以上 type：`feat` 驱动功能版本，`fix`、`deps`、`perf` 驱动修复版本；其他 type 通常不单独触发版本或显示在默认 Changelog 中。任意 type 都可以通过 `!` 表达破坏性变更。当前 `bump-minor-pre-major: true` 使 1.0.0 之前的破坏性变更递增次版本；首发及其他发版细节见[发版操作](releases.md)。格式合法不代表应当发版，应按实际变化选择 type。
+现有 `release-please-config.json` 的 `node` 发布策略可解析以上 type：`feat` 驱动功能版本，`fix`、`deps`、`perf` 驱动修复版本；其他 type 通常不单独触发版本。任意 type 都可以通过 `!` 表达破坏性变更。当前 `bump-minor-pre-major: true` 使 1.0.0 之前的破坏性变更递增次版本。发布说明另由 `changelog-type: github` 生成，默认列出发行范围内所有已合并 PR，带 `by @username` 和贡献者信息，不按提交 type 筛选。版本递增和说明展示是两个规则；详见[发版操作](releases.md)。格式合法不代表应当发版，应按实际变化选择 type。

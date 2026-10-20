@@ -4,9 +4,19 @@ PR 标题检查、squash 提交信息与 Conventional Commits type 的约定见[
 
 正式版本由 `release-please-action` v5.0.0 管理，固定提交 `45996ed1f6d02564a971a2fa1b5860e934307cf7`。main 的 checks 成功后更新 Release PR；合并 Release PR 后生成版本标签、CHANGELOG 和 GitHub Release，并显式触发 npm 发布。首个正式版本是 0.1.0，由包配置的 `initial-version` 指定；首发前 `.release-please-manifest.json` 保持空对象，表示没有已经发布的版本。清单中的版本代表上次发行，不能预填目标版本。首个 Release PR 合并后由 release-please 自动记录版本，后续按 Conventional Commits 递增；`initial-version` 不会锁住后续发行。
 
-首版 CHANGELOG 从完整 main 历史收集 Conventional Commits，默认包含 Features、Bug Fixes 等可发布条目。不设置 `bootstrap-sha` 或 `last-release-sha` 截断首发历史，确保项目早期功能也能进入首版说明；后续正式版按上次发行边界生成增量。修正首发配置后，先合并配置变更，等待 main 的 checks 和 release-please 完成并更新现有 Release PR，核对 CHANGELOG 的历史范围与版本号后再合并 Release PR。
+已发布的 0.1.0 CHANGELOG 从完整 main 历史收集 Conventional Commits，按 Features、Bug Fixes 分组；该英文历史区块保留。不设置 `bootstrap-sha` 或 `last-release-sha` 截断首发历史；后续正式版按上次正式发行边界生成增量，期间的 Dev/Beta 不重置这个边界。
 
 源码 `package.json.version` 已预设为 `0.1.0`，因此首个 Release PR 可以只修改 CHANGELOG 与发布清单，package.json 没有版本差异属于正常情况。Dev/Beta 版本在构建发布包时写入临时工作区，不回写 main 的源码版本；后续正式版本递增时再由 release-please 更新 package.json。
+
+## Release notes 与贡献者
+
+`release-please-config.json` 使用 `changelog-type: github`，由现有 release-please 调用 [GitHub 自动生成 Release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes)。新版本的 `CHANGELOG.md` 区块、Release PR 正文与 GitHub Release 使用相同的生成内容：每条已合并 PR 带作者 `by @username`、PR 链接和完整版本比较链接。发布后追加的 Codex 兼容信息保留这些内容。
+
+有首次贡献者时，GitHub 会生成 `New Contributors` 区块；没有首次贡献者时不会显示。Release 页面的 Contributors 头像由 GitHub 展示，头像面板不作为 Markdown 写入 `CHANGELOG.md`。
+
+GitHub 默认的 `What's Changed` 列出范围内已合并的 PR，包含文档、CI 等类型，不再按 Conventional Commits 的 Features / Bug Fixes 筛选或分组。若要定制分类或排除规则，使用 `.github/release.yml` 的 PR label / author 规则，见上述 GitHub 文档。版本计算仍由 release-please 的 `node` 策略解析 Conventional Commits；更换说明生成器不会使纯文档或 CI 改动单独触发版本递增。
+
+PR 标题是自动说明的文字来源，面向发布的标题使用英文。新版本在 Release PR 中仍可能被重新生成，人工校对后若 main 更新，应再次检查；已经发布的旧版本 CHANGELOG 区块不会随新版本重新生成。
 
 ## 版本与 Codex 兼容契约
 
