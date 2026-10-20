@@ -81,6 +81,7 @@ export class GatewayService {
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly archiveChanges = new Set<string>();
+  private readonly archiveRevisions = new Map<string, number>();
   private readonly turnBaselines = new Map<string, Set<string>>();
   private readonly renameChanges = new Set<string>();
   private readonly reads = new Map<string, Promise<ThreadView>>();
@@ -295,6 +296,12 @@ export class GatewayService {
         .filter((thread) => thread.projectId === projectId)
         .map((thread) => [thread.id, this.beginTitleRead(thread.id)]),
     );
+    const archiveReads = new Map(
+      this.projection
+        .values()
+        .filter((thread) => thread.projectId === projectId)
+        .map((thread) => [thread.id, this.archiveRevisions.get(thread.id) ?? 0]),
+    );
     const page =
       Array.isArray(directories) && !directories.length
         ? { data: [], nextCursor: null }
@@ -319,11 +326,10 @@ export class GatewayService {
         const cached = this.projection.get(thread.id);
         if (cached && normalized.hasMessages) cached.hasMessages = true;
         const titleRead = titleReads.get(thread.id);
-        if (cached && titleRead !== undefined) {
-          if (this.titleReads.get(thread.id) === titleRead)
-            this.updateArchiveState(thread.id, Boolean(normalized.archived));
+        if (cached && archiveReads.get(thread.id) === (this.archiveRevisions.get(thread.id) ?? 0))
+          this.updateArchiveState(thread.id, Boolean(normalized.archived));
+        if (cached && titleRead !== undefined)
           this.updateThreadTitle(thread.id, normalized.title, titleRead);
-        }
         data.push(this.threadView(cached ?? normalized));
       } catch (error) {
         if (
@@ -547,6 +553,7 @@ export class GatewayService {
     const thread = this.projection.get(threadId);
     if (!thread || Boolean(thread.archived) === archived) return;
     thread.archived = archived;
+    this.archiveRevisions.set(threadId, (this.archiveRevisions.get(threadId) ?? 0) + 1);
     if (archived) this.releaseThreadOwnership(threadId);
     this.projection.touch(threadId);
     // A notification may precede the RPC receipt. Other tabs must not resume an

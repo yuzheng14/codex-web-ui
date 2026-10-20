@@ -279,3 +279,16 @@ it('archives a new empty session without requesting its unmaterialized turn hist
   expect(history).not.toHaveBeenCalled();
   expect(codex.archives).toBe(1);
 });
+
+it('does not let an unrelated title notification suppress an archived list result', async () => {
+  const { service, codex } = setup();
+  const id = await create(service);
+  await service.startTurn(id, { clientOperationId: operationId(), text: 'saved history' });
+  codex.complete(id, 'turn-1');
+  const gate = deferred<ThreadPage>();
+  vi.spyOn(codex, 'listThreads').mockReturnValueOnce(gate.promise);
+  const listing = service.listThreads('project', undefined, true);
+  codex.emit({ type: 'threadName', threadId: id, name: 'new title' });
+  gate.resolve({ data: [{ ...(await codex.readThread(id)), archived: true }], nextCursor: null });
+  expect((await listing).data).toMatchObject([{ id, archived: true, title: 'new title' }]);
+});

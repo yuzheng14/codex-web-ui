@@ -622,7 +622,19 @@ export class CodexAdapter implements CodexClient {
         limit: 100,
       });
       for (const id of page.data) {
-        let thread = await read(id);
+        let thread: Thread;
+        try {
+          thread = await read(id);
+        } catch (error) {
+          // A completed helper can unload after the loaded-thread snapshot.
+          if (
+            error instanceof CodexError &&
+            error.rpcCode === -32600 &&
+            error.message === `thread not loaded: ${id}`
+          )
+            continue;
+          throw error;
+        }
         if (thread.status.type !== 'active') continue;
         const ancestors = new Set<string>();
         for (;;) {
