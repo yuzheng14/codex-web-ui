@@ -146,6 +146,7 @@ Use the browser to follow work, review requests, and continue conversations. An 
 ## Development and contribution
 
 ```sh
+pnpm format:check
 pnpm typecheck
 pnpm lint
 pnpm test
@@ -154,6 +155,8 @@ pnpm test:e2e
 ```
 
 Browser tests require the Chromium version used by the existing Playwright dependency. Tests and CI use explicit fixtures; they do not send real model requests.
+
+CI requires Prettier formatting to pass. Run `pnpm format` to fix formatting locally; see [formatting conventions](docs/contributing.md#格式检查) for generated-file exclusions.
 
 PR titles must follow Conventional Commits, for example `feat(ui): add JSON preview` or `fix: preserve scroll position`. See [PR checks and squash merge conventions](docs/contributing.md) for supported types, Release PRs, and release behavior.
 

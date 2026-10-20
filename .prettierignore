@@ -6,3 +6,7 @@ pnpm-lock.yaml
 codex-web-ui-mvp.md
 playwright-report
 test-results
+
+# release-please generates these files and controls their formatting.
+/.release-please-manifest.json
+/CHANGELOG.md

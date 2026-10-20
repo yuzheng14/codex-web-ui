@@ -1,9 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import {
-  createEmptyThread,
-  confirmCompatibility,
-  controlRuntime,
-} from './helpers';
+import { createEmptyThread, confirmCompatibility, controlRuntime } from './helpers';
 
 const speed = (page: Page) => page.getByRole('button', { name: 'Fast 模式', exact: true });
 async function chooseSpeed(page: Page, fast: boolean) {
@@ -105,7 +101,10 @@ test('reports missing and other tiers honestly, and does not offer Fast for unkn
   await expect(speed(page)).toHaveAttribute('aria-pressed', 'mixed');
   await expect(speed(page)).toHaveAccessibleDescription(/Fast 未报告.*当前模型未提供 Fast/);
   await expect(speed(page)).toBeDisabled();
-  await page.locator('.control-hint').filter({ has: speed(page) }).hover();
+  await page
+    .locator('.control-hint')
+    .filter({ has: speed(page) })
+    .hover();
   await expect(page.getByRole('tooltip').filter({ hasText: 'Fast 未报告' })).toBeVisible();
   await page.locator('.composer-box').screenshot({ path: '/tmp/codex-fast-unknown.png' });
 });

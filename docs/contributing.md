@@ -1,5 +1,18 @@
 # 开发与 PR 约定
 
+## 格式检查
+
+项目复用已锁定的 Prettier 与 `.prettierrc.json`，使用以下命令检查或修复代码、文档和配置的格式：
+
+```sh
+pnpm format:check
+pnpm format
+```
+
+`format:check` 只检查，格式不符合时列出文件并返回非零状态；`format` 会改写文件，执行后应检查 diff。CI 的 `quality` 任务在安装锁定依赖后先运行 `pnpm format:check`，格式失败会使必需状态 `verify` 失败并阻止合并。它沿用普通 PR、Stacked PR、Release PR 和 main 的现有检查入口。
+
+`.prettierignore` 排除依赖、构建与浏览器测试产物、Codex 生成协议、Drizzle 迁移、锁文件和已有排除的规划文档。根目录的 `CHANGELOG.md` 与 `.release-please-manifest.json` 由 release-please 生成，也明确排除，避免生成器重新写入后让 Release PR 因格式失败。其他手写源码、文档与配置都参与检查。
+
 ## PR 标题
 
 PR 标题采用 [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) 的提交头格式：

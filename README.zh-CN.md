@@ -146,6 +146,7 @@ Covro 是面向单用户的 Codex CLI Web UI，通过 `codex app-server` 连接�
 ## 开发与参与
 
 ```sh
+pnpm format:check
 pnpm typecheck
 pnpm lint
 pnpm test
@@ -154,6 +155,8 @@ pnpm test:e2e
 ```
 
 浏览器测试需要现有 Playwright 依赖所对应的 Chromium。测试与 CI 使用明确的测试夹具，不发起真实模型请求。
+
+CI 要求通过 Prettier 格式检查。可在本地运行 `pnpm format` 修复格式，生成文件的排除范围见[格式检查约定](docs/contributing.md#格式检查)。
 
 PR 标题须符合 Conventional Commits，例如 `feat(ui): add JSON preview` 或 `fix: preserve scroll position`。支持的 type、Release PR 检查及 squash 合并与发版约定见[开发与 PR 约定](docs/contributing.md)。
 
