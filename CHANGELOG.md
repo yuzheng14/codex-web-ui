@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.2.0](https://github.com/yuzheng14/covro/compare/v0.1.0...v0.2.0) (2026-10-20)
+
+
+### Features
+
+* **cli:** diagnose running-instance GitHub credential access ([#199](https://github.com/yuzheng14/covro/issues/199)) ([9aa427a](https://github.com/yuzheng14/covro/commit/9aa427ad5b5835f1b9a5be4936bab66567655442))
+* **shell:** add a project shell command execution panel ([#182](https://github.com/yuzheng14/covro/issues/182)) ([143a52a](https://github.com/yuzheng14/covro/commit/143a52af6e24e6a953ebd6cbf049a5c851e4df92))
+* **ui:** add structured code previews with inline diff highlights ([#173](https://github.com/yuzheng14/covro/issues/173)) ([e8ff82d](https://github.com/yuzheng14/covro/commit/e8ff82d66f2333b7e22ec0b4cd333da733e00749)), closes [#169](https://github.com/yuzheng14/covro/issues/169)
+* **ui:** show and copy conversation thread IDs ([#192](https://github.com/yuzheng14/covro/issues/192)) ([47086be](https://github.com/yuzheng14/covro/commit/47086bea739ae45d38a7eea1439cd08280cde5f4))
+* **ui:** support JSON file previews ([#176](https://github.com/yuzheng14/covro/issues/176)) ([5b53c24](https://github.com/yuzheng14/covro/commit/5b53c24220be418ab43b5eca9ebba1b54f89483d))
+
+
+### Bug Fixes
+
+* **cli:** preserve macOS GUI sessions for background instances ([#198](https://github.com/yuzheng14/covro/issues/198)) ([86703b6](https://github.com/yuzheng14/covro/commit/86703b6e77283fa3c132d9d5300226473e0972c9))
+* **ui:** display service size limits in MiB ([#195](https://github.com/yuzheng14/covro/issues/195)) ([de7aa85](https://github.com/yuzheng14/covro/commit/de7aa85d477436dc4d9686725c903004dc6d459b))
+* **ui:** resize the composer from its top-right corner ([#194](https://github.com/yuzheng14/covro/issues/194)) ([db5a21f](https://github.com/yuzheng14/covro/commit/db5a21f67e1898d8a5537fa96c45d7879bab30e2))
+
+
+### Performance Improvements
+
+* **history:** page recent Codex conversation history ([#177](https://github.com/yuzheng14/covro/issues/177)) ([566669b](https://github.com/yuzheng14/covro/commit/566669b344018d24ee95a25c2921bcdedd13a43a))
+* **ui:** cache conversation lists and reconcile server pages ([#196](https://github.com/yuzheng14/covro/issues/196)) ([d4fa3b4](https://github.com/yuzheng14/covro/commit/d4fa3b449d049e274bf96878b053d2a6e819c1ed))
+* **ui:** cache conversation pages and reconcile server updates ([#180](https://github.com/yuzheng14/covro/issues/180)) ([eff1d63](https://github.com/yuzheng14/covro/commit/eff1d632ffda0f274df3a0115f7384d4677ab06c))
+* **ui:** preload conversation history and preserve scroll position ([#178](https://github.com/yuzheng14/covro/issues/178)) ([c951e15](https://github.com/yuzheng14/covro/commit/c951e15f0097d0ea15a548b93ea57c0030e0a902))
+
 ## 0.1.0 (2026-10-19)
 
 
