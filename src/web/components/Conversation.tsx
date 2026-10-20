@@ -37,7 +37,7 @@ const activityStatusLabels: Record<string, string> = {
   interrupted: '已中断',
 };
 
-function Activity({ item }: { item: ItemView }) {
+function Activity({ item, streaming }: { item: ItemView; streaming: boolean }) {
   const openDiff = useDiffPreview();
   return (
     <CollapsibleActivity
@@ -63,7 +63,7 @@ function Activity({ item }: { item: ItemView }) {
             <code>$ {item.command}</code>
           </pre>
         )}
-        {item.text && <TextContent text={item.text} />}
+        {item.text && <TextContent text={item.text} streaming={streaming} />}
         {item.output !== undefined && (
           <pre className="tool-output">
             <code>{item.output || '暂无输出'}</code>
@@ -111,10 +111,12 @@ function Item({
   item,
   questionControls,
   replies,
+  streaming = false,
 }: {
   item: ItemView;
   questionControls?: AsyncQuestionControls;
   replies?: AsyncQuestionReply[];
+  streaming?: boolean;
 }) {
   if (item.type === 'contextCompaction') {
     return item.status === 'inProgress' ? null : <ContextCompaction item={item} />;
@@ -136,14 +138,14 @@ function Item({
               onReply={questionControls?.onReply ?? (async () => false)}
             />
           ) : (
-            <TextContent text={item.text ?? ''} />
+            <TextContent text={item.text ?? ''} streaming={streaming} />
           )}
           {item.error && <p className="inline-error">{item.error}</p>}
         </div>
       </article>
     );
   }
-  return <Activity item={item} />;
+  return <Activity item={item} streaming={streaming} />;
 }
 
 function CodexReconnectNotice({ turn, offline }: { turn: TurnView; offline: boolean }) {
@@ -551,6 +553,7 @@ function ConversationContent({
                       <Item
                         key={group.key}
                         item={group.item}
+                        streaming={isActive(turn.status)}
                         questionControls={questionControls}
                         replies={[
                           ...(questionReplies.get(group.item.id) ?? []),
@@ -563,7 +566,7 @@ function ConversationContent({
                     ) : (
                       <ActivityGroup key={group.key} items={group.items}>
                         {group.items.map((item) => (
-                          <Item key={item.id} item={item} />
+                          <Item key={item.id} item={item} streaming={isActive(turn.status)} />
                         ))}
                       </ActivityGroup>
                     ),

@@ -7,6 +7,7 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
+import { mermaidChunks } from './mermaid.js';
 import type { ClientRequest } from '../../src/codex/generated/ClientRequest.js';
 import type { ServerNotification } from '../../src/codex/generated/ServerNotification.js';
 import type { ServerRequest } from '../../src/codex/generated/ServerRequest.js';
@@ -623,7 +624,7 @@ function imageReply(
 function markdownReply(
   thread: Thread,
   turn: Turn,
-  kind: 'table' | 'security' | 'code' | 'files' | 'json',
+  kind: 'table' | 'security' | 'code' | 'files' | 'json' | 'mermaid',
 ): void {
   const item: Extract<ThreadItem, { type: 'agentMessage' }> = {
     id: randomUUID(),
@@ -634,7 +635,7 @@ function markdownReply(
     delivery: null,
     questions: null,
   };
-  const chunks =
+  let chunks =
     kind === 'files'
       ? [
           '方案已整理好，可以打开文档边读边继续讨论。\n\n' +
@@ -690,6 +691,7 @@ function markdownReply(
                   '| 后续 | `a\\|b` | 支持转义管道 A\\|B，并保留 **重点** 与 [说明](https://example.com/docs)。 |\n\n' +
                   '下一轮我会先选 `/rename`、`/model`、`/copy`，范围清楚，收益直接。',
               ];
+  if (kind === 'mermaid') chunks = mermaidChunks;
   turn.items.push(item);
   notify({
     method: 'item/started',
@@ -705,17 +707,20 @@ function markdownReply(
     });
     finishes.set(
       turn.id,
-      setTimeout(() => {
-        if (turn.status !== 'inProgress') return;
-        if (index + 1 < chunks.length) stream(index + 1);
-        else {
-          notify({
-            method: 'item/completed',
-            params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
-          });
-          complete(thread, turn);
-        }
-      }, 1200),
+      setTimeout(
+        () => {
+          if (turn.status !== 'inProgress') return;
+          if (index + 1 < chunks.length) stream(index + 1);
+          else {
+            notify({
+              method: 'item/completed',
+              params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
+            });
+            complete(thread, turn);
+          }
+        },
+        kind === 'mermaid' ? 2000 : 1200,
+      ),
     );
   };
   stream(0);
@@ -2276,6 +2281,7 @@ function receive(request: ClientRequest): void {
       else if (prompt.includes('[diff-preview')) diffPreviewScenario(thread, turn, prompt);
       else if (prompt.includes('[markdown-files]')) markdownReply(thread, turn, 'files');
       else if (prompt.includes('[code-copy]')) markdownReply(thread, turn, 'code');
+      else if (prompt.includes('[mermaid]')) markdownReply(thread, turn, 'mermaid');
       else if (prompt.includes('[markdown]') || prompt.includes('[markdown-security]'))
         markdownReply(thread, turn, prompt.includes('[markdown-security]') ? 'security' : 'table');
       else execute(thread, turn);
