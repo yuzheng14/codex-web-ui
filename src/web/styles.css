@@ -1834,32 +1834,35 @@ svg {
   top: 0;
   right: 0;
   z-index: 1;
-  display: grid;
-  place-items: center;
   width: 32px;
   height: 32px;
   padding: 0;
   border: 0;
-  border-radius: 0 11px 0 8px;
-  background: #fff;
+  background: transparent;
   color: #9baaa0;
   cursor: ns-resize;
   touch-action: none;
   user-select: none;
 }
+.composer-resize-handle svg {
+  position: absolute;
+  top: 0;
+  right: 0;
+  pointer-events: none;
+}
 .composer-resize-handle path {
   stroke: currentColor;
-  stroke-width: 1.5;
+  stroke-width: 3;
   stroke-linecap: round;
 }
 .composer-resize-handle:hover,
 .composer-resize-handle:focus-visible,
-.composer-resize-handle:active {
+.composer-resize-handle:active,
+.composer-resize-handle[data-resizing='true'] {
   color: var(--accent);
-  background: var(--accent-soft);
 }
 .composer-resize-handle:focus-visible {
-  outline-offset: -3px;
+  outline: none;
 }
 html.composer-resizing,
 html.composer-resizing * {

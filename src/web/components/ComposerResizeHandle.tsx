@@ -118,6 +118,7 @@ export function ComposerResizeHandle({
       <button
         type="button"
         className="composer-resize-handle"
+        data-resizing={resizing || undefined}
         role="separator"
         aria-label="调整输入框高度"
         aria-orientation="horizontal"
@@ -164,8 +165,9 @@ export function ComposerResizeHandle({
           resize(next);
         }}
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M4 4a16 16 0 0 1 16 16M10 4a10 10 0 0 1 10 10" />
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          {/* Match the center of the composer's 12px corner inside its 1px border. */}
+          <path d="M21 3.5a7.5 7.5 0 0 1 7.5 7.5" />
         </svg>
       </button>
     </ControlHint>
