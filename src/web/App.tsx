@@ -1,3 +1,4 @@
+import { UNASSIGNED_SCOPE } from '../shared/workspace-scope';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, Pencil } from 'lucide-react';
 import type { ThreadSummary } from '../shared/types';
@@ -117,7 +118,9 @@ export function App() {
     !workspace.authRequired,
   );
   const canOperate =
-    canControl && Boolean(project?.available) && !compatibilityConfirmationRequired(system);
+    canControl &&
+    (workspace.projectId === UNASSIGNED_SCOPE || Boolean(project?.available)) &&
+    !compatibilityConfirmationRequired(system);
   const canConfirm = canConfirmCompatibility(system, workspace.connection, workspace.authRequired);
   const compatibilityTarget = compatibilityFingerprint(system) ?? '';
   const busyFor = (kind: string, target = thread?.id ?? '') =>
@@ -174,7 +177,10 @@ export function App() {
     if (isForking(entry.id)) return '正在确认 Fork…请等待提交回执，暂时不能再次 Fork。';
     if (!supportsFork) return '当前 Codex 版本不支持 Fork 会话。';
     if (!canControl) return '连接恢复且 Codex 就绪后可 Fork 会话。';
-    if (!workspace.projects.find((project) => project.id === entry.projectId)?.available)
+    if (
+      entry.projectId !== null &&
+      !workspace.projects.find((project) => project.id === entry.projectId)?.available
+    )
       return '项目目录不可用，恢复后可 Fork 会话。';
     if (compatibilityConfirmationRequired(system)) return '请先确认当前 Codex 版本的兼容性。';
     if (entry.historyVisible === false || (entry.id === thread?.id && !thread.turns.length))
@@ -254,6 +260,7 @@ export function App() {
 
   const slashContext: SlashCommandContext = {
     project,
+    scopeId: workspace.projectId,
     selectedId: workspace.selectedId,
     thread,
     system,
@@ -343,7 +350,10 @@ export function App() {
             !system?.capabilities.includes(entry.archived ? 'thread/unarchive' : 'thread/archive')
           )
             return '当前 Codex 不支持此操作';
-          if (!workspace.projects.find((project) => project.id === entry.projectId)?.available)
+          if (
+            entry.projectId !== null &&
+            !workspace.projects.find((project) => project.id === entry.projectId)?.available
+          )
             return '项目目录不可用';
           if (!entry.archived && (isActive(entry.status) || entry.pendingActionCount > 0))
             return '任务结束并处理完待办后可归档';
@@ -395,7 +405,8 @@ export function App() {
           canControl &&
           !workspace.savingModelDefaults &&
           !compatibilityConfirmationRequired(system) &&
-          Boolean(workspace.projects.find((entry) => entry.id === projectId)?.available)
+          (projectId === UNASSIGNED_SCOPE ||
+            Boolean(workspace.projects.find((entry) => entry.id === projectId)?.available))
         }
         offline={offline}
         open={sidebarOpen}
@@ -415,7 +426,7 @@ export function App() {
             </Button>
             <div>
               <div className="breadcrumb">
-                {project?.name ?? '工作空间'}
+                {project?.name ?? '未关联项目'}
                 <Icon name="chevron" size={12} />
                 <span>{workspace.selectedId ? '会话' : '新会话'}</span>
               </div>
@@ -439,6 +450,12 @@ export function App() {
                       '正在读取会话…')
                     : '开始你的下一项任务'}
                 </h1>
+              )}
+              {thread && thread.projectId === null && (
+                <details className="workspace-directory">
+                  <summary>工作目录</summary>
+                  <code>{thread.cwd}</code>
+                </details>
               )}
             </div>
           </div>
@@ -740,7 +757,13 @@ export function App() {
             draftKey={workspace.draftKey}
             sentDrafts={workspace.sentDrafts}
             projectName={project?.name}
-            projectId={project?.available ? project.id : undefined}
+            projectId={
+              workspace.projectId === UNASSIGNED_SCOPE
+                ? UNASSIGNED_SCOPE
+                : project?.available
+                  ? project.id
+                  : undefined
+            }
             runtimeKey={
               system?.ready && workspace.connection === 'connected'
                 ? `${system.codexEpoch}:${workspace.runtimeDefaultsRevision}`

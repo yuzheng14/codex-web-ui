@@ -4557,3 +4557,24 @@ dd {
 .diff-removed .diff-inline-change {
   background: #f6bdb6;
 }
+
+.global-new-thread {
+  margin-bottom: 8px;
+  width: 100%;
+  justify-content: flex-start;
+}
+.workspace-directory {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.workspace-directory summary {
+  width: fit-content;
+  cursor: pointer;
+}
+.workspace-directory code {
+  display: block;
+  max-width: min(520px, 60vw);
+  overflow-wrap: anywhere;
+  user-select: text;
+}

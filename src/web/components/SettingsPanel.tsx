@@ -179,10 +179,10 @@ export function SettingsPanel({
       )}
       <div className="composer-actions">
         <div className="composer-context">
-          <ControlHint asChild content={projectName ?? '未选择项目'}>
+          <ControlHint asChild content={projectName ?? '未关联项目'}>
             <span className="composer-target">
               <Icon name="folder" size={14} />
-              <span>{projectName ?? '未选择项目'}</span>
+              <span>{projectName ?? '未关联项目'}</span>
             </span>
           </ControlHint>
           <PermissionModeSelect

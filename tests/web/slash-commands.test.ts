@@ -517,3 +517,20 @@ it('opens a project draft without requiring native creation capability or mutati
   expect(state.run).not.toHaveBeenCalled();
   expect(state.thread!.status).toBe('running');
 });
+
+it('supports new, rename, resume and fork in an explicitly unassigned workspace', async () => {
+  const state = context();
+  state.project = undefined;
+  state.scopeId = '@unassigned';
+  state.thread!.projectId = null;
+  expect(command(state, 'new').unavailableReason).toBeUndefined();
+  await command(state, 'new').run();
+  expect(state.openDraft).toHaveBeenCalledOnce();
+  expect(command(state, 'resume').unavailableReason).toBeUndefined();
+  expect(command(state, 'fork').unavailableReason).toBeUndefined();
+  state.thread!.managed = true;
+  state.system!.capabilities.push('thread/name/set');
+  expect(command(state, 'rename').unavailableReason).toBeUndefined();
+  state.busy = ['create:@unassigned'];
+  expect(command(state, 'new').unavailableReason).toContain('正在新建');
+});

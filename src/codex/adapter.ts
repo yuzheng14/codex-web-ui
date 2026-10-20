@@ -530,7 +530,11 @@ export class CodexAdapter implements CodexClient {
     )
       throw new AppError('VALIDATION_ERROR', '所选推理强度不受当前模型支持');
   }
-  async listThreads(cwd: string, cursor?: string, archived = false): Promise<ThreadPage> {
+  async listThreads(
+    cwd: string | string[],
+    cursor?: string,
+    archived = false,
+  ): Promise<ThreadPage> {
     const sequence = ++this.archiveSequence;
     const result = await this.call('thread/list', {
       cwd,

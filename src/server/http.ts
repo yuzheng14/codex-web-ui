@@ -173,6 +173,31 @@ export function createApp({
     return c.json(op, status(op));
   });
   app.get('/api/projects', async (c) => c.json({ data: await service.listProjects() }));
+  app.get('/api/unassigned/runtime-settings', async (c) =>
+    c.json(await service.readRuntimeSettings(null)),
+  );
+  app.post('/api/unassigned/model-defaults', async (c) => {
+    const op = await service.saveModelDefaults(
+      null,
+      await parse(c, schemas.saveModelDefaultsSchema),
+    );
+    return c.json(op, status(op));
+  });
+  app.get('/api/unassigned/threads', async (c) =>
+    c.json(
+      await service.listThreadSummaries(
+        null,
+        c.req.query('cursor') === undefined
+          ? undefined
+          : schemas.cursorSchema.parse(c.req.query('cursor')),
+        schemas.archivedQuerySchema.parse(c.req.query('archived')),
+      ),
+    ),
+  );
+  app.post('/api/unassigned/threads', async (c) => {
+    const op = await service.createThread(null, await parse(c, schemas.createThreadSchema));
+    return c.json(op, status(op));
+  });
   app.get('/api/projects/:projectId/runtime-settings', async (c) =>
     c.json(await service.readRuntimeSettings(id(c.req.param('projectId')))),
   );

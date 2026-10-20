@@ -1,3 +1,4 @@
+import { scopeKey } from '../../shared/workspace-scope';
 import type { ThreadView } from '../../shared/types';
 import { DeviceCache } from './device-cache';
 export { HISTORY_CACHE_LIMIT, HISTORY_CACHE_TTL } from './device-cache';
@@ -34,7 +35,12 @@ export class HistoryCache {
   constructor(readonly scope: string) {}
   async read(project: string, thread: string, cursor?: string): Promise<ThreadView | undefined> {
     const page = await storage.read<ThreadView>(keyFor(this.scope, project, thread, cursor));
-    if (!page || page.id !== thread || page.projectId !== project || !Array.isArray(page.turns))
+    if (
+      !page ||
+      page.id !== thread ||
+      scopeKey(page.projectId) !== project ||
+      !Array.isArray(page.turns)
+    )
       return;
     try {
       return cachedReadingView(page);
@@ -44,7 +50,7 @@ export class HistoryCache {
   }
   write(page: ThreadView, cursor?: string) {
     return storage.write(
-      keyFor(this.scope, page.projectId, page.id, cursor),
+      keyFor(this.scope, scopeKey(page.projectId), page.id, cursor),
       cachedReadingView(page),
     );
   }

@@ -30,6 +30,7 @@
 ## ✨ What you can do
 
 - 📱 **Step away from your desk. Stay with the task.** Follow tool activity, inspect file changes, handle permission requests, and answer Codex's questions from your computer or phone. Closing the page doesn't cancel the task.
+- 💬 **Start without a project.** Use **新建会话** (New conversation) to start in an automatically assigned directory. Conversations and files stay available after refresh, restart, or archive.
 - 🗂️ **See every project in one place.** Run independent tasks in parallel and spot which conversations are working, waiting for approval, or ready to read.
 - 💬 **Pick up your Codex CLI conversations.** Browse saved history, resume existing work, or fork a new direction. Rename conversations to find them later and archive them when you're done. View and copy the full Thread ID in conversation details or diagnostics.
 - ⚡ **Open long conversations sooner.** Recent messages appear first; scrolling preloads older history. On this device, cached conversation lists and history pages appear while the server checks for updates. [Loading and cache behavior](docs/session-history.md).
@@ -104,7 +105,9 @@ pnpm build
 pnpm start -- --config ./config.local.json
 ```
 
-Open **<http://127.0.0.1:8787>**, click **添加项目** (Add project), and enter a project directory on the computer running Covro. Open a conversation or send your first task.
+Open **<http://127.0.0.1:8787>** and use **新建会话** (New conversation) to send a task without choosing a project. To work in an existing directory, click **添加项目** (Add project) and enter its path on the computer running Covro.
+
+Unassigned conversations use separate directories under `<dataDir>/workspaces/`, allocated on the first send. Their files are retained until you explicitly remove them; archiving does not delete files. See [conversation workspaces](docs/workspaces.md) for directory, recovery, and backup details.
 
 For local development, run `pnpm dev` instead and open <http://127.0.0.1:5173>.
 

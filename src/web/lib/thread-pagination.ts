@@ -1,3 +1,4 @@
+import { scopeKey } from '../../shared/workspace-scope';
 import type { ThreadSummaryPage } from '../../shared/types';
 
 /** Ownership, visibility and live updates can still leave empty or duplicate CWD-filtered pages. */
@@ -25,7 +26,7 @@ export async function readThreadPage(options: {
       throw new Error('会话分页游标未前进，请重试或刷新会话列表。');
     for (const thread of page.data) {
       if (
-        thread.projectId === options.projectId &&
+        scopeKey(thread.projectId) === options.projectId &&
         Boolean(thread.archived) === options.archived &&
         thread.historyVisible !== false
       )

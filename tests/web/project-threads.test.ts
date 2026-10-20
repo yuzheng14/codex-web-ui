@@ -387,3 +387,25 @@ it('retains absence from a complete server result across filter changes', () => 
   store.restoreCached('a', [summary('removed')]);
   expect(store.snapshot.a?.data ?? []).toEqual([]);
 });
+
+it('keeps unassigned overviews and optimistic archive/rename receipts separate from projects', () => {
+  const store = new ProjectThreadsStore();
+  const general: ThreadSummary = { ...summary('general'), projectId: null };
+  store.applySummary(general, cursor(1));
+  store.applySummary(summary('project'), cursor(2));
+  const read = store.beginRead('@unassigned');
+  store.finishRead(read, page([general, summary('foreign')], 3));
+  expect(store.snapshot['@unassigned']?.data).toEqual([general]);
+  store.beginMutation('rename', general.id, { projectId: null, title: 'New title' });
+  expect(store.snapshot['@unassigned']?.data[0]?.title).toBe('New title');
+  store.settleMutation('rename', {
+    threadId: general.id,
+    summary: { ...general, title: 'New title' },
+    cursor: cursor(4),
+  });
+  store.beginMutation('archive', general.id, { projectId: null, archived: true });
+  expect(store.snapshot['@unassigned']?.data).toEqual([]);
+  store.settleMutation('archive');
+  expect(store.snapshot['@unassigned']?.data[0]?.title).toBe('New title');
+  expect(store.snapshot.a?.data).toEqual([summary('project')]);
+});

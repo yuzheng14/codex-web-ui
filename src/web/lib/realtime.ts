@@ -154,7 +154,7 @@ function isMessage(value: unknown): value is ServerMessage {
     return (
       typeof m.threadId === 'string' &&
       payload.id === m.threadId &&
-      typeof payload.projectId === 'string' &&
+      (payload.projectId === null || typeof payload.projectId === 'string') &&
       typeof payload.title === 'string' &&
       typeof payload.status === 'string' &&
       typeof payload.pendingActionCount === 'number'
@@ -164,7 +164,7 @@ function isMessage(value: unknown): value is ServerMessage {
       typeof m.threadId === 'string' &&
       payload.threadId === m.threadId &&
       typeof payload.turnId === 'string' &&
-      typeof payload.projectId === 'string' &&
+      (payload.projectId === null || typeof payload.projectId === 'string') &&
       typeof payload.title === 'string' &&
       ['completed', 'failed', 'interrupted'].includes(String(payload.status))
     );

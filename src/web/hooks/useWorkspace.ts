@@ -1,3 +1,4 @@
+import { UNASSIGNED_SCOPE, scopeKey, scopeApi } from '../../shared/workspace-scope';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   Cursor,
@@ -87,9 +88,10 @@ export function useWorkspace() {
   const listCacheRef = useRef(listCache);
   const listReads = useRef(new Map<string, AbortController>());
   listCacheRef.current = listCache;
-  const cacheProjects = JSON.stringify(
-    projects.filter((project) => project.available).map((project) => project.id),
-  );
+  const cacheProjects = JSON.stringify([
+    UNASSIGNED_SCOPE,
+    ...projects.filter((project) => project.available).map((project) => project.id),
+  ]);
   useLayoutEffect(() => {
     // A changed or no longer confirmed identity must not keep another scope's reading rows.
     if (projectStore.current.discardCached()) setProjectThreads(projectStore.current.snapshot);
@@ -102,7 +104,8 @@ export function useWorkspace() {
         if (
           active &&
           rows &&
-          projectsRef.current.some((project) => project.id === id && project.available) &&
+          (id === UNASSIGNED_SCOPE ||
+            projectsRef.current.some((project) => project.id === id && project.available)) &&
           store.restoreCached(id, rows)
         )
           setProjectThreads(store.snapshot);
@@ -201,7 +204,8 @@ export function useWorkspace() {
   }, []);
   const loadProjectThreads = useCallback(
     async (id: string, cursor?: string) => {
-      if (!id || !projectsRef.current.some((project) => project.id === id)) return;
+      if (id !== UNASSIGNED_SCOPE && !projectsRef.current.some((project) => project.id === id))
+        return;
       const store = projectStore.current;
       const previous = store.snapshot[id];
       // React may not have rendered the disabled button yet; guard synchronously as well.
@@ -245,11 +249,12 @@ export function useWorkspace() {
   );
   const refreshProjectsThreads = useCallback(
     () =>
-      Promise.all(
-        projectsRef.current
+      Promise.all([
+        loadProjectThreads(UNASSIGNED_SCOPE),
+        ...projectsRef.current
           .filter((entry) => entry.available)
           .map((entry) => loadProjectThreads(entry.id)),
-      ),
+      ]),
     [loadProjectThreads],
   );
   const changeArchiveView = useCallback(
@@ -284,7 +289,11 @@ export function useWorkspace() {
   }, [forgetSelection]);
   const updateSummary = useCallback(
     (summary: ThreadSummary, cursor: Cursor) => {
-      if (!projectsRef.current.some((project) => project.id === summary.projectId)) return;
+      if (
+        summary.projectId !== null &&
+        !projectsRef.current.some((project) => project.id === summary.projectId)
+      )
+        return;
       if (projectStore.current.applySummary(summary, cursor)) {
         const cached = streamRef.current?.cache.get(summary.id)?.data;
         if (
@@ -298,15 +307,19 @@ export function useWorkspace() {
         }
         setProjectThreads(projectStore.current.snapshot);
         if (summary.archived && !projectStore.current.archived)
-          forgetSelection(summary.id, summary.projectId);
+          forgetSelection(summary.id, scopeKey(summary.projectId));
       }
     },
     [forgetSelection],
   );
   const updateThread = useCallback(
     (next: ThreadView) => {
-      if (!projectsRef.current.some((project) => project.id === next.projectId)) return;
-      if (next.id === selectedRef.current && next.projectId === projectRef.current) {
+      if (
+        next.projectId !== null &&
+        !projectsRef.current.some((project) => project.id === next.projectId)
+      )
+        return;
+      if (next.id === selectedRef.current && scopeKey(next.projectId) === projectRef.current) {
         setThreadReadFailure(undefined);
         const previous = selectedThreadRef.current;
         const visible = projectStore.current.project(next);
@@ -321,7 +334,7 @@ export function useWorkspace() {
           if (next.historyVisible) {
             try {
               // Another tab may have discarded this selection while it was empty.
-              localStorage.setItem(`codex-web.selected:${next.projectId}`, next.id);
+              localStorage.setItem(`codex-web.selected:${scopeKey(next.projectId)}`, next.id);
             } catch {
               /* Preferences are optional. */
             }
@@ -382,7 +395,9 @@ export function useWorkspace() {
       let project =
         owningProjectId ??
         projectStore.current.findProject(id) ??
-        streamRef.current?.cache.get(id)?.data.projectId;
+        (streamRef.current?.cache.get(id)
+          ? scopeKey(streamRef.current.cache.get(id)!.data.projectId)
+          : undefined);
       let loaded: ThreadView | undefined;
       const discardRestoredSelection = () => {
         if (project) {
@@ -413,8 +428,8 @@ export function useWorkspace() {
           loaded = restoring ? await api.threadMetadata(id) : await api.thread(id);
           if (navigationRevision.current !== revision || detailReadSequence.current !== read)
             return;
-          if (project && loaded.projectId !== project) return;
-          project ??= loaded.projectId;
+          if (project && scopeKey(loaded.projectId) !== project) return;
+          project ??= scopeKey(loaded.projectId);
           if (
             restoring &&
             loaded.historyVisible === false &&
@@ -442,7 +457,11 @@ export function useWorkspace() {
           return;
         }
       }
-      if (!projectsRef.current.some((entry) => entry.id === project)) return;
+      if (
+        project !== UNASSIGNED_SCOPE &&
+        !projectsRef.current.some((entry) => entry.id === project)
+      )
+        return;
       activateProject(project);
       selectedRef.current = id;
       selectionsRef.current[project] = id;
@@ -450,7 +469,9 @@ export function useWorkspace() {
       const cached = streamRef.current?.cache.get(id)?.data;
       // An unselected detail cache may predate an archive/restore overview event.
       const initial =
-        cached?.projectId === project && Boolean(cached.archived) === projectStore.current.archived
+        cached &&
+        scopeKey(cached.projectId) === project &&
+        Boolean(cached.archived) === projectStore.current.archived
           ? cached
           : loaded;
       selectedThreadRef.current = initial;
@@ -531,7 +552,7 @@ export function useWorkspace() {
   );
   const applyProjects = useCallback(
     (data: Project[]) => {
-      const ids = new Set(data.map((entry) => entry.id));
+      const ids = new Set([UNASSIGNED_SCOPE, ...data.map((entry) => entry.id)]);
       const removed = projectsRef.current.filter((entry) => !ids.has(entry.id));
       if (removed.length > 0) {
         if (!ids.has(projectRef.current)) {
@@ -557,10 +578,11 @@ export function useWorkspace() {
         selectProject(
           ids.has(preferred)
             ? preferred
-            : (data.find((entry) => entry.available)?.id ?? data[0]?.id ?? ''),
+            : (data.find((entry) => entry.available)?.id ?? data[0]?.id ?? UNASSIGNED_SCOPE),
           !projectsLoadedRef.current,
         );
       }
+      if (!projectsLoadedRef.current) void loadProjectThreads(UNASSIGNED_SCOPE);
       projectsLoadedRef.current = true;
       setProjectsLoaded(true);
       for (const project of added) void loadProjectThreads(project.id);
@@ -802,7 +824,10 @@ export function useWorkspace() {
   );
 
   const notifications = useBrowserNotifications({
-    projectName: (id) => projectsRef.current.find((project) => project.id === id)?.name,
+    projectName: (id) =>
+      id === UNASSIGNED_SCOPE
+        ? '未关联项目'
+        : projectsRef.current.find((project) => project.id === id)?.name,
     openThread: (id, project) => {
       cancelResultNavigation();
       void selectThread(id, project);
@@ -957,7 +982,7 @@ export function useWorkspace() {
           if (left) clearSelection();
           else changeArchiveView(false);
           mutationNavigation.current.set(clientOperationId, {
-            projectId: mutation.projectId,
+            projectId: scopeKey(mutation.projectId),
             threadId: target,
             revision: navigationRevision.current,
             archived,
@@ -1126,7 +1151,7 @@ export function useWorkspace() {
         const created = await run(
           'create',
           project,
-          `/api/projects/${encodeURIComponent(project)}/threads`,
+          `${scopeApi(project)}/threads`,
           { settings },
           { kind: 'create', key, projectId: project, settings },
         );
@@ -1210,7 +1235,7 @@ export function useWorkspace() {
       const operation = await run(
         'saveModelDefaults',
         `model-defaults:${project}`,
-        `/api/projects/${encodeURIComponent(project)}/model-defaults`,
+        `${scopeApi(project)}/model-defaults`,
         { settings },
       );
       return operation?.status === 'acknowledged'

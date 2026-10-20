@@ -132,7 +132,7 @@ export interface ThreadView {
   id: string;
   runtimeSettings?: RuntimeSettings;
   forkedFromId?: string;
-  projectId: string;
+  projectId: string | null;
   cwd: string;
   source: string;
   /** Client recorded at creation; independent of the current executor. */
@@ -374,7 +374,7 @@ export interface SubscribeMessage {
 export interface TurnCompletion {
   threadId: string;
   turnId: string;
-  projectId: string;
+  projectId: string | null;
   title: string;
   status: 'completed' | 'failed' | 'interrupted';
 }

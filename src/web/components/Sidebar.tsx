@@ -1,3 +1,4 @@
+import { UNASSIGNED_SCOPE } from '../../shared/workspace-scope';
 import { useState } from 'react';
 import { ArrowUpCircle, Bell } from 'lucide-react';
 import type { Project, ThreadSummary } from '../../shared/types';
@@ -50,7 +51,18 @@ interface Props {
 export function Sidebar(props: Props) {
   const [search, setSearch] = useState('');
   const query = search.trim().toLocaleLowerCase();
-  const groups = props.projects.flatMap((project) => {
+  const scopes = [
+    {
+      id: UNASSIGNED_SCOPE,
+      name: '未关联项目',
+      rootPath: '',
+      available: true,
+      error: undefined,
+      project: undefined as Project | undefined,
+    },
+    ...props.projects.map((project) => ({ ...project, project })),
+  ];
+  const groups = scopes.flatMap((project) => {
     const state = props.projectThreads[project.id];
     const matchesProject = `${project.name} ${project.rootPath}`
       .toLocaleLowerCase()
@@ -107,6 +119,16 @@ export function Sidebar(props: Props) {
               <Icon name="close" />
             </Button>
           </div>
+          <Button
+            className="global-new-thread"
+            variant="secondary"
+            aria-label="新建会话（无需项目）"
+            onClick={() => props.onCreate(UNASSIGNED_SCOPE)}
+            disabled={!props.canCreate(UNASSIGNED_SCOPE) || props.creating(UNASSIGNED_SCOPE)}
+          >
+            <Icon name="plus" size={16} />
+            新建会话
+          </Button>
           <div className="project-search">
             <label className="sr-only" htmlFor="project-search">
               项目与会话
@@ -121,7 +143,9 @@ export function Sidebar(props: Props) {
               onChange={(event) => setSearch(event.target.value)}
             />
             <span id="sidebar-search-summary" className="sr-only" role="status">
-              {query ? `搜索结果 · ${groups.length} 个项目` : `全部项目 · ${props.projects.length}`}
+              {query
+                ? `搜索结果 · ${groups.length} 个分组`
+                : `全部会话 · ${props.projects.length} 个项目`}
             </span>
           </div>
           <div className="sidebar-toolbar">
@@ -149,7 +173,7 @@ export function Sidebar(props: Props) {
               size="icon"
               aria-label="刷新会话列表"
               onClick={props.onRefresh}
-              disabled={props.projects.length === 0}
+              disabled={!props.projectsLoaded}
             >
               <Icon name="refresh" size={14} />
             </Button>
@@ -165,7 +189,8 @@ export function Sidebar(props: Props) {
                 key={project.id}
                 className="project-group"
                 aria-label={project.name}
-                data-project-id={project.id}
+                data-project-id={project.project?.id}
+                data-scope-id={project.id}
               >
                 <h2 className="project-heading">
                   <ControlHint asChild content={project.name}>
@@ -174,7 +199,7 @@ export function Sidebar(props: Props) {
                       onClick={() => props.onProject(project.id)}
                       aria-current={props.projectId === project.id ? 'true' : undefined}
                     >
-                      <Icon name="folder" size={16} />
+                      <Icon name={project.project ? 'folder' : 'code'} size={16} />
                       <span>{project.name}</span>
                       {activeCount > 0 && (
                         <span
@@ -186,28 +211,32 @@ export function Sidebar(props: Props) {
                       )}
                     </button>
                   </ControlHint>
-                  <ControlHint content={props.creating(project.id) ? '正在创建…' : '新建会话'}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={props.creating(project.id) ? '正在创建…' : '新建会话'}
-                      onClick={() => props.onCreate(project.id)}
-                      disabled={!props.canCreate(project.id) || props.creating(project.id)}
-                    >
-                      <Icon name={props.creating(project.id) ? 'loader' : 'plus'} size={15} />
-                    </Button>
-                  </ControlHint>
-                  <ControlHint content={'管理项目'}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`管理项目 ${project.name}`}
-                      onClick={() => props.onManageProject(project)}
-                      disabled={!props.canManageProjects}
-                    >
-                      <Icon name="settings" size={15} />
-                    </Button>
-                  </ControlHint>
+                  {project.project && (
+                    <>
+                      <ControlHint content={props.creating(project.id) ? '正在创建…' : '新建会话'}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={props.creating(project.id) ? '正在创建…' : '新建会话'}
+                          onClick={() => props.onCreate(project.id)}
+                          disabled={!props.canCreate(project.id) || props.creating(project.id)}
+                        >
+                          <Icon name={props.creating(project.id) ? 'loader' : 'plus'} size={15} />
+                        </Button>
+                      </ControlHint>
+                      <ControlHint content={'管理项目'}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`管理项目 ${project.name}`}
+                          onClick={() => props.onManageProject(project.project!)}
+                          disabled={!props.canManageProjects}
+                        >
+                          <Icon name="settings" size={15} />
+                        </Button>
+                      </ControlHint>
+                    </>
+                  )}
                 </h2>
                 {!project.available && (
                   <p className="inline-error project-error" role="status">
@@ -299,7 +328,7 @@ export function Sidebar(props: Props) {
               {query
                 ? '没有匹配的项目或已加载会话。'
                 : props.projectsLoaded
-                  ? '还没有项目。添加一个服务器目录，开始工作。'
+                  ? '暂无会话。直接新建会话，或添加项目。'
                   : '正在读取项目…'}
             </p>
           )}
