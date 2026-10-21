@@ -1,3 +1,6 @@
+import type { BackupController } from '../shared/backups.js';
+import { backupIdSchema } from '../shared/backups.js';
+import { backupRequestSchema } from '../backups/manager.js';
 import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -24,6 +27,7 @@ export interface HttpDependencies {
   staticDir: string;
   authenticate?: Authenticator;
   updates?: UpdateController;
+  backups?: BackupController;
 }
 export function createApp({
   config,
@@ -31,6 +35,7 @@ export function createApp({
   staticDir,
   authenticate = createAuthenticator(config),
   updates,
+  backups,
 }: HttpDependencies) {
   const app = new Hono<{
     Bindings: HttpBindings;
@@ -65,11 +70,24 @@ export function createApp({
     if (
       service.isInMaintenance() &&
       !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) &&
-      !c.req.path.startsWith('/api/updates')
+      !c.req.path.startsWith('/api/updates') &&
+      !c.req.path.startsWith('/api/backups')
     )
-      throw new AppError('UPDATE_MAINTENANCE', '正在升级，请等待服务重新连接', 503);
+      throw service.maintenanceError();
     await next();
   });
+  if (backups) {
+    app.get('/api/backups', async (c) => c.json(await backups.status()));
+    app.post('/api/backups', async (c) =>
+      c.json(await backups.start(backupRequestSchema.parse(await c.req.json())), 202),
+    );
+    app.post('/api/backups/:id/cancel', async (c) =>
+      c.json(await backups.cancel(backupIdSchema.parse(c.req.param('id')))),
+    );
+    app.post('/api/backups/:id/verify', async (c) =>
+      c.json(await backups.verify(backupIdSchema.parse(c.req.param('id')))),
+    );
+  }
   if (updates) {
     app.get('/api/updates', async (c) => c.json(await updates.status()));
     app.post('/api/updates/check', async (c) => {

@@ -1,3 +1,7 @@
+import { BackupManager } from '../backups/manager.js';
+import { createBackupStore } from '../backups/factory.js';
+import { assertNoPendingRestore } from '../backups/restore.js';
+import type { BackupController } from '../shared/backups.js';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { existsSync, realpathSync } from 'node:fs';
@@ -5,7 +9,7 @@ import { serve } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
 import { CodexAdapter } from '../codex/adapter.js';
 import type { CodexClient } from '../codex/types.js';
-import { loadConfig, type AppConfig } from './config.js';
+import { loadConfig, configSource, type AppConfig } from './config.js';
 import { acquireInstanceLock } from './instance-lock.js';
 import { openDatabase } from './db/index.js';
 import { migrateDatabase } from './db/migrate.js';
@@ -23,16 +27,23 @@ export async function startGateway(
     staticDir?: string;
     migrationsDir?: string;
     updates?: UpdateController;
+    backups?: BackupController;
     maintenance?: boolean;
   } = {},
 ) {
   const release = await acquireInstanceLock(config.dataDir);
   let closeDatabase: (() => void) | undefined;
   let codex: CodexClient | undefined;
+  let backups: BackupController | undefined = overrides.backups;
   const updates =
     overrides.updates ??
     new UpdateManager(undefined, undefined, () => codex?.diagnostics().codexVersion ?? null);
   try {
+    const source = configSource(config);
+    const backupStore = source
+      ? createBackupStore(source.path, config.dataDir, overrides.migrationsDir)
+      : undefined;
+    if (backupStore) await assertNoPendingRestore(backupStore.options.directory);
     const db = openDatabase(join(config.dataDir, 'app.sqlite'));
     closeDatabase = db.close;
     const packagedMigrations = fileURLToPath(new URL('../drizzle', import.meta.url));
@@ -51,6 +62,7 @@ export async function startGateway(
       demo: config.demo,
     });
     service.setMaintenance(overrides.maintenance ?? false);
+    backups ??= backupStore ? new BackupManager(backupStore, service) : undefined;
     try {
       await codex.start();
     } catch {
@@ -62,6 +74,7 @@ export async function startGateway(
       service,
       staticDir: overrides.staticDir ?? fileURLToPath(new URL('../web', import.meta.url)),
       updates,
+      backups,
     });
     const server = serve({
       fetch: app.fetch,
@@ -86,6 +99,7 @@ export async function startGateway(
         }
         wss.close();
         try {
+          await backups?.close();
           await service.shutdown();
         } finally {
           if ('closeAllConnections' in server) server.closeAllConnections();
@@ -97,9 +111,10 @@ export async function startGateway(
           }
         }
       })());
-    return { app, server, service, codex, close, updates };
+    return { app, server, service, codex, close, updates, backups };
   } catch (error) {
     updates.close();
+    await backups?.close();
     try {
       await codex?.stop();
     } finally {

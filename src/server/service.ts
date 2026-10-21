@@ -81,6 +81,7 @@ export class GatewayService {
   private readonly fileTemporaryRoots = temporaryFileRoots();
   private accepting = true;
   private maintenance = false;
+  private maintenanceReason: 'update' | 'backup' = 'update';
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly archiveChanges = new Set<string>();
@@ -148,10 +149,16 @@ export class GatewayService {
   isInMaintenance() {
     return this.maintenance;
   }
-  setMaintenance(value: boolean) {
+  setMaintenance(value: boolean, reason: 'update' | 'backup' = 'update') {
     this.maintenance = value;
+    this.maintenanceReason = reason;
   }
-  prepareUpdate(): { ready: boolean; reason?: string } {
+  maintenanceError() {
+    return this.maintenanceReason === 'backup'
+      ? new AppError('BACKUP_MAINTENANCE', '正在备份，请完成后重试。', 503)
+      : new AppError('UPDATE_MAINTENANCE', '正在升级，请等待服务重新连接', 503);
+  }
+  prepareUpdate(reason: 'update' | 'backup' = 'update'): { ready: boolean; reason?: string } {
     if (this.projectClones.hasActive) return { ready: false, reason: '等待项目克隆完成或取消' };
     if (this.shell.active()) return { ready: false, reason: '等待 Shell 命令结束' };
     if (this.inFlightOperations.size || this.resumes.size || this.pendingThreadCreations.size)
@@ -166,7 +173,7 @@ export class GatewayService {
     )
       return { ready: false, reason: '等待执行中的任务、审批或输入结束' };
     // Synchronous gate and check share one event-loop boundary with perform().
-    this.maintenance = true;
+    this.setMaintenance(true, reason);
     return { ready: true };
   }
   addProject(input: CreateProjectInput) {
@@ -1129,8 +1136,7 @@ export class GatewayService {
     work: () => Promise<{ result: unknown; turnId?: string; onAcknowledged?: () => void }>,
   ): Promise<Operation> {
     if (!this.accepting) throw new AppError('CODEX_UNAVAILABLE', '服务正在关闭', 503);
-    if (this.maintenance)
-      throw new AppError('UPDATE_MAINTENANCE', '正在升级，请等待服务重新连接', 503);
+    if (this.maintenance) throw this.maintenanceError();
     let accepted;
     try {
       accepted = this.store.accept(input.clientOperationId, kind, target, input);

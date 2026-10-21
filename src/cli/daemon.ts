@@ -55,6 +55,13 @@ export async function runDaemon(configPath: string) {
         await updates!.commitActivation(id);
         runtime!.service.setMaintenance(false);
         response.end(JSON.stringify({ activated: true }));
+      } else if (request.url === '/backup-status') {
+        response.end(JSON.stringify(await runtime!.backups?.status()));
+      } else if (request.url === '/backup-create') {
+        if (!runtime!.backups) throw new Error('此实例未配置备份');
+        response.end(
+          JSON.stringify(await runtime!.backups.start(input as { clientOperationId: string })),
+        );
       } else if (request.url === '/update-status') {
         response.end(JSON.stringify(await updates!.status()));
       } else if (request.url === '/update-check') {

@@ -27,7 +27,7 @@ export async function saveJson(filename: string, value: unknown) {
   }
 }
 
-async function syncDirectory(directory: string) {
+export async function syncDirectory(directory: string) {
   if (process.platform === 'win32') return;
   const handle = await open(directory, 'r');
   try {
