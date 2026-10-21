@@ -148,5 +148,17 @@
   "search_results_groups_one": "搜索结果 · {{v0}} 个分组",
   "search_results_groups_other": "搜索结果 · {{v0}} 个分组",
   "all_sessions_projects_one": "全部会话 · {{v0}} 个项目",
-  "all_sessions_projects_other": "全部会话 · {{v0}} 个项目"
+  "all_sessions_projects_other": "全部会话 · {{v0}} 个项目",
+  "reorder_projects": "调整项目顺序",
+  "project_order": "项目排序",
+  "order_done": "完成",
+  "order_help": "拖拽项目，或使用上下按钮调整顺序。新增或重新添加的项目排在末尾。",
+  "project_display_order": "项目显示顺序",
+  "order_position": "第 {{v0}} 项，共 {{v1}} 项",
+  "order_move_up": "上移项目 {{v0}}",
+  "order_move_down": "下移项目 {{v0}}",
+  "order_saving": "正在保存顺序…",
+  "order_saved": "顺序已保存",
+  "order_auto_save": "调整后自动保存，刷新和重启后仍会保留。",
+  "order_save_failed": "{{v0}} 请重试。"
 }

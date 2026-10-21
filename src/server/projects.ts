@@ -2,10 +2,19 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { accessSync, constants, realpathSync, statSync } from 'node:fs';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
-import { asc } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { AppError } from '../shared/errors.js';
-import type { CreateProjectInput, Project, RenameProjectInput } from '../shared/types.js';
-import { createProjectSchema, renameProjectSchema } from '../shared/validation.js';
+import type {
+  CreateProjectInput,
+  Project,
+  RenameProjectInput,
+  ReorderProjectsInput,
+} from '../shared/types.js';
+import {
+  createProjectSchema,
+  renameProjectSchema,
+  reorderProjectsSchema,
+} from '../shared/validation.js';
 import type { AppDatabase } from './db/index.js';
 import { projectRegistrations } from './db/schema.js';
 
@@ -47,7 +56,11 @@ export class ProjectRegistry {
     for (const row of database
       ?.select()
       .from(projectRegistrations)
-      .orderBy(asc(projectRegistrations.createdAt), asc(projectRegistrations.id))
+      .orderBy(
+        asc(projectRegistrations.sortOrder),
+        asc(projectRegistrations.createdAt),
+        asc(projectRegistrations.id),
+      )
       .all() ?? [])
       this.registered.set(row.id, row);
     // JSON remains a source of new registrations, while persisted UI decisions win.
@@ -78,6 +91,7 @@ export class ProjectRegistry {
         path,
         canonicalRoot,
         removedAt: null,
+        sortOrder: this.nextSortOrder(),
         createdAt: now,
         updatedAt: now,
       };
@@ -92,6 +106,13 @@ export class ProjectRegistry {
     return [...this.registered.values()].reduce(
       (next, row) => Math.max(next, row.createdAt + 1),
       Date.now(),
+    );
+  }
+
+  private nextSortOrder(): number {
+    return [...this.registered.values()].reduce(
+      (next, row) => Math.max(next, row.sortOrder + 1),
+      0,
     );
   }
 
@@ -171,7 +192,39 @@ export class ProjectRegistry {
   list(): Project[] {
     return [...this.registered.values()]
       .filter((project) => project.removedAt === null)
+      .sort(
+        (a, b) =>
+          a.sortOrder - b.sortOrder || a.createdAt - b.createdAt || a.id.localeCompare(b.id),
+      )
       .map((project) => this.inspect(project));
+  }
+
+  reorder(input: ReorderProjectsInput): Project[] {
+    const { projectIds } = reorderProjectsSchema.parse(input);
+    const active = [...this.registered.values()].filter((row) => row.removedAt === null);
+    if (
+      projectIds.length !== active.length ||
+      projectIds.some(
+        (id) => !this.registered.has(id) || this.registered.get(id)!.removedAt !== null,
+      )
+    )
+      throw new AppError('PROJECT_ORDER_CONFLICT', '项目列表已变化，请刷新后重新调整顺序', 409);
+    const now = Date.now();
+    const rows = projectIds.map((id, sortOrder) => ({
+      ...this.registration(id),
+      sortOrder,
+      updatedAt: now,
+    }));
+    // Commit the complete order atomically, then update memory only after success.
+    this.database?.transaction((tx) => {
+      for (const row of rows)
+        tx.update(projectRegistrations)
+          .set({ sortOrder: row.sortOrder, updatedAt: now })
+          .where(eq(projectRegistrations.id, row.id))
+          .run();
+    });
+    for (const row of rows) this.registered.set(row.id, row);
+    return this.list();
   }
 
   /** Also usable when a saved directory is missing, so it can still be managed. */
@@ -201,7 +254,12 @@ export class ProjectRegistry {
       // Restoring a grandfathered alias reuses an existing identity; it does not
       // create a duplicate registration even when another legacy alias is active.
       // A spelling/alias supplied during restoration does not change saved identity.
-      const restored = { ...removed, removedAt: null, updatedAt: now };
+      const restored = {
+        ...removed,
+        removedAt: null,
+        sortOrder: this.nextSortOrder(),
+        updatedAt: now,
+      };
       const project = this.inspect(restored);
       if (!project.available)
         throw new AppError('PROJECT_UNAVAILABLE', project.error ?? '原项目目录不可用', 409);
@@ -219,6 +277,7 @@ export class ProjectRegistry {
       path: canonicalRoot,
       canonicalRoot,
       removedAt: null,
+      sortOrder: this.nextSortOrder(),
       createdAt: this.nextCreatedAt(),
       updatedAt: now,
     };

@@ -79,6 +79,8 @@ export const api = {
   runtimeSettings: (projectId: string) =>
     request<RuntimeSettings>(`${scopeApi(projectId)}/runtime-settings`),
   projects: () => request<{ data: Project[] }>('/api/projects'),
+  reorderProjects: (projectIds: string[]) =>
+    request<{ data: Project[] }>('/api/projects/reorder', { projectIds }),
   addProject: (input: { path: string; name?: string }) => request<Project>('/api/projects', input),
   cloneProject: (input: CloneProjectInput) => request<ProjectClone>('/api/project-clones', input),
   projectClone: (id: string) =>

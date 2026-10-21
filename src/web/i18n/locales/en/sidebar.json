@@ -148,5 +148,17 @@
   "search_results_groups_one": "Search results · {{v0}} group",
   "search_results_groups_other": "Search results · {{v0}} groups",
   "all_sessions_projects_one": "All sessions · {{v0}} project",
-  "all_sessions_projects_other": "All sessions · {{v0}} projects"
+  "all_sessions_projects_other": "All sessions · {{v0}} projects",
+  "reorder_projects": "Reorder projects",
+  "project_order": "Project order",
+  "order_done": "Done",
+  "order_help": "Drag projects or use the arrow buttons to reorder. New or restored projects appear at the end.",
+  "project_display_order": "Project display order",
+  "order_position": "Position {{v0}} of {{v1}}",
+  "order_move_up": "Move project up: {{v0}}",
+  "order_move_down": "Move project down: {{v0}}",
+  "order_saving": "Saving order…",
+  "order_saved": "Order saved",
+  "order_auto_save": "Changes save automatically and survive refreshes and restarts.",
+  "order_save_failed": "{{v0}} Please try again."
 }

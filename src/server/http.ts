@@ -230,6 +230,9 @@ export function createApp({
     await parse(c, schemas.removeProjectSchema);
     return c.json(service.projectClones.retryRegistration(id(c.req.param('cloneId'))));
   });
+  app.post('/api/projects/reorder', async (c) =>
+    c.json(service.reorderProjects(await parse(c, schemas.reorderProjectsSchema))),
+  );
   app.get('/api/projects/:projectId/runtime-settings', async (c) =>
     c.json(await service.readRuntimeSettings(id(c.req.param('projectId')))),
   );

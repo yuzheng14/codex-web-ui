@@ -14,6 +14,9 @@ export const cloneProjectSchema = createProjectSchema.extend({
   repository: z.string().trim().min(1).max(4096),
 });
 export const removeProjectSchema = z.object({}).strict();
+export const reorderProjectsSchema = z
+  .object({ projectIds: z.array(idSchema).refine((ids) => new Set(ids).size === ids.length) })
+  .strict();
 export const settingsSchema = z
   .object({
     model: z.string().min(1).max(200).optional(),

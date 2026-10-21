@@ -43,6 +43,13 @@
       "when": 1792508483748,
       "tag": "0005_session_workspaces",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792593887655,
+      "tag": "0006_project_order",
+      "breakpoints": true
     }
   ]
 }

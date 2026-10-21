@@ -221,6 +221,80 @@ svg {
   gap: 8px;
   margin-bottom: 4px;
 }
+.sidebar-toolbar .archive-switch {
+  margin-right: auto;
+}
+.project-order-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.project-order-header h2 {
+  margin: 0;
+  font-size: 13px;
+}
+.project-order-help,
+.project-order-status {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.project-order-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin: 16px 0;
+  padding: 0;
+  list-style: none;
+}
+.project-order-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+.project-order-row[draggable='true'] {
+  cursor: grab;
+}
+.project-order-row[data-dragging] {
+  opacity: 0.5;
+}
+.project-order-row[data-drop]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+}
+.project-order-row[data-drop='before']::after {
+  top: -5px;
+}
+.project-order-row[data-drop='after']::after {
+  bottom: -5px;
+}
+.project-order-grip {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.project-order-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.project-order-row .button {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
 .project-list {
   min-height: 0;
   flex: 1;

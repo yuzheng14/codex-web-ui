@@ -7,6 +7,39 @@ import { defaultMigrationsFolder, migrateDatabase } from '../../src/server/db/mi
 import { OperationStore } from '../../src/server/db/operations.js';
 import { ProjectRegistry } from '../../src/server/projects.js';
 
+it('backfills project ordering in the previous database using creation order and ID ties', () => {
+  const root = mkdtempSync(join(tmpdir(), 'codex-project-order-upgrade-'));
+  const db = openDatabase(join(root, 'data', 'app.sqlite'));
+  try {
+    const previous = join(root, 'previous');
+    mkdirSync(join(previous, 'meta'), { recursive: true });
+    const journal = JSON.parse(
+      readFileSync(join(defaultMigrationsFolder, 'meta/_journal.json'), 'utf8'),
+    ) as { entries: { tag: string }[] };
+    const entries = journal.entries.slice(0, 6);
+    expect(entries.at(-1)?.tag).toBe('0005_session_workspaces');
+    for (const entry of entries)
+      cpSync(join(defaultMigrationsFolder, `${entry.tag}.sql`), join(previous, `${entry.tag}.sql`));
+    writeFileSync(join(previous, 'meta/_journal.json'), JSON.stringify({ ...journal, entries }));
+    migrateDatabase(db.database, previous);
+    db.database
+      .run(`INSERT INTO project_registrations (id, name, path, removed_at, created_at, updated_at) VALUES
+      ('z', 'Z', '/missing/z', NULL, 1, 1),
+      ('b', 'B', '/missing/b', NULL, 2, 2),
+      ('a', 'A', '/missing/a', NULL, 2, 2),
+      ('removed', 'Removed', '/missing/removed', 3, 0, 3)`);
+    migrateDatabase(db.database);
+    migrateDatabase(db.database);
+    const registry = new ProjectRegistry([], db.database);
+    expect(registry.list().map((p) => p.id)).toEqual(['z', 'a', 'b']);
+    registry.reorder({ projectIds: ['b', 'z', 'a'] });
+    expect(new ProjectRegistry([], db.database).list().map((p) => p.id)).toEqual(['b', 'z', 'a']);
+  } finally {
+    db.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 it('upgrades the parallel-thread database without losing executions, links or project identity', () => {
   const root = mkdtempSync(join(tmpdir(), 'codex-project-upgrade-'));
   const db = openDatabase(join(root, 'data', 'app.sqlite'));
