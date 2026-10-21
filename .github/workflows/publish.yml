@@ -141,3 +141,33 @@ jobs:
           DEV_BASE_VERSION: ${{ steps.prepare.outputs.dev_base_version }}
           DEV_BASE_COMMIT: ${{ steps.prepare.outputs.dev_base_commit }}
         run: node --import tsx scripts/dev-github-release.ts
+  beta_release:
+    needs: npm
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' && inputs.channel == 'beta'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: covro-beta-github-${{ inputs.version }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      # Run the release automation from this main workflow, even when promoting older source.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: pnpm install --frozen-lockfile
+      - name: Create the Beta GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BETA_RELEASE_VERSION: ${{ inputs.version }}
+          BETA_SOURCE_REF: ${{ inputs.source_ref }}
+        run: node --import tsx scripts/beta-github-release.ts

@@ -69,6 +69,14 @@ git push origin refs/tags/v0.1.0-beta.1
 
 标签推送和 Release 发布都由 `publish.yml` 的 Beta 路由解析标签，支持轻量和附注标签，将剥离后的确切 commit 派发给 main 上的同一个 `publish.yml`。后者重新核对 main 祖先关系、确切 Beta 版本标签与源码一致、该提交的成功 verify，再执行原有构建、验证、OIDC 发布与可见性等待。npm Trusted Publisher 仍只需绑定 `publish.yml`；路由使用 `actions: write` 派发发布，并使用 `contents: write` 为已发布的 Beta Release 补充确切标签的兼容说明，不获取 npm 发布身份。
 
+Beta npm 发布成功后，独立的 `beta_release` job 自动创建同名 GitHub Pre-release，使用 GitHub Generate Release Notes API，不再需要手工创建 Release。它从 npm 完整历史中选择先前 Beta 版本和正式版，只考虑目标源码及其祖先，按 Git 提交先后选择较新的比较起点，同一 commit 优先正式版。Dev 不参与；目标之后的源码和不低于当前版本的 Beta 不作为起点。缺失源码身份、提交分叉或标签与 npm 来源冲突会失败；没有历史起点时使用 GitHub 默认的初次说明范围。
+
+自动创建的 Beta Release 同样追加确切源码提交的 Codex 和数据库兼容声明；不依赖机器人创建 Release 后触发 `release` 事件。旧 Beta 源码尚无 `covroDatabase` 时省略数据库区块，不使用当前 main 的声明代替；已声明但无效的数据库契约会阻止创建。Dev 继续严格要求有效数据库声明。
+
+该 job 使用本轮 main 工作流提交中的自动化脚本，与被选作 Beta 的源码分开，因此可以推广包含原 Beta 入口、但尚无本次 Release 自动化脚本的旧 Dev 提交。创建前再次核对 npm 的确切版本和 commit，以及远程 Beta 标签（含附注标签）的来源；未发布的跳过版本不创建 Release。现有正确的 Pre-release 保留正文，已有草稿或正式 Release 不自动改写，需维护者处理后重跑。创建失败只需重跑失败 job；不重新发布 npm 包，不覆盖已用版本或移动标签。每个 Beta 版本的 Release 创建独立串行，避免重复请求竞争，且不占用 npm 发布队列。
+
+复用 runner 已有的 `gh` 和 `GITHUB_TOKEN`，新 job 仅需 `contents: write`，没有 npm OIDC 权限，不新增依赖或长期凭证。生成的 Release 明确设置 `prerelease: true`、`make_latest: false`；稳定版 latest 和 CHANGELOG 不变。使用 `GITHUB_TOKEN` 创建 Release 不会再递归触发发布工作流。
+
 推标签后再发布同一 Release 会产生相同版本、相同 commit 的请求，发布端核对身份后跳过重复版本。已经使用的标签不要移动或强推；每轮使用一个新 Beta 号，并等待本轮完成再发布下一轮。GitHub 并发组只保留一个等待任务，连续提交多轮请求可能替换较早的排队请求。
 
 标签提交需要包含本入口的 workflow 配置，故首次应选择本改动合并后的 main 提交。更早的标签不会自动获得新的 GitHub 触发规则；维护者可从 main 上手工补发，但目标源码必须包含发布验证脚本，缺失会在上传前被拒绝：
