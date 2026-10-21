@@ -30,8 +30,12 @@ const describeFailure = (error: unknown) =>
       ? error.message
       : t('settings:operation_failed_please_retry');
 
-export function GatewaySettings({ onClose }: { onClose: () => void }) {
+export function GatewaySettings({ onClose: onDismiss }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const onClose = () => {
+    dialog.current?.close();
+    onDismiss();
+  };
   const fileInput = useRef<HTMLInputElement>(null);
   const [snapshot, setSnapshot] = useState<GatewayConfigSnapshot>();
   const [form, setForm] = useState<ConfigForm>();

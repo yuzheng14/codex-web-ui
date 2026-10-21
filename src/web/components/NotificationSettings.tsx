@@ -8,12 +8,16 @@ import { Icon } from './Icon';
 
 export function NotificationSettings({
   notifications,
-  onClose,
+  onClose: onDismiss,
 }: {
   notifications: BrowserNotifications;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const onClose = () => {
+    dialog.current?.close();
+    onDismiss();
+  };
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();

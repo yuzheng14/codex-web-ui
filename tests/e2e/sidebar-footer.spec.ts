@@ -86,18 +86,25 @@ for (const locale of supportedLocales) {
   }
 }
 
-test('opening notification settings closes the overview and restores the footer focus', async ({
-  page,
-}) => {
-  await page.goto('/');
-  await confirmCompatibility(page);
-  const settings = await openSidebarSettings(page);
-  const status = await settings.locator('.sidebar-settings-status').textContent();
-  await settings.getByRole('button', { name: `工作完成通知 · ${status}` }).click();
-  await expect(settings).not.toBeVisible();
-  const notifications = page.getByRole('dialog', { name: '工作完成通知', exact: true });
-  await expect(notifications).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(notifications).not.toBeVisible();
-  await expect(page.locator('.sidebar-settings-trigger')).toBeFocused();
-});
+for (const target of [
+  { button: /工作完成通知/, dialog: '.notification-dialog' },
+  { button: '服务配置', dialog: '.gateway-dialog' },
+  { button: '备份与恢复', dialog: '.backup-dialog' },
+]) {
+  test(`opening ${target.dialog} closes the overview and restores the footer focus`, async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await confirmCompatibility(page);
+    const settings = await openSidebarSettings(page);
+    await settings
+      .getByRole('button', { name: target.button, exact: typeof target.button === 'string' })
+      .click();
+    await expect(settings).not.toBeVisible();
+    const child = page.locator(`${target.dialog}[open]`);
+    await expect(child).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(child).not.toBeVisible();
+    await expect(page.locator('.sidebar-settings-trigger')).toBeFocused();
+  });
+}
