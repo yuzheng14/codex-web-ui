@@ -1,21 +1,30 @@
-.activity-command > summary {
-  flex-wrap: wrap;
+.command-output {
+  position: relative;
+  min-width: 0;
+  margin: 8px 0;
+  border-radius: 5px;
+  background: #fff;
 }
 
-.activity-command > summary > .activity-description {
-  flex: 1;
+.command-output > .tool-output {
+  /* Keep a separate right edge for the button, clear of the output text. */
+  margin: 0 44px 0 0;
+  min-height: 44px;
+  outline-offset: -3px;
 }
 
 .command-output-copy-button {
-  flex-shrink: 0;
+  position: absolute;
+  top: 6px;
+  right: 6px;
   width: 32px;
   height: 32px;
   color: #657068;
 }
 
 .command-output-copy-feedback {
-  flex-basis: 100%;
-  order: 1;
+  display: block;
+  padding: 8px 44px 0 11px;
   color: #a18145;
   overflow-wrap: anywhere;
   line-height: 1.5;

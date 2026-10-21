@@ -52,12 +52,7 @@ export function CommandOutputCopyButton({
           className="command-output-copy-button"
           aria-label={t('conversation:copy_command_output')}
           disabled={!output}
-          onClick={(event) => {
-            // A copy action must not toggle the containing native disclosure.
-            event.preventDefault();
-            event.stopPropagation();
-            void copy();
-          }}
+          onClick={() => void copy()}
         >
           <Icon name={feedback === 'copied' ? 'check' : 'copy'} size={16} />
         </Button>

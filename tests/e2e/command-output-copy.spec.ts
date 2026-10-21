@@ -19,6 +19,8 @@ async function start(page: Page, scenario = '[command-output-copy]') {
 async function screenshot(page: Page, name: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.mouse.move(0, 0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
   await page.screenshot({ path: `/tmp/covro-command-output-${name}.png`, animations: 'disabled' });
 }
 
@@ -33,7 +35,7 @@ for (const viewport of [
   { name: 'desktop', width: 1280, height: 900 },
   { name: 'mobile', width: 320, height: 844 },
 ]) {
-  test(`${viewport.name}: collapsed and expanded commands copy only their exact output, including failed commands`, async ({
+  test(`${viewport.name}: the output has its own copy button, with exact text and failed command support`, async ({
     page,
   }) => {
     await page.setViewportSize(viewport);
@@ -44,19 +46,31 @@ for (const viewport of [
     const failed = commands(page).nth(1);
     const empty = commands(page).nth(2);
     await expect(first).not.toHaveAttribute('open');
+    await expect(copy(first)).toBeHidden();
+    await expect(header(first).getByRole('button', { name: '复制命令输出' })).toHaveCount(0);
+    await header(first).click();
+    await expect(copy(first)).toBeVisible();
+    await expect(feedback(first)).toBeEmpty();
+    const buttonBox = (await copy(first).boundingBox())!;
+    const outputBox = (await first.locator('.command-output').boundingBox())!;
+    const textBox = (await first.locator('.tool-output').boundingBox())!;
+    const commandBox = (await first.locator('pre.command').boundingBox())!;
+    expect(buttonBox.y).toBeCloseTo(outputBox.y + 6, 0);
+    expect(buttonBox.x + buttonBox.width).toBeCloseTo(outputBox.x + outputBox.width - 6, 0);
+    expect(buttonBox.x).toBeGreaterThanOrEqual(textBox.x + textBox.width);
+    expect(commandBox.y + commandBox.height).toBeLessThanOrEqual(outputBox.y);
+    await first.locator('.command-output').scrollIntoViewIfNeeded();
+    await screenshot(page, `${viewport.name}-idle`);
     await copy(first).focus();
     await copy(first).press('Enter');
-    await expect(first).not.toHaveAttribute('open');
+    await expect(first).toHaveAttribute('open', '');
     await expect(copy(first)).toBeFocused();
     await expect(feedback(first)).toHaveText('已复制');
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(stdout);
     await expect(feedback(failed)).toBeEmpty();
-    await expect(copy(empty)).toBeDisabled();
-    const buttonBox = (await copy(first).boundingBox())!;
-    const descriptionBox = (await first.locator('.activity-description').boundingBox())!;
-    expect(
-      Math.abs(buttonBox.y + buttonBox.height / 2 - descriptionBox.y - descriptionBox.height / 2),
-    ).toBeLessThanOrEqual(1);
+    await screenshot(page, `${viewport.name}-success`);
+    await header(first).click();
+    await expect(copy(first)).toBeHidden();
 
     await header(failed).click();
     await expect(failed).toHaveAttribute('open', '');
@@ -66,11 +80,13 @@ for (const viewport of [
     await expect(feedback(failed)).toHaveText('已复制');
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(failedOutput);
     await expect(failed.locator('.inline-error')).toBeVisible();
-    await screenshot(page, `${viewport.name}-success`);
     await expect(feedback(failed)).toBeEmpty();
+    await header(empty).click();
+    await expect(copy(empty)).toBeDisabled();
 
     await page.reload();
     await page.locator('.activity-group > summary').click();
+    await header(commands(page).first()).click();
     await copy(commands(page).first()).click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(stdout);
     if (viewport.name === 'desktop') {
@@ -91,6 +107,8 @@ test('long streaming output copies all loaded lines and preserves collapse state
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page, '[activity-stream]');
   const first = commands(page).first();
+  await expect(copy(first)).toBeHidden();
+  await header(first).click();
   const initial =
     Array.from(
       { length: 140 },
@@ -99,21 +117,23 @@ test('long streaming output copies all loaded lines and preserves collapse state
   await copy(first).focus();
   await copy(first).press('Space');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(initial);
-  await expect(first).not.toHaveAttribute('open');
+  await expect(first).toHaveAttribute('open', '');
   await expect(first.locator('.tool-output')).toContainText('stream-update-1');
   await expect(copy(first)).toBeFocused();
   await copy(first).press('Enter');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
     initial + 'stream-update-1: more test results arrived\n',
   );
+  await header(first).click();
+  await expect(copy(first)).toBeHidden();
   await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
   await expect(first).not.toHaveAttribute('open');
+  await header(first).click();
   await copy(first).press('Enter');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
     initial +
       'stream-update-1: more test results arrived\nstream-update-2: more test results arrived\n',
   );
-  await header(first).click();
   await first.locator('.tool-output').evaluate((node) => node.scrollIntoView({ block: 'start' }));
   await copy(first).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
@@ -127,16 +147,17 @@ test('long streaming output copies all loaded lines and preserves collapse state
   ).toHaveCount(0);
 });
 
-test('truncated output warns while collapsed and copies only the loaded portion without claiming completeness', async ({
+test('truncated output warns in the output area and copies only the loaded portion without claiming completeness', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page, '[command-output-truncated]');
   await expect(page.locator('.turn-heading .status')).toHaveText('已完成');
   const card = commands(page).first();
+  await header(card).click();
   await expect(feedback(card)).toHaveText('输出已截断，仅可复制已加载部分。');
   await copy(card).click();
-  await expect(card).not.toHaveAttribute('open');
+  await expect(card).toHaveAttribute('open', '');
   await expect(feedback(card)).toHaveText('已复制已加载部分（输出已截断）');
   const id = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
   const response = await page.request.get(`/api/threads/${id}`);
@@ -176,9 +197,10 @@ for (const failure of ['denied', 'unavailable']) {
       });
     }, failure);
     const card = commands(page).first();
+    await header(card).click();
     await copy(card).click();
-    await expect(card).not.toHaveAttribute('open');
-    await expect(feedback(card)).toHaveText('复制失败，请展开命令并手动选择输出复制。');
+    await expect(card).toHaveAttribute('open', '');
+    await expect(feedback(card)).toHaveText('复制失败，请手动选择输出复制。');
     await expect(page.getByText('已复制', { exact: true })).toHaveCount(0);
     await screenshot(page, `failed-${failure}`);
     await page.evaluate(() => Reflect.get(window, 'restoreClipboard')());

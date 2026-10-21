@@ -101,7 +101,7 @@
   "start_without_project": "Start without choosing a project. Sending assigns a separate working directory; the session and files are retained.",
   "copy_command_output": "Copy command output",
   "copy_loaded_command_output": "Copy this command’s loaded output",
-  "command_output_copy_failed": "Copy failed. Expand the command and select the output to copy manually.",
+  "command_output_copy_failed": "Copy failed. Select the output to copy manually.",
   "command_output_truncated": "Output truncated. Only the loaded portion can be copied.",
   "copied_truncated_command_output": "Copied loaded portion (output truncated)"
 }

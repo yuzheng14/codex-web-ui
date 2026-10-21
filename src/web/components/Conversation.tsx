@@ -91,9 +91,6 @@ function Activity({ item, streaming }: { item: ItemView; streaming: boolean }) {
           <span className="activity-status">
             {item.status ? (activityStatusLabels[item.status] ?? item.status) : ''}
           </span>
-          {item.type === 'commandExecution' && item.output !== undefined && (
-            <CommandOutputCopyButton output={item.output} truncated={item.truncated} />
-          )}
         </>
       }
     >
@@ -105,11 +102,19 @@ function Activity({ item, streaming }: { item: ItemView; streaming: boolean }) {
           </pre>
         )}
         {item.text && <TextContent text={item.text} streaming={streaming} />}
-        {item.output !== undefined && (
-          <pre className="tool-output">
-            <code>{item.output || t('conversation:no_output_yet')}</code>
-          </pre>
-        )}
+        {item.output !== undefined &&
+          (item.type === 'commandExecution' ? (
+            <div className="command-output">
+              <CommandOutputCopyButton output={item.output} truncated={item.truncated} />
+              <pre className="tool-output" tabIndex={0}>
+                <code>{item.output || t('conversation:no_output_yet')}</code>
+              </pre>
+            </div>
+          ) : (
+            <pre className="tool-output">
+              <code>{item.output || t('conversation:no_output_yet')}</code>
+            </pre>
+          ))}
         {item.truncated && (
           <p className="truncation">
             <Icon name="alert" size={14} />
