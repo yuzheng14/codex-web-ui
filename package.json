@@ -91,7 +91,7 @@
     "unsupported": []
   },
   "covroDatabase": {
-    "schemaVersion": 6,
+    "schemaVersion": 7,
     "minRestorableSchemaVersion": 1,
     "backupFormatVersion": 1
   }

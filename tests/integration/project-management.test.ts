@@ -113,6 +113,133 @@ function seed(directory: string): ProjectConfig[] {
 }
 
 describe('persistent project management', () => {
+  it('persists ordering and broadcasts it without changing names, identity or history', async () => {
+    const harness = setup((root) =>
+      ['a', 'b', 'c'].map((id) => {
+        const path = join(root, id);
+        mkdirSync(path);
+        return { id, name: id, path };
+      }),
+    );
+    const threadId = await createHistory(harness, 'a');
+    const receive = vi.fn();
+    harness.service.subscribeOverview(receive);
+    const projectIds = ['c', 'a', 'b'];
+    const response = await harness.post('/api/projects/reorder', { projectIds });
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { data: Project[] }).data.map((p) => p.id)).toEqual(
+      projectIds,
+    );
+    expect(receive).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'projects',
+        payload: projectIds.map((id) => expect.objectContaining({ id, name: id })),
+      }),
+    );
+    await harness.restart();
+    await harness.service.getThread(threadId);
+    await harness.service.listThreadSummaries('a');
+    await harness.post('/api/projects/a/rename', { name: 'Renamed' });
+    expect(
+      ((await (await harness.request('/api/projects')).json()) as { data: Project[] }).data.map(
+        (p) => p.id,
+      ),
+    ).toEqual(projectIds);
+    const path = join(harness.directory, 'new');
+    mkdirSync(path);
+    const added = await add(harness, path);
+    expect(harness.service.listProjects().map((p) => p.id)).toEqual([...projectIds, added.id]);
+    await harness.post('/api/projects/a/remove', {});
+    expect(harness.service.listProjects().map((p) => p.id)).toEqual(['c', 'b', added.id]);
+    expect((await add(harness, join(harness.directory, 'a'))).id).toBe('a');
+    expect(harness.service.listProjects().map((p) => p.id)).toEqual(['c', 'b', added.id, 'a']);
+    await harness.restart([
+      { id: 'new-config', name: 'Unavailable seed', path: join(harness.directory, 'missing') },
+      { id: 'a', name: 'Stale config name', path: join(harness.directory, 'a') },
+    ]);
+    expect(harness.service.listProjects().map((p) => p.id)).toEqual([
+      'c',
+      'b',
+      added.id,
+      'a',
+      'new-config',
+    ]);
+    expect(await harness.service.getThread(threadId)).toMatchObject({ projectId: 'a' });
+  });
+
+  it('rejects malformed and stale orders without dropping, duplicating or restoring projects', async () => {
+    const harness = setup(seed);
+    const path = join(harness.directory, 'second');
+    mkdirSync(path);
+    const second = await add(harness, path);
+    const original = ['configured', second.id];
+    for (const body of [
+      {},
+      { projectIds: 'configured' },
+      { projectIds: ['configured', 'configured'] },
+      { projectIds: original, path },
+      { projectIds: [''] },
+    ])
+      await expectError(
+        await harness.post('/api/projects/reorder', body),
+        400,
+        'VALIDATION_FAILED',
+      );
+    for (const projectIds of [[], ['configured'], ['configured', 'missing']])
+      await expectError(
+        await harness.post('/api/projects/reorder', { projectIds }),
+        409,
+        'PROJECT_ORDER_CONFLICT',
+      );
+    await expectError(
+      await harness.post(
+        '/api/projects/reorder',
+        { projectIds: original },
+        'https://attacker.invalid',
+      ),
+      403,
+      'INVALID_ORIGIN',
+    );
+    expect(harness.service.listProjects().map((p) => p.id)).toEqual(original);
+    await harness.post(`/api/projects/${second.id}/remove`, {});
+    await expectError(
+      await harness.post('/api/projects/reorder', { projectIds: original }),
+      409,
+      'PROJECT_ORDER_CONFLICT',
+    );
+    expect(harness.service.listProjects().map((p) => p.id)).toEqual(['configured']);
+    const empty = setup();
+    expect(await (await empty.post('/api/projects/reorder', { projectIds: [] })).json()).toEqual({
+      data: [],
+    });
+  });
+
+  it('rolls back the whole order and publishes no change if persistence fails partway', async () => {
+    const harness = setup((root) =>
+      ['a', 'b', 'c'].map((id) => ({ id, name: id, path: join(root, id) })),
+    );
+    const receive = vi.fn();
+    harness.service.subscribeOverview(receive);
+    harness.store.database
+      .run(`CREATE TEMP TRIGGER fail_reorder BEFORE UPDATE OF sort_order ON project_registrations
+      WHEN NEW.id = 'b' BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END`);
+    const response = await harness.post('/api/projects/reorder', { projectIds: ['c', 'b', 'a'] });
+    await expectError(response, 500, 'INTERNAL_ERROR');
+    expect(harness.service.listProjects().map((p) => p.id)).toEqual(['a', 'b', 'c']);
+    expect(receive).not.toHaveBeenCalled();
+    await harness.restart();
+    expect(harness.service.listProjects().map((p) => p.id)).toEqual(['a', 'b', 'c']);
+    // Missing directories remain sortable, as does the registry used without persistence.
+    const registry = new ProjectRegistry(
+      harness.service.listProjects().map((p) => ({ id: p.id, name: p.name, path: p.rootPath })),
+    );
+    expect(registry.reorder({ projectIds: ['b', 'c', 'a'] }).map((p) => p.id)).toEqual([
+      'b',
+      'c',
+      'a',
+    ]);
+  });
+
   it('starts without configured projects and persists add, rename, remove and restore across restarts', async () => {
     expect(parseConfig({}, '/tmp/config.json').projects).toEqual([]);
     const harness = setup();
@@ -553,8 +680,8 @@ describe('project identity and removal recovery regressions', () => {
       });
       expect(harness.store.getThreadLink('unlinked-history')?.projectId).toBe(survivingId);
       expect(harness.service.listProjects().map((project) => project.id)).toEqual([
-        'original',
-        'legacy-alias',
+        survivingId,
+        removedId,
       ]);
       await expectError(await harness.post('/api/projects', { path }), 409, 'PROJECT_EXISTS');
     },

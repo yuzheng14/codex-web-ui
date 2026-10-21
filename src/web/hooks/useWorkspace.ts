@@ -1109,6 +1109,21 @@ export function useWorkspace() {
   return {
     projects,
     projectsLoaded,
+    reorderProjects: async (projectIds: string[]) => {
+      const revision = ++projectRevision.current;
+      try {
+        const { data } = await api.reorderProjects(projectIds);
+        // A newer event (possibly from another tab) takes precedence over this response.
+        if (revision === projectRevision.current) {
+          projectRevision.current++;
+          applyProjects(data);
+        }
+      } catch (problem) {
+        if (problem instanceof HttpError && problem.authenticationRequired) report(problem);
+        await refreshProjects();
+        throw problem;
+      }
+    },
     openImportedProject: async (id: string) => {
       projectRevision.current++;
       await refreshProjects();

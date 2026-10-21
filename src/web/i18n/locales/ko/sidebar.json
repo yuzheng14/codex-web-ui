@@ -148,5 +148,17 @@
   "search_results_groups_one": "검색 결과 · 그룹 {{v0}}개",
   "search_results_groups_other": "검색 결과 · 그룹 {{v0}}개",
   "all_sessions_projects_one": "전체 세션 · 프로젝트 {{v0}}개",
-  "all_sessions_projects_other": "전체 세션 · 프로젝트 {{v0}}개"
+  "all_sessions_projects_other": "전체 세션 · 프로젝트 {{v0}}개",
+  "reorder_projects": "프로젝트 순서 변경",
+  "project_order": "프로젝트 순서",
+  "order_done": "완료",
+  "order_help": "프로젝트를 드래그하거나 위아래 버튼으로 순서를 변경하세요. 새로 추가하거나 다시 추가한 프로젝트는 마지막에 표시됩니다.",
+  "project_display_order": "프로젝트 표시 순서",
+  "order_position": "{{v1}}개 중 {{v0}}번째",
+  "order_move_up": "프로젝트 위로 이동: {{v0}}",
+  "order_move_down": "프로젝트 아래로 이동: {{v0}}",
+  "order_saving": "순서 저장 중…",
+  "order_saved": "순서가 저장되었습니다",
+  "order_auto_save": "변경 사항은 자동 저장되며 새로고침과 재시작 후에도 유지됩니다.",
+  "order_save_failed": "{{v0}} 다시 시도하세요."
 }

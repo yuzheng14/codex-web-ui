@@ -133,5 +133,6 @@
   "BACKUP_FAILED": "备份失败，请检查配置、目录权限与磁盘空间后重试。",
   "BACKUP_INVALID": "备份损坏、不完整或不兼容，不能恢复。",
   "BACKUP_TIMEOUT": "等待安全点超时，请在运行中的任务结束后重试。",
-  "BACKUP_MAINTENANCE": "正在备份，请完成后重试。"
+  "BACKUP_MAINTENANCE": "正在备份，请完成后重试。",
+  "PROJECT_ORDER_CONFLICT": "项目列表已变化，请刷新后重新调整顺序。"
 }

@@ -133,5 +133,6 @@
   "BACKUP_FAILED": "The backup failed. Check configuration, directory permissions and disk space before retrying.",
   "BACKUP_INVALID": "The backup is damaged, incomplete or incompatible and cannot be restored.",
   "BACKUP_TIMEOUT": "Timed out waiting for a safe point. Try again after active tasks finish.",
-  "BACKUP_MAINTENANCE": "A backup is in progress. Try again after it finishes."
+  "BACKUP_MAINTENANCE": "A backup is in progress. Try again after it finishes.",
+  "PROJECT_ORDER_CONFLICT": "The project list has changed. Refresh it and try reordering again."
 }

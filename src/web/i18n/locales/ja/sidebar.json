@@ -148,5 +148,17 @@
   "search_results_groups_one": "検索結果 · {{v0}} グループ",
   "search_results_groups_other": "検索結果 · {{v0}} グループ",
   "all_sessions_projects_one": "すべてのセッション · {{v0}} プロジェクト",
-  "all_sessions_projects_other": "すべてのセッション · {{v0}} プロジェクト"
+  "all_sessions_projects_other": "すべてのセッション · {{v0}} プロジェクト",
+  "reorder_projects": "プロジェクトを並べ替え",
+  "project_order": "プロジェクトの順序",
+  "order_done": "完了",
+  "order_help": "ドラッグまたは上下ボタンで並べ替えます。新規・再追加のプロジェクトは末尾に表示されます。",
+  "project_display_order": "プロジェクトの表示順",
+  "order_position": "{{v1}} 件中 {{v0}} 番目",
+  "order_move_up": "プロジェクトを上へ移動: {{v0}}",
+  "order_move_down": "プロジェクトを下へ移動: {{v0}}",
+  "order_saving": "順序を保存中…",
+  "order_saved": "順序を保存しました",
+  "order_auto_save": "変更は自動保存され、再読み込みや再起動後も保持されます。",
+  "order_save_failed": "{{v0}} もう一度お試しください。"
 }

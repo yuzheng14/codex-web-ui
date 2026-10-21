@@ -408,6 +408,7 @@ export function App() {
           setProjectDialog({ kind: 'manage', id: project.id });
         }}
         canManageProjects={!workspace.authRequired}
+        onReorderProjects={workspace.reorderProjects}
         onCreate={(projectId) => {
           workspace.setProjectId(projectId);
           setSidebarOpen(false);

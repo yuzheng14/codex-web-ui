@@ -29,8 +29,10 @@ async function fixture() {
   migrateSqlite(sqlite, migrations);
   sqlite.prepare('INSERT INTO preferences VALUES (?, ?)').run('saved', '"original"');
   sqlite
-    .prepare('INSERT INTO project_registrations VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run('p', 'Original project', root, root, null, 1, 1);
+    .prepare(
+      'INSERT INTO project_registrations (id, name, path, canonical_root, removed_at, created_at, updated_at, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+    .run('p', 'Original project', root, root, null, 1, 1, 3);
   const store = new BackupStore({
     directory: join(root, 'backups'),
     dataDir,
@@ -74,7 +76,7 @@ it('restores configuration, project registrations and preferences after data cha
   const { store, sqlite, config } = await fixture();
   await store.create({ id: 'before', trigger: 'preUpgrade', protectedBy: 'upgrade-1' });
   sqlite.prepare('UPDATE preferences SET value=?').run('"changed"');
-  sqlite.prepare('UPDATE project_registrations SET name=?').run('Changed project');
+  sqlite.prepare('UPDATE project_registrations SET name=?, sort_order=?').run('Changed project', 0);
   await writeFile(config, '{"dataDir":"./data","port":9999}');
   // The production caller stops the gateway and closes its handle before replacement.
   sqlite.close();
@@ -85,8 +87,9 @@ it('restores configuration, project registrations and preferences after data cha
     expect(restored.prepare('SELECT value FROM preferences').get()).toEqual({
       value: '"original"',
     });
-    expect(restored.prepare('SELECT name FROM project_registrations').get()).toEqual({
+    expect(restored.prepare('SELECT name, sort_order FROM project_registrations').get()).toEqual({
       name: 'Original project',
+      sort_order: 3,
     });
   } finally {
     restored.close();

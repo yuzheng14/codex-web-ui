@@ -3,7 +3,7 @@ import { displayMessage } from '../i18n/messages';
 import { t, changeLocale, currentLocale } from '../i18n';
 import { useState } from 'react';
 import { localeNames, supportedLocales, type Locale } from '../i18n/locales';
-import { ArrowUpCircle, Bell, Languages, DatabaseBackup } from 'lucide-react';
+import { ArrowDownUp, ArrowUpCircle, Bell, Languages, DatabaseBackup } from 'lucide-react';
 import type { Project, ThreadSummary } from '../../shared/types';
 import type { ProjectThreads } from '../lib/project-threads';
 import { cn } from '../lib/utils';
@@ -13,6 +13,7 @@ import { Icon } from './Icon';
 import { isActive } from './Status';
 import { ThreadLink } from './ThreadLink';
 import { ThreadListNavigation } from './ThreadListNavigation';
+import { ProjectOrderList } from './ProjectOrderList';
 
 interface Props {
   archiveView: boolean;
@@ -37,6 +38,7 @@ interface Props {
   onAddProject: () => void;
   onManageProject: (project: Project) => void;
   canManageProjects: boolean;
+  onReorderProjects: (projectIds: string[]) => Promise<void>;
   creating: (projectId: string) => boolean;
   canCreate: (projectId: string) => boolean;
   offline: boolean;
@@ -54,6 +56,7 @@ interface Props {
 
 export function Sidebar(props: Props) {
   const [search, setSearch] = useState('');
+  const [ordering, setOrdering] = useState(false);
   const query = search.trim().toLocaleLowerCase();
   const scopes = [
     {
@@ -141,6 +144,7 @@ export function Sidebar(props: Props) {
               aria-describedby="sidebar-search-summary"
               placeholder={t('sidebar:search_projects_and_loaded_sessions')}
               value={search}
+              disabled={ordering}
               onChange={(event) => setSearch(event.target.value)}
             />
             <span id="sidebar-search-summary" className="sr-only" role="status">
@@ -176,6 +180,21 @@ export function Sidebar(props: Props) {
                 {t('sidebar:archived_sessions')}
               </Button>
             </div>
+            <ControlHint content={t('sidebar:reorder_projects')}>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t('sidebar:reorder_projects')}
+                aria-pressed={ordering}
+                disabled={ordering || !props.canManageProjects || props.projects.length < 2}
+                onClick={() => {
+                  setSearch('');
+                  setOrdering(true);
+                }}
+              >
+                <ArrowDownUp size={14} aria-hidden="true" />
+              </Button>
+            </ControlHint>
             <Button
               variant="ghost"
               size="icon"
@@ -189,10 +208,18 @@ export function Sidebar(props: Props) {
         </div>
         <ThreadListNavigation
           locale={currentLocale()}
-          context={`${props.archiveView}:${query}`}
+          context={`${props.archiveView}:${query}:${ordering}`}
           rows={props.projectThreads}
         >
-          {groups.map(({ project, state, threads }) => {
+          {ordering && (
+            <ProjectOrderList
+              projects={props.projects}
+              disabled={!props.canManageProjects}
+              onReorder={props.onReorderProjects}
+              onClose={() => setOrdering(false)}
+            />
+          )}
+          {(ordering ? [] : groups).map(({ project, state, threads }) => {
             const activeCount = (state?.data ?? []).filter((entry) =>
               isActive(entry.status),
             ).length;
@@ -343,7 +370,7 @@ export function Sidebar(props: Props) {
               </section>
             );
           })}
-          {groups.length === 0 && (
+          {!ordering && groups.length === 0 && (
             <p className="sidebar-empty">
               {query
                 ? t('sidebar:no_matching_projects_or_loaded_sessions')

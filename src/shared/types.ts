@@ -102,6 +102,9 @@ export interface ProjectClone {
 export interface RenameProjectInput {
   name: string;
 }
+export interface ReorderProjectsInput {
+  projectIds: string[];
+}
 export interface FileChange {
   path: string;
   kind: string;

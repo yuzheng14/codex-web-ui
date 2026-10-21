@@ -27,6 +27,7 @@ import type {
   PendingAction,
   ReconcileInput,
   RenameProjectInput,
+  ReorderProjectsInput,
   RenameThreadInput,
   ResolveActionInput,
   ResumeThreadInput,
@@ -193,6 +194,11 @@ export class GatewayService {
     const project = this.projects.rename(projectId, input);
     this.events.publishProjects(this.projects.list());
     return project;
+  }
+  reorderProjects(input: ReorderProjectsInput) {
+    const projects = this.projects.reorder(input);
+    this.events.publishProjects(projects);
+    return { data: projects };
   }
   removeProject(projectId: string): { removed: true } {
     // A missing directory must still be removable. Do not call get(), which requires it.

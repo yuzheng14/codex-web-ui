@@ -107,6 +107,7 @@ export const projectRegistrations = sqliteTable('project_registrations', {
   path: text('path').notNull(),
   canonicalRoot: text('canonical_root'),
   removedAt: integer('removed_at'),
+  sortOrder: integer('sort_order').notNull().default(0),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });

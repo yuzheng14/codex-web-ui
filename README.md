@@ -32,7 +32,7 @@
 - 📱 **Step away from your desk. Stay with the task.** Follow tool activity, inspect file changes, handle permission requests, and answer Codex's questions from your computer or phone. Closing the page doesn't cancel the task.
 - 💬 **Start without a project.** Use **New session** to start in an automatically assigned directory. Conversations and files stay available after refresh, restart, or archive.
 - 🌐 **Choose your interface language.** Switch between 简体中文, English, 日本語 and 한국어 without leaving your session. Prompts, replies, tool output and paths remain unchanged. [Localization details](docs/i18n.md).
-- 🗂️ **See every project in one place.** Run independent tasks in parallel and spot which conversations are working, waiting for approval, or ready to read.
+- 🗂️ **See every project in one place.** Run independent tasks in parallel and spot which conversations are working, waiting for approval, or ready to read. Use **Reorder projects** to drag projects or move them with the arrow buttons on desktop and mobile. Your order survives refreshes and restarts; new or restored projects appear at the end.
 - 💬 **Pick up your Codex CLI conversations.** Browse saved history, resume existing work, or fork a new direction. Rename conversations to find them later and archive them when you're done. View and copy the full Thread ID in conversation details or diagnostics.
 - ⚡ **Open long conversations sooner.** Recent messages appear first; scrolling preloads older history. On this device, cached conversation lists and history pages appear while the server checks for updates. [Loading and cache behavior](docs/session-history.md).
 - 📖 **Review the work beside the conversation.** Read Markdown documents with code, tables, images, and Mermaid diagrams, or open JSON files in a desktop side panel while you keep talking to Codex. Mermaid diagrams also render in replies; view or copy their source and inspect wide diagrams at actual size. JSON previews include indentation, syntax highlighting, and original text for invalid JSON. Copy the unchanged source, with a full-screen reader on mobile. File previews are read-only; Markdown and JSON files have a 2 MiB limit.
@@ -153,7 +153,7 @@ Each release declares its recommended and verified Codex CLI versions. The updat
 
 Automatic installation is off by default. Managed upgrades support **macOS and Linux npm global installations**; source, linked, container, and Windows installations use their original update method. A failed candidate is rolled back before business writes resume; downgrades must pass database compatibility checks. Old backups are retained without automatic rotation.
 
-DB Schema **6** is tracked independently of the application version. Releases declare the schema and the verified backup migration range; an older application cannot open a newer database. See [database compatibility](docs/database.md).
+DB Schema **7** is tracked independently of the application version. Releases declare the schema and the verified backup migration range; an older application cannot open a newer database. See [database compatibility](docs/database.md).
 
 Managed upgrades create and validate a private backup of the Covro database and service configuration before replacing the installation. A failed backup blocks activation. These snapshots do not include Codex history, credentials or project files. See [backup scope](docs/backups.md).
 
