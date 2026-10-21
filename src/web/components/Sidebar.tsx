@@ -384,7 +384,7 @@ export function Sidebar(props: Props) {
             onClick={props.onBackups}
           >
             <DatabaseBackup size={15} aria-hidden="true" />
-            <span>备份与恢复</span>
+            <span>{t('backups:title')}</span>
           </Button>
           <Button
             className="notification-settings-button"

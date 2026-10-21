@@ -1,25 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
 import { DatabaseBackup, RefreshCw, ShieldCheck } from 'lucide-react';
-import type { BackupRecord, BackupStatus } from '../../shared/backups';
-import { request } from '../lib/api';
+import type { BackupStatus } from '../../shared/backups';
+import { t, formatNumber, formatDate } from '../i18n';
+import { displayMessage, message, messageDetails } from '../i18n/messages';
+import { errorMessage } from '../lib/error-message';
+import { HttpError, request } from '../lib/api';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 
-const phases: Record<BackupRecord['phase'], string> = {
-  waiting: '等待安全点',
-  copying: '正在备份',
-  verifying: '正在验证',
-  succeeded: '备份成功',
-  failed: '备份失败',
-  cancelled: '已取消',
-  interrupted: '备份已中断',
-  corrupt: '备份不可用',
-};
-const triggers = { manual: '手动备份', preUpgrade: '升级前备份', preRestore: '恢复前备份' };
 function size(bytes: number) {
-  return bytes >= 1024 * 1024
-    ? `${(bytes / 1024 / 1024).toFixed(1)} MiB`
-    : `${(bytes / 1024).toFixed(1)} KiB`;
+  const mib = bytes >= 1024 * 1024;
+  return `${formatNumber(bytes / (mib ? 1024 * 1024 : 1024), {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })} ${mib ? 'MiB' : 'KiB'}`;
+}
+function failureMessage(failure: unknown, fallback: string) {
+  return failure instanceof HttpError
+    ? errorMessage(failure.problem)
+    : message(fallback, { details: failure instanceof Error ? failure.message : undefined });
+}
+function TechnicalDetails({ value }: { value?: string }) {
+  return value ? (
+    <details className="backup-technical-details">
+      <summary>{t('common:technical_details')}</summary>
+      <pre>{value}</pre>
+    </details>
+  ) : null;
 }
 export function BackupSettings({ onClose }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -48,8 +55,7 @@ export function BackupSettings({ onClose }: { onClose: () => void }) {
         if (next.records.some((record) => record.id === pendingId.current))
           pendingId.current = undefined;
       } catch (failure) {
-        if (!controller.signal.aborted)
-          setLoadError(failure instanceof Error ? failure.message : '无法读取备份记录。');
+        if (!controller.signal.aborted) setLoadError(failureMessage(failure, 'backups:loadFailed'));
       } finally {
         if (!controller.signal.aborted) timer = setTimeout(() => void poll(), 1000);
       }
@@ -75,7 +81,7 @@ export function BackupSettings({ onClose }: { onClose: () => void }) {
         pendingId.current = undefined;
       }
     } catch (failure) {
-      if (mounted.current) setError(failure instanceof Error ? failure.message : '备份操作失败。');
+      if (mounted.current) setError(failureMessage(failure, 'backups:operationFailed'));
     } finally {
       generation.current++;
       if (mounted.current) setBusy(false);
@@ -101,21 +107,21 @@ export function BackupSettings({ onClose }: { onClose: () => void }) {
       <div className="project-dialog-heading">
         <div>
           <DatabaseBackup size={20} aria-hidden="true" />
-          <h2 id="backup-title">备份与恢复</h2>
+          <h2 id="backup-title">{t('backups:title')}</h2>
         </div>
-        <Button variant="ghost" size="icon" aria-label="关闭备份与恢复" onClick={onClose}>
+        <Button variant="ghost" size="icon" aria-label={t('backups:close')} onClick={onClose}>
           <Icon name="close" size={17} />
         </Button>
       </div>
-      <p className="subtle">
-        备份保存在运行服务的电脑上。等待任务、审批和待核对操作结束后生成快照，不中断正在运行的任务。
-      </p>
-      <section className="backup-summary" aria-label="备份概况">
+      <p className="subtle">{t('backups:introduction')}</p>
+      <section className="backup-summary" aria-label={t('backups:overview')}>
+        <span>{t('backups:currentSchema', { version: String(status?.schemaVersion ?? '…') })}</span>
         <span>
-          当前 Schema <strong>{status?.schemaVersion ?? '…'}</strong>
-        </span>
-        <span>
-          已完成 <strong>{complete.length}</strong> 份 · {size(total)}
+          {t('backups:completed', {
+            count: complete.length,
+            number: formatNumber(complete.length),
+            size: size(total),
+          })}
         </span>
       </section>
       <div className="backup-actions">
@@ -127,7 +133,7 @@ export function BackupSettings({ onClose }: { onClose: () => void }) {
           }}
         >
           <DatabaseBackup size={16} aria-hidden="true" />
-          {busy ? '正在处理…' : '立即备份'}
+          {busy ? t('backups:processing') : t('backups:create')}
         </Button>
         {active && (
           <Button
@@ -135,46 +141,55 @@ export function BackupSettings({ onClose }: { onClose: () => void }) {
             disabled={busy}
             onClick={() => void act(`/api/backups/${encodeURIComponent(active.id)}/cancel`, {})}
           >
-            取消备份
+            {t('backups:cancel')}
           </Button>
         )}
       </div>
       {active && (
-        <section className="backup-progress" role="status" aria-label="备份进度">
-          <strong>{phases[active.phase]}</strong>
-          <p>{active.message}</p>
+        <section className="backup-progress" role="status" aria-label={t('backups:progress')}>
+          <strong>{t(`backups:phase_${active.phase}`)}</strong>
+          <p>{t(`backups:description_${active.phase}`)}</p>
+          <TechnicalDetails value={active.message} />
           {active.phase !== 'waiting' && (
-            <progress aria-label="数据库备份进度" max={100} value={active.progress} />
+            <progress
+              aria-label={t('backups:databaseProgress')}
+              max={100}
+              value={active.progress}
+            />
           )}
-          <p className="subtle">关闭此页面后，服务仍会继续处理。</p>
+          <p className="subtle">{t('backups:continues')}</p>
         </section>
       )}
       {(error || loadError) && (
-        <p className="inline-error" role="alert">
-          {error ?? loadError}
-        </p>
+        <div className="inline-error" role="alert">
+          <p>{displayMessage(error ?? loadError)}</p>
+          <TechnicalDetails value={messageDetails(error ?? loadError)} />
+        </div>
       )}
       {notice && (
         <p className="backup-notice" role="status">
           <ShieldCheck size={16} aria-hidden="true" />
-          {notice}
+          {displayMessage(notice)}
         </p>
       )}
-      {status?.unsupportedReason && <p className="inline-error">{status.unsupportedReason}</p>}
-      <h3>备份记录</h3>
-      {!status && !error && !loadError && <p className="subtle">正在读取备份记录…</p>}
-      {status && !records.length && (
-        <p className="backup-empty">还没有备份。创建第一份快照，或在升级前自动创建。</p>
+      {status?.unsupportedReason && (
+        <div className="inline-error">
+          <p>{t('backups:unavailable')}</p>
+          <TechnicalDetails value={status.unsupportedReason} />
+        </div>
       )}
+      <h3>{t('backups:records')}</h3>
+      {!status && !error && !loadError && <p className="subtle">{t('backups:loading')}</p>}
+      {status && !records.length && <p className="backup-empty">{t('backups:empty')}</p>}
       <ol className="backup-records">
         {records.map((record) => (
           <li key={record.id} className="backup-record" data-phase={record.phase}>
             <div className="backup-record-heading">
-              <strong>{phases[record.phase]}</strong>
-              <span>{triggers[record.trigger]}</span>
+              <strong>{t(`backups:phase_${record.phase}`)}</strong>
+              <span>{t(`backups:trigger_${record.trigger}`)}</span>
             </div>
             <time dateTime={new Date(record.createdAt).toISOString()}>
-              {new Date(record.createdAt).toLocaleString()}
+              {formatDate(new Date(record.createdAt), { dateStyle: 'short', timeStyle: 'medium' })}
             </time>
             {record.manifest && (
               <p>
@@ -188,9 +203,10 @@ export function BackupSettings({ onClose }: { onClose: () => void }) {
                 ['failed', 'corrupt', 'interrupted'].includes(record.phase) ? 'alert' : undefined
               }
             >
-              {record.message}
+              {t(`backups:description_${record.phase}`)}
             </p>
-            {record.manifest?.protectedBy && <p className="subtle">升级修复保留 · 请勿清理</p>}
+            <TechnicalDetails value={record.message} />
+            {record.manifest?.protectedBy && <p className="subtle">{t('backups:protected')}</p>}
             <code className="backup-path">{record.path}</code>
             {record.manifest && !['waiting', 'copying', 'verifying'].includes(record.phase) && (
               <Button
@@ -201,41 +217,35 @@ export function BackupSettings({ onClose }: { onClose: () => void }) {
                   void act(
                     `/api/backups/${encodeURIComponent(record.id)}/verify`,
                     {},
-                    '备份已重新验证，可按当前版本的恢复流程使用。',
+                    message('backups:verified'),
                   )
                 }
               >
                 <RefreshCw size={13} aria-hidden="true" />
-                重新验证
+                {t('backups:verify')}
               </Button>
             )}
             {record.phase === 'succeeded' && (
               <details className="backup-restore">
-                <summary>恢复方式</summary>
-                <p>
-                  先在服务端终端预检，停服后用相同备份 ID
-                  确认恢复。恢复会覆盖配置和应用数据，并丢弃备份之后的应用数据。
-                </p>
+                <summary>{t('backups:recovery')}</summary>
+                <p>{t('backups:recoveryWarning')}</p>
                 <code>
                   covro backup restore {record.id} --config{' '}
                   {JSON.stringify(record.manifest?.configPath)}
                 </code>
-                <p>预检会显示覆盖范围、兼容性及后续确认步骤。</p>
+                <p>{t('backups:recoveryPreview')}</p>
               </details>
             )}
           </li>
         ))}
       </ol>
-      <section className="backup-scope" aria-label="备份范围与保留策略">
-        <h3>范围与保留</h3>
-        <p>
-          包含 Covro 服务配置、项目注册、偏好和应用数据库记录。Codex
-          会话正文、凭据、附件与产物、项目文件需要分别备份。
-        </p>
-        <p>备份不自动清理。升级修复依赖的备份应保留；恢复前的原始文件副本也会占用磁盘。</p>
+      <section className="backup-scope" aria-label={t('backups:scope')}>
+        <h3>{t('backups:scopeTitle')}</h3>
+        <p>{t('backups:included')}</p>
+        <p>{t('backups:retention')}</p>
         {status && (
           <>
-            <span>存储目录</span>
+            <span>{t('backups:directory')}</span>
             <code className="backup-path">{status.directory}</code>
           </>
         )}

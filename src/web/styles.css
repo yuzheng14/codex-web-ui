@@ -4750,9 +4750,6 @@ dd {
   font-size: 13px;
   color: var(--muted);
 }
-.backup-summary strong {
-  color: inherit;
-}
 .backup-actions {
   margin: 4px 0 16px;
 }
@@ -4831,11 +4828,18 @@ dd {
   font-size: 13px;
 }
 
-.backup-settings-button {
-  display: flex;
-  height: 26px;
-  min-height: 26px;
-  margin: -4px 0 8px -5px;
+.sidebar-footer .backup-settings-button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  max-width: 100%;
+  height: auto;
+  margin: 0;
   padding: 3px 5px;
   font-size: 12px;
+  white-space: normal;
+}
+
+.backup-technical-details pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

@@ -127,5 +127,11 @@
   "CLONE_FAILED": "Git cloning failed. Check the repository URL, server credentials, directory permissions and disk space. No project was added; inspect remaining files before retrying with a new empty directory.",
   "CLONE_REGISTRATION_FAILED": "Project registration failed. Cloned files remain in the destination. Retry adding the project without cloning again, or use “Existing directory”.",
   "CLONE_TIMED_OUT": "Cloning exceeded 30 minutes and was stopped. No project was added and no files were deleted. Inspect the destination and retry with a new empty directory.",
-  "CLONE_CANCELLED": "No project was added and no files were deleted. Files may remain in the destination; inspect it before retrying with a new empty directory."
+  "CLONE_CANCELLED": "No project was added and no files were deleted. Files may remain in the destination; inspect it before retrying with a new empty directory.",
+  "BACKUP_BUSY": "A backup is already in progress. Wait for it to finish.",
+  "BACKUP_UNAVAILABLE": "Backups are unavailable. Check the service configuration and technical details.",
+  "BACKUP_FAILED": "The backup failed. Check configuration, directory permissions and disk space before retrying.",
+  "BACKUP_INVALID": "The backup is damaged, incomplete or incompatible and cannot be restored.",
+  "BACKUP_TIMEOUT": "Timed out waiting for a safe point. Try again after active tasks finish.",
+  "BACKUP_MAINTENANCE": "A backup is in progress. Try again after it finishes."
 }
