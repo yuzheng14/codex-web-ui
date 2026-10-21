@@ -30,6 +30,8 @@ import { UpdateSettings } from './components/UpdateSettings';
 import { useConversationHistory } from './hooks/useConversationHistory';
 import { useUpdates } from './hooks/useUpdates';
 import { useShell } from './hooks/useShell';
+import { useMobileInputViewport } from './hooks/useMobileInputViewport';
+import { usesMobileInput } from './lib/mobile-input';
 import { ShellPanel } from './components/ShellPanel';
 import { shellActive } from '../shared/shell';
 import { updateActive } from '../shared/updates';
@@ -51,8 +53,10 @@ function WorkspaceLayout({
   getHistoryCursor: (targetId: string) => string | undefined;
   children: ReactNode;
 }) {
+  const shellRef = useRef<HTMLDivElement>(null);
+  useMobileInputViewport(shellRef, usesMobileInput(navigator));
   return (
-    <div className="app-shell">
+    <div className="app-shell" ref={shellRef}>
       <FilePreviewProvider threadId={threadId} getHistoryCursor={getHistoryCursor}>
         {children}
       </FilePreviewProvider>
