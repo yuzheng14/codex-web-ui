@@ -50,6 +50,7 @@ async function managerFixture(metadata: unknown = manifest) {
   vi.spyOn(registry, 'inspectInstallation').mockResolvedValue(undefined);
   vi.spyOn(registry, 'lookupRelease').mockResolvedValue({
     name: '@covro/covro',
+    channel: 'stable',
     version: '9.0.0',
     covroCodex: metadata,
   });
@@ -107,12 +108,17 @@ it('keeps automatic installation paused for unverified, unsupported, unavailable
       await vi.advanceTimersByTimeAsync(30 * 60_000);
       expect(start).not.toHaveBeenCalled();
     }
-    vi.mocked(registry.lookupRelease).mockResolvedValue({ name: '@covro/covro', version: '9.0.0' });
+    vi.mocked(registry.lookupRelease).mockResolvedValue({
+      name: '@covro/covro',
+      channel: 'stable',
+      version: '9.0.0',
+    });
     setVersion('0.164.0');
     await vi.advanceTimersByTimeAsync(30 * 60_000);
     expect(start).not.toHaveBeenCalled();
     vi.mocked(registry.lookupRelease).mockResolvedValue({
       name: '@covro/covro',
+      channel: 'stable',
       version: '9.0.0',
       covroCodex: manifest,
     });

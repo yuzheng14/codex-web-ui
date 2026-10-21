@@ -1,5 +1,5 @@
 import { npmPackageName } from '../shared/package.js';
-import { validVersion } from '../shared/versions.js';
+import { validVersion, compareVersions } from '../shared/versions.js';
 export { validVersion, compareVersions } from '../shared/versions.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -20,29 +20,40 @@ export const releaseSchema = z.object({
   name: z.literal(npmPackageName),
   version: z.string().refine(validVersion),
   gitHead: z.string().optional(),
+  covroCommit: z.string().optional(),
   covroCodex: z.unknown().optional(),
 });
 export function packageMetadataUrl(selector?: string) {
   const url = `${registry}/${encodeURIComponent(npmPackageName)}`;
   return selector === undefined ? url : `${url}/${encodeURIComponent(selector)}`;
 }
-export async function lookupRelease(channel: ReleaseChannel, signal?: AbortSignal) {
-  // Resolve a channel exactly once. Install the resulting immutable version, never the moving tag.
+async function lookupTag(channel: ReleaseChannel, signal?: AbortSignal) {
   const response = await fetch(packageMetadataUrl(npmTags[channel]), {
     signal: signal
       ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
       : AbortSignal.timeout(15_000),
     headers: { accept: 'application/json' },
   });
-  if (!response.ok)
-    throw new Error(
-      response.status === 404
-        ? `npm 尚未发布 Covro 的 ${channel} 渠道`
-        : `npm 查询失败（${response.status}）`,
-    );
+  if (response.status === 404) return undefined;
+  if (!response.ok) throw new Error(`npm ${npmTags[channel]} 查询失败（${response.status}）`);
   const body = await response.text();
   if (body.length > 2 * 1024 * 1024) throw new Error('npm 元数据过大');
-  return releaseSchema.parse(JSON.parse(body));
+  return { ...releaseSchema.parse(JSON.parse(body)), channel };
+}
+export async function lookupRelease(channel: ReleaseChannel, signal?: AbortSignal) {
+  // Resolve every allowed source once, then bind the chosen version and its metadata.
+  // Stable wins equal precedence; a newer prerelease still wins over an older stable.
+  const sources: ReleaseChannel[] = channel === 'stable' ? ['stable'] : ['stable', channel];
+  const releases = await Promise.all(sources.map((source) => lookupTag(source, signal)));
+  let selected: Awaited<ReturnType<typeof lookupTag>>;
+  for (const release of releases)
+    if (release && (!selected || compareVersions(release.version, selected.version) > 0))
+      selected = release;
+  if (!selected)
+    throw new Error(
+      `npm 尚未发布 Covro 的可用版本（${sources.map((source) => npmTags[source]).join('、')}）`,
+    );
+  return selected;
 }
 export async function inspectInstallation(root: string): Promise<string | undefined> {
   try {

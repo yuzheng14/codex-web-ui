@@ -139,11 +139,13 @@ covro update
 covro update --channel dev
 ```
 
-| 渠道   | npm 标签 | 适合                                               |
-| ------ | -------- | -------------------------------------------------- |
-| 稳定版 | `latest` | 日常使用                                           |
-| 预览版 | `beta`   | 维护者通过 Beta 标签或 GitHub Release 选定的预览版 |
-| 开发版 | `dev`    | CI 通过后的 main 分支新功能                        |
+| 渠道   | npm 标签         | 适合                                               |
+| ------ | ---------------- | -------------------------------------------------- |
+| 稳定版 | `latest`         | 日常使用                                           |
+| 预览版 | `beta`、`latest` | 维护者通过 Beta 标签或 GitHub Release 选定的预览版 |
+| 开发版 | `dev`、`latest`  | CI 通过后的 main 分支新功能                        |
+
+稳定版只检查 `latest`；预览版和开发版分别比较自身标签与 `latest`，按 SemVer 选择最新版本，开发版不接收预览版。安装稳定版后仍保留所选订阅，继续接收后续预览版或开发版；安装较旧候选版本需要明确允许降级。
 
 开发版和预览版 npm 发布成功后，还会创建带 GitHub 自动生成说明的 [GitHub Pre-release](https://github.com/yuzheng14/covro/releases)。比较起点取同一渠道的先前版本与稳定版本中源码提交较新的那个。推送 Beta 标签即可发布 npm 包并创建对应的 Pre-release；重跑时保留已有发布说明。Beta 说明还会附上所选源码的兼容性声明。稳定版仍保留原来的分组 Changelog。
 

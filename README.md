@@ -139,11 +139,13 @@ covro update
 covro update --channel dev
 ```
 
-| Channel | npm tag  | Choose it for                                    |
-| ------- | -------- | ------------------------------------------------ |
-| Stable  | `latest` | Regular use                                      |
-| Beta    | `beta`   | Maintainer-selected Beta tags or GitHub Releases |
-| Dev     | `dev`    | New main-branch changes after CI passes          |
+| Channel | npm tag          | Choose it for                                    |
+| ------- | ---------------- | ------------------------------------------------ |
+| Stable  | `latest`         | Regular use                                      |
+| Beta    | `beta`, `latest` | Maintainer-selected Beta tags or GitHub Releases |
+| Dev     | `dev`, `latest`  | New main-branch changes after CI passes          |
+
+Stable checks only `latest`. Beta and Dev each compare their own tag with `latest` and select the newest version by SemVer; Dev does not receive Beta. Installing a stable version keeps your selected subscription, so future Beta or Dev updates remain available. Older candidates require explicit downgrade permission.
 
 Successful Dev and Beta npm publications also create a [GitHub Pre-release](https://github.com/yuzheng14/covro/releases) with automatically generated notes. The comparison starts from whichever has the newer source commit: the preceding version in the same channel or a stable version. Push a Beta tag to publish both the npm package and its Pre-release; existing release notes are preserved on retries. Beta notes also include compatibility declarations from the selected source. Stable releases retain their grouped changelog.
 

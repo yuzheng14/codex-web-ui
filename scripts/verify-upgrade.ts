@@ -31,6 +31,9 @@ const [major, minor, patch] = metadata.version.split('-')[0]!.split('.');
 
 for (const mode of [
   'success',
+  'stable-beta',
+  'stable-dev',
+  'commit-mismatch',
   'failure',
   'repair',
   'repair-live',
@@ -47,7 +50,8 @@ for (const mode of [
   const failure = ['failure', 'repair', 'repair-live', 'repair-resumed'].includes(mode);
   const rolledBack = failure || mode === 'codex-restarted';
   const rejected =
-    mode.startsWith('codex-') && !['codex-confirmed', 'codex-restarted'].includes(mode);
+    mode === 'commit-mismatch' ||
+    (mode.startsWith('codex-') && !['codex-confirmed', 'codex-restarted'].includes(mode));
   const repair = mode.startsWith('repair');
   const directory = await mkdtemp('/private/tmp/covro-verify-').catch(async () => {
     const { tmpdir } = await import('node:os');
@@ -64,7 +68,9 @@ for (const mode of [
   let child: ReturnType<typeof spawn> | undefined;
   let worker: ReturnType<typeof spawn> | undefined;
   const candidate = join(directory, 'candidate');
-  const target = `${major}.${minor}.${BigInt(patch!) + 1n}-dev.${failure ? 2 : 1}`;
+  const stableCandidate = mode.startsWith('stable-');
+  const subscription = mode === 'stable-beta' ? 'beta' : 'dev';
+  const target = `${major}.${minor}.${BigInt(patch!) + 1n}${stableCandidate ? '' : `-dev.${failure ? 2 : 1}`}`;
   try {
     await mkdir(root, { recursive: true });
     for (const entry of ['bin', 'dist', 'package.json'])
@@ -73,7 +79,8 @@ for (const mode of [
     await cp(root, candidate, { recursive: true });
     const next = JSON.parse(await readFile(join(candidate, 'package.json'), 'utf8'));
     next.version = target;
-    next.covroChannel = 'dev';
+    next.covroChannel = stableCandidate ? 'stable' : 'dev';
+    next.covroCommit = 'a'.repeat(40);
     if (
       ['codex-mismatch', 'codex-unverified', 'codex-confirmed', 'codex-unsupported'].includes(mode)
     )
@@ -217,7 +224,9 @@ for (const mode of [
       id,
       from: metadata.version,
       target,
-      channel: 'dev',
+      channel: subscription,
+      sourceChannel: stableCandidate ? 'stable' : 'dev',
+      commit: mode === 'commit-mismatch' ? 'b'.repeat(40) : next.covroCommit,
       codex: {
         version: mode === 'codex-changed' ? '0.162.1' : CODEX_COMPATIBILITY.recommended,
         manifest:
@@ -301,6 +310,16 @@ for (const mode of [
       current.maintenance
     )
       throw new Error('Service activation did not settle');
+    if (stableCandidate) {
+      const status = (await (await fetch(`${origin}/api/updates`)).json()) as {
+        settings: { channel: string };
+        run: UpdateRun;
+      };
+      if (status.settings.channel !== subscription || status.run.sourceChannel !== 'stable')
+        throw new Error(
+          'Stable activation changed the subscribed channel or lost the candidate source',
+        );
+    }
     if (rejected) {
       const snapshot = transactionPaths(
         root,
