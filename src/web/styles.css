@@ -4828,15 +4828,22 @@ dd {
   font-size: 13px;
 }
 
+.sidebar-local-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.sidebar-local-tools .language-selector > svg {
+  display: none;
+}
 .sidebar-footer .backup-settings-button {
-  grid-column: 1 / -1;
-  justify-self: start;
-  max-width: 100%;
-  height: auto;
-  margin: 0;
-  padding: 3px 5px;
-  font-size: 12px;
-  white-space: normal;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  color: var(--muted);
 }
 
 .backup-technical-details pre {

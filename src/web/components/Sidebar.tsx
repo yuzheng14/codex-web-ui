@@ -354,20 +354,33 @@ export function Sidebar(props: Props) {
           )}
         </ThreadListNavigation>
         <div className="sidebar-footer">
-          <label className="language-selector">
-            <Languages size={16} aria-hidden="true" />
-            <select
-              aria-label={t('common:language')}
-              value={currentLocale()}
-              onChange={(event) => void changeLocale(event.target.value as Locale)}
-            >
-              {supportedLocales.map((locale) => (
-                <option key={locale} value={locale} lang={locale}>
-                  {localeNames[locale]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="sidebar-local-tools">
+            <label className="language-selector">
+              <Languages size={16} aria-hidden="true" />
+              <select
+                aria-label={t('common:language')}
+                value={currentLocale()}
+                onChange={(event) => void changeLocale(event.target.value as Locale)}
+              >
+                {supportedLocales.map((locale) => (
+                  <option key={locale} value={locale} lang={locale}>
+                    {localeNames[locale]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <ControlHint content={t('backups:title')} asChild>
+              <Button
+                className="backup-settings-button"
+                variant="ghost"
+                size="icon"
+                aria-label={t('backups:title')}
+                onClick={props.onBackups}
+              >
+                <DatabaseBackup size={16} aria-hidden="true" />
+              </Button>
+            </ControlHint>
+          </div>
           <Button
             className="gateway-settings-button"
             variant="ghost"
@@ -376,15 +389,6 @@ export function Sidebar(props: Props) {
           >
             <Icon name="settings" size={15} />
             <span>{t('common:service_settings')}</span>
-          </Button>
-          <Button
-            className="backup-settings-button"
-            variant="ghost"
-            size="sm"
-            onClick={props.onBackups}
-          >
-            <DatabaseBackup size={15} aria-hidden="true" />
-            <span>{t('backups:title')}</span>
           </Button>
           <Button
             className="notification-settings-button"
