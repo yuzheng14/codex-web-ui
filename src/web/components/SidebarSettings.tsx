@@ -41,10 +41,13 @@ function SettingsDialog({ onClose, ...props }: Props & { onClose: () => void }) 
     return () => element?.close();
   }, []);
 
-  // Close before opening another dialog so its close restores focus to the footer trigger.
-  const navigate = (action: () => void) => {
+  const close = () => {
+    // Close while still mounted so the browser can restore focus to the footer trigger.
     dialog.current?.close();
     onClose();
+  };
+  const navigate = (action: () => void) => {
+    close();
     action();
   };
   return (
@@ -54,7 +57,7 @@ function SettingsDialog({ onClose, ...props }: Props & { onClose: () => void }) 
       aria-labelledby="sidebar-settings-title"
       onCancel={(event) => {
         event.preventDefault();
-        onClose();
+        close();
       }}
     >
       <div className="project-dialog-heading">
@@ -62,7 +65,7 @@ function SettingsDialog({ onClose, ...props }: Props & { onClose: () => void }) 
           <Settings size={20} aria-hidden="true" />
           <h2 id="sidebar-settings-title">{t('sidebar:settings')}</h2>
         </div>
-        <Button variant="ghost" size="icon" aria-label={t('common:close')} onClick={onClose}>
+        <Button variant="ghost" size="icon" aria-label={t('common:close')} onClick={close}>
           <Icon name="close" size={17} />
         </Button>
       </div>
