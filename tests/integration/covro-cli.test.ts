@@ -24,6 +24,7 @@ it('parses default background and explicit configuration without forwarding unkn
   expect(() => parseArguments(['start', '--prefix', '/tmp/other'])).toThrow('Unknown argument');
 });
 
+// Repeated cold CLI starts plus real backup/restore need more than the default 15s on CI.
 it('runs the real daemon, reuses its private control socket, and preserves its database on stop', async () => {
   // The production entry is built by the package verification job, not fetched from npm.
   const root = await mkdtemp(join(tmpdir(), 'covro-cli-'));
@@ -101,4 +102,4 @@ it('runs the real daemon, reuses its private control socket, and preserves its d
   );
   expect(restored.restored).toBe(true);
   expect((await readFile(join(root, 'data/app.sqlite'))).length).toBeGreaterThan(0);
-});
+}, 60_000);
