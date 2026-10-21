@@ -52,6 +52,8 @@ Mermaid diagrams render locally after their code fence closes, with automatic li
 
 DB Schema **6** is tracked independently of the application version. Releases declare the schema and the verified backup migration range; an older application cannot open a newer database. See [database compatibility](docs/database.md).
 
+Managed upgrades create and validate a private backup of the Covro database and service configuration before replacing the installation. A failed backup blocks activation. These snapshots do not include Codex history, credentials or project files. See [backup scope](docs/backups.md).
+
 ## 🚀 Get started
 
 You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The interface supports Simplified Chinese, English, Japanese and Korean. Choose **Language** in the sidebar; the first visit follows your browser preferences, and manual choices are saved on this device.
