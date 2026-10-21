@@ -103,6 +103,8 @@ for (const target of [
     await expect(settings).not.toBeVisible();
     const child = page.locator(`${target.dialog}[open]`);
     await expect(child).toBeVisible();
+    if (target.dialog === '.gateway-dialog')
+      await expect(child.getByRole('button', { name: '关闭服务配置' })).toBeEnabled();
     await page.keyboard.press('Escape');
     await expect(child).not.toBeVisible();
     await expect(page.locator('.sidebar-settings-trigger')).toBeFocused();
