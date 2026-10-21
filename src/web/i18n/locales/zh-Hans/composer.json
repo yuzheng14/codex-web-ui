@@ -38,5 +38,7 @@
   "pixels_other": "{{v0}} 像素",
   "pixels_one": "{{v0}} 像素",
   "up_to_images_per_message_other": "每条消息最多添加 {{v0}} 张图片。",
-  "up_to_images_per_message_one": "每条消息最多添加 {{v0}} 张图片。"
+  "up_to_images_per_message_one": "每条消息最多添加 {{v0}} 张图片。",
+  "tap_to_send_enter_for_new_line": "点击发送按钮 · Enter 换行",
+  "tap_to_run_command_enter_for_new_line": "点击执行命令 · Enter 换行"
 }
