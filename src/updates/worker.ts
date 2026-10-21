@@ -253,11 +253,17 @@ async function worker(directory: string) {
       ],
       { timeout: 10 * 60_000, maxBuffer: 2 * 1024 * 1024 },
     );
-    const candidate = await readJson<{ name: string; version: string; covroCodex?: unknown }>(
-      join(paths.candidate, 'package.json'),
-    );
+    const candidate = await readJson<{
+      name: string;
+      version: string;
+      covroCodex?: unknown;
+      covroCommit?: string;
+      gitHead?: string;
+    }>(join(paths.candidate, 'package.json'));
     if (candidate?.name !== npmPackageName || candidate.version !== record.target)
       throw new Error('候选包身份或版本不匹配');
+    if (record.commit && (candidate.covroCommit ?? candidate.gitHead) !== record.commit)
+      throw new Error('候选包源码提交与检查时不一致，拒绝切换');
     if (!record.codex) throw new Error('缺少 Codex 升级校验记录，请重新检查更新');
     const manifest = codexCompatibilitySchema.parse(candidate.covroCodex);
     if (JSON.stringify(manifest) !== JSON.stringify(record.codex.manifest))

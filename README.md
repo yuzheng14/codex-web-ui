@@ -37,7 +37,7 @@
 - ⚡ **Open long conversations sooner.** Recent messages appear first; scrolling preloads older history. On this device, cached conversation lists and history pages appear while the server checks for updates. [Loading and cache behavior](docs/session-history.md).
 - 📖 **Review the work beside the conversation.** Read Markdown documents with code, tables, images, and Mermaid diagrams, or open JSON files in a desktop side panel while you keep talking to Codex. Mermaid diagrams also render in replies; view or copy their source and inspect wide diagrams at actual size. JSON previews include indentation, syntax highlighting, and original text for invalid JSON. Copy the unchanged source, with a full-screen reader on mobile. File previews are read-only; Markdown and JSON files have a 2 MiB limit.
 - 🔎 **Inspect code changes.** Open Codex’s saved patches for a turn or tool in the same read-only panel. Scroll through all files, inspect line numbers, see the exact words changed within each line, and jump between change blocks. Long diffs start collapsed and render when expanded. File headers stay visible while scrolling so you can collapse the current file.
-- ✍️ **Switch tasks without losing your draft.** Each conversation keeps its own draft, pasted images, and model settings in the current page. Copy or export results when you're done.
+- ✍️ **Switch tasks without losing your draft.** Each conversation keeps its own draft, pasted images, and model settings in the current page. On phones and tablets, Enter inserts a new line and the send button submits; desktop keeps Enter to send and Shift + Enter for a new line. Copy or export results when you're done.
 - 🖥️ **Run a command beside your task.** Open **Shell** to execute commands in the selected project's directory, follow stdout/stderr, interrupt a run, and reuse recent commands. The panel uses Codex's configured sandbox, with a ten-minute limit and no interactive input. Closing it keeps the command running. [Capabilities and limits](docs/shell.md).
 - 🛟 **Keep a recovery point.** Open **Backups and recovery** in the sidebar to create a server-side backup, follow its progress and review verified snapshots. Upgrades use the same backup engine. Recovery runs offline through the CLI. [Scope and recovery instructions](docs/backups.md).
 
@@ -139,11 +139,13 @@ covro update
 covro update --channel dev
 ```
 
-| Channel | npm tag  | Choose it for                                    |
-| ------- | -------- | ------------------------------------------------ |
-| Stable  | `latest` | Regular use                                      |
-| Beta    | `beta`   | Maintainer-selected Beta tags or GitHub Releases |
-| Dev     | `dev`    | New main-branch changes after CI passes          |
+| Channel | npm tag          | Choose it for                                    |
+| ------- | ---------------- | ------------------------------------------------ |
+| Stable  | `latest`         | Regular use                                      |
+| Beta    | `beta`, `latest` | Maintainer-selected Beta tags or GitHub Releases |
+| Dev     | `dev`, `latest`  | New main-branch changes after CI passes          |
+
+Stable checks only `latest`. Beta and Dev each compare their own tag with `latest` and select the newest version by SemVer; Dev does not receive Beta. Installing a stable version keeps your selected subscription, so future Beta or Dev updates remain available. Older candidates require explicit downgrade permission.
 
 Successful Dev and Beta npm publications also create a [GitHub Pre-release](https://github.com/yuzheng14/covro/releases) with automatically generated notes. The comparison starts from whichever has the newer source commit: the preceding version in the same channel or a stable version. Push a Beta tag to publish both the npm package and its Pre-release; existing release notes are preserved on retries. Beta notes also include compatibility declarations from the selected source. Stable releases retain their grouped changelog.
 

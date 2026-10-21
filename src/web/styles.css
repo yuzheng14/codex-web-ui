@@ -145,8 +145,23 @@ svg {
 }
 .app-shell {
   display: flex;
-  height: 100dvh;
+  height: var(--input-viewport-height, 100dvh);
   overflow: hidden;
+}
+.app-shell[data-mobile-input-focused] {
+  position: relative;
+  top: var(--input-viewport-top, 0px);
+}
+.app-shell[data-mobile-input-focused] .conversation-area {
+  min-height: 0;
+}
+.app-shell[data-mobile-input-focused] .bottom-region {
+  /* Let the conversation shrink before clipping the send controls. */
+  max-height: 100%;
+  flex-shrink: 1;
+}
+.app-shell[data-mobile-input-focused] .composer-note {
+  display: none;
 }
 .sidebar {
   width: 292px;
@@ -2062,6 +2077,20 @@ html.composer-resizing * {
 }
 .composer-box textarea::placeholder {
   color: #a8aeab;
+}
+.composer-region[data-mobile-input] textarea {
+  /* Avoid iOS focus zoom so the controls stay in the visible viewport. */
+  font-size: 16px;
+}
+.composer-region[data-mobile-input] .composer-submit .button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.composer-input-hint {
+  margin: 0;
+  padding: 0 13px 4px;
+  color: var(--muted);
+  font-size: 11px;
 }
 .composer-images {
   display: flex;

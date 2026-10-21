@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { UpdateStatus } from '../../src/shared/updates';
+import type { ReleaseChannel, UpdateStatus } from '../../src/shared/updates';
 import { confirmCompatibility, controlRuntime } from './helpers';
 const currentVersion = (
   JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
@@ -30,6 +30,7 @@ async function updatesFixture(page: Page) {
     settings: { channel: 'stable', automatic: false },
   };
   let candidateMetadata: unknown = CODEX_COMPATIBILITY;
+  let candidateRelease: { version: string; channel: ReleaseChannel } | undefined;
   const requests: { path: string; body: Record<string, unknown> }[] = [];
   let reload = false;
   await page.route('**/api/updates**', async (route) => {
@@ -52,7 +53,9 @@ async function updatesFixture(page: Page) {
     if (path.endsWith('/check'))
       state.available = {
         version: body.channel === 'dev' ? developmentVersion : nextVersion,
-        channel: body.channel as 'dev' | 'stable',
+        channel: body.channel as ReleaseChannel,
+        ...candidateRelease,
+        requestedChannel: body.channel as ReleaseChannel,
         downgrade: false,
         commit: '8fb09cabcdef',
         codex: assessCodexCompatibility(candidateMetadata, state.codex.version),
@@ -63,7 +66,8 @@ async function updatesFixture(page: Page) {
         id: String(body.clientOperationId),
         from: currentVersion,
         target: state.available!.version,
-        channel: body.channel as 'dev',
+        channel: body.channel as ReleaseChannel,
+        sourceChannel: state.available!.channel,
         phase: 'waiting',
         message: '等待执行中的任务、审批或输入结束',
         startedAt: Date.now(),
@@ -80,6 +84,9 @@ async function updatesFixture(page: Page) {
     setCandidate: (metadata: unknown) => {
       candidateMetadata = metadata;
     },
+    setRelease: (release: typeof candidateRelease) => {
+      candidateRelease = release;
+    },
     setCodex: (version: string | null) => {
       state.codex = assessCodexCompatibility(CODEX_COMPATIBILITY, version);
       if (state.available)
@@ -89,6 +96,54 @@ async function updatesFixture(page: Page) {
       reload = true;
     },
   };
+}
+
+for (const channel of ['beta', 'dev'] as const) {
+  for (const viewport of [
+    { name: 'desktop', width: 1440, height: 1100 },
+    { name: 'mobile', width: 390, height: 844 },
+  ]) {
+    test(`${viewport.name}: ${channel} displays and installs a stable candidate while keeping its subscription`, async ({
+      page,
+    }) => {
+      const fixture = await updatesFixture(page);
+      fixture.state.settings.channel = channel;
+      fixture.state.settings.automatic = true;
+      fixture.setRelease({ version: nextVersion, channel: 'stable' });
+      await page.setViewportSize(viewport);
+      await page.goto('/');
+      await confirmCompatibility(page);
+      if (viewport.name === 'mobile')
+        await page.getByRole('button', { name: '打开项目与会话', exact: true }).click();
+      await page.getByRole('button', { name: 'Covro 更新', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Covro 更新', exact: true });
+      const selector = dialog.getByRole('combobox', { name: '版本渠道' });
+      await expect(selector).toHaveValue(channel);
+      await dialog.getByRole('button', { name: '检查更新', exact: true }).click();
+      await expect(dialog.locator('.update-available')).toContainText(nextVersion);
+      await expect(dialog.locator('.update-available')).toContainText('稳定版');
+      await expect(dialog.locator('.update-source')).toContainText('latest');
+      await expect(dialog).toContainText(channel === 'dev' ? '不接收预览版' : '保留预览版订阅');
+      await screenshot(page, `issue-207-${channel}-${viewport.name}.png`);
+      // Stable candidates retain the same Codex gates as channel-specific candidates.
+      fixture.setCandidate({ recommended: '0.164.0', verified: ['0.164.0'], unsupported: [] });
+      await dialog.getByRole('button', { name: '检查更新', exact: true }).click();
+      await expect(dialog).toContainText('自动升级已暂停');
+      const upgrade = dialog.getByRole('button', { name: '升级并重启', exact: true });
+      await expect(upgrade).toBeDisabled();
+      await dialog.getByRole('checkbox', { name: '允许尝试未验证的 Codex 组合' }).check();
+      await upgrade.click();
+      await expect(dialog).toContainText('等待任务空闲');
+      await expect(selector).toHaveValue(channel);
+      await expect(dialog.locator('.update-progress')).toContainText('稳定版');
+      const runs = fixture.requests.filter((request) => request.path.endsWith('/run'));
+      expect(runs).toHaveLength(1);
+      expect(runs[0]!.body.channel).toBe(channel);
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+    });
+  }
 }
 test.beforeEach(async ({ request }) => {
   await controlRuntime(request, { reset: true });

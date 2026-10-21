@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import type { SlashCommand } from '../lib/slash-commands';
 
 interface Props {
+  mobileInput?: boolean;
   id: string;
   commands: SlashCommand[];
   selectedIndex: number;
@@ -10,7 +11,14 @@ interface Props {
   onExecute: (command: SlashCommand) => void;
 }
 
-export function SlashCommandMenu({ id, commands, selectedIndex, onSelect, onExecute }: Props) {
+export function SlashCommandMenu({
+  mobileInput,
+  id,
+  commands,
+  selectedIndex,
+  onSelect,
+  onExecute,
+}: Props) {
   const selectedRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: 'nearest' });
@@ -61,7 +69,11 @@ export function SlashCommandMenu({ id, commands, selectedIndex, onSelect, onExec
           {t('commands:no_matching_commands_type_help_to_view_supported')}
         </p>
       )}
-      <div className="slash-menu-footer">{t('commands:to_select_enter_to_run_esc_to_close')}</div>
+      <div className="slash-menu-footer">
+        {mobileInput
+          ? t('composer:tap_to_run_command_enter_for_new_line')
+          : t('commands:to_select_enter_to_run_esc_to_close')}
+      </div>
     </div>
   );
 }

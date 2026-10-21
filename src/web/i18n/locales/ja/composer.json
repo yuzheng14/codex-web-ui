@@ -38,5 +38,7 @@
   "pixels_other": "{{v0}} ピクセル",
   "pixels_one": "{{v0}} ピクセル",
   "up_to_images_per_message_other": "1 メッセージにつき {{v0}} 枚まで添付できます。",
-  "up_to_images_per_message_one": "1 メッセージにつき {{v0}} 枚まで添付できます。"
+  "up_to_images_per_message_one": "1 メッセージにつき {{v0}} 枚まで添付できます。",
+  "tap_to_send_enter_for_new_line": "送信ボタンで送信 · Enter で改行",
+  "tap_to_run_command_enter_for_new_line": "タップしてコマンド実行 · Enter で改行"
 }

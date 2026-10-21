@@ -4,6 +4,7 @@ import type { CodexCompatibility } from '../../shared/codex-compatibility';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpCircle, ExternalLink } from 'lucide-react';
 import { releaseChannels, updateActive, type ReleaseChannel } from '../../shared/updates';
+import { compareVersions, validVersion } from '../../shared/versions';
 import type { Updates } from '../hooks/useUpdates';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
@@ -85,9 +86,16 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
   const [selectedChannel, setChannel] = useState<ReleaseChannel>();
   const channel = selectedChannel ?? status?.settings.channel ?? 'stable';
   const [allowDowngrade, setAllowDowngrade] = useState(false);
-  const selected = status?.available?.channel === channel ? status.available : undefined;
+  const selected =
+    (status?.available?.requestedChannel ?? status?.available?.channel) === channel
+      ? status?.available
+      : undefined;
   const active = updateActive(status?.run);
-  const current = selected?.version === status?.version;
+  const current =
+    selected &&
+    status &&
+    validVersion(status.version) &&
+    compareVersions(selected.version, status.version) === 0;
   const [codexConsent, setCodexConsent] = useState<string>();
   const identity = JSON.stringify([channel, selected?.version, selected?.codex]);
   const confirmedCodex = codexConsent === identity;
@@ -209,6 +217,7 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
                 : t('updates:available_version')}
           </span>
           <strong>{selected.version}</strong>
+          <span>{labels[selected.channel]}</span>
           {selected.commit && <code>{selected.commit.slice(0, 8)}</code>}
         </div>
       )}
@@ -238,7 +247,7 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
       )}
       {selected &&
         !current &&
-        selected.channel === status?.settings.channel &&
+        channel === status?.settings.channel &&
         status.settings.automatic &&
         compatibility?.status !== 'verified' && (
           <p className="update-notice" role="status">
@@ -297,6 +306,7 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
           <strong>{phaseLabels[status.run.phase]}</strong>
           <span>
             {status.run.from} → {status.run.target}
+            {status.run.sourceChannel && ` · ${labels[status.run.sourceChannel]}`}
           </span>
           <p>{t(`updates:${status.run.phase}Description`)}</p>
           <details>
@@ -328,7 +338,13 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
       )}
       <p className="update-source">
         {t('updates:version_source_official_npm_registry', {
-          v0: channel === 'stable' ? 'latest' : channel,
+          v0: selected
+            ? selected.channel === 'stable'
+              ? 'latest'
+              : selected.channel
+            : channel === 'stable'
+              ? 'latest'
+              : `latest / ${channel}`,
         })}
         <a href={releasesUrl} target="_blank" rel="noreferrer">
           {t('updates:update_history')}

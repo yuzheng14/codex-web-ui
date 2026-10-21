@@ -31,6 +31,7 @@ afterEach(async () => {
 it('resolves the scoped dev tag and rejects metadata for another package', async () => {
   const fetch = vi.spyOn(globalThis, 'fetch');
   cleanups.push(() => fetch.mockRestore());
+  fetch.mockResolvedValueOnce(new Response('', { status: 404 }));
   fetch.mockResolvedValueOnce(
     new Response(JSON.stringify({ name: '@covro/covro', version: '0.1.0-dev.1' })),
   );

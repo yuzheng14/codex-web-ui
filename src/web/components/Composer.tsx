@@ -26,6 +26,7 @@ import { ControlHint } from './ControlHint';
 import type { SentDraft } from '../lib/conversation-drafts';
 import { useUpgradeReloadState } from '../lib/upgrade-reload';
 import { ComposerResizeHandle } from './ComposerResizeHandle';
+import { usesMobileInput } from '../lib/mobile-input';
 
 interface Props {
   commands: SlashCommand[];
@@ -56,6 +57,7 @@ interface Props {
   onFork: () => void;
 }
 export function Composer(props: Props) {
+  const mobileInput = usesMobileInput(navigator);
   const [drafts, setDrafts] = useState<Record<string, MessageDraft>>({});
   const draftsRef = useRef(drafts);
   const shortcutId = useId();
@@ -113,6 +115,13 @@ export function Composer(props: Props) {
     ? matches[selectedIndex]
     : props.commands.find((command) => command.name === slash?.name);
   const executingCommand = commandPending.includes(key);
+  const inputHint = mobileInput
+    ? slash
+      ? t('composer:tap_to_run_command_enter_for_new_line')
+      : t('composer:tap_to_send_enter_for_new_line')
+    : slash
+      ? t('composer:enter_to_run_command_esc_to_close_menu')
+      : t('composer:enter_to_send_shift_enter_for_a_new');
   function selectCommand(index: number) {
     setMenu({ key, text, selectedIndex: index, dismissed: false });
   }
@@ -253,6 +262,7 @@ export function Composer(props: Props) {
     !props.submitting,
   );
   async function send() {
+    if (composingRef.current) return;
     // Every submission path, including the button and a dismissed menu, uses this dispatcher.
     if (slash) {
       await executeCommand(menuOpen ? matches[selectedIndex] : undefined);
@@ -280,7 +290,7 @@ export function Composer(props: Props) {
     }
   }
   return (
-    <div className="composer-region">
+    <div className="composer-region" data-mobile-input={mobileInput || undefined}>
       {props.submitting && (
         <p className="composer-resume-status" role="status">
           <Icon name="refresh" size={14} />
@@ -338,6 +348,7 @@ export function Composer(props: Props) {
         )}
         {menuOpen && (
           <SlashCommandMenu
+            mobileInput={mobileInput}
             id={menuId}
             commands={matches}
             selectedIndex={selectedIndex}
@@ -386,6 +397,8 @@ export function Composer(props: Props) {
         <textarea
           id={inputId}
           ref={textareaRef}
+          enterKeyHint={mobileInput ? 'enter' : undefined}
+          aria-describedby={shortcutId}
           aria-label={active ? t('composer:additional_instructions') : t('composer:task_content')}
           aria-haspopup="listbox"
           aria-controls={menuOpen ? menuId : undefined}
@@ -432,6 +445,9 @@ export function Composer(props: Props) {
             // A hovered Tooltip consumes Escape during document capture. The
             // focused editor must still close its own Slash menu on that key.
             if (event.defaultPrevented && !(menuOpen && event.key === 'Escape')) return;
+            // Let the browser insert newlines, including immediately after an IME
+            // commit. Mobile Enter must never reach the submission dispatcher.
+            if (mobileInput && event.key === 'Enter') return;
             if (
               event.nativeEvent.isComposing ||
               event.nativeEvent.keyCode === 229 ||
@@ -470,6 +486,7 @@ export function Composer(props: Props) {
           }}
           rows={3}
         />
+        {mobileInput && <p className="composer-input-hint">{inputHint}</p>}
         <SettingsPanel
           settings={props.settings}
           projectName={props.projectName}
@@ -506,15 +523,7 @@ export function Composer(props: Props) {
               </Button>
             </ControlHint>
           )}
-          <ControlHint
-            id={shortcutId}
-            className="composer-submit"
-            content={
-              slash
-                ? t('composer:enter_to_run_command_esc_to_close_menu')
-                : t('composer:enter_to_send_shift_enter_for_a_new')
-            }
-          >
+          <ControlHint id={shortcutId} className="composer-submit" content={inputHint}>
             <Button
               size="sm"
               aria-label={
@@ -530,7 +539,7 @@ export function Composer(props: Props) {
               }
               aria-describedby={shortcutId}
               onPointerDown={(event) => {
-                if (slash) event.preventDefault();
+                if (slash || mobileInput) event.preventDefault();
               }}
               onClick={() => {
                 void send();

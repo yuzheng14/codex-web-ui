@@ -15,7 +15,11 @@ export interface UpdateRun {
   id: string;
   from: string;
   target: string;
+  /** Subscribed channel after activation, independent of the candidate's source. */
   channel: ReleaseChannel;
+  /** Optional for update records created by older versions. */
+  sourceChannel?: ReleaseChannel;
+  commit?: string;
   phase: UpdatePhase;
   message: string;
   startedAt: number;
@@ -31,6 +35,8 @@ export interface UpdateStatus {
   settings: UpdateSettings;
   available?: {
     version: string;
+    requestedChannel: ReleaseChannel;
+    /** Actual npm source of the selected version. */
     channel: ReleaseChannel;
     commit?: string;
     downgrade: boolean;
