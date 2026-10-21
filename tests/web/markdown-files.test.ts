@@ -23,7 +23,7 @@ it.each([
   'docs/%00.md',
   'docs/%5C.md',
   'docs/%ZZ.md',
-  'docs/file.txt',
+  'docs/file.pdf',
   '#section',
   '',
 ])('keeps nonlocal or unsafe destinations out of the file reader: %s', (input) => {

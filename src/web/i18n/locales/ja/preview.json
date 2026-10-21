@@ -110,5 +110,6 @@
   "new_mermaid_diagram_region": "Mermaid 図の表示領域",
   "new_mermaid_diagram": "Mermaid 図",
   "new_this_file_has_lines_exceeding_300_collapsed": "このファイルは {{v0}} 行あり、300 行を超えるため初期状態では折りたたまれます。",
-  "new_this_file_exceeds_50_000_characters_collapsed": "このファイルは 50,000 文字を超えるため初期状態では折りたたまれます。"
+  "new_this_file_exceeds_50_000_characters_collapsed": "このファイルは 50,000 文字を超えるため初期状態では折りたたまれます。",
+  "empty_file": "このファイルは空です。"
 }

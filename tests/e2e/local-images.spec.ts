@@ -119,7 +119,7 @@ test('local Markdown images and file links load from the gateway and survive rel
   }
   await expect(page.getByRole('link', { name: '普通文件', exact: true })).toHaveAttribute(
     'href',
-    'assets/notes.txt',
+    /\/api\/threads\/[^/]+\/text\?path=assets%2Fnotes\.txt$/,
   );
   await expect(page.getByRole('link', { name: '外部说明', exact: true })).toHaveAttribute(
     'href',

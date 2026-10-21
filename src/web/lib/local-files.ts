@@ -1,3 +1,5 @@
+import { filePreviewFormat } from '../../shared/file-preview';
+
 const scheme = /^[a-z][a-z\d+.-]*:/i;
 const unsafePath = (value: string) =>
   Array.from(value).some(
@@ -52,10 +54,10 @@ export function relativeToFile(path: string, baseFile?: string): string {
 export function localPreviewPath(destination: string): string | undefined {
   // Codex file references can include a source line suffix.
   const path = localFilePath(destination.replace(/:(\d+)(?::\d+)?$/, ''));
-  return path && /\.(md|markdown|json)$/i.test(path) ? path : undefined;
+  return path && filePreviewFormat(path) ? path : undefined;
 }
 
 export function localPreviewUrl(threadId: string, path: string): string {
-  const format = /\.json$/i.test(path) ? 'json' : 'markdown';
+  const format = filePreviewFormat(path) ?? 'text';
   return `/api/threads/${encodeURIComponent(threadId)}/${format}?${new URLSearchParams({ path })}`;
 }

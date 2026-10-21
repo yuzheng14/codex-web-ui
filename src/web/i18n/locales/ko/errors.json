@@ -134,5 +134,14 @@
   "BACKUP_INVALID": "백업이 손상되었거나 불완전하거나 호환되지 않아 복원할 수 없습니다.",
   "BACKUP_TIMEOUT": "안전한 시점 대기 시간이 초과되었습니다. 실행 중인 작업이 끝나면 다시 시도하세요.",
   "BACKUP_MAINTENANCE": "백업 중입니다. 완료된 후 다시 시도하세요.",
-  "PROJECT_ORDER_CONFLICT": "프로젝트 목록이 변경되었습니다. 새로고침한 후 다시 순서를 변경하세요."
+  "PROJECT_ORDER_CONFLICT": "프로젝트 목록이 변경되었습니다. 새로고침한 후 다시 순서를 변경하세요.",
+  "TEXT_NOT_FOUND": "텍스트 파일이 없거나 삭제되었습니다.",
+  "TEXT_TOO_LARGE": "텍스트 파일이 미리 보기 제한인 2 MiB를 초과합니다.",
+  "TEXT_UNREADABLE": "텍스트 파일을 읽을 수 없습니다. 접근 권한을 확인하세요.",
+  "INVALID_TEXT_CONTENT": "유효한 UTF-8 텍스트가 아니거나 바이너리 데이터가 포함되어 있습니다.",
+  "UNSUPPORTED_TEXT_TYPE": "이 파일 형식은 텍스트 미리 보기를 지원하지 않습니다.",
+  "INVALID_TEXT_PATH": "텍스트 파일 경로가 올바르지 않습니다.",
+  "TEXT_OUTSIDE_PROJECT": "이 세션의 프로젝트 또는 서버 임시 디렉터리 안의 파일만 미리 볼 수 있습니다.",
+  "TEXT_CHANGED": "텍스트 파일이 변경되었습니다. 미리 보기를 다시 여세요.",
+  "TEXT_NOT_FILE": "텍스트 파일 경로가 일반 파일이 아닙니다."
 }

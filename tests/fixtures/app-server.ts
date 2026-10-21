@@ -625,7 +625,7 @@ function imageReply(
 function markdownReply(
   thread: Thread,
   turn: Turn,
-  kind: 'table' | 'security' | 'code' | 'files' | 'json' | 'mermaid',
+  kind: 'table' | 'security' | 'code' | 'files' | 'json' | 'mermaid' | 'text',
 ): void {
   const item: Extract<ThreadItem, { type: 'agentMessage' }> = {
     id: randomUUID(),
@@ -692,6 +692,21 @@ function markdownReply(
                   '| 后续 | `a\\|b` | 支持转义管道 A\\|B，并保留 **重点** 与 [说明](https://example.com/docs)。 |\n\n' +
                   '下一轮我会先选 `/rename`、`/model`、`/copy`，范围清楚，收益直接。',
               ];
+  if (kind === 'text')
+    chunks = [
+      '文本产出已准备好，可以直接阅读并继续讨论。\n\n' +
+        '[阅读文本](<docs/阅读 说明.TXT>) · [使用说明](docs/text.md) · ' +
+        '[绝对路径](<' +
+        join(thread.cwd, 'docs/阅读 说明.TXT') +
+        '>) · ' +
+        '[本地文件](file://' +
+        encodeURI(join(thread.cwd, 'docs/阅读 说明.TXT')) +
+        ')\n\n' +
+        '[空文件](docs/empty.txt) · [缺失文件](docs/missing.txt) · [超大文件](docs/huge.txt) · [无效编码](docs/binary.txt)\n\n' +
+        ['csv', 'tsv', 'toml', 'yaml', 'yml', 'jsonl', 'log', 'ini']
+          .map((extension) => `[${extension.toUpperCase()}](docs/sample.${extension})`)
+          .join(' · '),
+    ];
   if (kind === 'mermaid') chunks = mermaidChunks;
   turn.items.push(item);
   notify({
@@ -2311,6 +2326,7 @@ function receive(request: ClientRequest): void {
         );
       else if (prompt.includes('[json-files]')) markdownReply(thread, turn, 'json');
       else if (prompt.includes('[diff-preview')) diffPreviewScenario(thread, turn, prompt);
+      else if (prompt.includes('[text-files]')) markdownReply(thread, turn, 'text');
       else if (prompt.includes('[markdown-files]')) markdownReply(thread, turn, 'files');
       else if (
         prompt.includes('[command-output-copy]') ||
