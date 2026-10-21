@@ -1,3 +1,4 @@
+import { openSidebarSettings } from './helpers';
 import { test, expect, type Page, type TestInfo, type Locator } from '@playwright/test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -40,6 +41,7 @@ async function open(page: Page) {
   await page.goto(origin);
   if (page.viewportSize()!.width <= 760)
     await page.getByRole('button', { name: '打开项目与会话' }).click();
+  await openSidebarSettings(page);
   await page.getByRole('button', { name: '服务配置', exact: true }).click();
   await expect(settings(page).getByLabel('Codex 可执行文件', { exact: true })).toHaveValue('codex');
 }
@@ -73,6 +75,7 @@ test('edit, review, save and restart distinguish file settings from running valu
   await runtime.close();
   await start();
   await page.reload();
+  await openSidebarSettings(page);
   await page.getByRole('button', { name: '服务配置', exact: true }).click();
   await expect(
     settings(page).getByText('已保存配置与当前运行配置一致', { exact: true }),

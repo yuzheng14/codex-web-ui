@@ -165,5 +165,6 @@
   "order_saving": "順序を保存中…",
   "order_saved": "順序を保存しました",
   "order_auto_save": "変更は自動保存され、再読み込みや再起動後も保持されます。",
-  "order_save_failed": "{{v0}} もう一度お試しください。"
+  "order_save_failed": "{{v0}} もう一度お試しください。",
+  "settings": "設定"
 }

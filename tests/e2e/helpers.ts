@@ -8,6 +8,21 @@ export const projectGroup = (page: Page, name = '测试项目') =>
   page.getByRole('region', { name, exact: true, includeHidden: true });
 export const createThreadButton = (page: Page) =>
   projectGroup(page).getByRole('button', { name: '新建会话', exact: true, includeHidden: true });
+export async function openSidebarSettings(page: Page) {
+  const dialog = page.locator('.sidebar-settings-dialog[open]');
+  if (await dialog.isVisible()) return dialog;
+  const trigger = page.locator('.sidebar-settings-trigger');
+  if (!(await trigger.isVisible())) await page.locator('.topbar .mobile-only').click();
+  await trigger.click();
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+export async function selectInterfaceLocale(page: Page, locale: string) {
+  const dialog = await openSidebarSettings(page);
+  await dialog.locator('.language-selector select').selectOption(locale);
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+}
 /** The shared welcome page also appears before creation; wait for the selected thread. */
 export async function expectThreadReady(page: Page) {
   await expect(page.getByTestId('workspace-start')).toHaveAttribute('data-thread-ready', 'true');

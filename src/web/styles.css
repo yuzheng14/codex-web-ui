@@ -581,31 +581,97 @@ svg {
   background: #f5ead4;
 }
 .sidebar-footer {
-  position: relative;
-  margin: 18px 8px 0;
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
-}
-.privacy-mark {
   display: flex;
-  gap: 6px;
+  flex-shrink: 0;
   align-items: center;
-  font-size: 11px;
-  color: #66786c;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 8px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
 }
-.notification-settings-button {
-  position: absolute;
-  top: 12px;
-  right: 0;
-  min-height: 24px;
-  height: 24px;
-  padding: 2px 5px;
-  font-size: 11px;
-  justify-content: flex-start;
+.sidebar-settings-trigger {
+  min-height: 36px;
+  padding: 6px 8px;
+  font-size: 13px;
 }
-.notification-settings-status {
-  color: #748078;
-  font-size: 10px;
+.sidebar-execution-location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.sidebar-execution-location svg {
+  flex-shrink: 0;
+}
+.sidebar-settings-dialog {
+  width: min(400px, calc(100vw - 32px));
+}
+.sidebar-settings-dialog .language-selector {
+  gap: 10px;
+  padding: 10px 8px;
+  font-size: 13px;
+}
+.sidebar-settings-dialog .language-selector span {
+  flex: 1;
+}
+.sidebar-settings-dialog .language-selector select {
+  min-height: 36px;
+  max-width: 55%;
+  font: inherit;
+}
+.sidebar-settings-links {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.sidebar-settings-links .button {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  height: auto;
+  padding: 10px 8px;
+  gap: 10px;
+  text-align: left;
+  white-space: normal;
+}
+.sidebar-settings-links svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.sidebar-settings-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sidebar-settings-status {
+  max-width: 40%;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.sidebar-settings-execution {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  padding: 16px 8px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.sidebar-settings-execution svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.sidebar-settings-execution strong {
+  color: #52635a;
+  font-weight: 500;
+}
+.sidebar-settings-execution p {
+  margin: 4px 0 0;
 }
 .notification-dialog > p,
 .gateway-intro,
@@ -616,16 +682,6 @@ svg {
   color: #66786c;
   font-size: 13px;
   line-height: 1.7;
-}
-.gateway-settings-button {
-  height: 26px;
-  min-height: 26px;
-  margin: -5px 0 10px -5px;
-  padding: 3px 5px;
-  font-size: 12px;
-}
-.gateway-settings-button ~ .notification-settings-button {
-  top: 11px;
 }
 .gateway-dialog {
   width: min(800px, calc(100vw - 24px));
@@ -855,18 +911,6 @@ svg {
   margin-left: 5px;
   color: #337052;
   text-decoration: underline;
-}
-.privacy-mark::before {
-  content: '';
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #739c82;
-}
-.sidebar-footer p {
-  font-size: 10px;
-  color: #a1a6ac;
-  margin: 7px 0 0;
 }
 .main-panel {
   flex: 1;
@@ -4754,50 +4798,10 @@ dd {
   min-height: 32px;
 }
 .permission-description,
-.settings-note,
-.sidebar-footer p {
+.settings-note {
   overflow-wrap: anywhere;
 }
 
-.sidebar-footer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px 10px;
-  margin-top: 12px;
-  padding-top: 10px;
-}
-.sidebar-footer .language-selector {
-  justify-content: flex-start;
-  gap: 6px;
-}
-.sidebar-footer .language-selector svg {
-  flex-shrink: 0;
-}
-.sidebar-footer .language-selector select {
-  flex-shrink: 0;
-  width: 90px;
-  max-width: 100%;
-}
-.sidebar-footer .gateway-settings-button {
-  margin: 0;
-  justify-self: end;
-}
-.sidebar-footer .notification-settings-button {
-  position: static;
-  justify-self: start;
-  max-width: 100%;
-  min-width: 0;
-  height: auto;
-  white-space: normal;
-}
-.sidebar-footer .privacy-mark {
-  justify-self: end;
-}
-.sidebar-footer p {
-  grid-column: 1 / -1;
-  margin: 0;
-}
 .project-clone-details pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -4938,24 +4942,6 @@ dd {
 }
 .backup-notice {
   font-size: 13px;
-}
-
-.sidebar-local-tools {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-.sidebar-local-tools .language-selector > svg {
-  display: none;
-}
-.sidebar-footer .backup-settings-button {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  min-height: 32px;
-  padding: 0;
-  color: var(--muted);
 }
 
 .backup-technical-details pre {

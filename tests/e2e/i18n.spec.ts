@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { controlRuntime } from './helpers';
+import { controlRuntime, openSidebarSettings, selectInterfaceLocale } from './helpers';
 
 async function ready(page: import('@playwright/test').Page) {
   await expect(page.locator('.compatibility-dialog[open]')).toBeVisible();
@@ -60,7 +60,8 @@ for (const language of languages) {
       await page.goto('/');
       await expect(page.locator('html')).toHaveAttribute('lang', language.locale);
       await ready(page);
-      const selector = page.locator('.language-selector select');
+      const settings = await openSidebarSettings(page);
+      const selector = settings.locator('.language-selector select');
       await expect(selector).toHaveValue(language.locale);
       await expect(selector.locator('option')).toHaveText([
         '简体中文',
@@ -68,6 +69,7 @@ for (const language of languages) {
         '日本語',
         '한국어',
       ]);
+      await page.keyboard.press('Escape');
       await expect(page.getByRole('combobox', { name: language.model, exact: true })).toBeEnabled();
       const prompt = '[permissions] 原文保留 Japanese 日本語 한국어 /workspace/example.ts';
       const input = page.locator('.composer-box textarea');
@@ -87,9 +89,9 @@ for (const language of languages) {
         localStorage.getItem('codex-web.selected:fixture'),
       );
       const before = await (await request.get(`/api/threads/${threadId}`)).json();
-      await selector.selectOption('en');
+      await selectInterfaceLocale(page, 'en');
       await expect(input).toHaveValue('未发送的草稿 draft 日本語 한국어');
-      await selector.selectOption(language.locale);
+      await selectInterfaceLocale(page, language.locale);
       const after = await (await request.get(`/api/threads/${threadId}`)).json();
       expect(after.turns.map((t: { id: string; status: string }) => [t.id, t.status])).toEqual(
         before.turns.map((t: { id: string; status: string }) => [t.id, t.status]),
@@ -110,12 +112,14 @@ for (const language of languages) {
         animations: 'disabled',
       });
       await page.locator('.topbar .mobile-only').click();
-      await expect(selector).toBeVisible();
+      await openSidebarSettings(page);
+      await expect(page.locator('.language-selector select')).toBeVisible();
       await page.screenshot({
         path: `${evidence}/${language.locale}-mobile-selector.png`,
         fullPage: true,
         animations: 'disabled',
       });
+      await page.keyboard.press('Escape');
       await page.locator('.sidebar-open .brand .mobile-only').click();
       const resolution = page.waitForRequest(
         (request) =>
@@ -161,9 +165,12 @@ for (const language of languages) {
       await expect(page.locator('.turn-heading .status').last()).toHaveText(
         { 'zh-Hans': '已完成', en: 'Completed', ja: '完了', ko: '완료' }[language.locale],
       );
-      await selector.selectOption('en');
+      const peer = await page.context().newPage();
+      await peer.goto('/');
+      await selectInterfaceLocale(peer, 'en');
       await expect(page.locator('.file-preview[open]')).toBeVisible();
-      await selector.selectOption(language.locale);
+      await selectInterfaceLocale(peer, language.locale);
+      await peer.close();
       expect((await page.locator('.topbar-title').boundingBox())!.width).toBeGreaterThan(150);
       expect((await page.locator('.breadcrumb').boundingBox())!.height).toBeLessThan(25);
       await page.screenshot({
@@ -216,23 +223,26 @@ test('manual choice overrides browser preferences after reload and in another ta
   await controlRuntime(request, { reset: true, version: '0.163.0' });
   await page.goto('/');
   await ready(page);
-  await page.locator('.language-selector select').selectOption('ko');
+  await selectInterfaceLocale(page, 'ko');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
   const other = await context.newPage();
   await other.goto('/');
   await expect(other.locator('html')).toHaveAttribute('lang', 'ko');
-  await other.locator('.language-selector select').selectOption('ja');
+  await selectInterfaceLocale(other, 'ja');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
 });
 
 for (const browserLocale of ['zh-TW', 'zh-HK', 'fr-FR']) {
   test.describe(`unsupported ${browserLocale}`, () => {
     test.use({ locale: browserLocale });
-    test('falls back to English', async ({ page }) => {
+    test('falls back to English', async ({ page, request }) => {
+      await controlRuntime(request, { reset: true, version: '0.163.0' });
       await page.goto('/');
       await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+      await ready(page);
+      await openSidebarSettings(page);
       await expect(page.locator('.language-selector select')).toHaveValue('en');
     });
   });
@@ -250,7 +260,7 @@ test('the workspace remains usable when browser storage is blocked', async ({ pa
   });
   await page.goto('/');
   await ready(page);
-  await page.locator('.language-selector select').selectOption('ja');
+  await selectInterfaceLocale(page, 'ja');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
   await expect(page.locator('.composer-box textarea')).toBeVisible();
 });
