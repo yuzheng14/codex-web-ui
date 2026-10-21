@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, it, vi } from 'vitest';
+import { releaseDatabaseNotes } from '../../scripts/release-compatibility.js';
 import { npmPackageName } from '../../src/shared/package.js';
 import {
   planDevGitHubRelease,
@@ -12,6 +13,7 @@ import {
 } from '../../scripts/dev-github-release.js';
 import type { PackageRegistry } from '../../scripts/release-registry.js';
 
+const contract = { schemaVersion: 6, minRestorableSchemaVersion: 1, backupFormatVersion: 1 };
 const old = '1'.repeat(40);
 const stable = '2'.repeat(40);
 const source = '3'.repeat(40);
@@ -150,7 +152,8 @@ function githubFixture() {
     ['0.2.0', stable],
     [version, source],
   ]);
-  const publish = () => publishDevGitHubRelease('example/covro', plan, history, ancestor, api);
+  const publish = () =>
+    publishDevGitHubRelease('example/covro', plan, history, ancestor, api, contract);
   return {
     refs,
     annotations,
@@ -181,7 +184,7 @@ it('creates exact tags and a non-latest prerelease using the generated body and 
   });
   expect(h.releases.get(`v${version}`)).toMatchObject({
     name: `v${version}`,
-    body: h.notes,
+    body: releaseDatabaseNotes(h.notes, contract),
     prerelease: true,
     draft: false,
     make_latest: 'false',
@@ -198,7 +201,7 @@ it('backfills a preceding npm Dev tag when rollout predates GitHub Dev releases'
     ['0.2.1-dev.1', stable],
     [version, source],
   ]);
-  publishDevGitHubRelease('example/covro', h.plan, h.history, ancestor, h.api);
+  publishDevGitHubRelease('example/covro', h.plan, h.history, ancestor, h.api, contract);
   expect(h.refs.get('v0.2.1-dev.1')?.sha).toBe(stable);
   expect(h.api).toHaveBeenCalledWith(
     'POST',
@@ -296,6 +299,7 @@ it('runs the real CLI with npm/gh fixtures, handles 404, and sends native notes 
       ).trim();
     git('init', '-q', '-b', 'main');
     writeFileSync(join(directory, 'source.txt'), 'base');
+    writeFileSync(join(directory, 'package.json'), JSON.stringify({ covroDatabase: contract }));
     git('add', '.');
     git('commit', '-qm', 'base');
     const base = git('rev-parse', 'HEAD');
@@ -377,7 +381,7 @@ console.log(JSON.stringify(result));
     const state = JSON.parse(readFileSync(join(directory, 'state.json'), 'utf8'));
     expect(state.refs[`v${version}`]).toBe(commit);
     expect(state.releases[`v${version}`]).toMatchObject({
-      body: nativeNotes,
+      body: releaseDatabaseNotes(nativeNotes, contract),
       prerelease: true,
       make_latest: 'false',
     });

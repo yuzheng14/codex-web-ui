@@ -1,6 +1,8 @@
+import { verifyDatabaseContract } from './verify-database-contract.js';
 import { npmPackageName } from '../src/shared/package.js';
 import { verifyCompatibility } from './sync-compatibility.js';
 verifyCompatibility();
+verifyDatabaseContract();
 import { execFileSync } from 'node:child_process';
 const packed = JSON.parse(
   execFileSync('npm', ['pack', '--dry-run', '--json'], { encoding: 'utf8' }),

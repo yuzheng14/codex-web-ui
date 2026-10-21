@@ -23,6 +23,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
+      - run: node --import tsx scripts/verify-database-contract.ts
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
