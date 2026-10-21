@@ -9,6 +9,7 @@ import { Icon } from './Icon';
 import { isActive, Status } from './Status';
 import { AutoReviewCard } from './AutoReviewCard';
 import { CollapsibleActivity } from './CollapsibleActivity';
+import { CommandOutputCopyButton } from './CommandOutputCopyButton';
 import { ActivityGroup } from './ActivityGroup';
 import { groupConversationItems } from '../lib/activity-groups';
 import { ContextCompaction } from './ContextCompaction';
@@ -71,7 +72,7 @@ function Activity({ item, streaming }: { item: ItemView; streaming: boolean }) {
   const openDiff = useDiffPreview();
   return (
     <CollapsibleActivity
-      className={`activity${item.status === 'failed' ? ' activity-failed' : ''}`}
+      className={`activity${item.type === 'commandExecution' ? ' activity-command' : ''}${item.status === 'failed' ? ' activity-failed' : ''}`}
       label={
         item.command
           ? t('conversation:activityWithCommand', {
@@ -90,6 +91,9 @@ function Activity({ item, streaming }: { item: ItemView; streaming: boolean }) {
           <span className="activity-status">
             {item.status ? (activityStatusLabels[item.status] ?? item.status) : ''}
           </span>
+          {item.type === 'commandExecution' && item.output !== undefined && (
+            <CommandOutputCopyButton output={item.output} truncated={item.truncated} />
+          )}
         </>
       }
     >
