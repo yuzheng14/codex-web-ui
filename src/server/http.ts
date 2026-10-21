@@ -309,6 +309,16 @@ export function createApp({
     c.header('Cross-Origin-Resource-Policy', 'same-origin');
     c.header('Content-Security-Policy', "default-src 'none'; sandbox");
     const image = await service.getThreadImage(id(c.req.param('threadId')), c.req.query('path'));
+    // Hash the validated bytes so same-size overwrites with preserved mtimes also invalidate.
+    const etag = `"${createHash('sha256').update(image.bytes).digest('hex')}"`;
+    c.header('Cache-Control', 'private, no-cache');
+    c.header('ETag', etag);
+    const ifNoneMatch = c.req.header('If-None-Match');
+    if (
+      ifNoneMatch === '*' ||
+      ifNoneMatch?.split(',').some((tag) => tag.trim().replace(/^W\//, '') === etag)
+    )
+      return c.body(null, 304);
     return c.body(image.bytes, 200, {
       'Content-Type': image.contentType,
       'Content-Length': String(image.bytes.length),
