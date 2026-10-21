@@ -3,7 +3,7 @@ import { displayMessage } from '../i18n/messages';
 import { t, changeLocale, currentLocale } from '../i18n';
 import { useState } from 'react';
 import { localeNames, supportedLocales, type Locale } from '../i18n/locales';
-import { ArrowUpCircle, Bell, Languages } from 'lucide-react';
+import { ArrowUpCircle, Bell, Languages, DatabaseBackup } from 'lucide-react';
 import type { Project, ThreadSummary } from '../../shared/types';
 import type { ProjectThreads } from '../lib/project-threads';
 import { cn } from '../lib/utils';
@@ -44,6 +44,7 @@ interface Props {
   onClose: () => void;
   onNotificationSettings: () => void;
   onGatewaySettings: () => void;
+  onBackups?: () => void;
   notificationStatus: string;
   onUpdates: () => void;
   appVersion?: string;
@@ -353,20 +354,33 @@ export function Sidebar(props: Props) {
           )}
         </ThreadListNavigation>
         <div className="sidebar-footer">
-          <label className="language-selector">
-            <Languages size={16} aria-hidden="true" />
-            <select
-              aria-label={t('common:language')}
-              value={currentLocale()}
-              onChange={(event) => void changeLocale(event.target.value as Locale)}
-            >
-              {supportedLocales.map((locale) => (
-                <option key={locale} value={locale} lang={locale}>
-                  {localeNames[locale]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="sidebar-local-tools">
+            <label className="language-selector">
+              <Languages size={16} aria-hidden="true" />
+              <select
+                aria-label={t('common:language')}
+                value={currentLocale()}
+                onChange={(event) => void changeLocale(event.target.value as Locale)}
+              >
+                {supportedLocales.map((locale) => (
+                  <option key={locale} value={locale} lang={locale}>
+                    {localeNames[locale]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <ControlHint content={t('backups:title')} asChild>
+              <Button
+                className="backup-settings-button"
+                variant="ghost"
+                size="icon"
+                aria-label={t('backups:title')}
+                onClick={props.onBackups}
+              >
+                <DatabaseBackup size={16} aria-hidden="true" />
+              </Button>
+            </ControlHint>
+          </div>
           <Button
             className="gateway-settings-button"
             variant="ghost"

@@ -39,6 +39,7 @@
 - 🔎 **Inspect code changes.** Open Codex’s saved patches for a turn or tool in the same read-only panel. Scroll through all files, inspect line numbers, see the exact words changed within each line, and jump between change blocks. Long diffs start collapsed and render when expanded. File headers stay visible while scrolling so you can collapse the current file.
 - ✍️ **Switch tasks without losing your draft.** Each conversation keeps its own draft, pasted images, and model settings in the current page. Copy or export results when you're done.
 - 🖥️ **Run a command beside your task.** Open **Shell** to execute commands in the selected project's directory, follow stdout/stderr, interrupt a run, and reuse recent commands. The panel uses Codex's configured sandbox, with a ten-minute limit and no interactive input. Closing it keeps the command running. [Capabilities and limits](docs/shell.md).
+- 🛟 **Keep a recovery point.** Open **Backups and recovery** in the sidebar to create a server-side backup, follow its progress and review verified snapshots. Upgrades use the same backup engine. Recovery runs offline through the CLI. [Scope and recovery instructions](docs/backups.md).
 
 Mermaid diagrams render locally after their code fence closes, with automatic light/dark colors. Failed diagrams keep their source; rendering is limited to 50,000 source characters and 500 edges.
 
@@ -49,12 +50,6 @@ Mermaid diagrams render locally after their code fence closes, with automatic li
 </details>
 
 <a id="get-started"></a>
-
-DB Schema **6** is tracked independently of the application version. Releases declare the schema and the verified backup migration range; an older application cannot open a newer database. See [database compatibility](docs/database.md).
-
-Managed upgrades create and validate a private backup of the Covro database and service configuration before replacing the installation. A failed backup blocks activation. These snapshots do not include Codex history, credentials or project files. See [backup scope](docs/backups.md).
-
-Use `covro backup create`, `covro backup list` and `covro backup verify ID` for manual snapshots. Preview offline recovery with `covro backup restore ID`; stop the service and repeat with `--confirm ID` to apply it. See [recovery instructions](docs/backups.md#manual-backups-and-offline-recovery).
 
 ## 🚀 Get started
 
@@ -155,6 +150,12 @@ Successful Dev npm publications also create a [GitHub Pre-release](https://githu
 Each release declares its recommended and verified Codex CLI versions. The update panel shows the current and candidate combinations. Automatic upgrades require a verified combination; an unverified combination needs explicit confirmation for that exact upgrade. Unknown versions, invalid/missing declarations, and explicitly unsupported combinations block managed upgrades. The CLI offers `covro update --allow-unverified-codex` for the same explicit attempt. Covro does not upgrade your Codex CLI.
 
 Automatic installation is off by default. Managed upgrades support **macOS and Linux npm global installations**; source, linked, container, and Windows installations use their original update method. A failed candidate is rolled back before business writes resume; downgrades must pass database compatibility checks. Old backups are retained without automatic rotation.
+
+DB Schema **6** is tracked independently of the application version. Releases declare the schema and the verified backup migration range; an older application cannot open a newer database. See [database compatibility](docs/database.md).
+
+Managed upgrades create and validate a private backup of the Covro database and service configuration before replacing the installation. A failed backup blocks activation. These snapshots do not include Codex history, credentials or project files. See [backup scope](docs/backups.md).
+
+Use `covro backup create`, `covro backup list` and `covro backup verify ID` for manual snapshots. Preview offline recovery with `covro backup restore ID`; stop the service and repeat with `--confirm ID` to apply it. See [recovery instructions](docs/backups.md#manual-backups-and-offline-recovery).
 
 See [distribution and recovery](docs/distribution.md) and [release operations](docs/releases.md) for details.
 

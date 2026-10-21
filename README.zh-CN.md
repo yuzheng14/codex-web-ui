@@ -39,6 +39,7 @@
 - 🔎 **逐行查看代码变更。** 在同一只读预览窗口查看某轮或某工具的 Codex 补丁快照，按顺序连续浏览全部文件，支持行号、行内文字高亮和区块跳转；长 diff 默认折叠，展开后按需渲染，阅读时文件标题栏吸顶，随时收起当前文件。
 - ✍️ **切换任务，草稿还在。** 每个会话分别保留当前页面中的草稿、粘贴图片和模型设置；完成后可以复制或导出结果。
 - 🖥️ **在任务旁运行命令。** 打开 **Shell**，在所选项目目录执行命令、查看实时标准输出和错误输出、中断执行，并复用近期命令。面板沿用 Codex 配置的沙箱，最长运行十分钟，不支持交互输入；关闭面板后命令仍继续运行。[能力与限制](docs/shell.md)。
+- 🛟 **保留可恢复的数据快照。** 从侧栏打开**备份与恢复**，手动创建服务端备份，查看进度和已验证的记录；升级前使用同一套备份能力。恢复通过停服后的 CLI 执行。[范围与恢复步骤](docs/backups.md)。
 
 Mermaid 图表在代码块闭合后于本地渲染，自动适配浅色/深色。渲染失败时保留源码；渲染上限为 50,000 个源码字符、500 条边。
 
@@ -49,12 +50,6 @@ Mermaid 图表在代码块闭合后于本地渲染，自动适配浅色/深色�
 </details>
 
 <a id="开始使用"></a>
-
-DB Schema **6** 独立于应用版本管理。发行版声明 Schema 及经过验证的备份迁移范围；旧应用不能打开更新的数据库。详见[数据库兼容规则](docs/database.md)。
-
-受管升级会在替换安装前创建并验证私有备份，覆盖 Covro 数据库与服务配置；备份失败会阻止激活。快照不包含 Codex 历史、凭据或项目文件。详见[备份范围](docs/backups.md)。
-
-使用 `covro backup create`、`covro backup list` 和 `covro backup verify ID` 创建与检查手动备份。先运行 `covro backup restore ID` 预检；停服后加 `--confirm ID` 执行恢复。详见[恢复步骤](docs/backups.md#manual-backups-and-offline-recovery)。
 
 ## 🚀 开始使用
 
@@ -155,6 +150,12 @@ covro update --channel dev
 每个发行版声明推荐和已验证的 Codex CLI 版本，更新面板会同时显示当前与目标组合。自动升级只接受已验证组合；未验证组合需要对确切目标明确确认。版本未知、声明缺失/无效或明确不支持的组合会阻止受管升级。CLI 可通过 `covro update --allow-unverified-codex` 明确尝试同一组合。Covro 不会自动升级你的 Codex CLI。
 
 自动安装默认关闭。受管升级支持 **macOS 和 Linux 的 npm 全局安装**；源码、链接、容器和 Windows 安装沿用原更新方式。候选版本失败时，会在重新开放业务写入前回滚；降级需通过数据库兼容检查。旧备份会保留，暂不自动轮转。
+
+DB Schema **6** 独立于应用版本管理。发行版声明 Schema 及经过验证的备份迁移范围；旧应用不能打开更新的数据库。详见[数据库兼容规则](docs/database.md)。
+
+受管升级会在替换安装前创建并验证私有备份，覆盖 Covro 数据库与服务配置；备份失败会阻止激活。快照不包含 Codex 历史、凭据或项目文件。详见[备份范围](docs/backups.md)。
+
+使用 `covro backup create`、`covro backup list` 和 `covro backup verify ID` 创建与检查手动备份。先运行 `covro backup restore ID` 预检；停服后加 `--confirm ID` 执行恢复。详见[恢复步骤](docs/backups.md#manual-backups-and-offline-recovery)。
 
 详细说明见[分发与恢复](docs/distribution.md)、[发版操作](docs/releases.md)。
 

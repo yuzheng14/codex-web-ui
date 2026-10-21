@@ -1,6 +1,7 @@
 import { UNASSIGNED_SCOPE } from '../shared/workspace-scope';
 import { displayMessage, messageDetails } from './i18n/messages';
 import { t, useInterfaceLocale } from './i18n';
+import { BackupSettings } from './components/BackupSettings';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, Pencil } from 'lucide-react';
 import type { ThreadSummary } from '../shared/types';
@@ -62,6 +63,7 @@ function WorkspaceLayout({
 export function App() {
   useInterfaceLocale();
   const workspace = useWorkspace();
+  const [backupsOpen, setBackupsOpen] = useState(false);
   const [shellOpen, setShellOpen] = useState(false);
   const shell = useShell(shellOpen);
   const [shellCollapsed, setShellCollapsed] = useState(false);
@@ -309,6 +311,10 @@ export function App() {
   return (
     <WorkspaceLayout threadId={thread?.id} getHistoryCursor={history.getHistoryCursor}>
       <Sidebar
+        onBackups={() => {
+          setSidebarOpen(false);
+          setBackupsOpen(true);
+        }}
         onGatewaySettings={() => {
           setSidebarOpen(false);
           setGatewaySettingsOpen(true);
@@ -864,6 +870,7 @@ export function App() {
           onClose={() => setNotificationSettingsOpen(false)}
         />
       )}
+      {backupsOpen && <BackupSettings onClose={() => setBackupsOpen(false)} />}
       {gatewaySettingsOpen && <GatewaySettings onClose={() => setGatewaySettingsOpen(false)} />}
       {updatesOpen && <UpdateSettings updates={updates} onClose={() => setUpdatesOpen(false)} />}
     </WorkspaceLayout>

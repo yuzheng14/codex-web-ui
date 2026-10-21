@@ -1,3 +1,4 @@
+import { z, ZodError } from 'zod';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { chmod, lstat, mkdir, open, readFile, readdir, rm } from 'node:fs/promises';
@@ -7,6 +8,7 @@ import lockfile from 'proper-lockfile';
 import {
   backupIdSchema,
   backupManifestSchema,
+  backupRecordSchema,
   type BackupManifest,
   type BackupRecord,
 } from '../shared/backups.js';
@@ -44,6 +46,8 @@ async function fingerprint(path: string) {
   return { size: info.size, sha256: hash.digest('hex') };
 }
 export function backupFailure(error: unknown) {
+  if (error instanceof SyntaxError || error instanceof ZodError)
+    return '服务配置无效，备份未完成；请检查配置后重试。';
   const code = (error as NodeJS.ErrnoException)?.code;
   if (code === 'ENOSPC' || code === 'SQLITE_FULL') return '磁盘空间不足，备份未完成。';
   if (code === 'EACCES' || code === 'EPERM' || code === 'EROFS')
@@ -71,8 +75,10 @@ export class BackupStore {
     const records: BackupRecord[] = [];
     for (const id of names.filter((name) => backupIdSchema.safeParse(name).success)) {
       try {
-        const record = await readJson<BackupRecord>(join(this.path(id), 'record.json'));
-        if (!record || record.id !== id) continue;
+        const value = await readJson(join(this.path(id), 'record.json'));
+        if (value === undefined) continue;
+        const record = backupRecordSchema.parse(value);
+        if (record.id !== id) throw new Error('Backup record identity mismatch');
         const parsed = backupManifestSchema.safeParse(
           await readJson(join(this.path(id), 'snapshot.json')),
         );
@@ -294,8 +300,9 @@ export async function verifyLegacySnapshot(
   Sqlite: typeof Database,
   migrationsFolder: string,
 ) {
-  const marker = await readJson<{ complete?: boolean }>(join(directory, 'snapshot.json'));
-  if (!marker?.complete) throw new Error('数据库备份不完整');
+  z.object({ complete: z.literal(true) })
+    .strict()
+    .parse(await readJson(join(directory, 'snapshot.json')));
   parseFileConfig(JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')));
   const db = new Sqlite(join(directory, 'app.sqlite'), { readonly: true, fileMustExist: true });
   try {

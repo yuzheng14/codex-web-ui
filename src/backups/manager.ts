@@ -53,7 +53,12 @@ export class BackupManager implements BackupController {
     if (this.active?.id === id || (await this.store.list()).some((record) => record.id === id))
       return this.status();
     if (this.active) throw new AppError('BACKUP_BUSY', '已有备份正在处理。', 409);
+    if (this.service.isInMaintenance()) throw this.service.maintenanceError();
     const release = await acquireMaintenanceLock(this.store.options.dataDir);
+    if (this.closed) {
+      await release();
+      throw new AppError('BACKUP_UNAVAILABLE', '服务正在关闭。', 503);
+    }
     const abort = new AbortController();
     const record: BackupRecord = {
       id,
@@ -66,15 +71,23 @@ export class BackupManager implements BackupController {
     };
     this.active = record;
     this.abort = abort;
+    const preparation = this.store.record(record);
+    this.task = (async () => {
+      try {
+        await preparation;
+      } catch {
+        await release();
+        this.active = undefined;
+        this.abort = undefined;
+        return;
+      }
+      await this.run(record, abort, release);
+    })();
     try {
-      await this.store.record(record);
+      await preparation;
     } catch (error) {
-      this.active = undefined;
-      this.abort = undefined;
-      await release();
       throw new AppError('BACKUP_FAILED', backupFailure(error), 500);
     }
-    this.task = this.run(record, abort, release);
     return this.status();
   }
   private async run(record: BackupRecord, abort: AbortController, release: () => Promise<void>) {
@@ -118,9 +131,9 @@ export class BackupManager implements BackupController {
       }
     } finally {
       if (gated) this.service.setMaintenance(false);
+      await release();
       this.active = undefined;
       this.abort = undefined;
-      await release();
     }
   }
   async cancel(id: string) {
@@ -131,10 +144,29 @@ export class BackupManager implements BackupController {
     return this.status();
   }
   async verify(id: string) {
+    if (this.active && !ongoing(this.active)) await this.task;
     if (this.active) throw new AppError('BACKUP_BUSY', '请等待当前备份完成。', 409);
     try {
       await this.store.verify(id);
+      const record = (await this.store.list()).find((entry) => entry.id === id);
+      if (record)
+        await this.store.record({
+          ...record,
+          phase: 'succeeded',
+          message: '备份已重新验证，完整性检查通过。',
+          updatedAt: Date.now(),
+        });
     } catch {
+      const record = (await this.store.list()).find((entry) => entry.id === id);
+      if (record)
+        await this.store
+          .record({
+            ...record,
+            phase: 'corrupt',
+            message: '备份损坏、不完整或与当前版本不兼容，不能恢复。',
+            updatedAt: Date.now(),
+          })
+          .catch(() => {});
       throw new AppError('BACKUP_INVALID', '备份损坏、不完整或与当前版本不兼容，不能恢复。', 409);
     }
     return this.status();

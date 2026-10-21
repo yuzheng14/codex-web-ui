@@ -1,3 +1,7 @@
+import l3_backups from './locales/ko/backups.json';
+import l2_backups from './locales/ja/backups.json';
+import l1_backups from './locales/zh-Hans/backups.json';
+import l0_backups from './locales/en/backups.json';
 import l0_approvals from './locales/en/approvals.json';
 import l0_commands from './locales/en/commands.json';
 import l0_common from './locales/en/common.json';
@@ -54,6 +58,7 @@ import l3_workspace from './locales/ko/workspace.json';
 export const resources = {
   en: {
     approvals: l0_approvals,
+    backups: l0_backups,
     commands: l0_commands,
     common: l0_common,
     composer: l0_composer,
@@ -69,6 +74,7 @@ export const resources = {
   },
   'zh-Hans': {
     approvals: l1_approvals,
+    backups: l1_backups,
     commands: l1_commands,
     common: l1_common,
     composer: l1_composer,
@@ -84,6 +90,7 @@ export const resources = {
   },
   ja: {
     approvals: l2_approvals,
+    backups: l2_backups,
     commands: l2_commands,
     common: l2_common,
     composer: l2_composer,
@@ -99,6 +106,7 @@ export const resources = {
   },
   ko: {
     approvals: l3_approvals,
+    backups: l3_backups,
     commands: l3_commands,
     common: l3_common,
     composer: l3_composer,
