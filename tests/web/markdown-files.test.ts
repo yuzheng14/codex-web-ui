@@ -5,6 +5,24 @@ import { localPreviewPath, relativeToFile } from '../../src/web/lib/local-files'
 import { MarkdownContent } from '../../src/web/components/MarkdownContent';
 import { FilePreviewProvider } from '../../src/web/components/FilePreviewProvider';
 
+it('renders release Markdown safely and resolves relative links outside local file previews', () => {
+  const html = renderToStaticMarkup(
+    createElement(FilePreviewProvider, {
+      threadId: 'thread',
+      children: createElement(MarkdownContent, {
+        text: '## Features\n\n- **New feature**\n\n[Guide](docs/guide.md) [Issue](https://github.com/yuzheng14/covro/issues/225) [Unsafe](javascript:alert%281%29)\n\n<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>',
+        externalBaseUrl: 'https://github.com/yuzheng14/covro/blob/v0.4.0/',
+      }),
+    }),
+  );
+  expect(html).toContain('<h2>Features</h2>');
+  expect(html).toContain('<strong>New feature</strong>');
+  expect(html).toContain('href="https://github.com/yuzheng14/covro/blob/v0.4.0/docs/guide.md"');
+  expect(html).toContain('target="_blank" rel="noopener noreferrer"');
+  expect(html).not.toContain('/api/threads/');
+  expect(html).not.toMatch(/<script|onerror|javascript:/);
+});
+
 it.each([
   ['./docs/方案%20说明.md', './docs/方案 说明.md'],
   ['file:///work/README.MD#L20', '/work/README.MD'],

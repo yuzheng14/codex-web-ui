@@ -57,5 +57,14 @@
   "verifyingDescription": "新版を起動し、データの移行と検証を行っています。新しいタスクはまだ受け付けません。",
   "succeededDescription": "更新が成功し、サービスが復旧しました。",
   "rolledBackDescription": "新版を起動できないため、以前のバージョンに復元しました。技術的な詳細を確認してください。",
-  "failedDescription": "更新を完了できませんでした。技術的な詳細とサービスログを確認し、実行中のバージョンを確認してください。"
+  "failedDescription": "更新を完了できませんでした。技術的な詳細とサービスログを確認し、実行中のバージョンを確認してください。",
+  "releaseNotes": "リリースノート",
+  "releaseNotesFor": "リリースノート · {{version}}",
+  "viewOnGitHub": "GitHub で見る",
+  "releaseNotesContent": "リリースノート本文",
+  "releaseNotesLoading": "リリースノートを読み込み中…",
+  "releaseNotesMissing": "このバージョンのリリースノートはありません。一部の Beta / Dev バージョンには GitHub Release がありません。更新は続行できます。",
+  "releaseNotesEmpty": "このリリースにはまだ説明がありません。更新は続行できます。",
+  "releaseNotesRateLimited": "GitHub のリクエスト制限に達しました。後で再試行してください。更新は続行できます。",
+  "releaseNotesFailed": "リリースノートを読み込めませんでした。接続を確認して再試行してください。更新は続行できます。"
 }

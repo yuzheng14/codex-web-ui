@@ -7,6 +7,8 @@ import { releaseChannels, updateActive, type ReleaseChannel } from '../../shared
 import type { Updates } from '../hooks/useUpdates';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
+import { UpdateReleaseNotes } from './UpdateReleaseNotes';
+import { releasesUrl } from '../../shared/release-notes';
 
 const labels: Record<ReleaseChannel, string> = {
   get stable() {
@@ -210,6 +212,9 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
           {selected.commit && <code>{selected.commit.slice(0, 8)}</code>}
         </div>
       )}
+      {selected && (
+        <UpdateReleaseNotes key={`${channel}:${selected.version}`} version={selected.version} />
+      )}
       {selected?.codex && (
         <CodexCompatibilityDetails
           title={t('updates:target_version_compatibility')}
@@ -325,11 +330,7 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
         {t('updates:version_source_official_npm_registry', {
           v0: channel === 'stable' ? 'latest' : channel,
         })}
-        <a
-          href="https://github.com/yuzheng14/codex-web-ui/releases"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <a href={releasesUrl} target="_blank" rel="noreferrer">
           {t('updates:update_history')}
           <ExternalLink size={12} aria-hidden="true" />
         </a>

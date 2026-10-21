@@ -38,6 +38,17 @@ async function updatesFixture(page: Page) {
     const body =
       request.method() === 'POST' ? (request.postDataJSON() as Record<string, unknown>) : {};
     requests.push({ path, body });
+    if (path.endsWith('/release-notes')) {
+      const version = new URL(request.url()).searchParams.get('version');
+      await route.fulfill({
+        json: {
+          version,
+          state: 'missing',
+          url: `https://github.com/yuzheng14/covro/releases/tag/v${version}`,
+        },
+      });
+      return;
+    }
     if (path.endsWith('/check'))
       state.available = {
         version: body.channel === 'dev' ? developmentVersion : nextVersion,
@@ -246,4 +257,170 @@ test('unknown configured Codex blocks managed upgrades even when the candidate d
   await expect(dialog.getByRole('button', { name: '升级并重启', exact: true })).toBeDisabled();
   await screenshot(page, 'codex-desktop-unknown-runtime.png');
   expect(fixture.requests.filter((request) => request.path.endsWith('/run'))).toHaveLength(0);
+});
+
+async function openReleaseNotes(page: Page, mobile = false) {
+  await page.goto('/');
+  await confirmCompatibility(page);
+  if (mobile) await page.getByRole('button', { name: '打开项目与会话', exact: true }).click();
+  await page.getByRole('button', { name: 'Covro 更新', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Covro 更新', exact: true });
+  await dialog.getByRole('button', { name: '检查更新', exact: true }).click();
+  return dialog;
+}
+
+for (const viewport of [
+  { name: 'desktop', width: 1440, height: 1100 },
+  { name: 'mobile', width: 390, height: 844 },
+]) {
+  test(`${viewport.name}: release notes render Markdown safely with a scrollable long description`, async ({
+    page,
+  }) => {
+    await updatesFixture(page);
+    await page.setViewportSize(viewport);
+    await page.route('**/api/updates/release-notes?**', async (route) => {
+      const version = new URL(route.request().url()).searchParams.get('version');
+      await route.fulfill({
+        json: {
+          version,
+          state: 'available',
+          url: `https://github.com/yuzheng14/covro/releases/tag/v${version}`,
+          body:
+            '## New features\n\n- **Read release notes** before updating.\n- Keep notes matched to the selected version.\n\n[Read the guide](docs/releases.md) · [Issue #225](https://github.com/yuzheng14/covro/issues/225)\n\n### Fixes\n\n' +
+            Array.from(
+              { length: 20 },
+              (_, i) => `- Improvement ${i + 1}: ${'Long release description. '.repeat(8)}`,
+            ).join('\n') +
+            '\n\n| Area | Change |\n| --- | --- |\n| Updates | Version-specific notes |\n\n```sh\ncovro update\n```\n\n<script>window.releaseUnsafe = true</script>\n\n[Unsafe](javascript:alert%281%29)',
+        },
+      });
+    });
+    const dialog = await openReleaseNotes(page, viewport.name === 'mobile');
+    const notes = dialog.getByRole('region', { name: '发布说明', exact: true });
+    const content = notes.getByRole('region', { name: '发布说明正文', exact: true });
+    await expect(content.getByRole('heading', { name: 'New features', exact: true })).toBeVisible();
+    await expect(content.locator('strong')).toContainText('Read release notes');
+    await expect(notes.getByRole('link', { name: '在 GitHub 查看' })).toHaveAttribute(
+      'href',
+      `https://github.com/yuzheng14/covro/releases/tag/v${nextVersion}`,
+    );
+    await expect(content.getByRole('link', { name: 'Read the guide' })).toHaveAttribute(
+      'href',
+      `https://github.com/yuzheng14/covro/blob/v${nextVersion}/docs/releases.md`,
+    );
+    await expect(content.locator('script')).toHaveCount(0);
+    await expect(content.getByRole('link', { name: 'Unsafe', exact: true })).toHaveAttribute(
+      'href',
+      '',
+    );
+    await expect(content.getByRole('table')).toBeAttached();
+    expect(await content.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
+      true,
+    );
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+    await notes.scrollIntoViewIfNeeded();
+    await screenshot(page, `release-notes-${viewport.name}.png`);
+    await expect(dialog.getByRole('button', { name: '升级并重启', exact: true })).toBeEnabled();
+  });
+}
+
+test('release-note failures and empty releases can retry without blocking an upgrade', async ({
+  page,
+}) => {
+  const fixture = await updatesFixture(page);
+  let state: 'missing' | 'empty' | 'rateLimited' | 'network' | 'available' = 'missing';
+  const queries: URLSearchParams[] = [];
+  await page.route('**/api/updates/release-notes?**', async (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    queries.push(query);
+    if (state === 'network') {
+      await route.abort('failed');
+      return;
+    }
+    await route.fulfill({
+      json: {
+        version: query.get('version'),
+        url: `https://github.com/yuzheng14/covro/releases/tag/v${nextVersion}`,
+        ...(state === 'rateLimited'
+          ? { state: 'error', reason: 'rateLimited' }
+          : { state, body: '## Recovered release notes' }),
+      },
+    });
+  });
+  const dialog = await openReleaseNotes(page);
+  const notes = dialog.getByRole('region', { name: '发布说明', exact: true });
+  const upgrade = dialog.getByRole('button', { name: '升级并重启', exact: true });
+  for (const [next, text] of [
+    ['empty', '暂无发布说明'],
+    ['rateLimited', '尚未填写说明'],
+    ['network', '已被限流'],
+    ['available', '加载失败'],
+  ] as const) {
+    await expect(notes).toContainText(text);
+    await expect(upgrade).toBeEnabled();
+    await notes.scrollIntoViewIfNeeded();
+    await screenshot(page, `release-notes-${state}.png`);
+    state = next;
+    await notes.getByRole('button', { name: '重试', exact: true }).click();
+  }
+  await expect(
+    notes.getByRole('heading', { name: 'Recovered release notes', exact: true }),
+  ).toBeVisible();
+  expect(queries).toHaveLength(5);
+  expect(queries.slice(1).every((query) => query.get('refresh') === '1')).toBe(true);
+  await upgrade.click();
+  expect(fixture.requests.filter((request) => request.path.endsWith('/run'))).toHaveLength(1);
+});
+
+test('channel and same-channel target changes discard late release-note responses', async ({
+  page,
+}) => {
+  const fixture = await updatesFixture(page);
+  let releaseOld: (() => void) | undefined;
+  const oldResponse = new Promise<void>((resolve) => {
+    releaseOld = resolve;
+  });
+  const requested: string[] = [];
+  await page.route('**/api/updates/release-notes?**', async (route) => {
+    const version = new URL(route.request().url()).searchParams.get('version')!;
+    requested.push(version);
+    if (version === nextVersion) await oldResponse;
+    await route
+      .fulfill({
+        json: {
+          version,
+          state: 'available',
+          url: `https://github.com/yuzheng14/covro/releases/tag/v${version}`,
+          body: `## Notes for ${version}`,
+        },
+      })
+      .catch(() => {});
+  });
+  const dialog = await openReleaseNotes(page);
+  const notes = dialog.getByRole('region', { name: '发布说明', exact: true });
+  await expect(notes).toContainText('正在加载发布说明');
+  await expect(dialog.getByRole('button', { name: '升级并重启', exact: true })).toBeEnabled();
+  await notes.scrollIntoViewIfNeeded();
+  await screenshot(page, 'release-notes-loading.png');
+  await dialog.getByRole('combobox', { name: '版本渠道' }).selectOption('dev');
+  await expect(
+    notes.getByRole('heading', { name: `Notes for ${developmentVersion}`, exact: true }),
+  ).toBeVisible();
+  releaseOld!();
+  const changed = `${nextVersion}-dev.124`;
+  fixture.state.available = { ...fixture.state.available!, version: changed };
+  await expect(
+    notes.getByRole('heading', { name: `Notes for ${changed}`, exact: true }),
+  ).toBeVisible({ timeout: 10_000 });
+  await expect(
+    notes.getByRole('heading', { name: `Notes for ${nextVersion}`, exact: true }),
+  ).toHaveCount(0);
+  await expect(notes.getByRole('link', { name: '在 GitHub 查看' })).toHaveAttribute(
+    'href',
+    `https://github.com/yuzheng14/covro/releases/tag/v${changed}`,
+  );
+  expect(requested).toEqual([nextVersion, developmentVersion, changed]);
+  await screenshot(page, 'release-notes-changed-target.png');
 });

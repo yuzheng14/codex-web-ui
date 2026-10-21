@@ -20,6 +20,7 @@ import { socketHandlers } from './websocket.js';
 import { z } from 'zod';
 import { releaseChannels, type UpdateController } from '../shared/updates.js';
 import { settingsSchema, updateRequestSchema } from '../updates/manager.js';
+import { createReleaseNotesLookup, releaseNotesQuery } from '../updates/release-notes.js';
 import { startShellSchema } from '../shared/shell.js';
 export interface HttpDependencies {
   config: AppConfig;
@@ -89,6 +90,11 @@ export function createApp({
     );
   }
   if (updates) {
+    const releaseNotes = createReleaseNotesLookup();
+    app.get('/api/updates/release-notes', async (c) => {
+      const { version, refresh } = releaseNotesQuery.parse(c.req.query());
+      return c.json(await releaseNotes(version, refresh === '1'));
+    });
     app.get('/api/updates', async (c) => c.json(await updates.status()));
     app.post('/api/updates/check', async (c) => {
       const input = z

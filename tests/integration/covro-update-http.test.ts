@@ -10,6 +10,7 @@ import { harness } from './domain-helpers.js';
 const cleanups: (() => void)[] = [];
 afterEach(() => {
   for (const close of cleanups.splice(0)) close();
+  vi.unstubAllGlobals();
 });
 function fixture() {
   const h = harness();
@@ -67,4 +68,26 @@ it('keeps status available while fencing project and task mutations during activ
   const response = await app.request(origin + '/api/updates');
   expect(response.status).toBe(200);
   expect(response.headers.get('cache-control')).toBe('no-store');
+});
+
+it('validates release-note selectors and keeps update controls independent of GitHub failures', async () => {
+  const { app, origin, post, updates } = fixture();
+  const fetcher = vi.fn(async () => Response.json({}, { status: 429 }));
+  vi.stubGlobal('fetch', fetcher);
+  for (const query of ['', '?version=latest', '?version=../latest', '?version=0.4.0&refresh=bad'])
+    expect((await app.request(`${origin}/api/updates/release-notes${query}`)).status).toBe(400);
+  expect(fetcher).not.toHaveBeenCalled();
+  const response = await app.request(`${origin}/api/updates/release-notes?version=0.4.0`);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(await response.json()).toMatchObject({
+    version: '0.4.0',
+    state: 'error',
+    reason: 'rateLimited',
+  });
+  expect((await app.request(`${origin}/api/updates`)).status).toBe(200);
+  expect(
+    (await post('/api/updates/run', { clientOperationId: randomUUID(), channel: 'stable' })).status,
+  ).toBe(202);
+  expect(updates.start).toHaveBeenCalledTimes(1);
 });
