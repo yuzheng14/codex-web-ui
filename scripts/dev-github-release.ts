@@ -1,23 +1,20 @@
-import { databaseCompatibilitySchema } from '../src/shared/database.js';
-import { releaseDatabaseNotes } from './release-compatibility.js';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { z } from 'zod';
 import { compareVersions, validVersion } from '../src/shared/versions.js';
 import { readPackageRegistry, releaseCommit, type PackageRegistry } from './release-registry.js';
+import {
+  devVersion,
+  stableVersion,
+  prereleasePlanSchema as planSchema,
+  publishGitHubPrerelease,
+  githubApi,
+  type Ancestor,
+  type PrereleasePlan,
+} from './github-prerelease.js';
 
-const devVersion = /^\d+\.\d+\.\d+-dev(?:\.\d+)+(?:\+[0-9A-Za-z.-]+)?$/;
-const stableVersion = /^\d+\.\d+\.\d+$/;
-const identity = z.object({
-  version: z
-    .string()
-    .refine(validVersion)
-    .refine((value) => devVersion.test(value) || stableVersion.test(value)),
-  commit: z.string().regex(/^[a-f0-9]{40}$/),
-});
-const planSchema = identity.extend({ previous: identity.optional() });
-export type DevReleasePlan = z.infer<typeof planSchema>;
-type Ancestor = (older: string, newer: string) => boolean;
+export type DevReleasePlan = PrereleasePlan;
+export type { GitHubApi } from './github-prerelease.js';
+export const publishDevGitHubRelease = publishGitHubPrerelease.bind(null, 'dev');
 
 export function planDevGitHubRelease(
   input: { version: string; commit: string; skip: boolean },
@@ -60,140 +57,6 @@ export function planDevGitHubRelease(
     else if (!isAncestor(stable.commit, dev.commit)) throw new Error('Release baselines diverge');
   }
   return planSchema.parse({ version, commit: input.commit, previous: base });
-}
-
-export type GitHubApi = (
-  method: 'GET' | 'POST',
-  path: string,
-  body?: Record<string, unknown>,
-) => unknown;
-const gitObject = z.object({ sha: z.string().regex(/^[a-f0-9]{40}$/), type: z.string() });
-const releaseSchema = z.object({
-  tag_name: z.string(),
-  prerelease: z.boolean(),
-  draft: z.boolean(),
-  html_url: z.string().url(),
-});
-
-export function publishDevGitHubRelease(
-  repository: string,
-  input: DevReleasePlan,
-  history: PackageRegistry,
-  isAncestor: Ancestor,
-  api: GitHubApi,
-  database: unknown,
-) {
-  if (
-    !/^[a-z\d][a-z\d-]*\/[\w.-]+$/i.test(repository) ||
-    ['.', '..'].includes(repository.split('/')[1] ?? '')
-  )
-    throw new Error('Invalid repository');
-  const plan = planSchema.parse(input);
-  const contract = databaseCompatibilitySchema.parse(database);
-  if (!devVersion.test(plan.version) || plan.previous?.version === plan.version)
-    throw new Error('Invalid Dev release plan');
-  for (const target of [plan, ...(plan.previous ? [plan.previous] : [])]) {
-    const published = history.versions[target.version];
-    if (!published || releaseCommit(published) !== target.commit)
-      throw new Error(`npm has not published ${target.version} from the expected source commit`);
-    if (target.commit !== plan.commit && !isAncestor(target.commit, plan.commit))
-      throw new Error('Dev release baseline is not an ancestor of source');
-  }
-  const root = `repos/${repository}`;
-  const tag = `v${plan.version}`;
-
-  function tagCommit(name: string): string | undefined {
-    const value = api('GET', `${root}/git/ref/tags/${name}`);
-    if (value === undefined) return;
-    let object = z.object({ object: gitObject }).parse(value).object;
-    const seen = new Set<string>();
-    while (object.type === 'tag') {
-      if (seen.has(object.sha) || seen.size >= 10) throw new Error('Invalid annotated tag chain');
-      seen.add(object.sha);
-      object = z
-        .object({ object: gitObject })
-        .parse(api('GET', `${root}/git/tags/${object.sha}`)).object;
-    }
-    if (object.type !== 'commit') throw new Error('Release tag does not point to a commit');
-    return object.sha;
-  }
-  function checkTag(name: string, commit: string) {
-    const actual = tagCommit(name);
-    if (actual && actual !== commit)
-      throw new Error(`Tag ${name} belongs to a different source commit`);
-    return actual;
-  }
-  function ensureTag(name: string, commit: string) {
-    if (checkTag(name, commit)) return;
-    try {
-      api('POST', `${root}/git/refs`, { ref: `refs/tags/${name}`, sha: commit });
-    } catch (error) {
-      if (!checkTag(name, commit)) throw error;
-    }
-    if (!checkTag(name, commit)) throw new Error(`Tag ${name} was not created`);
-  }
-  function existingRelease() {
-    const value = api('GET', `${root}/releases/tags/${tag}`);
-    if (value === undefined) return;
-    const release = releaseSchema.parse(value);
-    if (
-      release.tag_name !== tag ||
-      !release.prerelease ||
-      release.draft ||
-      !checkTag(tag, plan.commit)
-    )
-      throw new Error('Existing Dev Release does not match a published prerelease');
-    return release.html_url;
-  }
-
-  checkTag(tag, plan.commit);
-  const existing = existingRelease();
-  if (existing) return existing; // Preserve already-published notes, including manual edits.
-  if (plan.previous) ensureTag(`v${plan.previous.version}`, plan.previous.commit);
-  const notes = z.object({ body: z.string() }).parse(
-    api('POST', `${root}/releases/generate-notes`, {
-      tag_name: tag,
-      target_commitish: plan.commit,
-      ...(plan.previous ? { previous_tag_name: `v${plan.previous.version}` } : {}),
-    }),
-  );
-  ensureTag(tag, plan.commit);
-  try {
-    const release = releaseSchema.parse(
-      api('POST', `${root}/releases`, {
-        tag_name: tag,
-        target_commitish: plan.commit,
-        name: tag,
-        body: releaseDatabaseNotes(notes.body, contract),
-        draft: false,
-        prerelease: true,
-        make_latest: 'false',
-      }),
-    );
-    if (release.tag_name !== tag || !release.prerelease || release.draft)
-      throw new Error('GitHub did not create the expected Dev prerelease');
-    return release.html_url;
-  } catch (error) {
-    const created = existingRelease();
-    if (created) return created;
-    throw error;
-  }
-}
-
-function githubApi(method: 'GET' | 'POST', path: string, body?: Record<string, unknown>) {
-  try {
-    return JSON.parse(
-      execFileSync('gh', ['api', '--method', method, path, ...(body ? ['--input', '-'] : [])], {
-        encoding: 'utf8',
-        input: body ? JSON.stringify(body) : undefined,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }),
-    );
-  } catch (error) {
-    if (method === 'GET' && /\(HTTP 404\)/.test(String((error as { stderr?: unknown }).stderr)))
-      return;
-    throw error;
-  }
 }
 
 async function main() {

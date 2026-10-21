@@ -145,7 +145,7 @@ covro update --channel dev
 | 预览版 | `beta`   | 维护者通过 Beta 标签或 GitHub Release 选定的预览版 |
 | 开发版 | `dev`    | CI 通过后的 main 分支新功能                        |
 
-开发版 npm 发布成功后，还会创建带 GitHub 自动生成说明的 [GitHub Pre-release](https://github.com/yuzheng14/covro/releases)。比较起点取上一个 Dev 版本与稳定版本中源码提交较新的那个；稳定版仍保留原来的分组 Changelog。
+开发版和预览版 npm 发布成功后，还会创建带 GitHub 自动生成说明的 [GitHub Pre-release](https://github.com/yuzheng14/covro/releases)。比较起点取同一渠道的先前版本与稳定版本中源码提交较新的那个。推送 Beta 标签即可发布 npm 包并创建对应的 Pre-release；重跑时保留已有发布说明。Beta 说明还会附上所选源码的兼容性声明。稳定版仍保留原来的分组 Changelog。
 
 每个发行版声明推荐和已验证的 Codex CLI 版本，更新面板会同时显示当前与目标组合。自动升级只接受已验证组合；未验证组合需要对确切目标明确确认。版本未知、声明缺失/无效或明确不支持的组合会阻止受管升级。CLI 可通过 `covro update --allow-unverified-codex` 明确尝试同一组合。Covro 不会自动升级你的 Codex CLI。
 
