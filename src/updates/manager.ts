@@ -120,8 +120,9 @@ export class UpdateManager implements UpdateController {
       const release = await lookupRelease(channel, this.network.signal);
       this.available = {
         version: release.version,
-        channel,
-        commit: release.gitHead,
+        requestedChannel: channel,
+        channel: release.channel,
+        commit: release.covroCommit ?? release.gitHead,
         downgrade: compareVersions(release.version, packageInfo.version) < 0,
         codex: assessCodexCompatibility(release.covroCodex, this.codexVersion()),
       };
@@ -218,7 +219,7 @@ export class UpdateManager implements UpdateController {
           '目标版本较旧，需要明确允许降级；仍将检查数据库兼容性。',
           409,
         );
-      if (checked.available.version === packageInfo.version) {
+      if (compareVersions(checked.available.version, packageInfo.version) === 0) {
         return this.configure({ ...this.settings, channel });
       }
       const confirmation = request.codexConfirmation;
@@ -244,6 +245,8 @@ export class UpdateManager implements UpdateController {
         from: packageInfo.version,
         target: checked.available.version,
         channel,
+        sourceChannel: checked.available.channel,
+        commit: checked.available.commit,
         codex: { version: codex.version!, manifest: codex.manifest!, confirmedUnverified },
         phase: 'installing',
         message: '正在安装候选 npm 包',
@@ -334,7 +337,7 @@ export class UpdateManager implements UpdateController {
         result.available &&
         result.available.codex.status === 'verified' &&
         !result.available.downgrade &&
-        result.available.version !== packageInfo.version &&
+        compareVersions(result.available.version, packageInfo.version) > 0 &&
         result.run?.target !== result.available.version &&
         !updateActive(result.run)
       )
