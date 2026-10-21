@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0](https://github.com/yuzheng14/covro/compare/v0.2.0...v0.3.0) (2026-10-21)
+
+
+### Features
+
+* **backup:** add manual snapshots and recoverable offline restore ([#215](https://github.com/yuzheng14/covro/issues/215)) ([4a2e546](https://github.com/yuzheng14/covro/commit/4a2e54616b31947dea38880d4600b025a4d6d034))
+* **backup:** verify snapshots before activating upgrades ([#214](https://github.com/yuzheng14/covro/issues/214)) ([d6f33d3](https://github.com/yuzheng14/covro/commit/d6f33d37e83324c0c6d2bf136a8a979cd73be575))
+* **db:** version schemas and publish database compatibility ([#213](https://github.com/yuzheng14/covro/issues/213)) ([109ab04](https://github.com/yuzheng14/covro/commit/109ab047991137bd8da293b6474ee211c9844744))
+* **i18n:** add four-language translation foundation ([#212](https://github.com/yuzheng14/covro/issues/212)) ([b94fd6d](https://github.com/yuzheng14/covro/commit/b94fd6d68bf0d79aaae01f76afb998c865e796b8))
+* **i18n:** support Chinese, English, Japanese and Korean ([#218](https://github.com/yuzheng14/covro/issues/218)) ([b7685c4](https://github.com/yuzheng14/covro/commit/b7685c4ac8c5daf77a98955e93439d9490c1eb78)), closes [#174](https://github.com/yuzheng14/covro/issues/174)
+* **projects:** clone Git repositories when importing projects ([#221](https://github.com/yuzheng14/covro/issues/221)) ([8e16acd](https://github.com/yuzheng14/covro/commit/8e16acd25f4e19ad37973efc88cf53d2fa7416e8))
+* **release:** create GitHub prereleases for Beta tags ([#227](https://github.com/yuzheng14/covro/issues/227)) ([6079a78](https://github.com/yuzheng14/covro/commit/6079a78ec6cbf0dd31ee2d2d1726beb4363c94ac))
+* **release:** create GitHub prereleases for Dev packages ([#222](https://github.com/yuzheng14/covro/issues/222)) ([faf4837](https://github.com/yuzheng14/covro/commit/faf4837b714d3e4d1bd462c9b168d78798e95d2c))
+* support conversations without a project ([#210](https://github.com/yuzheng14/covro/issues/210)) ([8771d56](https://github.com/yuzheng14/covro/commit/8771d56d170d1066764bcd72c3f7aa4de30a3b1c))
+* **ui:** add backup progress records and recovery guidance ([#216](https://github.com/yuzheng14/covro/issues/216)) ([c4e8e35](https://github.com/yuzheng14/covro/commit/c4e8e3531db14b7889874ce1bcfa6f5754412ef9)), closes [#205](https://github.com/yuzheng14/covro/issues/205)
+* **ui:** render Mermaid diagrams in conversations and Markdown previews ([#209](https://github.com/yuzheng14/covro/issues/209)) ([cf8a151](https://github.com/yuzheng14/covro/commit/cf8a151d6292cf795f14d070a7fef68219f29aa7))
+* **ui:** show all snapshot files with collapsible long diffs ([#208](https://github.com/yuzheng14/covro/issues/208)) ([6aacfce](https://github.com/yuzheng14/covro/commit/6aacfce360f837a97d5299ab27742606e1c8d6ef))
+
 ## [0.2.0](https://github.com/yuzheng14/covro/compare/v0.1.0...v0.2.0) (2026-10-20)
 
 
