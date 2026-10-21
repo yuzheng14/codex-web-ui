@@ -135,6 +135,82 @@ test('local Markdown images and file links load from the gateway and survive rel
   await expect(dialog(page).locator('img')).toHaveJSProperty('naturalWidth', 960);
 });
 
+test('browser revalidates cached previews on reopen and reload and displays same-path updates', async ({
+  page,
+  context,
+  request,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 980 });
+  // Playwright's response API exposes the combined 200 response after revalidation.
+  // CDP extra-info events expose the actual 304 sent over the network without disabling cache.
+  const network = await context.newCDPSession(page);
+  await network.send('Network.enable');
+  const imageRequests = new Set<string>();
+  const imageUrls = new Set<string>();
+  const statuses: number[] = [];
+  network.on('Network.requestWillBeSent', ({ requestId, request: imageRequest }) => {
+    const url = new URL(imageRequest.url);
+    if (
+      url.pathname.endsWith('/images') &&
+      url.searchParams.get('path') === './assets/发布 图表.png'
+    ) {
+      imageRequests.add(requestId);
+      imageUrls.add(imageRequest.url);
+    }
+  });
+  network.on('Network.responseReceivedExtraInfo', ({ requestId, statusCode }) => {
+    if (imageRequests.has(requestId)) statuses.push(statusCode);
+  });
+
+  await send(page);
+  await expect(thumbnail(page)).toHaveJSProperty('naturalWidth', 960);
+  await expect.poll(() => statuses).toEqual([200]);
+  const open = page.getByRole('button', { name: '预览图片：项目进度图', exact: true });
+  for (let i = 0; i < 2; i++) {
+    await open.click();
+    await expect(dialog(page).locator('img')).toHaveJSProperty('naturalWidth', 960);
+    await expect.poll(() => statuses).toEqual([200, ...Array<number>(i + 1).fill(304)]);
+    if (i === 1) await screenshot(page, 'http-cache-preview');
+    await page.keyboard.press('Escape');
+  }
+  await page.reload();
+  await expect(thumbnail(page)).toHaveJSProperty('naturalWidth', 960);
+  await expect.poll(() => statuses).toEqual([200, 304, 304, 304]);
+
+  const threadId = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
+  const thread = (await (await request.get(`/api/threads/${threadId}`)).json()) as ThreadView;
+  const imagePath = join(thread.cwd, 'assets/发布 图表.png');
+  const updated = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 480;
+    canvas.height = 270;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#edf5f0';
+    ctx.fillRect(0, 0, 480, 270);
+    ctx.fillStyle = '#1f4b3c';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillText('Updated preview', 48, 140);
+    return canvas.toDataURL('image/png').split(',')[1]!;
+  });
+  await writeFile(imagePath, Buffer.from(updated, 'base64'));
+  await open.click();
+  await expect(dialog(page).locator('img')).toHaveJSProperty('naturalWidth', 480);
+  await expect.poll(() => statuses).toEqual([200, 304, 304, 304, 200]);
+  await screenshot(page, 'http-cache-updated');
+  await page.keyboard.press('Escape');
+  await open.click();
+  await expect(dialog(page).locator('img')).toHaveJSProperty('naturalWidth', 480);
+  await expect.poll(() => statuses).toEqual([200, 304, 304, 304, 200, 304]);
+  await page.keyboard.press('Escape');
+
+  await rm(imagePath);
+  await open.click();
+  await expect(dialog(page).getByRole('alert')).toContainText('图片文件不存在或已被删除');
+  await expect.poll(() => statuses).toEqual([200, 304, 304, 304, 200, 304, 404]);
+  expect(imageUrls.size).toBe(1);
+  await network.detach();
+});
+
 test('missing, unsupported and invalid images explain failures and preserve paths', async ({
   page,
 }) => {

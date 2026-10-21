@@ -4,9 +4,11 @@ import {
   mkdtempSync,
   realpathSync,
   rmSync,
+  statSync,
   symlinkSync,
   truncateSync,
   unlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -71,12 +73,88 @@ it('serves actual image bytes for absolute/relative paths, Chinese, spaces and l
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('image/png');
     expect(response.headers.get('Content-Length')).toBe(String(png.length));
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(response.headers.get('Cache-Control')).toBe('private, no-cache');
+    expect(response.headers.get('ETag')).toMatch(/^"[^"]+"$/);
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(response.headers.get('Cross-Origin-Resource-Policy')).toBe('same-origin');
     expect(response.headers.get('Content-Security-Policy')).toContain('sandbox');
     expect(Buffer.from(await response.arrayBuffer())).toEqual(png);
   }
+});
+
+it('revalidates matching strong, weak, listed and wildcard tags without an image body', async () => {
+  const { app, project, url } = await setup();
+  writeFileSync(join(project, 'cached.png'), png);
+  const initial = await app.request(url('cached.png'));
+  const etag = initial.headers.get('ETag')!;
+  expect(etag).toBeTruthy();
+  for (const tag of [etag, `W/${etag}`, `"other", W/${etag}, "another"`, '*']) {
+    const response = await app.request(url('cached.png'), { headers: { 'If-None-Match': tag } });
+    expect(response.status).toBe(304);
+    expect(response.headers.get('ETag')).toBe(etag);
+    expect(response.headers.get('Cache-Control')).toBe('private, no-cache');
+    expect(response.headers.get('Content-Length')).toBeNull();
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(response.headers.get('Cross-Origin-Resource-Policy')).toBe('same-origin');
+    expect(response.headers.get('Content-Security-Policy')).toContain('sandbox');
+    expect(await response.text()).toBe('');
+  }
+  const response = await app.request(url('cached.png'), {
+    headers: { 'If-None-Match': '"other", W/"another"' },
+  });
+  expect(response.status).toBe(200);
+  expect(response.headers.get('ETag')).toBe(etag);
+  expect(Buffer.from(await response.arrayBuffer())).toEqual(png);
+});
+
+it('invalidates same-path, same-size overwrites even when the modification time is preserved', async () => {
+  const { app, project, url } = await setup();
+  const path = join(project, 'cached.gif');
+  const original = Buffer.from('GIF89a-first');
+  const updated = Buffer.from('GIF89a-other');
+  const modified = new Date('2026-01-01T00:00:00Z');
+  writeFileSync(path, original);
+  utimesSync(path, modified, modified);
+  const before = statSync(path);
+  const etag = (await app.request(url('cached.gif'))).headers.get('ETag')!;
+  writeFileSync(path, updated);
+  utimesSync(path, modified, modified);
+  expect(statSync(path).size).toBe(before.size);
+  expect(statSync(path).mtimeMs).toBe(before.mtimeMs);
+  const response = await app.request(url('cached.gif'), { headers: { 'If-None-Match': etag } });
+  expect(response.status).toBe(200);
+  expect(response.headers.get('ETag')).not.toBe(etag);
+  expect(Buffer.from(await response.arrayBuffer())).toEqual(updated);
+});
+
+it('checks file existence and content before returning 304 and keeps errors uncacheable', async () => {
+  const { app, project, url } = await setup();
+  const path = join(project, 'cached.png');
+  writeFileSync(path, png);
+  const etag = (await app.request(url('cached.png'))).headers.get('ETag')!;
+  unlinkSync(path);
+  for (const tag of [etag, '*']) {
+    const response = await app.request(url('cached.png'), { headers: { 'If-None-Match': tag } });
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(response.headers.get('ETag')).toBeNull();
+    await expectError(response, 404, 'IMAGE_NOT_FOUND');
+  }
+  writeFileSync(path, 'not a PNG');
+  const response = await app.request(url('cached.png'), { headers: { 'If-None-Match': etag } });
+  expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+  expect(response.headers.get('ETag')).toBeNull();
+  await expectError(response, 415, 'INVALID_IMAGE_CONTENT');
+});
+
+it('rechecks project ownership before honoring a previously valid tag', async () => {
+  const { app, project, service, url } = await setup();
+  writeFileSync(join(project, 'cached.png'), png);
+  const etag = (await app.request(url('cached.png'))).headers.get('ETag')!;
+  service.removeProject('project');
+  const response = await app.request(url('cached.png'), { headers: { 'If-None-Match': etag } });
+  expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+  expect(response.headers.get('ETag')).toBeNull();
+  await expectError(response, 404, 'PROJECT_NOT_FOUND');
 });
 
 it.each([
@@ -323,9 +401,13 @@ it.skipIf(process.getuid?.() === 0)('reports a file that is not readable', async
   const { app, project, url } = await setup();
   const path = join(project, 'unreadable.png');
   writeFileSync(path, png);
+  const etag = (await app.request(url(path))).headers.get('ETag')!;
   chmodSync(path, 0);
   try {
-    await expectError(await app.request(url(path)), 403, 'IMAGE_UNREADABLE');
+    const response = await app.request(url(path), { headers: { 'If-None-Match': etag } });
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(response.headers.get('ETag')).toBeNull();
+    await expectError(response, 403, 'IMAGE_UNREADABLE');
   } finally {
     chmodSync(path, 0o600);
   }
@@ -334,14 +416,19 @@ it.skipIf(process.getuid?.() === 0)('reports a file that is not readable', async
 it('enforces host/origin validation and Cloudflare authentication before reading files', async () => {
   const { app, service, directory, project, url } = await setup();
   writeFileSync(join(project, 'saved.png'), png);
+  const etag = (await app.request(url('saved.png'))).headers.get('ETag')!;
   const read = vi.spyOn(service, 'getThreadImage');
   await expectError(
-    await app.request(url('saved.png'), { headers: { Host: 'foreign.invalid' } }),
+    await app.request(url('saved.png'), {
+      headers: { Host: 'foreign.invalid', 'If-None-Match': etag },
+    }),
     403,
     'INVALID_HOST',
   );
   await expectError(
-    await app.request(url('saved.png'), { headers: { Origin: 'https://foreign.invalid' } }),
+    await app.request(url('saved.png'), {
+      headers: { Origin: 'https://foreign.invalid', 'If-None-Match': etag },
+    }),
     403,
     'INVALID_ORIGIN',
   );
@@ -364,7 +451,11 @@ it('enforces host/origin validation and Cloudflare authentication before reading
     authenticate: createAuthenticator(config, publicKey),
   });
   const accessUrl = url('saved.png').replace('http://127.0.0.1:8787', 'https://codex.example.com');
-  await expectError(await accessApp.request(accessUrl), 401, 'UNAUTHENTICATED');
+  await expectError(
+    await accessApp.request(accessUrl, { headers: { 'If-None-Match': etag } }),
+    401,
+    'UNAUTHENTICATED',
+  );
   expect(read).not.toHaveBeenCalled();
   const token = await new SignJWT({ sub: 'owner' })
     .setProtectedHeader({ alg: 'RS256' })
