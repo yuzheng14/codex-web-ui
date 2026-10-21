@@ -98,5 +98,10 @@
   "images_have_no_preview_one": "画像 {{v0}} 枚はプレビューがありません",
   "activityWithCommand": "{{label}}：{{command}}",
   "start_in_project": "送信すると「{{v0}}」で新しいセッションが始まります。",
-  "start_without_project": "プロジェクトを選ばずに開始できます。送信すると専用の作業ディレクトリが割り当てられ、セッションとファイルは保持されます。"
+  "start_without_project": "プロジェクトを選ばずに開始できます。送信すると専用の作業ディレクトリが割り当てられ、セッションとファイルは保持されます。",
+  "copy_command_output": "コマンド出力をコピー",
+  "copy_loaded_command_output": "このコマンドの読み込み済み出力をコピー",
+  "command_output_copy_failed": "コピーに失敗しました。出力を選択して手動でコピーしてください。",
+  "command_output_truncated": "出力は切り詰められています。読み込み済みの部分のみコピーできます。",
+  "copied_truncated_command_output": "読み込み済み部分をコピーしました（出力は切り詰められています）"
 }

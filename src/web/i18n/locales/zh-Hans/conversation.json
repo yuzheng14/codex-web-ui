@@ -98,5 +98,10 @@
   "images_have_no_preview_one": "{{v0}} 张图片未提供预览",
   "activityWithCommand": "{{label}}：{{command}}",
   "start_in_project": "发送后将在「{{v0}}」中开始新会话。",
-  "start_without_project": "无需选择项目，发送后自动分配独立工作目录；会话和文件将持续保留。"
+  "start_without_project": "无需选择项目，发送后自动分配独立工作目录；会话和文件将持续保留。",
+  "copy_command_output": "复制命令输出",
+  "copy_loaded_command_output": "复制此命令已加载的输出",
+  "command_output_copy_failed": "复制失败，请手动选择输出复制。",
+  "command_output_truncated": "输出已截断，仅可复制已加载部分。",
+  "copied_truncated_command_output": "已复制已加载部分（输出已截断）"
 }

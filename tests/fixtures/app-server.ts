@@ -813,6 +813,30 @@ function stickyPromptReply(thread: Thread, turn: Turn, streaming: boolean): void
   finishes.set(turn.id, setTimeout(append, 2000));
 }
 
+/** Command outputs retain interleaved stdout/stderr, whitespace and empty results. */
+function commandOutputScenario(thread: Thread, turn: Turn, truncated: boolean): void {
+  const outputs = truncated
+    ? ['Loaded output\n' + 'x'.repeat(2 * 1024 * 1024) + '\nnot retained\n']
+    : [
+        'stdout: 你好 & <Covro>\r\n  indented line\n\ttabbed line\n\n',
+        'stdout: starting\nstderr: Error: unavailable\nstdout: cleanup complete\n',
+        '',
+      ];
+  for (const [index, output] of outputs.entries()) {
+    const item = command(randomUUID(), thread.cwd);
+    item.command = index === 1 ? 'node failing-command.mjs' : `node example-${index + 1}.mjs`;
+    item.aggregatedOutput = output;
+    item.status = index === 1 ? 'failed' : 'completed';
+    item.exitCode = index === 1 ? 1 : 0;
+    turn.items.push(item);
+    notify({
+      method: 'item/completed',
+      params: { threadId: thread.id, turnId: turn.id, item, completedAtMs: Date.now() },
+    });
+  }
+  complete(thread, turn);
+}
+
 /** Real protocol events for long, independent activities and streamed rerenders. */
 function activityScenario(thread: Thread, turn: Turn, streaming: boolean, mixed = false): void {
   const finishedItem = (item: ThreadItem) => {
@@ -2288,6 +2312,11 @@ function receive(request: ClientRequest): void {
       else if (prompt.includes('[json-files]')) markdownReply(thread, turn, 'json');
       else if (prompt.includes('[diff-preview')) diffPreviewScenario(thread, turn, prompt);
       else if (prompt.includes('[markdown-files]')) markdownReply(thread, turn, 'files');
+      else if (
+        prompt.includes('[command-output-copy]') ||
+        prompt.includes('[command-output-truncated]')
+      )
+        commandOutputScenario(thread, turn, prompt.includes('[command-output-truncated]'));
       else if (prompt.includes('[code-copy]')) markdownReply(thread, turn, 'code');
       else if (prompt.includes('[mermaid]')) markdownReply(thread, turn, 'mermaid');
       else if (prompt.includes('[markdown]') || prompt.includes('[markdown-security]'))

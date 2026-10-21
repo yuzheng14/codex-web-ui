@@ -9,6 +9,7 @@ import { Icon } from './Icon';
 import { isActive, Status } from './Status';
 import { AutoReviewCard } from './AutoReviewCard';
 import { CollapsibleActivity } from './CollapsibleActivity';
+import { CommandOutputCopyButton } from './CommandOutputCopyButton';
 import { ActivityGroup } from './ActivityGroup';
 import { groupConversationItems } from '../lib/activity-groups';
 import { ContextCompaction } from './ContextCompaction';
@@ -71,7 +72,7 @@ function Activity({ item, streaming }: { item: ItemView; streaming: boolean }) {
   const openDiff = useDiffPreview();
   return (
     <CollapsibleActivity
-      className={`activity${item.status === 'failed' ? ' activity-failed' : ''}`}
+      className={`activity${item.type === 'commandExecution' ? ' activity-command' : ''}${item.status === 'failed' ? ' activity-failed' : ''}`}
       label={
         item.command
           ? t('conversation:activityWithCommand', {
@@ -101,11 +102,19 @@ function Activity({ item, streaming }: { item: ItemView; streaming: boolean }) {
           </pre>
         )}
         {item.text && <TextContent text={item.text} streaming={streaming} />}
-        {item.output !== undefined && (
-          <pre className="tool-output">
-            <code>{item.output || t('conversation:no_output_yet')}</code>
-          </pre>
-        )}
+        {item.output !== undefined &&
+          (item.type === 'commandExecution' ? (
+            <div className="command-output">
+              <CommandOutputCopyButton output={item.output} truncated={item.truncated} />
+              <pre className="tool-output" tabIndex={0}>
+                <code>{item.output || t('conversation:no_output_yet')}</code>
+              </pre>
+            </div>
+          ) : (
+            <pre className="tool-output">
+              <code>{item.output || t('conversation:no_output_yet')}</code>
+            </pre>
+          ))}
         {item.truncated && (
           <p className="truncation">
             <Icon name="alert" size={14} />
