@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { ArrowLeft, X } from 'lucide-react';
 import { Button } from './ui/button';
@@ -5,7 +6,7 @@ import { Button } from './ui/button';
 /** Shared desktop side panel / compact modal, including focus restoration and Escape. */
 export function FilePreviewPanel({
   label,
-  closeLabel = `关闭${label}`,
+  closeLabel = t('preview:close', { v0: label }),
   title,
   subtitle,
   icon,

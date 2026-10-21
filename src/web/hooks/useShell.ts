@@ -1,3 +1,6 @@
+import { errorMessage } from '../lib/error-message';
+import { message } from '../i18n/messages';
+import { t } from '../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { shellActive, type ShellCommand, type ShellSnapshot } from '../../shared/shell';
 import type { Operation } from '../../shared/types';
@@ -25,7 +28,7 @@ export function useShell(visible: boolean) {
             ? {
                 ...entry,
                 status: 'unknown' as const,
-                error: '服务已重启，无法恢复执行状态；已收到的输出已保留。',
+                error: t('shell:the_service_restarted_execution_state_cannot_be_restored'),
               }
             : entry,
         ]),
@@ -76,7 +79,7 @@ export function useShell(visible: boolean) {
               {
                 ...run,
                 status: 'unknown',
-                error: '执行已提交；记录已过期或服务已重启，请检查服务端结果。',
+                error: t('shell:execution_was_submitted_but_its_record_expired_or'),
               },
             ]);
           }
@@ -84,7 +87,10 @@ export function useShell(visible: boolean) {
           setError(undefined);
         } else if (op.status === 'failed') {
           setPending(undefined);
-          setError(op.error?.message ?? '命令未能启动');
+          setError(
+            (op.error ? errorMessage(op.error) : undefined) ??
+              message('shell:command_could_not_start'),
+          );
         }
       }
     },
@@ -125,7 +131,10 @@ export function useShell(visible: boolean) {
         return true;
       }
       if (op.status === 'failed') {
-        setError(op.error?.message ?? '命令未能启动');
+        setError(
+          (op.error ? errorMessage(op.error) : undefined) ??
+            message('shell:command_could_not_start'),
+        );
         return false;
       }
       setPending({ id, projectId, command });
@@ -136,7 +145,7 @@ export function useShell(visible: boolean) {
       }
       // A lost response is not evidence that the command did not start.
       setPending({ id, projectId, command });
-      setError('提交结果未确认，正在核对；请勿重复执行。');
+      setError(message('shell:submission_is_unconfirmed_and_being_checked_do_not'));
     } finally {
       setSubmitting(false);
     }
@@ -156,10 +165,17 @@ export function useShell(visible: boolean) {
         cursor.current = { revision: 0 };
       } else if (op.status === 'failed') {
         setPending(undefined);
-        setError(op.error?.message ?? '命令未能启动');
+        setError(
+          (op.error ? errorMessage(op.error) : undefined) ??
+            message('shell:command_could_not_start'),
+        );
       }
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : '提交仍未确认');
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : message('shell:submission_is_still_unconfirmed'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -172,10 +188,15 @@ export function useShell(visible: boolean) {
         clientOperationId: crypto.randomUUID(),
       });
       if (op.status !== 'acknowledged')
-        setError(op.error?.message ?? '中断结果尚未确认，请刷新后核对');
+        setError(
+          (op.error ? errorMessage(op.error) : undefined) ??
+            message('shell:interrupt_result_is_unconfirmed_refresh_and_check'),
+        );
       await refresh();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : '中断失败，请重试');
+      setError(
+        failure instanceof Error ? failure.message : message('shell:interrupt_failed_please_retry'),
+      );
     } finally {
       setInterrupting(undefined);
     }

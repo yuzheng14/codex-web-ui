@@ -1,3 +1,5 @@
+import { errorMessage } from './error-message';
+import { message, displayMessage } from '../i18n/messages';
 import { localPreviewUrl } from './local-files';
 import { scopeApi } from '../../shared/workspace-scope';
 import type {
@@ -23,7 +25,7 @@ export class HttpError extends Error {
     public readonly status: number,
     public readonly problem: ApiError,
   ) {
-    super(problem.message);
+    super(displayMessage(errorMessage(problem)));
     this.name = 'HttpError';
   }
   get authenticationRequired() {
@@ -45,7 +47,7 @@ export async function request<T>(path: string, body?: object, signal?: AbortSign
   if (!response.headers.get('content-type')?.includes('application/json')) {
     throw new HttpError(response.status === 200 ? 401 : response.status, {
       code: 'AUTH_REQUIRED',
-      message: '登录已过期，或入口返回了登录页面。请重新登录后恢复连接。',
+      message: message('errors:your_login_expired_or_the_gateway_returned_a'),
     });
   }
   const data: unknown = await response.json();
@@ -56,7 +58,10 @@ export async function request<T>(path: string, body?: object, signal?: AbortSign
         : undefined;
     throw new HttpError(
       response.status,
-      problem ?? { code: 'HTTP_ERROR', message: `请求失败（${response.status}）` },
+      problem ?? {
+        code: 'HTTP_ERROR',
+        message: message('errors:request_failed', { v0: response.status }),
+      },
     );
   }
   return data as T;

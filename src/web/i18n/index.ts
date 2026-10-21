@@ -39,8 +39,18 @@ export function currentLocale(): Locale {
 
 /** Only application-owned messages enter this function; conversation content stays untouched. */
 export function t(key: string, values: Record<string, unknown> = {}): string {
-  if (!i18n.exists(key, values)) return String(i18n.t('common:requestFailed'));
-  const translated = i18n.t(key, values);
+  const formatted = Object.fromEntries(
+    Object.entries(values).map(([name, value]) => [
+      name,
+      value === undefined || value === null || value === false
+        ? ''
+        : typeof value === 'number' && name !== 'count'
+          ? formatNumber(value)
+          : value,
+    ]),
+  );
+  if (!i18n.exists(key, formatted)) return String(i18n.t('common:requestFailed'));
+  const translated = i18n.t(key, formatted);
   return translated && translated !== key
     ? String(translated)
     : String(i18n.t('common:requestFailed'));
@@ -56,6 +66,7 @@ export function useInterfaceLocale() {
   const locale = currentLocale();
   useEffect(() => {
     document.documentElement.lang = locale;
+    document.title = `Covro · ${t('workspace:workspace')}`;
   }, [locale]);
   useEffect(() => {
     const sync = (event: StorageEvent) => {
@@ -73,3 +84,46 @@ export const formatNumber = (value: number, options?: Intl.NumberFormatOptions) 
 
 export const formatDate = (value: Date, options?: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat(currentLocale(), options).format(value);
+
+// Store message identity with its values, so notices already on screen switch languages too.
+const prefix = '\u0001covro-message:';
+export function message(key: string, values: Record<string, unknown> = {}): string {
+  return prefix + JSON.stringify({ key, values });
+}
+export function displayMessage(value: string): string;
+export function displayMessage(value: string | undefined | null): string | undefined;
+export function displayMessage(value: string | undefined | null): string | undefined {
+  if (value == null) return undefined;
+  if (!value.startsWith(prefix)) return value;
+  try {
+    const { key, values } = JSON.parse(value.slice(prefix.length)) as {
+      key: string;
+      values: Record<string, unknown>;
+    };
+    return t(
+      key,
+      Object.fromEntries(
+        Object.entries(values).map(([name, item]) => [
+          name,
+          typeof item === 'string' ? displayMessage(item) : item,
+        ]),
+      ),
+    );
+  } catch {
+    return t('common:requestFailed');
+  }
+}
+
+/** Raw diagnostics are displayed separately from the translated application explanation. */
+export function messageDetails(value: string | undefined): string | undefined {
+  if (!value?.startsWith(prefix)) return undefined;
+  try {
+    const data = JSON.parse(value.slice(prefix.length)) as { values?: { details?: unknown } };
+    return typeof data.values?.details === 'string' ? data.values.details : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export const formatList = (values: string[]) =>
+  new Intl.ListFormat(currentLocale(), { style: 'short', type: 'conjunction' }).format(values);

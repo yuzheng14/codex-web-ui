@@ -1,3 +1,5 @@
+import { displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import { useEffect, useRef } from 'react';
 import { Bell } from 'lucide-react';
 import type { BrowserNotifications } from '../hooks/useBrowserNotifications';
@@ -20,11 +22,11 @@ export function NotificationSettings({
   const { enabled, access, requesting, error } = notifications;
   const active = enabled && access === 'granted';
   const status = {
-    default: '尚未授权',
-    granted: '已授权',
-    denied: '已被浏览器阻止',
-    unsupported: '当前浏览器不支持',
-    insecure: '需要安全连接',
+    default: t('notifications:permission_not_granted'),
+    granted: t('notifications:permission_granted'),
+    denied: t('notifications:blocked_by_browser'),
+    unsupported: t('notifications:unsupported_browser'),
+    insecure: t('notifications:secure_connection_required'),
   }[access];
   const unavailable = !['default', 'granted'].includes(access);
   return (
@@ -40,23 +42,28 @@ export function NotificationSettings({
       <div className="project-dialog-heading">
         <div>
           <Bell size={20} aria-hidden="true" />
-          <h2 id="notification-dialog-title">工作完成通知</h2>
+          <h2 id="notification-dialog-title">{t('notifications:task_completion_notifications')}</h2>
         </div>
-        <Button variant="ghost" size="icon" aria-label="关闭通知设置" onClick={onClose}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t('notifications:close_notification_settings')}
+          onClick={onClose}
+        >
           <Icon name="close" size={17} />
         </Button>
       </div>
-      <p>每轮工作结束时显示项目、会话及结果，点击通知可返回对应会话。</p>
+      <p>{t('notifications:show_project_session_and_result_after_each_turn')}</p>
       <div className="notification-control">
         <div>
-          <strong>浏览器通知</strong>
+          <strong>{t('notifications:browser_notifications')}</strong>
           <span role="status">
-            {status} · {active ? '已开启' : '未开启'}
+            {status} · {active ? t('common:on') : t('common:off')}
           </span>
         </div>
         <Button
           role="switch"
-          aria-label="浏览器通知"
+          aria-label={t('notifications:browser_notifications')}
           aria-checked={active}
           aria-describedby="notification-permission-help"
           variant={active ? 'secondary' : 'default'}
@@ -64,59 +71,62 @@ export function NotificationSettings({
           disabled={requesting || unavailable}
           onClick={() => void notifications.toggle()}
         >
-          {requesting ? '等待授权…' : active ? '关闭通知' : '启用通知'}
+          {requesting
+            ? t('notifications:waiting_for_permission')
+            : active
+              ? t('notifications:disable_notifications')
+              : t('notifications:enable_notifications')}
         </Button>
       </div>
       <p id="notification-permission-help" className="notification-help">
         {access === 'denied'
-          ? '请在浏览器的站点设置中允许通知，再回到此页面开启。'
+          ? t('notifications:allow_notifications_in_the_browser_s_site_settings')
           : access === 'insecure'
-            ? '请使用 HTTPS 访问。localhost 或 127.0.0.1 可用于本机访问。'
+            ? t('notifications:use_https_localhost_or_127_0_0_1')
             : access === 'unsupported'
-              ? '请使用支持系统通知的桌面浏览器。页内状态与未读提示仍然可用。'
-              : '只有点击启用后才会请求授权。此设置在当前浏览器的本站标签页间共享。'}
+              ? t('notifications:use_a_desktop_browser_that_supports_system_notifications')
+              : t('notifications:permission_is_requested_only_when_you_click_enable')}
       </p>
       {enabled && access === 'granted' && (
         <Button variant="secondary" size="sm" onClick={notifications.test}>
-          发送测试通知
+          {t('notifications:send_test_notification')}
         </Button>
       )}
       {error && (
         <p className="inline-error" role="alert">
-          {error}
+          {displayMessage(error)}
         </p>
       )}
       <section className="notification-background" aria-labelledby="notification-background-title">
-        <h3 id="notification-background-title">后台通知与页面休眠</h3>
-        <p>
-          请保持页面和浏览器运行。普通后台状态可接收通知；页面被冻结或被回收期间，无法保证及时通知。恢复页面后会同步结果与未读提示。
-        </p>
+        <h3 id="notification-background-title">
+          {t('notifications:background_notifications_and_sleeping_tabs')}
+        </h3>
+        <p>{t('notifications:keep_this_page_and_browser_open_background_tabs')}</p>
         <details>
-          <summary>如何让本站保持活跃</summary>
+          <summary>{t('notifications:keep_this_site_active')}</summary>
           <ul>
             <li>
-              Chrome：设置 → 性能 → 始终保持这些网站活跃，添加本站。
+              {t('notifications:chrome_settings_performance_always_keep_these_sites_active')}
               <a
                 href="https://support.google.com/chrome/answer/12929150?hl=zh-Hans"
                 target="_blank"
                 rel="noreferrer"
               >
-                设置说明
+                {t('notifications:settings_instructions')}
               </a>
             </li>
             <li>
-              Edge：设置 → 系统和性能 → 性能 →
-              始终保持这些网站活跃（或「从不将这些网站置于睡眠状态」），添加本站。
+              {t('notifications:edge_settings_system_and_performance_performance_always_keep')}
               <a
                 href="https://support.microsoft.com/edge/learn-about-performance-features-in-microsoft-edge"
                 target="_blank"
                 rel="noreferrer"
               >
-                设置说明
+                {t('notifications:settings_instructions')}
               </a>
             </li>
           </ul>
-          <p>需要在浏览器中手动设置，具体名称可能随版本变化。</p>
+          <p>{t('notifications:configure_this_manually_in_the_browser_names_may')}</p>
         </details>
       </section>
     </dialog>

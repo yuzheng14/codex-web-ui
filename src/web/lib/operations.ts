@@ -1,3 +1,5 @@
+import { displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import type { Operation } from '../../shared/types';
 import { HttpError } from './api';
 import { threadNameError } from '../../shared/thread-name';
@@ -24,7 +26,7 @@ export interface SavedOperation {
   status: Operation['status'];
   operation?: Operation;
   error?: string;
-  lookupError?: { message: string; missing: boolean };
+  lookupError?: { message: string; missing: boolean; details?: string };
   projectId?: string;
   navigateToResult?: boolean;
   mutation?: ThreadMutation;
@@ -39,9 +41,16 @@ export function operationLookupError(problem: unknown): NonNullable<SavedOperati
     problem.problem.code === 'OPERATION_NOT_FOUND';
   return {
     missing,
-    message: missing
-      ? '无法确认提交：当前服务未找到这笔提交记录（404 / OPERATION_NOT_FOUND）。请求可能未到达服务，或服务数据已更换；这不能证明任务没有执行。'
-      : `无法确认提交：${readableError(problem)}`,
+    details: problem instanceof HttpError ? problem.problem.message : undefined,
+    get message() {
+      return displayMessage(
+        missing
+          ? t('errors:submission_cannot_be_confirmed_record_not_found_404')
+          : t('errors:submission_cannot_be_confirmed', {
+              v0: displayMessage(readableError(problem)),
+            }),
+      );
+    },
   };
 }
 

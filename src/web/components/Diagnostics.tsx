@@ -1,3 +1,5 @@
+import { displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import type { Operation, SystemInfo, ThreadView } from '../../shared/types';
 import type { SavedOperation } from '../lib/operations';
@@ -10,17 +12,35 @@ import { isActive } from './Status';
 import { ThreadId } from './ThreadId';
 
 const connectionLabels: Record<ConnectionState, string> = {
-  connecting: '正在连接',
-  connected: '实时连接正常',
-  disconnected: '连接已断开',
-  authenticationRequired: '需要重新登录',
+  get connecting() {
+    return t('errors:connecting');
+  },
+  get connected() {
+    return t('errors:live_connection_healthy');
+  },
+  get disconnected() {
+    return t('errors:disconnected');
+  },
+  get authenticationRequired() {
+    return t('errors:login_required_again');
+  },
 };
 const operationLabels: Record<Operation['status'], string> = {
-  accepted: '网关已接受',
-  dispatching: '等待上游确认',
-  acknowledged: '上游已确认提交',
-  failed: '提交失败',
-  unknown: '提交结果待核对',
+  get accepted() {
+    return t('errors:accepted_by_gateway');
+  },
+  get dispatching() {
+    return t('errors:awaiting_upstream_confirmation');
+  },
+  get acknowledged() {
+    return t('errors:submission_confirmed_by_upstream');
+  },
+  get failed() {
+    return t('errors:submission_failed');
+  },
+  get unknown() {
+    return t('errors:submission_result_needs_checking');
+  },
 };
 
 export function ConnectionBadge({ connection }: { connection: ConnectionState }) {
@@ -64,35 +84,41 @@ function OperationCard({
         <span>{formatTime(entry.createdAt)}</span>
       </div>
       <dl>
-        <dt>操作</dt>
+        <dt>{t('errors:operation')}</dt>
         <dd>{entry.kind}</dd>
-        <dt>目标</dt>
+        <dt>{t('errors:target')}</dt>
         <dd>{entry.target}</dd>
-        <dt>操作 ID</dt>
+        <dt>{t('errors:operation_id')}</dt>
         <dd>{entry.clientOperationId}</dd>
+        {entry.lookupError?.details && (
+          <dd>
+            <details className="raw-details">
+              <summary>{t('common:technical_details')}</summary>
+              <pre>{entry.lookupError.details}</pre>
+            </details>
+          </dd>
+        )}
         {execution && (
           <>
-            <dt>会话</dt>
+            <dt>{t('common:sessions')}</dt>
             <dd>{execution.threadId}</dd>
-            <dt>工作区</dt>
+            <dt>{t('errors:workspace')}</dt>
             <dd>{execution.workspaceKey}</dd>
-            <dt>运行状态</dt>
-            <dd>{execution.ended ? '已经结束' : '尚未确认终结'}</dd>
+            <dt>{t('errors:execution_status')}</dt>
+            <dd>{execution.ended ? t('errors:finished') : t('errors:end_not_confirmed')}</dd>
           </>
         )}
       </dl>
       {(entry.lookupError?.message || entry.error) && (
         <p className="inline-error" role="alert">
-          {entry.lookupError?.message ?? entry.error}
+          {displayMessage(entry.lookupError?.message ?? entry.error)}
         </p>
       )}
       {canDiscardMissingOperation(entry) && (
         <div className="reconcile">
-          <p>
-            请先检查会话历史、会话列表和原执行环境。清理仅移除此浏览器的待核对记录，不会停止任务或重新提交。
-          </p>
+          <p>{t('errors:check_session_history_the_session_list_and_the')}</p>
           {missingTaskActive ? (
-            <p>当前会话仍在执行，请等待结束或正常中断后再核对。</p>
+            <p>{t('errors:this_session_is_still_running_wait_or_interrupt')}</p>
           ) : (
             <>
               <label>
@@ -101,7 +127,7 @@ function OperationCard({
                   checked={discardConfirmed}
                   onChange={(event) => setDiscardConfirmed(event.target.checked)}
                 />
-                我已检查历史和原执行环境，确认无需继续核对这笔提交
+                {t('errors:i_checked_history_and_the_original_environment_no')}
               </label>
               <Button
                 variant="secondary"
@@ -109,7 +135,7 @@ function OperationCard({
                 disabled={!discardConfirmed || busy || refreshing}
                 onClick={() => onDiscardMissing(entry.clientOperationId)}
               >
-                清除此浏览器的待核对记录
+                {t('errors:clear_this_browser_s_pending_record')}
               </Button>
             </>
           )}
@@ -117,7 +143,7 @@ function OperationCard({
       )}
       {entry.kind === 'confirmCompatibility' && entry.status === 'unknown' && (
         <p className="subtle">
-          兼容性确认结果待核对，请刷新状态。此记录不代表任务执行，也不会自动重新提交。
+          {t('errors:refresh_status_to_check_the_compatibility_confirmation_this')}
         </p>
       )}
       {entry.kind !== 'confirmCompatibility' &&
@@ -127,11 +153,11 @@ function OperationCard({
           <div className="reconcile">
             <p>
               {fork
-                ? '请先刷新会话列表，检查是否已生成包含原历史的新会话。核对此次 Fork 不会停止原任务或改变原任务的执行状态。'
-                : '不会自动重发任务。先检查会话历史和原执行环境，再核对这笔提交。'}
+                ? t('errors:refresh_the_session_list_and_check_for_a')
+                : t('errors:tasks_will_not_be_resent_automatically_check_history')}
             </p>
             {currentlyActive ? (
-              <p>当前任务仍在执行，请使用输入区的中断按钮。</p>
+              <p>{t('errors:this_task_is_still_running_use_the_interrupt')}</p>
             ) : (
               <>
                 <label>
@@ -141,8 +167,8 @@ function OperationCard({
                     onChange={(event) => setConfirmed(event.target.checked)}
                   />
                   {fork
-                    ? '我已检查会话列表和历史，核实此次 Fork 的结果'
-                    : '我已核实对应旧运行已经结束'}
+                    ? t('errors:i_checked_the_session_list_and_history_and')
+                    : t('errors:i_verified_that_the_previous_execution_has_ended')}
                 </label>
                 <Button
                   variant="secondary"
@@ -150,7 +176,11 @@ function OperationCard({
                   disabled={!confirmed || busy || refreshing}
                   onClick={() => onReconcile(entry.clientOperationId)}
                 >
-                  {busy ? '正在提交核对…' : fork ? '核对此次 Fork' : '核对并解除旧占用'}
+                  {busy
+                    ? t('errors:submitting_reconciliation')
+                    : fork
+                      ? t('errors:reconcile_this_fork')
+                      : t('errors:reconcile_and_release_previous_execution')}
                 </Button>
               </>
             )}
@@ -158,8 +188,12 @@ function OperationCard({
         )}
       {entry.operation?.reconciliation && (
         <p className="subtle">
-          已于 {formatTime(entry.operation.reconciliation.at)}{' '}
-          {fork ? '人工核对 Fork 结果。原任务状态不变。' : '人工核对旧运行结束。'}保留原始提交状态。
+          {t('errors:checked_at_original_submission_status_preserved', {
+            v0: formatTime(entry.operation.reconciliation.at),
+            v1: fork
+              ? t('errors:fork_result_checked_manually_original_task_state_unchanged')
+              : t('errors:previous_execution_end_checked_manually'),
+          })}
         </p>
       )}
     </div>
@@ -207,7 +241,8 @@ export function Diagnostics({
     >
       <summary>
         <Icon name="settings" size={16} />
-        状态诊断{operations.length > 0 && <span className="count-badge">{operations.length}</span>}
+        {t('common:diagnostics')}
+        {operations.length > 0 && <span className="count-badge">{operations.length}</span>}
       </summary>
       <div
         className="diagnostics-panel"
@@ -215,18 +250,18 @@ export function Diagnostics({
         ref={panel}
         tabIndex={-1}
         role="region"
-        aria-label="状态诊断详情"
+        aria-label={t('errors:diagnostics_details')}
         aria-busy={refreshing}
       >
         <div className="diagnostics-heading">
-          <h2>运行状态</h2>
+          <h2>{t('errors:execution_status')}</h2>
           <Button variant="ghost" size="sm" disabled={refreshing} onClick={onRefresh}>
             <Icon name="refresh" size={14} />
-            {refreshing ? '正在核对…' : '刷新状态'}
+            {refreshing ? t('common:checking') : t('errors:refresh_status')}
           </Button>
         </div>
-        <section className="operation-section" aria-label="当前会话信息">
-          <h3>当前会话</h3>
+        <section className="operation-section" aria-label={t('errors:current_session_information')}>
+          <h3>{t('errors:current_session')}</h3>
           <dl>
             <dt>Thread ID</dt>
             <dd>
@@ -235,24 +270,24 @@ export function Diagnostics({
                 placeholder={
                   selectedId
                     ? threadReadFailed
-                      ? '会话详情加载失败'
-                      : '正在加载会话详情…'
-                    : '会话尚未创建'
+                      ? t('errors:failed_to_load_session_details')
+                      : t('errors:loading_session_details')
+                    : t('common:session_not_created_yet')
                 }
               />
             </dd>
           </dl>
         </section>
         <section className="operation-section">
-          <h3>操作与状态核对</h3>
+          <h3>{t('errors:operations_and_reconciliation')}</h3>
           <p className="subtle" role="status">
             {refreshing
-              ? '正在核对会话历史和提交回执…'
+              ? t('errors:checking_session_history_and_submission_receipts')
               : thread?.status === 'unknown'
-                ? '会话状态仍待核对。请检查操作记录和原执行环境。'
+                ? t('errors:session_state_still_needs_checking_inspect_operation_records')
                 : operations.length > 0
-                  ? '请查看提交记录；核对不会自动重发任务。'
-                  : '没有待核对的提交。'}
+                  ? t('errors:check_submission_records_reconciliation_does_not_resend_tasks')
+                  : t('errors:no_submissions_need_checking')}
           </p>
           {operations.map((entry) => (
             <OperationCard
@@ -270,42 +305,50 @@ export function Diagnostics({
           ))}
         </section>
         <dl>
-          <dt>网页连接</dt>
+          <dt>{t('errors:browser_connection')}</dt>
           <dd>{connectionLabels[connection]}</dd>
           <dt>Codex</dt>
           <dd>
-            {system?.ready ? '已就绪' : system?.connection === 'starting' ? '启动中' : '不可用'}
+            {system?.ready
+              ? t('errors:ready')
+              : system?.connection === 'starting'
+                ? t('errors:starting')
+                : t('errors:unavailable')}
           </dd>
-          <dt>账户认证</dt>
+          <dt>{t('errors:account_authentication')}</dt>
           <dd>
             {system?.authenticated === true
-              ? '可用'
+              ? t('errors:available')
               : system?.authenticated === false
-                ? '需要在本机登录 Codex'
-                : '尚未确认'}
+                ? t('errors:log_in_to_codex_on_the_server_computer')
+                : t('errors:unconfirmed')}
           </dd>
-          <dt>运行版本</dt>
-          <dd>{system?.codexVersion ?? '未检测到'}</dd>
-          <dt>已验证版本</dt>
-          <dd>{system?.verifiedVersion ?? '读取中'}</dd>
-          <dt>兼容性</dt>
+          <dt>{t('common:running_version')}</dt>
+          <dd>{system?.codexVersion ?? t('common:not_detected')}</dd>
+          <dt>{t('common:verified_version')}</dt>
+          <dd>{system?.verifiedVersion ?? t('common:loading')}</dd>
+          <dt>{t('errors:compatibility')}</dt>
           <dd>
             {system?.compatibility === 'verified'
-              ? '版本已验证'
+              ? t('errors:version_verified')
               : system?.compatibility === 'unverified'
                 ? system.compatibilityConfirmation === 'confirmed'
-                  ? '当前版本未经验证 · 已确认继续'
-                  : '当前版本未经验证 · 待确认'
-                : '不可用'}
+                  ? t('errors:version_unverified_continued_with_consent')
+                  : t('errors:version_unverified_confirmation_pending')
+                : t('errors:unavailable')}
           </dd>
-          <dt>入口认证</dt>
-          <dd>{system?.authMode === 'cloudflare-access' ? 'Cloudflare Access' : '本机模式'}</dd>
+          <dt>{t('errors:gateway_authentication')}</dt>
+          <dd>
+            {system?.authMode === 'cloudflare-access'
+              ? 'Cloudflare Access'
+              : t('errors:local_mode')}
+          </dd>
         </dl>
-        {system?.error && <p className="inline-error">{system.error}</p>}
+        {system?.error && <p className="inline-error">{displayMessage(system.error)}</p>}
         {system && (
           <details className="raw-details">
-            <summary>已支持能力</summary>
-            <p>{system.capabilities.join(' · ') || '暂无'}</p>
+            <summary>{t('errors:supported_capabilities')}</summary>
+            <p>{system.capabilities.join(' · ') || t('errors:none')}</p>
           </details>
         )}
       </div>

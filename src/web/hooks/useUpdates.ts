@@ -1,3 +1,5 @@
+import { message } from '../i18n/messages';
+import { t } from '../i18n';
 import type { CodexUpdateConfirmation } from '../../shared/codex-compatibility';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReleaseChannel, UpdateSettings, UpdateStatus } from '../../shared/updates';
@@ -30,7 +32,11 @@ export function useUpdates() {
         await reloadForUpgrade();
       } catch (error) {
         reloading.current = false;
-        setReloadError(error instanceof Error ? error.message : '草稿未能备份，暂缓重载页面');
+        setReloadError(
+          error instanceof Error
+            ? error.message
+            : t('updates:draft_backup_failed_page_reload_postponed'),
+        );
       }
     }
   }, []);
@@ -46,7 +52,8 @@ export function useUpdates() {
         const next = await request<UpdateStatus>('/api/updates');
         if (active && started === revision.current) await accept(next);
       } catch {
-        if (active) setError('连接暂时中断，正在等待服务恢复…');
+        if (active)
+          setError(message('updates:connection_interrupted_waiting_for_the_service_to_recover'));
       } finally {
         polling = false;
       }
@@ -67,7 +74,11 @@ export function useUpdates() {
       try {
         await accept(await request<UpdateStatus>(path, body));
       } catch (error) {
-        setError(error instanceof Error ? error.message : '操作未能确认，请查看升级状态');
+        setError(
+          error instanceof Error
+            ? error.message
+            : message('updates:operation_unconfirmed_check_update_status'),
+        );
       } finally {
         setBusy(false);
         revision.current++;

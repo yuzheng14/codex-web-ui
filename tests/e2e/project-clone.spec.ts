@@ -164,3 +164,163 @@ test('offers registration retry without a second clone', async ({ page }, info) 
   await expect(dialog.getByRole('status')).toContainText('克隆完成，项目已添加');
   expect((await readFile(join(directory, 'git-calls'), 'utf8')).trim().split('\n')).toHaveLength(1);
 });
+
+const localizedProjects = [
+  {
+    locale: 'zh-Hans',
+    browser: 'zh-CN',
+    unassigned: '未关联项目',
+    add: '添加项目',
+    clone: '克隆 Git 仓库',
+    repository: 'Git 仓库地址',
+    target: '服务器目标目录',
+    start: '克隆并添加项目',
+    receiving: '正在接收对象 42%',
+    cancel: '取消克隆',
+    cancelled: '已取消克隆',
+    recovery: '未添加项目，也未删除任何文件',
+    welcome: '无需选择项目，发送后自动分配独立工作目录；会话和文件将持续保留。',
+  },
+  {
+    locale: 'en',
+    browser: 'en-US',
+    unassigned: 'Unassigned',
+    add: 'Add project',
+    clone: 'Clone Git repository',
+    repository: 'Git repository URL',
+    target: 'Destination on server',
+    start: 'Clone and add project',
+    receiving: 'Receiving objects 42%',
+    cancel: 'Cancel clone',
+    cancelled: 'Clone cancelled',
+    recovery: 'No project was added and no files were deleted.',
+    welcome: 'Start without choosing a project.',
+  },
+  {
+    locale: 'ja',
+    browser: 'ja-JP',
+    unassigned: 'プロジェクト未関連付け',
+    add: 'プロジェクトを追加',
+    clone: 'Git リポジトリをクローン',
+    repository: 'Git リポジトリの URL',
+    target: 'サーバー上の保存先ディレクトリ',
+    start: 'クローンしてプロジェクトを追加',
+    receiving: 'オブジェクトを受信中 42%',
+    cancel: 'クローンをキャンセル',
+    cancelled: 'クローンをキャンセルしました',
+    recovery: 'プロジェクトの追加もファイルの削除も行っていません。',
+    welcome: 'プロジェクトを選ばずに開始できます。',
+  },
+  {
+    locale: 'ko',
+    browser: 'ko-KR',
+    unassigned: '프로젝트 미연결',
+    add: '프로젝트 추가',
+    clone: 'Git 저장소 복제',
+    repository: 'Git 저장소 주소',
+    target: '서버 대상 디렉터리',
+    start: '복제 후 프로젝트 추가',
+    receiving: '객체 수신 중 42%',
+    cancel: '복제 취소',
+    cancelled: '복제가 취소되었습니다',
+    recovery: '프로젝트는 추가되지 않았으며 파일도 삭제되지 않았습니다.',
+    welcome: '프로젝트를 선택하지 않고 시작할 수 있습니다.',
+  },
+] as const;
+for (const language of localizedProjects) {
+  test.describe(`localized projects ${language.locale}`, () => {
+    test.use({ locale: language.browser, viewport: { width: 1440, height: 1000 } });
+    test('unassigned entry, clone drafts and a running clone survive language changes', async ({
+      page,
+      context,
+    }, info) => {
+      const { mkdir } = await import('node:fs/promises');
+      const evidence = join(tmpdir(), 'covro-i18n-refresh-evidence');
+      await mkdir(evidence, { recursive: true });
+      const capture = async (state: string) => {
+        const path = join(evidence, `${language.locale}-${state}.png`);
+        await page.screenshot({ path, fullPage: true, animations: 'disabled' });
+        await info.attach(state, { path, contentType: 'image/png' });
+      };
+      await page.goto(origin);
+      await expect(page.locator('html')).toHaveAttribute('lang', language.locale);
+      await expect(
+        page.getByRole('region', { name: language.unassigned, exact: true }),
+      ).toBeVisible();
+      await expect(page.getByTestId('workspace-start')).toContainText(language.welcome);
+      const draft = '原文草稿 draft 日本語 한국어';
+      await page.locator('.composer-box textarea').fill(draft);
+      await capture('welcome');
+      await page
+        .getByRole('complementary')
+        .getByRole('button', { name: language.add, exact: true })
+        .click();
+      const dialog = page.locator('.project-dialog[open]');
+      await dialog.getByRole('button', { name: language.clone, exact: true }).click();
+      const repository = dialog.getByRole('textbox', { name: language.repository, exact: true });
+      await repository.fill('https://example.test/slow.git');
+      const target = join(directory, 'localized-project');
+      await dialog.getByRole('textbox', { name: language.target, exact: true }).fill(target);
+      await capture('clone-form');
+      await page.setViewportSize({ width: 390, height: 844 });
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      await capture('clone-form-mobile');
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      const peer = await context.newPage();
+      await peer.goto(origin);
+      const alternate = language.locale === 'en' ? 'ja' : 'en';
+      await peer.locator('.language-selector select').selectOption(alternate);
+      await expect(page.locator('html')).toHaveAttribute('lang', alternate);
+      await expect(dialog.locator('input').first()).toHaveValue('https://example.test/slow.git');
+      await expect(page.locator('.composer-box textarea')).toHaveValue(draft);
+      await peer.locator('.language-selector select').selectOption(language.locale);
+      await expect(page.locator('html')).toHaveAttribute('lang', language.locale);
+      const posted = page.waitForResponse(
+        (response) =>
+          response.url() === `${origin}/api/project-clones` &&
+          response.request().method() === 'POST',
+      );
+      await dialog.getByRole('button', { name: language.start, exact: true }).click();
+      const job = (await (await posted).json()) as { id: string };
+      await expect(dialog.getByRole('status')).toContainText(language.receiving);
+      await peer.locator('.language-selector select').selectOption(alternate);
+      await expect(page.locator('html')).toHaveAttribute('lang', alternate);
+      await expect(dialog.getByRole('status')).toContainText(
+        alternate === 'en' ? 'Receiving objects 42%' : 'オブジェクトを受信中 42%',
+      );
+      const running = await (
+        await page.request.get(`${origin}/api/project-clones/${job.id}`)
+      ).json();
+      expect(running).toMatchObject({
+        id: job.id,
+        path: target,
+        status: 'cloning',
+        progressStage: 'receiving',
+        percent: 42,
+      });
+      await peer.locator('.language-selector select').selectOption(language.locale);
+      await expect(dialog.getByRole('status')).toContainText(language.receiving);
+      await page.setViewportSize({ width: 390, height: 844 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      await capture('clone-progress-mobile');
+      await dialog.getByRole('button', { name: language.cancel, exact: true }).click();
+      await expect(dialog.getByRole('status')).toContainText(language.cancelled);
+      await expect(dialog.getByRole('alert')).toContainText(language.recovery);
+      await expect(dialog).not.toContainText('covro-message:');
+      await expect(page.locator('.composer-box textarea')).toHaveValue(draft);
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      await capture('clone-cancelled-mobile');
+      expect((await (await page.request.get(`${origin}/api/projects`)).json()).data).toEqual([]);
+      await peer.close();
+    });
+  });
+}

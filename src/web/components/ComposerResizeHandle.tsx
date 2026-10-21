@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { ControlHint } from './ControlHint';
 
@@ -113,20 +114,23 @@ export function ComposerResizeHandle({
     <ControlHint
       asChild
       suppressed={resizing}
-      content="向上拖动增高，向下拖动缩小；也可用方向键调整"
+      content={t('composer:drag_up_to_increase_height_down_to_decrease')}
     >
       <button
         type="button"
         className="composer-resize-handle"
         data-resizing={resizing || undefined}
         role="separator"
-        aria-label="调整输入框高度"
+        aria-label={t('composer:resize_input_height')}
         aria-orientation="horizontal"
         aria-controls={inputId}
         aria-valuemin={Math.round(size.min)}
         aria-valuemax={Math.round(size.max)}
         aria-valuenow={Math.round(size.height)}
-        aria-valuetext={`${Math.round(size.height)} 像素`}
+        aria-valuetext={t('composer:pixels', {
+          count: Math.round(size.height),
+          v0: Math.round(size.height),
+        })}
         onPointerDown={(event) => {
           if (!event.isPrimary || event.button !== 0 || !textareaRef.current) return;
           event.preventDefault();

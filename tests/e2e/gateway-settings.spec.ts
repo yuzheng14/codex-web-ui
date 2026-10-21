@@ -109,7 +109,7 @@ test('mobile import previews JSON, preserves local data, and exports saved value
     buffer: Buffer.from(JSON.stringify(imported)),
   });
   await expect(dialog.getByRole('region', { name: '导入配置预览' })).toContainText(
-    '已忽略导入文件中的 dataDir、projects',
+    /已忽略导入文件中的.*dataDir.*projects/,
   );
   expect(await readFile(path, 'utf8')).toBe(before);
   await capture(page, info, 'gateway-settings-import-mobile');

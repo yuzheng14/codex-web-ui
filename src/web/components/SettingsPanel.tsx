@@ -1,3 +1,5 @@
+import { displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Zap } from 'lucide-react';
 import type {
@@ -11,7 +13,7 @@ import { useRuntimeDefaults } from '../hooks/useRuntimeDefaults';
 import { chooseModel, pendingSettings, selectedModelDefaults, speedLabel } from '../lib/settings';
 import { Icon } from './Icon';
 import { PermissionDetails, PermissionModeSelect } from './PermissionModeSelect';
-import { permissionModes } from '../../shared/permissions';
+import { permissionModes } from '../lib/permissions';
 import { permissionLabel } from '../lib/settings';
 import { ReasoningGauge } from './ReasoningGauge';
 import { ControlHint } from './ControlHint';
@@ -79,7 +81,10 @@ export function SettingsPanel({
           reasoningEffort: current?.reasoningEffort ?? null,
           permissionCapabilities: defaults.value?.permissionCapabilities,
         };
-  const unknown = threadLoading || (defaults.loading && !thread) ? '读取中…' : '未报告';
+  const unknown =
+    threadLoading || (defaults.loading && !thread)
+      ? t('common:loading_2')
+      : t('common:not_reported');
   const model = settings.model ?? current?.model ?? '';
   const effort = settings.reasoningEffort ?? current?.reasoningEffort ?? '';
   const effortTierLabel = effort === 'max' ? 'Max' : effort === 'ultra' ? 'Ultra' : null;
@@ -89,7 +94,11 @@ export function SettingsPanel({
   const fastAvailable = selectedModel?.serviceTiers?.includes('fast');
   const changes = pendingSettings(settings, current);
   const pending = Object.keys(changes).length > 0;
-  const source = thread ? (thread.managed ? '会话当前配置' : '会话保存配置') : '新会话默认配置';
+  const source = thread
+    ? thread.managed
+      ? t('settings:current_session_settings')
+      : t('settings:saved_session_settings')
+    : t('settings:new_session_defaults');
   async function saveModelDefaults(selection: ModelDefaults) {
     setSaveNotice({ scope, settings: selection, state: 'saving' });
     try {
@@ -109,20 +118,31 @@ export function SettingsPanel({
     }
   }
   return (
-    <div className="settings-panel" role="group" aria-label="运行设置">
+    <div className="settings-panel" role="group" aria-label={t('settings:runtime_settings')}>
       {pending && (
         <div className="settings-pending" role="status">
           <span>
-            {!thread
-              ? '新建会话时生效'
-              : thread.managed
-                ? '下次任务生效'
-                : '恢复后发送或 Fork 时生效'}{' '}
-            · 当前 {current?.model ?? '未报告'} / {current?.reasoningEffort ?? '未报告'}
-            {changes.serviceTier !== undefined &&
-              ` · 速度待生效：${speedLabel(changes.serviceTier)}；当前：${speedLabel(current?.serviceTier, unknown)}`}
-            {changes.permissionMode &&
-              ` · 权限待生效：${permissionModes[changes.permissionMode].label}；当前：${permissionLabel(current)}`}
+            {t('settings:current', {
+              v0: !thread
+                ? t('settings:applies_when_creating_a_session')
+                : thread.managed
+                  ? t('settings:applies_to_the_next_task')
+                  : t('settings:applies_when_sending_after_resume_or_forking'),
+              v1: current?.model ?? t('common:not_reported'),
+              v2: current?.reasoningEffort ?? t('common:not_reported'),
+              v3:
+                changes.serviceTier !== undefined &&
+                t('settings:pending_speed_current', {
+                  v0: speedLabel(changes.serviceTier),
+                  v1: speedLabel(current?.serviceTier, unknown),
+                }),
+              v4:
+                changes.permissionMode &&
+                t('settings:pending_permissions_current', {
+                  v0: permissionModes[changes.permissionMode].label,
+                  v1: permissionLabel(current),
+                }),
+            })}
           </span>
           <button
             type="button"
@@ -133,36 +153,36 @@ export function SettingsPanel({
             }}
           >
             {thread && (changes.model !== undefined || changes.reasoningEffort !== undefined)
-              ? '撤销本会话修改'
-              : '撤销修改'}
+              ? t('settings:undo_session_changes')
+              : t('settings:undo_changes')}
           </button>
         </div>
       )}
       {notice && (
         <p className="settings-defaults" data-state={notice.state} role="status">
           {notice.state === 'saving'
-            ? '正在保存模型和推理强度默认值…'
+            ? t('settings:saving_default_model_and_reasoning_effort')
             : notice.state === 'saved'
-              ? '已保存为 Codex 新会话默认值'
+              ? t('settings:saved_as_codex_defaults_for_new_sessions')
               : notice.state === 'overridden'
-                ? '默认值已保存，但被更高优先级配置覆盖；新会话以实际配置为准。'
-                : '未能确认默认值已保存。当前会话的待生效选择仍保留，请查看提交核对结果。'}
+                ? t('settings:defaults_saved_but_overridden_by_higher_priority_configuration')
+                : t('settings:could_not_confirm_defaults_were_saved_pending_selections')}
           {notice.state === 'error' && (
             <button
               type="button"
               disabled={disabled || saving}
               onClick={() => void saveModelDefaults(notice.settings)}
             >
-              重新保存默认值
+              {t('settings:save_defaults_again')}
             </button>
           )}
         </p>
       )}
       {!thread && defaults.error && (
         <p className="settings-error" role="status">
-          {defaults.error}{' '}
+          {displayMessage(defaults.error)}{' '}
           <button type="button" onClick={defaults.retry}>
-            重试
+            {t('settings:retry')}
           </button>
         </p>
       )}
@@ -179,10 +199,10 @@ export function SettingsPanel({
       )}
       <div className="composer-actions">
         <div className="composer-context">
-          <ControlHint asChild content={projectName ?? '未关联项目'}>
+          <ControlHint asChild content={projectName ?? t('common:unassigned')}>
             <span className="composer-target">
               <Icon name="folder" size={14} />
-              <span>{projectName ?? '未关联项目'}</span>
+              <span>{projectName ?? t('common:unassigned')}</span>
             </span>
           </ControlHint>
           <PermissionModeSelect
@@ -193,11 +213,11 @@ export function SettingsPanel({
             scope={`${projectId}:${thread?.id ?? ''}:${runtimeKey}`}
             onChange={onChange}
           />
-          <ControlHint asChild content="权限详情">
+          <ControlHint asChild content={t('common:permission_details')}>
             <button
               className="settings-details-toggle"
               type="button"
-              aria-label="权限详情"
+              aria-label={t('common:permission_details')}
               aria-expanded={expanded}
               aria-controls={advancedId}
               onClick={() => setExpanded(!expanded)}
@@ -223,10 +243,13 @@ export function SettingsPanel({
               }
             }}
           >
-            <ControlHint content={`模型：${model || unknown}`} suppressed={modelMenuOpen}>
+            <ControlHint
+              content={t('settings:model', { v0: model || unknown })}
+              suppressed={modelMenuOpen}
+            >
               <SelectTrigger
                 className="settings-choice settings-model"
-                aria-label="模型"
+                aria-label={t('settings:model_2')}
                 aria-disabled={saving || undefined}
                 data-value={model}
               >
@@ -235,7 +258,7 @@ export function SettingsPanel({
                 </span>
               </SelectTrigger>
             </ControlHint>
-            <SelectContent side="top" aria-label="模型">
+            <SelectContent side="top" aria-label={t('settings:model_2')}>
               {model && !selectedModel && (
                 <SelectItem value={model} disabled>
                   {model}
@@ -266,16 +289,18 @@ export function SettingsPanel({
               suppressed={effortMenuOpen}
               content={
                 <>
-                  <span>推理强度：{effort || unknown}</span>
+                  <span>{t('settings:reasoning_effort', { v0: effort || unknown })}</span>
                   {changes.reasoningEffort !== undefined && (
-                    <span>待应用 · 当前 {current?.reasoningEffort ?? unknown}</span>
+                    <span>
+                      {t('settings:pending_current', { v0: current?.reasoningEffort ?? unknown })}
+                    </span>
                   )}
                 </>
               }
             >
               <SelectTrigger
                 className="settings-choice settings-effort reasoning-tier"
-                aria-label="推理强度"
+                aria-label={t('settings:reasoning_effort_2')}
                 aria-disabled={saving || undefined}
                 aria-describedby={effortHintId}
                 data-value={effort}
@@ -292,7 +317,7 @@ export function SettingsPanel({
                 </span>
               </SelectTrigger>
             </ControlHint>
-            <SelectContent side="top" aria-label="推理强度">
+            <SelectContent side="top" aria-label={t('settings:reasoning_effort_2')}>
               {effort && !selectedModel?.reasoningEfforts.includes(effort) && (
                 <SelectItem value={effort} disabled className="reasoning-tier" data-effort={effort}>
                   {effort}
@@ -317,13 +342,17 @@ export function SettingsPanel({
                 <span>{speedLabel(tier, unknown)}</span>
                 <span>
                   {fast
-                    ? '点击关闭 Fast'
+                    ? t('settings:turn_fast_off')
                     : fastAvailable
-                      ? '点击开启 Fast · 更快响应，增加用量'
-                      : '当前模型未提供 Fast'}
+                      ? t('settings:turn_fast_on_faster_replies_increased_usage')
+                      : t('settings:fast_is_unavailable_for_this_model')}
                 </span>
                 {changes.serviceTier !== undefined && (
-                  <span>待应用 · 当前 {speedLabel(current?.serviceTier, unknown)}</span>
+                  <span>
+                    {t('settings:pending_current', {
+                      v0: speedLabel(current?.serviceTier, unknown),
+                    })}
+                  </span>
                 )}
               </>
             }
@@ -331,7 +360,7 @@ export function SettingsPanel({
             <button
               type="button"
               className="settings-choice settings-speed"
-              aria-label="Fast 模式"
+              aria-label={t('settings:fast_mode')}
               aria-describedby={speedHintId}
               aria-pressed={tier === undefined ? 'mixed' : fast}
               disabled={disabled || Boolean(threadLoading) || (!fast && !fastAvailable)}

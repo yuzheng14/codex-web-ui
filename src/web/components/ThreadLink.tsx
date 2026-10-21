@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useId, useRef, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import type { RunStatus, ThreadSummary } from '../../shared/types';
@@ -85,9 +86,9 @@ export function ThreadLink({
   const forkHintId = useId();
   const detailsButton = useRef<HTMLButtonElement>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const title = thread.title || '未命名会话';
+  const title = thread.title || t('sidebar:untitled_session');
   const origin = threadOrigin(thread);
-  const archiveLabel = thread.archived ? '取消归档' : '归档会话';
+  const archiveLabel = thread.archived ? t('common:unarchive') : t('sidebar:archive_session');
   const lastResult = thread.lastTurnStatus;
   const status =
     thread.status === 'idle' &&
@@ -95,9 +96,9 @@ export function ThreadLink({
     ['completed', 'failed', 'interrupted'].includes(lastResult)
       ? lastResult
       : thread.status;
-  const statusLabel = `${offline && isActive(status) ? '上次已知：' : ''}${runStatusLabels[status]}${
-    status === 'completed' && unreadCompletion ? ' · 未读' : ''
-  }${thread.pendingActionCount > 0 ? ` · ${thread.pendingActionCount} 项待处理` : ''}`;
+  const statusLabel = `${offline && isActive(status) ? t('common:last_known') : ''}${runStatusLabels[status]}${
+    status === 'completed' && unreadCompletion ? t('sidebar:unread') : ''
+  }${thread.pendingActionCount > 0 ? t('sidebar:pending_requests_2', { count: thread.pendingActionCount, v0: thread.pendingActionCount }) : ''}`;
   const showStatus =
     (status !== 'idle' && status !== 'completed') ||
     unreadCompletion ||
@@ -142,13 +143,13 @@ export function ThreadLink({
         ) : (
           <span className="thread-status-placeholder" aria-hidden="true" />
         )}
-        <ControlHint asChild content="会话详情与来源">
+        <ControlHint asChild content={t('sidebar:session_details_and_source')}>
           <Button
             ref={detailsButton}
             variant="ghost"
             size="icon"
             className="thread-details-trigger"
-            aria-label={`会话详情：${title}`}
+            aria-label={t('sidebar:session_details', { v0: title })}
             aria-expanded={detailsOpen}
             aria-controls={detailsId}
             onClick={() => setDetailsOpen((open) => !open)}
@@ -159,12 +160,14 @@ export function ThreadLink({
         <ControlHint
           id={forkHintId}
           className="thread-fork"
-          content={forkDisabledReason ?? 'Fork 会话：复制已保存的历史，新会话可与原会话同时执行。'}
+          content={
+            forkDisabledReason ?? t('sidebar:fork_session_copy_saved_history_both_sessions_can')
+          }
         >
           <Button
             variant="ghost"
             size="icon"
-            aria-label={forking ? '正在确认 Fork…' : 'Fork 会话'}
+            aria-label={forking ? t('common:confirming_fork') : t('sidebar:fork_session')}
             aria-describedby={forkHintId}
             aria-busy={forking}
             disabled={Boolean(forkDisabledReason)}
@@ -213,42 +216,49 @@ export function ThreadLink({
             </dd>
           </div>
           <div>
-            <dt>创建来源</dt>
+            <dt>{t('sidebar:created_from')}</dt>
             <dd>{origin.label}</dd>
           </div>
           {thread.updatedAt !== undefined && (
             <div>
-              <dt>更新时间</dt>
+              <dt>{t('sidebar:updated_at')}</dt>
               <dd>{formatTime(thread.updatedAt)}</dd>
             </div>
           )}
           <div>
-            <dt>任务状态</dt>
+            <dt>{t('sidebar:task_status')}</dt>
             <dd>
               <Status status={status} offline={offline} />
             </dd>
           </div>
           {status === 'completed' && thread.lastTurnId && (
             <div>
-              <dt>阅读状态</dt>
-              <dd>{unreadCompletion ? '未读' : '已读'}</dd>
+              <dt>{t('sidebar:read_status')}</dt>
+              <dd>{unreadCompletion ? t('sidebar:unread_2') : t('sidebar:read')}</dd>
             </div>
           )}
           {thread.pendingActionCount > 0 && (
             <div>
-              <dt>待处理</dt>
-              <dd>{thread.pendingActionCount} 项待处理</dd>
+              <dt>{t('sidebar:pending')}</dt>
+              <dd>
+                {t('sidebar:pending_requests', {
+                  count: thread.pendingActionCount,
+                  v0: thread.pendingActionCount,
+                })}
+              </dd>
             </div>
           )}
           {thread.forkedFromId && (
             <div>
-              <dt>会话类型</dt>
-              <dd>Fork 分支会话</dd>
+              <dt>{t('sidebar:session_type')}</dt>
+              <dd>{t('sidebar:forked_session')}</dd>
             </div>
           )}
         </dl>
         <p>{origin.description}</p>
-        <p className="thread-origin-note">来源记录创建时的入口，不代表当前运行位置或连接状态。</p>
+        <p className="thread-origin-note">
+          {t('sidebar:source_records_the_client_used_at_creation_not')}
+        </p>
         {archiveDisabledReason && <p>{archiveDisabledReason}</p>}
       </section>
     </div>

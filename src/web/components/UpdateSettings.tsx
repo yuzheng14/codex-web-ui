@@ -1,3 +1,5 @@
+import { displayMessage } from '../i18n/messages';
+import { t, formatList } from '../i18n';
 import type { CodexCompatibility } from '../../shared/codex-compatibility';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpCircle, ExternalLink } from 'lucide-react';
@@ -6,21 +8,53 @@ import type { Updates } from '../hooks/useUpdates';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 
-const labels: Record<ReleaseChannel, string> = { stable: '稳定版', beta: '预览版', dev: '开发版' };
+const labels: Record<ReleaseChannel, string> = {
+  get stable() {
+    return t('updates:stable');
+  },
+  get beta() {
+    return t('updates:beta');
+  },
+  get dev() {
+    return t('updates:development');
+  },
+};
 const phaseLabels = {
-  installing: '正在安装候选版本',
-  waiting: '等待任务空闲',
-  stopping: '正在备份并重启',
-  verifying: '正在验证新版',
-  succeeded: '升级成功',
-  rolledBack: '已恢复上一版本',
-  failed: '升级失败',
+  get installing() {
+    return t('updates:installing_candidate_version');
+  },
+  get waiting() {
+    return t('updates:waiting_for_tasks_to_finish');
+  },
+  get stopping() {
+    return t('updates:backing_up_and_restarting');
+  },
+  get verifying() {
+    return t('updates:verifying_new_version');
+  },
+  get succeeded() {
+    return t('updates:update_successful');
+  },
+  get rolledBack() {
+    return t('updates:previous_version_restored');
+  },
+  get failed() {
+    return t('updates:update_failed');
+  },
 };
 const compatibilityLabels = {
-  verified: '已验证',
-  unverified: '尚未验证',
-  unsupported: '明确不支持',
-  unknown: '无法确认',
+  get verified() {
+    return t('updates:verified');
+  },
+  get unverified() {
+    return t('updates:unverified');
+  },
+  get unsupported() {
+    return t('updates:explicitly_unsupported');
+  },
+  get unknown() {
+    return t('updates:cannot_confirm');
+  },
 };
 function CodexCompatibilityDetails({ title, value }: { title: string; value: CodexCompatibility }) {
   return (
@@ -28,12 +62,15 @@ function CodexCompatibilityDetails({ title, value }: { title: string; value: Cod
       <h3>{title}</h3>
       <div>
         <span>Codex CLI</span>
-        <strong>{value.version ?? '未识别'}</strong>
+        <strong>{value.version ?? t('updates:unrecognized')}</strong>
         <span className="update-codex-status">{compatibilityLabels[value.status]}</span>
       </div>
       {value.manifest && (
         <p className="subtle">
-          推荐：{value.manifest.recommended} · 已验证：{value.manifest.verified.join('、')}
+          {t('updates:recommended_verified', {
+            v0: value.manifest.recommended,
+            v1: formatList(value.manifest.verified),
+          })}
         </p>
       )}
       {value.reason && <p>{value.reason}</p>}
@@ -83,22 +120,29 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
       <div className="project-dialog-heading">
         <div>
           <ArrowUpCircle size={20} aria-hidden="true" />
-          <h2 id="update-title">Covro 更新</h2>
+          <h2 id="update-title">{t('common:covro_updates')}</h2>
         </div>
-        <Button variant="ghost" size="icon" aria-label="关闭更新设置" onClick={onClose}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t('updates:close_update_settings')}
+          onClick={onClose}
+        >
           <Icon name="close" size={17} />
         </Button>
       </div>
       <div className="update-version">
-        <span>当前 Covro</span>
-        <strong>{status?.version ?? '读取中…'}</strong>
+        <span>{t('updates:current_covro')}</span>
+        <strong>{status?.version ?? t('common:loading_2')}</strong>
         {status?.commit && <code>{status.commit.slice(0, 8)}</code>}
       </div>
-      {status?.codex && <CodexCompatibilityDetails title="当前 Codex" value={status.codex} />}
+      {status?.codex && (
+        <CodexCompatibilityDetails title={t('updates:current_codex')} value={status.codex} />
+      )}
       <label className="update-channel">
-        版本渠道
+        {t('updates:release_channel')}
         <select
-          aria-label="版本渠道"
+          aria-label={t('updates:release_channel')}
           value={channel}
           disabled={busy || active}
           onChange={(event) => {
@@ -118,19 +162,21 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
       </label>
       <p className="subtle">
         {channel === 'stable'
-          ? '经过验证的正式版本，适合日常使用。'
+          ? t('updates:verified_releases_for_everyday_use')
           : channel === 'beta'
-            ? '提前体验准备发布的功能。'
-            : '跟随通过检查的 main 提交，适合开发者体验和验证新功能。'}
+            ? t('updates:try_features_being_prepared_for_release')
+            : t('updates:follows_checked_main_commits_for_developers_testing_new')}
       </p>
       <div className="update-control">
         <div>
-          <strong>空闲时自动升级</strong>
-          <p className="subtle">定期检查当前渠道，已验证的 Codex 组合在任务结束后安装并重启。</p>
+          <strong>{t('updates:auto_update_when_idle')}</strong>
+          <p className="subtle">
+            {t('updates:periodically_check_this_channel_and_install_verified_codex')}
+          </p>
         </div>
         <Button
           role="switch"
-          aria-label="空闲时自动升级"
+          aria-label={t('updates:auto_update_when_idle')}
           aria-checked={status?.settings.automatic ?? false}
           variant="secondary"
           size="sm"
@@ -140,37 +186,49 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
             void updates.configure({ ...status.settings, automatic: !status.settings.automatic })
           }
         >
-          {status?.settings.automatic ? '已开启' : '已关闭'}
+          {status?.settings.automatic ? t('common:on') : t('updates:disabled')}
         </Button>
       </div>
       {status && channel !== status.settings.channel && (
         <p className="subtle">
-          当前订阅：{labels[status.settings.channel]}。成功更新后切换到{labels[channel]}。
+          {t('updates:subscribed_to_switches_to_after_a_successful_update', {
+            v0: labels[status.settings.channel],
+            v1: labels[channel],
+          })}
         </p>
       )}
       {selected && (
         <div className="update-available">
           <span>
-            {current ? '此渠道已是当前版本' : selected.downgrade ? '目标版本' : '可用版本'}
+            {current
+              ? t('updates:this_channel_is_already_at_the_current_version')
+              : selected.downgrade
+                ? t('updates:target_version')
+                : t('updates:available_version')}
           </span>
           <strong>{selected.version}</strong>
           {selected.commit && <code>{selected.commit.slice(0, 8)}</code>}
         </div>
       )}
       {selected?.codex && (
-        <CodexCompatibilityDetails title="目标版本兼容性" value={selected.codex} />
+        <CodexCompatibilityDetails
+          title={t('updates:target_version_compatibility')}
+          value={selected.codex}
+        />
       )}
       {needsCodexConsent && (
         <label className="update-downgrade update-codex-consent">
           <input
             type="checkbox"
-            aria-label="允许尝试未验证的 Codex 组合"
+            aria-label={t('updates:allow_trying_an_unverified_codex_combination')}
             checked={confirmedCodex}
             disabled={busy || active}
             onChange={(event) => setCodexConsent(event.target.checked ? identity : undefined)}
           />
-          我确认尝试 Codex {compatibility?.version} 与 Covro {selected?.version}{' '}
-          的未验证组合；此确认仅用于本次升级。
+          {t('updates:i_agree_to_try_the_unverified_combination_of', {
+            v0: compatibility?.version,
+            v1: selected?.version,
+          })}
         </label>
       )}
       {selected &&
@@ -180,8 +238,8 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
         compatibility?.status !== 'verified' && (
           <p className="update-notice" role="status">
             {compatibility?.status === 'unverified'
-              ? '自动升级已暂停。可以调整 Codex 版本后重新检查，或勾选确认后手动尝试。'
-              : '自动升级已暂停。请先恢复 Codex 连接、调整版本或等待含有效兼容声明的发行版，再重新检查。'}
+              ? t('updates:auto_update_is_paused_adjust_the_codex_version')
+              : t('updates:auto_update_is_paused_restore_the_codex_connection')}
           </p>
         )}
       <div className="update-buttons">
@@ -190,7 +248,7 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
           disabled={busy || active}
           onClick={() => void updates.check(channel)}
         >
-          {busy ? '正在处理…' : '检查更新'}
+          {busy ? t('updates:processing') : t('updates:check_for_updates')}
         </Button>
         <Button
           disabled={
@@ -212,7 +270,11 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
             )
           }
         >
-          {current ? '使用此渠道' : selected?.downgrade ? '切换并重启' : '升级并重启'}
+          {current
+            ? t('updates:use_this_channel')
+            : selected?.downgrade
+              ? t('updates:switch_and_restart')
+              : t('updates:update_and_restart')}
         </Button>
       </div>
       {selected?.downgrade && (
@@ -222,7 +284,7 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
             checked={allowDowngrade}
             onChange={(event) => setAllowDowngrade(event.target.checked)}
           />
-          允许降级；数据库不兼容时仍会阻止切换
+          {t('updates:allow_downgrade_incompatible_databases_still_block_switching')}
         </label>
       )}
       {status?.run && (
@@ -231,30 +293,49 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
           <span>
             {status.run.from} → {status.run.target}
           </span>
-          <p>{status.run.message}</p>
-          {active && <progress aria-label="升级进度" />}
+          <p>{t(`updates:${status.run.phase}Description`)}</p>
+          <details>
+            <summary>{t('common:technical_details')}</summary>
+            <pre>{status.run.message}</pre>
+          </details>
+          {active && <progress aria-label={t('updates:update_progress')} />}
         </section>
       )}
       {(error || status?.checkError || reloadError) && (
-        <p className="inline-error" role="alert">
-          {reloadError ?? error ?? status?.checkError}
-        </p>
+        <div className="inline-error" role="alert">
+          <p>{displayMessage(reloadError ?? error) ?? t('updates:checkFailed')}</p>
+          {status?.checkError && (
+            <details>
+              <summary>{t('common:technical_details')}</summary>
+              <pre>{status.checkError}</pre>
+            </details>
+          )}
+        </div>
       )}
       {!status?.supported && status?.unsupportedReason && (
-        <p className="update-notice">{status.unsupportedReason}</p>
+        <div className="update-notice">
+          <p>{t('updates:manualUpdate')}</p>
+          <details>
+            <summary>{t('common:technical_details')}</summary>
+            <pre>{status.unsupportedReason}</pre>
+          </details>
+        </div>
       )}
       <p className="update-source">
-        版本来源：npm 官方 registry · {channel === 'stable' ? 'latest' : channel}
+        {t('updates:version_source_official_npm_registry', {
+          v0: channel === 'stable' ? 'latest' : channel,
+        })}
         <a
           href="https://github.com/yuzheng14/codex-web-ui/releases"
           target="_blank"
           rel="noreferrer"
         >
-          更新记录 <ExternalLink size={12} aria-hidden="true" />
+          {t('updates:update_history')}
+          <ExternalLink size={12} aria-hidden="true" />
         </a>
       </p>
       <p className="subtle">
-        升级保留配置、项目和会话记录。页面关闭也会继续处理，重启后自动恢复连接。
+        {t('updates:updates_preserve_configuration_projects_and_session_history_processing')}
       </p>
     </dialog>
   );

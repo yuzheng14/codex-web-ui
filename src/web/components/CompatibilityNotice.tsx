@@ -1,3 +1,5 @@
+import { displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import type { SystemInfo } from '../../shared/types';
 import { compatibilityFingerprint, shouldOpenCompatibilityDialog } from '../lib/compatibility';
@@ -48,14 +50,17 @@ export function CompatibilityNotice(props: Props) {
       {system?.compatibility === 'unverified' && (
         <div className="compatibility-banner compatibility-notice" role="status">
           <span>
-            当前 Codex {system.codexVersion} 尚未验证兼容性，部分功能可能无法正常使用。
-            {system.compatibilityConfirmation === 'confirmed'
-              ? ' 已确认继续；这不代表版本已验证。'
-              : ' 使用前需要确认。'}
+            {t('workspace:codex_has_not_been_verified_some_features_may', {
+              v0: system.codexVersion,
+              v1:
+                system.compatibilityConfirmation === 'confirmed'
+                  ? t('workspace:permission_to_continue_confirmed_this_does_not_verify')
+                  : t('workspace:confirmation_required_before_use'),
+            })}
           </span>
           {system.compatibilityConfirmation === 'required' && (
             <Button variant="ghost" size="sm" onClick={() => setReopenedFingerprint(fingerprint)}>
-              查看兼容性提示
+              {t('workspace:view_compatibility_notice')}
             </Button>
           )}
         </div>
@@ -72,40 +77,40 @@ export function CompatibilityNotice(props: Props) {
       >
         <div className="compatibility-dialog-heading">
           <Icon name="alert" size={22} />
-          <h2 id="compatibility-title">Codex 版本兼容性未经验证</h2>
+          <h2 id="compatibility-title">
+            {t('workspace:codex_version_compatibility_is_unverified')}
+          </h2>
         </div>
         <p id="compatibility-description">
-          当前运行的 Codex 版本尚未验证，部分功能可能无法正常使用。确认继续后仍将保留兼容性提示。
+          {t('workspace:this_codex_version_is_unverified_some_features_may')}
         </p>
         <dl>
-          <dt>运行版本</dt>
-          <dd>{system?.codexVersion ?? '未检测到'}</dd>
-          <dt>已验证版本</dt>
-          <dd>{system?.verifiedVersion ?? '读取中'}</dd>
+          <dt>{t('common:running_version')}</dt>
+          <dd>{system?.codexVersion ?? t('common:not_detected')}</dd>
+          <dt>{t('common:verified_version')}</dt>
+          <dd>{system?.verifiedVersion ?? t('common:loading')}</dd>
         </dl>
         {!system?.ready ? (
           <p className="inline-error" role="status">
-            Codex 当前不可用，无法确认继续。请关闭此提示后查看状态诊断。
+            {t('workspace:codex_is_unavailable_close_this_notice_and_check')}
           </p>
         ) : (
           !props.canConfirm && (
             <p className="subtle" role="status">
-              请等待连接和 Codex 认证恢复后再确认。
+              {t('workspace:wait_for_the_connection_and_codex_authentication_to')}
             </p>
           )
         )}
         {props.error && (
           <p className="inline-error" role="alert">
-            {props.error}
+            {displayMessage(props.error)}
           </p>
         )}
         {props.uncertain && (
           <div className="compatibility-uncertain" role="status">
-            <p>
-              确认请求的结果尚待核对。可刷新状态，或重新确认当前运行版本的使用许可；不会重发任务。
-            </p>
+            <p>{t('workspace:the_confirmation_result_needs_checking_refresh_status_or')}</p>
             <Button variant="secondary" size="sm" onClick={props.onRefresh}>
-              刷新确认状态
+              {t('workspace:refresh_confirmation_status')}
             </Button>
             {system?.ready && (
               <Button
@@ -114,24 +119,22 @@ export function CompatibilityNotice(props: Props) {
                 disabled={!props.canConfirm || props.submitting}
                 onClick={props.onReconfirm}
               >
-                重新确认
+                {t('workspace:confirm_again')}
               </Button>
             )}
           </div>
         )}
-        <p className="subtle">
-          关闭提示后仍可查看诊断或中断当前任务。确认不会自动发送任务，未发送的草稿会保留。
-        </p>
+        <p className="subtle">{t('workspace:you_can_still_view_diagnostics_or_interrupt_tasks')}</p>
         <div className="compatibility-dialog-actions">
           <Button variant="secondary" autoFocus onClick={dismiss}>
-            暂不使用
+            {t('workspace:not_now')}
           </Button>
           {system?.ready && (
             <Button
               disabled={!props.canConfirm || props.submitting || props.uncertain}
               onClick={props.onConfirm}
             >
-              {props.submitting ? '正在确认…' : '确认继续'}
+              {props.submitting ? t('workspace:confirming') : t('common:confirm_and_continue')}
             </Button>
           )}
         </div>

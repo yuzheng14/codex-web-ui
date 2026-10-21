@@ -58,6 +58,13 @@ describe('automatic review notification mapping', () => {
       status: 'denied',
       startedAtMs: 100,
       completedAtMs: 200,
+      presentation: {
+        kind: 'networkAccess',
+        parts: [
+          { label: 'raw', value: 'https://example.com:443' },
+          { label: 'raw', value: 'example.com:443' },
+        ],
+      },
       actionLabel: '网络访问',
       actionSummary: 'https://example.com:443\nexample.com:443',
       rationale: '请求会上传私人数据。\n需要明确授权。',

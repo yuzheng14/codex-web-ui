@@ -1,10 +1,12 @@
+import { displayMessage } from '../i18n/messages';
+import { t } from '../i18n';
 import type { ItemView } from '../../shared/types';
 
 export function UserMessage({ item }: { item: ItemView }) {
   return (
     <article
       className="message user-message"
-      aria-label="你的消息"
+      aria-label={t('conversation:your_message')}
       data-prompt-id={item.id}
       tabIndex={-1}
     >
@@ -22,16 +24,24 @@ export function UserMessage({ item }: { item: ItemView }) {
         {item.images && (
           <div className="message-images">
             {item.images.map((image, index) => (
-              <img key={index} src={image} alt={`已发送的图片 ${index + 1}`} loading="lazy" />
+              <img
+                key={index}
+                src={image}
+                alt={t('conversation:sent_image', { v0: index + 1 })}
+                loading="lazy"
+              />
             ))}
           </div>
         )}
         {(item.imageCount ?? 0) > (item.images?.length ?? 0) && (
           <p className="subtle">
-            {(item.imageCount ?? 0) - (item.images?.length ?? 0)} 张图片未提供预览
+            {t('conversation:images_have_no_preview', {
+              count: (item.imageCount ?? 0) - (item.images?.length ?? 0),
+              v0: (item.imageCount ?? 0) - (item.images?.length ?? 0),
+            })}
           </p>
         )}
-        {item.error && <p className="inline-error">{item.error}</p>}
+        {item.error && <p className="inline-error">{displayMessage(item.error)}</p>}
       </div>
     </article>
   );

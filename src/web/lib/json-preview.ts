@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 export interface JsonToken {
   text: string;
   kind?: 'key' | 'string' | 'number' | 'boolean' | 'null';
@@ -11,7 +12,7 @@ export function formatJson(content: string): JsonPreview {
   try {
     JSON.parse(input);
   } catch {
-    return { error: 'JSON 格式无效，已保留原文。请检查引号、逗号及括号是否完整。' };
+    return { error: t('preview:invalid_json_source_preserved_check_quotes_commas_and') };
   }
 
   const tokens: JsonToken[] = [];
@@ -49,7 +50,7 @@ export function formatJson(content: string): JsonPreview {
     if (value === '{' || value === '[') depth++;
     // Bound indentation expansion and DOM work for otherwise valid, hostile-sized input.
     if (depth > 100 || length > 4 * 1024 * 1024 || tokens.length > 30_000)
-      return { error: 'JSON 层级过深或内容过多，无法格式化预览。已保留原文供查看。' };
+      return { error: t('preview:json_is_too_deep_or_large_to_format') };
     previous = value;
   }
   return { tokens };

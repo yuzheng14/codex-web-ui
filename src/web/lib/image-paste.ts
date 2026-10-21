@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES } from '../../shared/images';
 
 export interface DraftImage {
@@ -15,11 +16,13 @@ export const emptyDraft: MessageDraft = { text: '', images: [] };
 
 export function imagePasteError(files: File[], images: DraftImage[]): string | undefined {
   if (files.some((file) => !IMAGE_TYPES.includes(file.type)))
-    return '请粘贴 PNG、JPEG、WebP 或 GIF 图片。';
-  if (files.some((file) => file.size === 0)) return '图片为空，请重新复制后粘贴。';
-  if (files.length + images.length > MAX_IMAGES) return `每条消息最多添加 ${MAX_IMAGES} 张图片。`;
+    return t('composer:paste_a_png_jpeg_webp_or_gif_image');
+  if (files.some((file) => file.size === 0))
+    return t('composer:the_image_is_empty_copy_and_paste_it');
+  if (files.length + images.length > MAX_IMAGES)
+    return t('composer:up_to_images_per_message', { count: MAX_IMAGES, v0: MAX_IMAGES });
   if ([...files, ...images].reduce((sum, file) => sum + file.size, 0) > MAX_IMAGE_BYTES)
-    return '每条消息的图片总大小不能超过 2 MiB，请缩小图片后重试。';
+    return t('composer:images_per_message_cannot_exceed_2_mib_in');
 }
 
 export function readImage(file: File): Promise<string> {
@@ -27,9 +30,10 @@ export function readImage(file: File): Promise<string> {
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') resolve(reader.result);
-      else reject(new Error('图片读取失败，请重新粘贴。'));
+      else reject(new Error(t('common:could_not_read_the_image_please_paste_it')));
     };
-    reader.onerror = reader.onabort = () => reject(new Error('图片读取失败，请重新粘贴。'));
+    reader.onerror = reader.onabort = () =>
+      reject(new Error(t('common:could_not_read_the_image_please_paste_it')));
     reader.readAsDataURL(file);
   });
 }

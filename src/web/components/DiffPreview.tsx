@@ -1,3 +1,5 @@
+import { message, displayMessage, messageDetails } from '../i18n/messages';
+import { t, currentLocale } from '../i18n';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { readableError } from '../lib/utils';
@@ -24,7 +26,10 @@ function Stats({ file }: { file: DiffFile }) {
   return (
     <span
       className="diff-stats"
-      aria-label={`新增 ${file.additions} 行，删除 ${file.deletions} 行`}
+      aria-label={t('preview:lines_added_lines_removed', {
+        v0: file.additions,
+        v1: file.deletions,
+      })}
     >
       <span>+{file.additions}</span>
       <span>−{file.deletions}</span>
@@ -48,7 +53,7 @@ export function DiffPreview({
     const controller = new AbortController();
     const timeout = setTimeout(() => {
       controller.abort();
-      setError('读取变更超时，请重试。');
+      setError(message('preview:reading_changes_timed_out_please_retry'));
     }, 35_000);
     setLoaded(undefined);
     setError(undefined);
@@ -60,7 +65,7 @@ export function DiffPreview({
         if (controller.signal.aborted) return;
         if (target.source === 'turn') {
           const turn = thread.turns.find((entry) => entry.id === target.id);
-          if (!turn) throw new Error('此轮变更已不在可读取的会话历史中。');
+          if (!turn) throw new Error(t('preview:changes_from_this_turn_are_no_longer_in'));
           setLoaded({
             ...target,
             text: turn.diff,
@@ -76,7 +81,7 @@ export function DiffPreview({
           const item = thread.turns
             .flatMap((entry) => entry.items)
             .find((entry) => entry.id === target.id);
-          if (!item) throw new Error('此工具的变更已不在可读取的会话历史中。');
+          if (!item) throw new Error(t('preview:changes_from_this_tool_are_no_longer_in'));
           setLoaded({ ...target, changes: item.changes ?? [], truncated: item.truncated });
         }
       })
@@ -91,28 +96,34 @@ export function DiffPreview({
   }, [target, threadId, attempt]);
   return (
     <FilePreviewPanel
-      label="代码变更预览"
-      title="代码变更"
-      subtitle={`${target.scope} · 只读`}
+      label={t('preview:code_change_preview')}
+      title={t('preview:code_changes')}
+      subtitle={t('preview:read_only', { v0: displayMessage(target.scope) })}
       icon={<FileCode2 size={19} className="file-preview-icon" aria-hidden="true" />}
       onClose={onClose}
     >
       <p className="diff-scope">
-        Codex 提供的变更快照，仅包含此范围内的补丁，不代表工作区全部未提交变更。
+        {t('preview:a_change_snapshot_from_codex_containing_patches_in')}
       </p>
       {error ? (
         <div className="diff-empty" role="alert">
-          <h3>无法读取变更</h3>
-          <p>{error}</p>
+          <h3>{t('preview:unable_to_load_changes')}</h3>
+          <p>{displayMessage(error)}</p>
+          {messageDetails(error) && (
+            <details>
+              <summary>{t('common:technical_details')}</summary>
+              <pre>{messageDetails(error)}</pre>
+            </details>
+          )}
           <Button variant="secondary" onClick={() => setAttempt((value) => value + 1)}>
-            重新加载
+            {t('common:reload')}
           </Button>
         </div>
       ) : loaded ? (
         <DiffContent key={attempt} target={loaded} />
       ) : (
         <p className="file-preview-loading diff-loading" role="status">
-          正在读取变更…
+          {t('preview:loading_changes')}
         </p>
       )}
     </FilePreviewPanel>
@@ -120,31 +131,32 @@ export function DiffPreview({
 }
 
 function DiffContent({ target }: { target: DiffSnapshot }) {
+  const locale = currentLocale();
   const files = useMemo(
     () =>
       target.changes
         ? target.changes.flatMap((change) => parseDiff(change.diff, change))
         : parseDiff(target.text ?? ''),
-    [target],
+    [target, locale],
   );
   const [wrap, setWrap] = useState(false);
   return (
     <>
       {target.truncated && (
         <p className="diff-warning" role="status">
-          补丁已被截断，以下仅展示收到的部分内容。
+          {t('preview:this_patch_is_truncated_only_received_content_is')}
         </p>
       )}
       {files.length ? (
         <>
           <div className="diff-list-toolbar">
-            <span>此快照共 {files.length} 个文件</span>
+            <span>{t('preview:new_files_in_this_snapshot', { v0: files.length })}</span>
             <Button variant="ghost" size="sm" aria-pressed={wrap} onClick={() => setWrap(!wrap)}>
               <WrapText size={15} />
-              自动换行
+              {t('preview:wrap_lines')}
             </Button>
           </div>
-          <div className="diff-files" tabIndex={0} aria-label="变更文件列表">
+          <div className="diff-files" tabIndex={0} aria-label={t('preview:new_changed_file_list')}>
             {files.map((file, index) => (
               <DiffFilePreview
                 key={index}
@@ -161,11 +173,11 @@ function DiffContent({ target }: { target: DiffSnapshot }) {
       ) : (
         <div className="diff-empty" role="status">
           <FileCode2 size={28} />
-          <h3>暂无文件变更</h3>
-          <p>此范围内尚未收到可预览的补丁。</p>
+          <h3>{t('preview:no_file_changes_yet')}</h3>
+          <p>{t('preview:no_previewable_patch_received_in_this_scope_yet')}</p>
         </div>
       )}
-      <footer className="file-preview-path">{target.scope}</footer>
+      <footer className="file-preview-path">{displayMessage(target.scope)}</footer>
     </>
   );
 }
@@ -228,26 +240,30 @@ function DiffFilePreview({
           onClick={() => (expanded ? collapse() : setExpanded(true))}
         >
           {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-          {expanded ? '收起变更' : '展开变更'}
+          {expanded ? t('preview:new_collapse_changes') : t('preview:new_expand_changes')}
         </Button>
       </div>
       {file.kind === 'renamed' && file.oldPath && (
-        <p className="diff-rename">原路径：{file.oldPath}</p>
+        <p className="diff-rename">{t('preview:original_path', { v0: file.oldPath })}</p>
       )}
       {file.incomplete && (
         <p className="diff-warning" role="status">
-          补丁不完整或格式有误，行号与统计仅对应已收到的内容。
+          {t('preview:this_patch_is_incomplete_or_malformed_line_numbers')}
         </p>
       )}
       {!expanded && (
-        <p className="diff-collapsed">{reason ?? '变更已手动收起。'} 可通过「展开变更」查看。</p>
+        <p className="diff-collapsed">
+          {t('preview:new_choose_expand_changes_to_view_it', {
+            v0: reason ?? t('preview:new_changes_were_collapsed_manually'),
+          })}
+        </p>
       )}
       <div id={contentId} hidden={!expanded}>
         {expanded && <DiffFileBody file={file} wrap={wrap} />}
         {expanded && reason && (
           <Button className="diff-collapse-bottom" variant="ghost" size="sm" onClick={collapse}>
             <ChevronUp size={15} />
-            收起变更
+            {t('preview:new_collapse_changes')}
           </Button>
         )}
       </div>
@@ -285,23 +301,25 @@ function DiffFileBody({ file, wrap }: { file: DiffFile; wrap: boolean }) {
   return (
     <>
       {file.hunks.length > 1 && (
-        <div className="diff-controls" role="group" aria-label="变更区块导航">
+        <div
+          className="diff-controls"
+          role="group"
+          aria-label={t('preview:change_hunk_navigation')}
+        >
           <Button
             variant="ghost"
             size="icon"
-            aria-label="上一个变更区块"
+            aria-label={t('preview:previous_change_hunk')}
             disabled={hunkIndex === 0}
             onClick={() => jump(hunkIndex - 1)}
           >
             <ChevronUp size={16} />
           </Button>
-          <span>
-            {hunkIndex + 1} / {file.hunks.length} 个区块
-          </span>
+          <span>{t('preview:new_hunks', { v0: hunkIndex + 1, v1: file.hunks.length })}</span>
           <Button
             variant="ghost"
             size="icon"
-            aria-label="下一个变更区块"
+            aria-label={t('preview:next_change_hunk')}
             disabled={hunkIndex >= file.hunks.length - 1}
             onClick={() => jump(hunkIndex + 1)}
           >
@@ -312,27 +330,30 @@ function DiffFileBody({ file, wrap }: { file: DiffFile; wrap: boolean }) {
       <div
         className={`diff-content${wrap ? ' diff-wrap' : ''}`}
         tabIndex={0}
-        aria-label={`${file.path} 的变更内容`}
+        aria-label={t('preview:new_changes_in', { v0: file.path })}
       >
         {file.binary ? (
           <div className="diff-empty">
             <FileCode2 size={28} />
-            <h3>二进制文件已变更</h3>
-            <p>此文件无法逐行预览。</p>
+            <h3>{t('preview:binary_file_changed')}</h3>
+            <p>{t('preview:line_by_line_preview_is_unavailable_for_this')}</p>
           </div>
         ) : failed ? (
           <div className="diff-empty" role="alert">
-            <h3>无法读取变更内容</h3>
-            <p>收到的内容不是可识别的 unified diff。请等待 Codex 更新补丁，或重新打开预览。</p>
+            <h3>{t('preview:unable_to_read_change_content')}</h3>
+            <p>{t('preview:the_content_is_not_a_recognized_unified_diff')}</p>
           </div>
         ) : file.hunks.length ? (
-          <table className="diff-table" aria-label={`${file.path} 的行变更`}>
+          <table
+            className="diff-table"
+            aria-label={t('preview:line_changes_in', { v0: file.path })}
+          >
             <thead>
               <tr>
-                <th scope="col">原行</th>
-                <th scope="col">新行</th>
-                <th scope="col" aria-label="变更类型" />
-                <th scope="col">代码内容</th>
+                <th scope="col">{t('preview:old_line')}</th>
+                <th scope="col">{t('preview:new_line')}</th>
+                <th scope="col" aria-label={t('preview:change_type')} />
+                <th scope="col">{t('preview:code')}</th>
               </tr>
             </thead>
             {highlightedHunks.map((hunk, index) => (
@@ -344,7 +365,7 @@ function DiffFileBody({ file, wrap }: { file: DiffFile; wrap: boolean }) {
               >
                 <tr className="diff-hunk">
                   <td colSpan={4}>
-                    <span>区块 {index + 1}</span> {hunk.header}
+                    <span>{t('preview:hunk', { v0: index + 1 })}</span> {hunk.header}
                   </td>
                 </tr>
                 {hunk.lines.map((line, row) => (
@@ -354,9 +375,12 @@ function DiffFileBody({ file, wrap }: { file: DiffFile; wrap: boolean }) {
                     <td
                       className="diff-marker"
                       aria-label={
-                        { added: '新增', removed: '删除', context: '上下文', note: '提示' }[
-                          line.kind
-                        ]
+                        {
+                          added: t('common:added'),
+                          removed: t('common:removed'),
+                          context: t('preview:context'),
+                          note: t('preview:note'),
+                        }[line.kind]
                       }
                     >
                       {line.kind === 'added' ? '+' : line.kind === 'removed' ? '−' : ''}
@@ -383,8 +407,8 @@ function DiffFileBody({ file, wrap }: { file: DiffFile; wrap: boolean }) {
           </table>
         ) : (
           <div className="diff-empty">
-            <h3>没有逐行内容变更</h3>
-            <p>此补丁仅包含文件属性、路径或空文件变更，没有可展示的代码行。</p>
+            <h3>{t('preview:no_line_changes')}</h3>
+            <p>{t('preview:this_patch_changes_only_metadata_paths_or_empty')}</p>
           </div>
         )}
       </div>

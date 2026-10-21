@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import './collapsible-activity.css';
@@ -53,7 +54,7 @@ export function CollapsibleActivity({
       }}
     >
       <summary
-        aria-label={`${open ? '收起' : '展开'}${label}`}
+        aria-label={`${open ? t('conversation:collapse') : t('conversation:expand')}${label}`}
         onClick={(event) => {
           const details = detailsRef.current;
           const scroll = details?.closest<HTMLElement>('.conversation-scroll');
@@ -79,7 +80,7 @@ export function CollapsibleActivity({
       >
         {summary}
         <span className="activity-collapse-hint" aria-hidden="true">
-          收起
+          {t('conversation:collapse')}
         </span>
         <Icon name="chevron" size={14} />
       </summary>

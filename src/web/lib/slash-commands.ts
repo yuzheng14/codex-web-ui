@@ -1,6 +1,20 @@
 import { UNASSIGNED_SCOPE } from '../../shared/workspace-scope';
+import { displayMessage } from '../i18n/messages';
+import { errorMessage } from './error-message';
+import { t } from '../i18n';
 import type { Operation, Project, Settings, SystemInfo, ThreadView } from '../../shared/types';
-import { threadNameError } from '../../shared/thread-name';
+import {
+  threadNameError as originalThreadNameError,
+  MAX_THREAD_NAME_CHARACTERS,
+} from '../../shared/thread-name';
+function threadNameError(name: string) {
+  const problem = originalThreadNameError(name);
+  if (!problem) return undefined;
+  if (!name.trim()) return t('commands:renameEmpty');
+  if ([...name.trim()].length > MAX_THREAD_NAME_CHARACTERS)
+    return t('commands:renameLong', { max: MAX_THREAD_NAME_CHARACTERS });
+  return t('commands:renameControls');
+}
 import { isActive } from '../components/Status';
 import { compatibilityConfirmationRequired } from './compatibility';
 import { blocksTarget, type SavedOperation } from './operations';
@@ -62,12 +76,13 @@ export function validateSlashCommand(input: string, commands: SlashCommand[]): s
   const command = commands.find((entry) => entry.name === parsed.name);
   if (!command)
     return parsed.name
-      ? `未知命令 /${parsed.name}。使用 /help 查看可用命令；发送以 / 开头的普通消息请使用 //。`
-      : '请选择命令，或输入 /help 查看可用命令。';
+      ? t('commands:unknown_command_use_help_for_available_commands_or', { v0: parsed.name })
+      : t('commands:select_a_command_or_type_help_for_available');
   if (command.name === 'rename') {
     const problem = threadNameError(parsed.arguments);
     if (problem) return problem;
-  } else if (parsed.arguments) return `/${command.name} 不接受参数。用法：${command.usage}`;
+  } else if (parsed.arguments)
+    return t('commands:does_not_accept_arguments_usage', { v0: command.name, v1: command.usage });
   return command.unavailableReason;
 }
 
@@ -96,34 +111,88 @@ export interface SlashCommandContext {
 }
 
 const definitions: { name: SlashCommandName; description: string }[] = [
-  { name: 'help', description: '查看本网页支持的命令和使用方式' },
-  { name: 'new', description: '打开当前工作区的新建会话输入页' },
-  { name: 'fork', description: '复制当前会话已保存的历史为新会话' },
-  { name: 'resume', description: '恢复当前选中的历史会话（不是 CLI 会话选择器）' },
-  { name: 'review', description: '审查当前工作目录的未提交改动（使用会话当前配置）' },
-  { name: 'rename', description: '重命名当前会话，名称可包含空格' },
-  { name: 'stop', description: '请求中断当前任务（网页快捷命令）' },
-  { name: 'status', description: '打开当前连接、运行状态与提交诊断' },
-  { name: 'compact', description: '压缩当前会话上下文，保留会话继续工作' },
-  { name: 'export', description: '下载当前会话的已保存记录为 Markdown 文件' },
+  {
+    name: 'help',
+    get description() {
+      return t('commands:view_supported_commands_and_usage');
+    },
+  },
+  {
+    name: 'new',
+    get description() {
+      return t('commands:open_a_new_session_draft_in_the_current');
+    },
+  },
+  {
+    name: 'fork',
+    get description() {
+      return t('commands:copy_saved_session_history_into_a_new_session');
+    },
+  },
+  {
+    name: 'resume',
+    get description() {
+      return t('commands:resume_the_selected_session_not_the_cli_session');
+    },
+  },
+  {
+    name: 'review',
+    get description() {
+      return t('commands:review_uncommitted_working_directory_changes');
+    },
+  },
+  {
+    name: 'rename',
+    get description() {
+      return t('commands:rename_this_session_spaces_are_allowed');
+    },
+  },
+  {
+    name: 'stop',
+    get description() {
+      return t('commands:request_interruption_of_the_current_task_web_shortcut');
+    },
+  },
+  {
+    name: 'status',
+    get description() {
+      return t('commands:open_connection_runtime_and_submission_diagnostics');
+    },
+  },
+  {
+    name: 'compact',
+    get description() {
+      return t('commands:compact_context_and_continue_in_this_session');
+    },
+  },
+  {
+    name: 'export',
+    get description() {
+      return t('commands:download_saved_session_history_as_markdown');
+    },
+  },
 ];
 
 function unavailableReason(name: SlashCommandName, context: SlashCommandContext) {
   if (name === 'help' || name === 'status') return undefined;
   if (context.authRequired || context.connection === 'authenticationRequired')
-    return '登录已过期，请重新登录后重试。';
-  if (context.connection !== 'connected') return '当前已离线，请等待连接恢复后重试。';
-  if (context.system?.authenticated === false) return 'Codex 尚未登录，请先完成认证。';
-  if (!context.system?.ready) return 'Codex 尚不可用，请先查看状态诊断。';
+    return t('commands:your_login_expired_log_in_again_and_retry');
+  if (context.connection !== 'connected')
+    return t('commands:you_are_offline_wait_for_the_connection_to');
+  if (context.system?.authenticated === false)
+    return t('commands:codex_is_not_logged_in_authenticate_first');
+  if (!context.system?.ready) return t('commands:codex_is_unavailable_check_diagnostics_first');
   if (name === 'export') {
     if (!context.thread)
-      return context.selectedId ? '会话正在加载，请稍后重试。' : '请先选择一个会话。';
+      return context.selectedId
+        ? t('commands:session_loading_try_again_shortly')
+        : t('commands:select_a_session_first');
     if (!context.system.capabilities.includes('thread/read'))
-      return '当前 Codex 未提供 thread/read 能力。';
+      return t('commands:this_codex_does_not_provide_thread_read');
     return undefined;
   }
   if (name !== 'stop' && compatibilityConfirmationRequired(context.system))
-    return '请先确认当前 Codex 版本的兼容性提示。';
+    return t('commands:confirm_the_codex_version_compatibility_notice_first');
   const capabilities = {
     fork: 'thread/fork',
     resume: 'thread/resume',
@@ -133,7 +202,7 @@ function unavailableReason(name: SlashCommandName, context: SlashCommandContext)
     compact: 'thread/compact/start',
   };
   if (name !== 'new' && !context.system.capabilities.includes(capabilities[name]))
-    return `当前 Codex 未提供 ${capabilities[name]} 能力。`;
+    return t('commands:this_codex_does_not_provide', { v0: capabilities[name] });
   const busy = (kind: string, target: string) => context.busy.includes(`${kind}:${target}`);
   const unsettled = (target: string, kind?: string) =>
     context.operations.some(
@@ -141,85 +210,94 @@ function unavailableReason(name: SlashCommandName, context: SlashCommandContext)
     );
   const scope = context.scopeId ?? context.project?.id;
   if (name !== 'stop') {
-    if (!context.project && scope !== UNASSIGNED_SCOPE) return '请先选择一个项目。';
+    if (!context.project && scope !== UNASSIGNED_SCOPE) return t('commands:select_a_project_first');
     if (context.project && !context.project.available)
-      return '当前项目目录不可用，请先检查项目配置。';
+      return t('commands:the_project_directory_is_unavailable_check_project_configuration');
   }
   if (name === 'new') {
     if (context.busy.some((entry) => entry.startsWith('saveModelDefaults:')))
-      return '正在保存模型默认值，请完成后再操作。';
-    if (busy('create', scope!)) return '正在新建会话，请等待回执。';
-    if (unsettled(scope!)) return '新建会话的请求尚未确认，请先用 /status 核对提交。';
+      return t('common:model_defaults_are_being_saved_wait_before_proceeding');
+    if (busy('create', scope!)) return t('commands:creating_a_session_wait_for_the_receipt');
+    if (unsettled(scope!)) return t('commands:session_creation_is_unconfirmed_use_status_to_check');
     return undefined;
   }
   const thread = context.thread;
-  if (!thread) return context.selectedId ? '会话正在加载，请稍后重试。' : '请先选择一个会话。';
+  if (!thread)
+    return context.selectedId
+      ? t('commands:session_loading_try_again_shortly')
+      : t('commands:select_a_session_first');
   if (name === 'compact') {
-    if (thread.archived) return '请先取消归档后再压缩上下文。';
-    if (!thread.managed) return '请先恢复当前会话，再压缩上下文。';
-    if (!thread.turns.length) return '当前会话为空，无需压缩上下文。';
-    if (busy('compact', thread.id)) return '压缩请求正在提交，请等待回执。';
+    if (thread.archived) return t('commands:unarchive_before_compacting_context');
+    if (!thread.managed) return t('commands:resume_this_session_before_compacting_context');
+    if (!thread.turns.length) return t('commands:this_session_is_empty_there_is_no_context');
+    if (busy('compact', thread.id)) return t('commands:submitting_compaction_wait_for_the_receipt');
     if (isActive(thread.status) || thread.turns.some((turn) => isActive(turn.status)))
-      return '请等待当前任务结束后再压缩上下文。';
+      return t('commands:wait_for_this_task_to_finish_before_compacting');
     if (
       thread.status === 'unknown' ||
       (thread.execution && !thread.execution.ended) ||
       unsettled(thread.id)
     )
-      return '当前会话仍有待核对的执行，请先用 /status 核对提交。';
+      return t('commands:an_execution_still_needs_checking_use_status_to');
     return undefined;
   }
   if (name === 'review') {
-    if (thread.archived) return '会话已归档，请先取消归档。';
-    if (!thread.managed) return '会话尚未恢复，请先恢复后开始代码审查。';
-    if (busy('review', thread.id)) return '正在提交代码审查，请等待回执。';
+    if (thread.archived) return t('commands:this_session_is_archived_unarchive_it_first');
+    if (!thread.managed) return t('commands:resume_this_session_before_starting_code_review');
+    if (busy('review', thread.id)) return t('commands:submitting_code_review_wait_for_the_receipt');
     if (unsettled(thread.id) || thread.status === 'unknown')
-      return '当前会话有尚未确认的请求，请先用 /status 核对提交。';
+      return t('commands:this_session_has_an_unconfirmed_request_use_status');
     if (isActive(thread.status) || thread.turns.some((turn) => isActive(turn.status)))
-      return '当前会话仍在运行，请等待任务结束后开始代码审查。';
+      return t('commands:wait_for_this_task_to_finish_before_starting');
     if (thread.execution && !thread.execution.ended)
-      return '当前会话仍有执行占用，请先用 /status 核对旧任务。';
+      return t('commands:this_session_is_still_occupied_by_an_execution');
     return undefined;
   }
   if (name === 'rename') {
-    if (thread.archived) return '请先取消归档并恢复会话后再重命名。';
-    if (!thread.managed) return '请先恢复当前会话后再重命名；不能修改其他进程占用的会话。';
-    if (busy('rename', thread.id)) return '正在重命名，请等待回执。';
-    if (unsettled(thread.id, 'rename')) return '重命名请求尚未确认，请先用 /status 核对提交。';
+    if (thread.archived) return t('commands:unarchive_and_resume_this_session_before_renaming');
+    if (!thread.managed)
+      return t('commands:resume_this_session_before_renaming_sessions_occupied_by');
+    if (busy('rename', thread.id)) return t('commands:renaming_wait_for_the_receipt');
+    if (unsettled(thread.id, 'rename'))
+      return t('commands:rename_is_unconfirmed_use_status_to_check_the');
     if (busy('archive', thread.id) || unsettled(thread.id, 'archive'))
-      return '会话归档操作尚未确认，请先用 /status 核对提交。';
+      return t('commands:archiving_is_unconfirmed_use_status_to_check_the');
     return undefined;
   }
   if (name === 'fork') {
-    if (!thread.turns.length) return '当前会话为空，发送首条消息后才能 Fork 已保存的历史。';
-    if (busy('fork', thread.id)) return '正在 Fork 会话，请等待回执。';
-    if (unsettled(thread.id, 'fork')) return 'Fork 请求尚未确认，请先用 /status 核对提交。';
+    if (!thread.turns.length) return t('commands:this_session_is_empty_send_the_first_message');
+    if (busy('fork', thread.id)) return t('commands:forking_session_wait_for_the_receipt');
+    if (unsettled(thread.id, 'fork'))
+      return t('commands:fork_request_unconfirmed_use_status_to_check_the');
     return undefined;
   }
   if (name === 'resume') {
-    if (busy('resume', thread.id)) return '正在恢复会话，请等待回执。';
-    if (unsettled(thread.id)) return '当前会话有尚未确认的请求，请先用 /status 核对提交。';
+    if (busy('resume', thread.id)) return t('commands:resuming_session_wait_for_the_receipt');
+    if (unsettled(thread.id))
+      return t('commands:this_session_has_an_unconfirmed_request_use_status');
     if (
       thread.managed &&
       (thread.turns.some((turn) => isActive(turn.status)) || isActive(thread.status))
     )
-      return '当前会话仍在运行，请等待任务结束或使用 /stop。';
+      return t('commands:this_session_is_running_wait_for_it_to');
     if (thread.execution && !thread.execution.ended)
-      return '当前会话仍有执行占用，请先用 /status 核对旧任务。';
-    if (thread.managed) return '当前会话已恢复，无需再次恢复。';
+      return t('commands:this_session_is_still_occupied_by_an_execution');
+    if (thread.managed) return t('commands:this_session_is_already_resumed');
     // A previous writer conflict is retryable: Codex checks whether the owner has since released it.
     return undefined;
   }
   if (!thread.managed)
     return thread.resumeError?.code === 'THREAD_IN_USE'
-      ? '当前会话被其他进程占用，无法从网页中断该进程的任务。'
-      : '当前会话尚未恢复，无法从网页中断其他进程的任务。';
-  if (busy('interrupt', thread.id)) return '中断请求正在提交，请等待回执。';
-  if (unsettled(thread.id, 'interrupt')) return '中断请求尚未确认，请先用 /status 核对提交。';
+      ? t('commands:another_process_is_using_this_session_its_task')
+      : t('commands:this_session_has_not_been_resumed_tasks_in');
+  if (busy('interrupt', thread.id))
+    return t('commands:submitting_interrupt_request_wait_for_the_receipt');
+  if (unsettled(thread.id, 'interrupt'))
+    return t('commands:interrupt_request_unconfirmed_use_status_to_check_the');
   if (!thread.turns.some((turn) => isActive(turn.status)))
     return thread.status === 'unknown' || (thread.execution && !thread.execution.ended)
-      ? '任务状态尚未确认，请先用 /status 核对提交。'
-      : '当前会话没有可中断的任务。';
+      ? t('commands:task_state_is_unconfirmed_use_status_to_check')
+      : t('commands:this_session_has_no_task_to_interrupt');
   return undefined;
 }
 
@@ -227,19 +305,49 @@ function operationResult(name: SlashCommandName, operation?: Operation): SlashCo
   if (!operation)
     return {
       error: true,
-      message: '未收到可确认的成功回执。请查看页面错误或用 /status 核对提交；输入已保留。',
+      get message() {
+        return displayMessage(t('commands:no_confirmed_success_receipt_received_check_errors_or'));
+      },
     };
   if (operation.status === 'failed')
-    return { error: true, message: operation.error?.message ?? '操作失败，请查看状态诊断。' };
+    return {
+      error: true,
+      get message() {
+        return displayMessage(
+          (operation.error ? errorMessage(operation.error) : undefined) ??
+            t('commands:operation_failed_check_diagnostics'),
+        );
+      },
+    };
   if (operation.status !== 'acknowledged')
-    return { error: true, message: '提交结果尚未确认，请先用 /status 核对提交，不要重复提交。' };
+    return {
+      error: true,
+      get message() {
+        return displayMessage(
+          t('commands:submission_result_unconfirmed_use_status_before_submitting_again'),
+        );
+      },
+    };
   if (name === 'compact')
-    return { message: '已提交上下文压缩请求；进度和结果以会话中的任务状态为准。' };
+    return {
+      get message() {
+        return displayMessage(t('commands:context_compaction_requested_follow_task_status_in_the'));
+      },
+    };
   if (name === 'rename') {
     const result = operation.result as { name?: unknown } | undefined;
     return typeof result?.name === 'string' && result.name
-      ? { message: `会话已重命名为「${result.name}」。` }
-      : { error: true, message: '重命名已被接受，但无法确认名称，请用 /status 核对提交。' };
+      ? {
+          get message() {
+            return displayMessage(t('commands:session_renamed_to', { v0: result.name }));
+          },
+        }
+      : {
+          error: true,
+          get message() {
+            return displayMessage(t('commands:rename_accepted_but_the_name_is_unconfirmed_use'));
+          },
+        };
   }
   if (name === 'fork') {
     const result = operation.result as
@@ -248,17 +356,27 @@ function operationResult(name: SlashCommandName, operation?: Operation): SlashCo
     if (typeof id !== 'string' || !id)
       return {
         error: true,
-        message: '请求已被接受，但尚未获得新会话标识，请用 /status 核对提交。',
+        get message() {
+          return displayMessage(t('commands:request_accepted_but_no_new_session_id_received'));
+        },
       };
-    return { message: '已 Fork 为新会话。', draftKey: id };
+    return {
+      get message() {
+        return displayMessage(t('commands:forked_into_a_new_session'));
+      },
+      draftKey: id,
+    };
   }
   return {
-    message:
-      name === 'review'
-        ? '已提交代码审查，请在当前会话查看进度和结果。'
-        : name === 'stop'
-          ? '已提交中断请求，请等待任务状态更新。'
-          : '已恢复当前选中的会话。',
+    get message() {
+      return displayMessage(
+        name === 'review'
+          ? t('commands:code_review_submitted_view_progress_and_results_in')
+          : name === 'stop'
+            ? t('commands:interrupt_requested_wait_for_task_status_to_update')
+            : t('commands:selected_session_resumed'),
+      );
+    },
   };
 }
 
@@ -268,28 +386,65 @@ export function createSlashCommands(getContext: () => SlashCommandContext): Slas
   return definitions.map(({ name, description }) => ({
     name,
     description,
-    usage: name === 'rename' ? '/rename <名称>' : `/${name}（无需参数）`,
+    usage: name === 'rename' ? t('commands:rename_name') : t('commands:no_arguments', { v0: name }),
     unavailableReason: unavailableReason(name, initial),
     run: async (argumentsText = '') => {
       const context = getContext();
       if (name === 'help')
         return {
-          message: `${definitions.map((entry) => `/${entry.name}${entry.name === 'rename' ? ' <名称>' : ''}：${entry.description}`).join('\n')}\n/rename 必须提供名称，其他命令无需参数。输入 // 可发送以 / 开头的普通消息。`,
+          get message() {
+            return displayMessage(
+              t('commands:rename_requires_a_name_other_commands_take_no', {
+                v0: definitions
+                  .map((entry) =>
+                    t('commands:commandLine', {
+                      name: entry.name,
+                      arguments: entry.name === 'rename' ? t('commands:name') : '',
+                      description: entry.description,
+                    }),
+                  )
+                  .join('\n'),
+              }),
+            );
+          },
         };
       if (name === 'status') {
         context.openStatus();
-        return { message: '已打开状态诊断；可在面板中刷新或核对提交。' };
+        return {
+          get message() {
+            return displayMessage(
+              t('commands:diagnostics_opened_refresh_status_or_reconcile_submissions_in'),
+            );
+          },
+        };
       }
       if (
         (context.scopeId ?? context.project?.id) !== (initial.scopeId ?? initial.project?.id) ||
         context.selectedId !== initial.selectedId
       )
-        return { error: true, message: '当前项目或会话已切换，请重新选择命令。' };
+        return {
+          error: true,
+          get message() {
+            return displayMessage(t('commands:the_project_or_session_changed_select_the_command'));
+          },
+        };
       const reason = unavailableReason(name, context);
-      if (reason) return { error: true, message: reason };
+      if (reason)
+        return {
+          error: true,
+          get message() {
+            return displayMessage(reason);
+          },
+        };
       if (name === 'rename') {
         const problem = threadNameError(argumentsText);
-        if (problem) return { error: true, message: problem };
+        if (problem)
+          return {
+            error: true,
+            get message() {
+              return displayMessage(problem);
+            },
+          };
       }
       const thread = context.thread;
       const path = `/api/threads/${encodeURIComponent(thread?.id ?? '')}`;
@@ -297,16 +452,22 @@ export function createSlashCommands(getContext: () => SlashCommandContext): Slas
         if (name === 'export') {
           const { partial } = await context.exportThread(thread!.id);
           return {
-            message: partial
-              ? '已发起 Markdown 下载；存在未完成、状态待确认或截断内容，请查看文件内说明。'
-              : '已发起已保存历史的 Markdown 下载。图片和内部记录的省略范围已在文件中说明。',
+            get message() {
+              return displayMessage(
+                partial
+                  ? t('commands:markdown_download_started_some_content_is_unfinished_unconfirmed')
+                  : t('commands:saved_history_download_started_the_file_describes_omitted'),
+              );
+            },
           };
         }
         let operation: Operation | undefined;
         if (name === 'new') {
           return {
             draftKey: context.openDraft(),
-            message: '已打开新会话输入页，发送首条消息时创建会话。',
+            get message() {
+              return displayMessage(t('commands:new_session_draft_opened_a_session_will_be'));
+            },
           };
         } else if (name === 'fork') {
           operation = await context.run('fork', thread!.id, `${path}/fork`, {
@@ -332,7 +493,12 @@ export function createSlashCommands(getContext: () => SlashCommandContext): Slas
         }
         return operationResult(name, operation);
       } catch (error) {
-        return { error: true, message: readableError(error) };
+        return {
+          error: true,
+          get message() {
+            return displayMessage(readableError(error));
+          },
+        };
       }
     },
   }));

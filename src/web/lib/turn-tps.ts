@@ -1,3 +1,4 @@
+import { formatNumber } from '../i18n';
 /** End-to-end turn throughput, including tool execution and waiting time. */
 export function formatTurnTps(outputTokens?: number, durationMs?: number): string | undefined {
   if (
@@ -11,5 +12,6 @@ export function formatTurnTps(outputTokens?: number, durationMs?: number): strin
     return undefined;
   const tps = outputTokens / (durationMs / 1000);
   if (!Number.isFinite(tps)) return undefined;
-  return tps > 0 && tps < 0.1 ? '<0.1' : tps.toFixed(1);
+  const options = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+  return tps > 0 && tps < 0.1 ? `<${formatNumber(0.1, options)}` : formatNumber(tps, options);
 }

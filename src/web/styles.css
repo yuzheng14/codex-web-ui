@@ -4580,6 +4580,7 @@ dd {
 
 .project-import-modes {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 16px;
 }
@@ -4603,4 +4604,125 @@ dd {
 .project-clone-status small {
   color: #748078;
   line-height: 1.7;
+}
+
+.language-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.language-selector select {
+  min-width: 0;
+  max-width: 65%;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: #252b32;
+}
+.language-selector select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.action-options,
+.composer-actions,
+.sidebar-toolbar,
+.settings-pending {
+  flex-wrap: wrap;
+}
+.action-options > button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  height: auto;
+  min-height: 32px;
+}
+.permission-description,
+.settings-note,
+.sidebar-footer p {
+  overflow-wrap: anywhere;
+}
+
+.sidebar-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+}
+.sidebar-footer .language-selector {
+  justify-content: flex-start;
+  gap: 6px;
+}
+.sidebar-footer .language-selector svg {
+  flex-shrink: 0;
+}
+.sidebar-footer .language-selector select {
+  flex-shrink: 0;
+  width: 90px;
+  max-width: 100%;
+}
+.sidebar-footer .gateway-settings-button {
+  margin: 0;
+  justify-self: end;
+}
+.sidebar-footer .notification-settings-button {
+  position: static;
+  justify-self: start;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  white-space: normal;
+}
+.sidebar-footer .privacy-mark {
+  justify-self: end;
+}
+.sidebar-footer p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.project-clone-details pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.error-banner.dismissible {
+  flex-wrap: wrap;
+}
+.error-technical {
+  flex-basis: 100%;
+  min-width: 0;
+}
+.error-technical pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-bottom: 0;
+}
+
+/* A desktop preview narrows the workspace without changing the viewport breakpoint. */
+@media (min-width: 761px) {
+  .topbar {
+    flex-wrap: wrap;
+  }
+  .topbar-title {
+    flex: 1 1 180px;
+  }
+  .topbar-status {
+    flex: 0 1 auto;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  .breadcrumb {
+    white-space: nowrap;
+    overflow: hidden;
+  }
+}
+.gateway-error pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

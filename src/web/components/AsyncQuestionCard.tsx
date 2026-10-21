@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useId, useRef, useState } from 'react';
 import type { AsyncQuestion, AsyncQuestionReply } from '../../shared/types';
 import { asyncQuestionId } from '../../shared/async-questions';
@@ -44,13 +45,19 @@ export function AsyncQuestionCard({
   );
   const locked = disabled || sending || Boolean(resolved);
   return (
-    <section className="async-question-card" aria-label="Codex 的提问">
+    <section className="async-question-card" aria-label={t('workspace:questions_from_codex')}>
       <div className="async-question-heading">
         <span>
           <Icon name="chat" size={16} />
-          需要你的回答
+          {t('workspace:your_answer_is_needed')}
         </span>
-        <small>{resolved ? '已发送回答' : sending ? '正在发送…' : '可稍后回答'}</small>
+        <small>
+          {resolved
+            ? t('workspace:answer_sent')
+            : sending
+              ? t('workspace:sending')
+              : t('workspace:you_can_answer_later')}
+        </small>
       </div>
       <form
         onSubmit={async (event) => {
@@ -115,14 +122,14 @@ export function AsyncQuestionCard({
                         )
                       }
                     />
-                    <span>自由回答</span>
+                    <span>{t('workspace:free_text_answer')}</span>
                   </label>
                 )}
                 {choices[index] === -1 && (
                   <textarea
                     className="text-input"
-                    aria-label={`${question.title}：自由回答`}
-                    placeholder="输入你的回答"
+                    aria-label={t('common:free_text_answer', { v0: question.title })}
+                    placeholder={t('common:enter_your_answer')}
                     rows={2}
                     maxLength={10000}
                     value={texts[index] ?? ''}
@@ -141,9 +148,9 @@ export function AsyncQuestionCard({
         ))}
         {!resolved && (
           <div className="async-question-footer">
-            <span>回答会发送到当前会话，Codex 可以继续执行。</span>
+            <span>{t('workspace:your_answer_will_be_sent_to_this_session')}</span>
             <Button type="submit" disabled={locked || answers.some((answer) => !answer)}>
-              {sending ? '正在发送…' : '发送回答'}
+              {sending ? t('workspace:sending') : t('workspace:send_answer')}
             </Button>
           </div>
         )}

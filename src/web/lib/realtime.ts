@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type {
   Cursor,
   Operation,
@@ -280,7 +281,7 @@ export class ThreadStream {
       try {
         const value: unknown = JSON.parse(String(event.data));
         if (!isMessage(value)) {
-          this.handlers.error('收到无法识别的服务器消息，请检查版本兼容性。');
+          this.handlers.error(t('errors:unrecognized_server_message_check_version_compatibility'));
           return;
         }
         if (!this.cache.apply(value)) return;
@@ -302,7 +303,7 @@ export class ThreadStream {
           if (value.kind === 'operation') this.handlers.operation(value.payload as Operation);
         }
       } catch {
-        this.handlers.error('实时消息解析失败，请刷新会话快照。');
+        this.handlers.error(t('errors:could_not_parse_a_live_message_refresh_the'));
       }
     };
     socket.onclose = (event) => {

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useRef } from 'react';
 
 const eventName = 'covro:prepare-upgrade-reload';
@@ -12,7 +13,8 @@ async function database() {
     request.onupgradeneeded = () => request.result.createObjectStore('snapshots');
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
-    request.onblocked = () => reject(new Error('无法打开草稿备份，请关闭旧页面后重试'));
+    request.onblocked = () =>
+      reject(new Error(t('updates:cannot_open_draft_backup_close_old_pages_and')));
   });
 }
 async function snapshot(action: 'get' | 'put' | 'delete', key: string, value?: unknown) {
@@ -36,7 +38,8 @@ async function snapshot(action: 'get' | 'put' | 'delete', key: string, value?: u
             : store.put({ value, time: Date.now() }, id);
       tx.oncomplete = () =>
         resolve(action === 'get' ? (request.result as SavedState | undefined) : undefined);
-      tx.onerror = tx.onabort = () => reject(tx.error ?? new Error('草稿备份失败'));
+      tx.onerror = tx.onabort = () =>
+        reject(tx.error ?? new Error(t('updates:draft_backup_failed')));
     });
   } finally {
     db.close();

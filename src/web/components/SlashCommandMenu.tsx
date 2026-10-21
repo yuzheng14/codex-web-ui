@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useRef } from 'react';
 import type { SlashCommand } from '../lib/slash-commands';
 
@@ -18,9 +19,15 @@ export function SlashCommandMenu({ id, commands, selectedIndex, onSelect, onExec
   return (
     <div className="slash-menu">
       <div className="slash-menu-heading">
-        会话命令 <span>作用于当前项目与会话</span>
+        {t('commands:session_commands')}
+        <span>{t('commands:applies_to_the_current_project_and_session')}</span>
       </div>
-      <div id={id} role="listbox" aria-label="Slash 命令" className="slash-options">
+      <div
+        id={id}
+        role="listbox"
+        aria-label={t('commands:slash_commands')}
+        className="slash-options"
+      >
         {commands.map((command, index) => (
           <button
             key={command.name}
@@ -51,10 +58,10 @@ export function SlashCommandMenu({ id, commands, selectedIndex, onSelect, onExec
       </div>
       {commands.length === 0 && (
         <p className="slash-empty" role="status">
-          没有匹配的命令。输入 /help 查看支持范围。
+          {t('commands:no_matching_commands_type_help_to_view_supported')}
         </p>
       )}
-      <div className="slash-menu-footer">↑ ↓ 选择 · Enter 执行 · Esc 关闭</div>
+      <div className="slash-menu-footer">{t('commands:to_select_enter_to_run_esc_to_close')}</div>
     </div>
   );
 }

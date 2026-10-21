@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { ControlHint } from './ControlHint';
 import { Button } from './ui/button';
@@ -29,20 +30,20 @@ export function ReplyCopyButton({ text }: { text: string }) {
 
   return (
     <span className="reply-copy-controls">
-      <ControlHint asChild content={'复制回答（Markdown）'}>
+      <ControlHint asChild content={t('workspace:copy_reply_markdown')}>
         <Button
           variant="ghost"
           size="icon"
           className="reply-copy-button"
-          aria-label="复制回答"
+          aria-label={t('workspace:copy_reply')}
           onClick={() => void copy()}
         >
           <Icon name={feedback === 'copied' ? 'check' : 'copy'} size={14} />
         </Button>
       </ControlHint>
       <span className={`reply-copy-feedback reply-copy-${feedback}`} role="status">
-        {feedback === 'copied' && '已复制'}
-        {feedback === 'failed' && '复制失败，请手动选择回答复制。'}
+        {feedback === 'copied' && t('common:copied')}
+        {feedback === 'failed' && t('workspace:copy_failed_select_and_copy_the_reply_manually')}
       </span>
     </span>
   );
