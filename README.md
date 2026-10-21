@@ -50,7 +50,7 @@ Mermaid diagrams render locally after their code fence closes, with automatic li
 
 <a id="get-started"></a>
 
-DB Schema **5** is tracked independently of the application version. Releases declare the schema and the verified backup migration range; an older application cannot open a newer database. See [database compatibility](docs/database.md).
+DB Schema **6** is tracked independently of the application version. Releases declare the schema and the verified backup migration range; an older application cannot open a newer database. See [database compatibility](docs/database.md).
 
 ## 🚀 Get started
 

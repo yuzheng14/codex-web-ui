@@ -110,7 +110,7 @@ gh workflow run publish.yml --repo yuzheng14/covro --ref main -f channel=beta -f
 
 ## Database compatibility
 
-`package.json.covroDatabase` declares the current DB Schema ordinal, minimum restorable schema and backup format. Schema 5 corresponds to the five immutable committed migrations (0000–0004); the Drizzle journal's own `version` describes its file format, not Covro's database version. Each new migration increments the public ordinal, including changes to persisted data semantics that break older writers. Do not reuse an ordinal or edit an applied migration.
+`package.json.covroDatabase` declares the current DB Schema ordinal, minimum restorable schema and backup format. Schema 6 corresponds to the six immutable committed migrations (0000–0005); the Drizzle journal's own `version` describes its file format, not Covro's database version. Dev prereleases also append this contract from their exact source commit to the generated GitHub notes. Each new migration increments the public ordinal, including changes to persisted data semantics that break older writers. Do not reuse an ordinal or edit an applied migration.
 
 CI, package verification and publication preparation validate the declaration against the committed journal. All npm channels carry the same declaration. Stable GitHub Release notes read the exact tag and append an idempotent Database compatibility section alongside Codex compatibility. Published Beta GitHub Releases use the same exact-tag compatibility note generator; the Beta router has contents: write solely to update those notes. Beta source tags retain the source package version, while npm publication stamps the requested Beta version in its temporary workspace.
 

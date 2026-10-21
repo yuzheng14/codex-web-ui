@@ -52,7 +52,7 @@ it('rejects future databases, conflicting ordinals, edited migrations and uniden
   expect(db.serialize()).toEqual(before);
   db.pragma('user_version = 99');
   expect(() => migrateSqlite(db, migrations)).toThrow('不兼容');
-  db.pragma('user_version = 5');
+  db.pragma(`user_version = ${migrations.length}`);
   expect(() =>
     inspectDatabase(db, [{ ...migrations[0]!, hash: 'changed' }, ...migrations.slice(1)]),
   ).toThrow('不兼容');
@@ -81,10 +81,10 @@ it('does not advance SQL, history or version if a migration fails', () => {
 it('adds tagged database compatibility notes idempotently and refuses unknown declarations', () => {
   const contract = verifyDatabaseContract();
   const notes = releaseDatabaseNotes('## Changes\nExisting notes', contract);
-  expect(notes).toContain('DB Schema: **5**');
+  expect(notes).toContain(`DB Schema: **${contract.schemaVersion}**`);
   expect(releaseDatabaseNotes(notes, contract)).toBe(notes);
   expect(() => releaseDatabaseNotes(notes, undefined)).toThrow();
-  expect(() => requireRestorable(6, contract)).toThrow('不兼容');
+  expect(() => requireRestorable(contract.schemaVersion + 1, contract)).toThrow('不兼容');
 });
 
 it('reads Beta compatibility from its source tag without confusing its unstamped source package version', () => {

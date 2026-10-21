@@ -1,3 +1,5 @@
+import { databaseCompatibilitySchema } from '../src/shared/database.js';
+import { releaseDatabaseNotes } from './release-compatibility.js';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
@@ -79,6 +81,7 @@ export function publishDevGitHubRelease(
   history: PackageRegistry,
   isAncestor: Ancestor,
   api: GitHubApi,
+  database: unknown,
 ) {
   if (
     !/^[a-z\d][a-z\d-]*\/[\w.-]+$/i.test(repository) ||
@@ -86,6 +89,7 @@ export function publishDevGitHubRelease(
   )
     throw new Error('Invalid repository');
   const plan = planSchema.parse(input);
+  const contract = databaseCompatibilitySchema.parse(database);
   if (!devVersion.test(plan.version) || plan.previous?.version === plan.version)
     throw new Error('Invalid Dev release plan');
   for (const target of [plan, ...(plan.previous ? [plan.previous] : [])]) {
@@ -160,7 +164,7 @@ export function publishDevGitHubRelease(
         tag_name: tag,
         target_commitish: plan.commit,
         name: tag,
-        body: notes.body,
+        body: releaseDatabaseNotes(notes.body, contract),
         draft: false,
         prerelease: true,
         make_latest: 'false',
@@ -213,6 +217,8 @@ async function main() {
       (older, newer) =>
         execFileSync('git', ['merge-base', older, newer], { encoding: 'utf8' }).trim() === older,
       githubApi,
+      JSON.parse(execFileSync('git', ['show', `${commit}:package.json`], { encoding: 'utf8' }))
+        .covroDatabase,
     ),
   );
 }
