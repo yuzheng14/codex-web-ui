@@ -47,6 +47,15 @@ export const configSchema = z
       .transform((values) => [...new Set(values)]),
     developmentOrigins: z.array(origin).default([]),
     dataDir: z.string().min(1).default('./.local/codex-web'),
+    workDir: z
+      .string()
+      .trim()
+      .max(4096)
+      .refine(
+        (path) => isAbsolute(path) && !path.includes('\0'),
+        'workDir 必须是服务主机上的绝对目录路径',
+      )
+      .optional(),
     codex: z
       .object({
         binary: z.string().min(1).default('codex'),

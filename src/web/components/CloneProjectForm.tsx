@@ -7,6 +7,8 @@ import type { ProjectClone } from '../../shared/types';
 import { api, HttpError } from '../lib/api';
 import { readableError } from '../lib/utils';
 import { Button } from './ui/button';
+import { useProjectPath } from '../hooks/useProjectPath';
+import { ProjectPathPreview } from './ProjectPathPreview';
 
 const storageKey = 'covro.project-clone';
 function savedClone(): string | undefined {
@@ -33,10 +35,10 @@ export function CloneProjectForm(props: {
   onClose: () => void;
 }) {
   const [repository, setRepository] = useState('');
-  const [path, setPath] = useState('');
   const [name, setName] = useState('');
   const [jobId, setJobId] = useState(savedClone);
   const [job, setJob] = useState<ProjectClone>();
+  const path = useProjectPath(!job && !jobId, repository);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
   const submitting = useRef(false);
@@ -55,7 +57,7 @@ export function CloneProjectForm(props: {
         const next = await api.projectClone(jobId);
         if (stopped) return;
         setJob(next);
-        setPath(next.path);
+        path.setValue(next.path);
         setName(next.name ?? '');
         setError(undefined);
         if (!running(next)) return;
@@ -75,10 +77,10 @@ export function CloneProjectForm(props: {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [jobId]);
+  }, [jobId, path.setValue]);
 
   async function start() {
-    if (busy || props.disabled || submitting.current) return;
+    if (busy || props.disabled || submitting.current || !path.ready) return;
     submitting.current = true;
     setSending(true);
     setError(undefined);
@@ -88,7 +90,7 @@ export function CloneProjectForm(props: {
       const next = await api.cloneProject({
         clientOperationId: id,
         repository: repository.trim(),
-        path: path.trim(),
+        path: path.path!,
         ...(name.trim() ? { name: name.trim() } : {}),
       });
       setJob(next);
@@ -168,14 +170,15 @@ export function CloneProjectForm(props: {
               autoComplete="off"
               spellCheck={false}
               placeholder="/home/you/code/my-project"
-              value={path}
-              onChange={(event) => setPath(event.target.value)}
+              value={path.value}
+              onChange={(event) => path.setValue(event.target.value)}
               disabled={props.disabled || sending}
               aria-describedby="clone-path-help"
               aria-label={t('sidebar:clone_target')}
             />
-            <small id="clone-path-help">{t('sidebar:clone_path_help')}</small>
+            <small id="clone-path-help">{t('sidebar:work_dir_clone_help')}</small>
           </label>
+          <ProjectPathPreview value={path} />
           <label className="project-field">
             <span>{t('sidebar:project_name_optional')}</span>
             <input
@@ -206,7 +209,7 @@ export function CloneProjectForm(props: {
           {running(job) && (
             <progress aria-label={t('sidebar:clone_progress')} max={100} value={job?.percent} />
           )}
-          <code>{job?.path ?? path}</code>
+          <code>{job?.path ?? path.path ?? path.value}</code>
           {running(job) && <small>{t('sidebar:clone_background_help')}</small>}
         </div>
       )}
@@ -272,7 +275,7 @@ export function CloneProjectForm(props: {
           !jobId && (
             <Button
               type="submit"
-              disabled={props.disabled || sending || !repository.trim() || !path.trim()}
+              disabled={props.disabled || sending || !repository.trim() || !path.ready}
             >
               {sending ? t('common:submitting') : t('sidebar:clone_start')}
             </Button>

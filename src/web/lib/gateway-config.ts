@@ -32,6 +32,16 @@ const bytesToMiB = (bytes: number) => (bytes / MIB).toFixed(20).replace(/\.?0+$/
 
 export const configFields = [
   {
+    key: 'workDir',
+    get label() {
+      return t('settings:work_dir');
+    },
+    group: 'projects',
+    get help() {
+      return t('settings:work_dir_help');
+    },
+  },
+  {
     key: 'host',
     get label() {
       return t('settings:listen_address');
@@ -138,6 +148,7 @@ export type ConfigForm = Record<ConfigField['key'], string> & {
 export function configForm(config: GatewayConfig): ConfigForm {
   return {
     host: config.host,
+    workDir: config.workDir ?? '',
     port: String(config.port),
     publicOrigin: config.publicOrigin.join('\n'),
     developmentOrigins: config.developmentOrigins.join('\n'),
@@ -205,6 +216,7 @@ export function formConfig(form: ConfigForm, saved: GatewayConfig): GatewayConfi
   );
   return {
     ...saved,
+    workDir: form.workDir.trim() || undefined,
     host: form.host.trim(),
     port: Number(form.port),
     publicOrigin: lines(form.publicOrigin),

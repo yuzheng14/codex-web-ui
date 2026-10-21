@@ -105,3 +105,21 @@ for (const [key, , max] of fields) {
     });
   });
 }
+
+it('round-trips optional workDir without creating unsaved edits and supports clearing it', () => {
+  const saved = parseFileConfig({ workDir: '/workspace/projects' });
+  const form = configForm(saved);
+  expect(form.workDir).toBe('/workspace/projects');
+  expect(JSON.stringify(formConfig(form, saved))).toBe(JSON.stringify(saved));
+  form.requestTimeoutMs = '18000';
+  expect(formConfig(form, saved).workDir).toBe('/workspace/projects');
+  form.workDir = '  ';
+  const cleared = formConfig(form, saved);
+  expect(JSON.parse(JSON.stringify(cleared))).not.toHaveProperty('workDir');
+  expect(parseFileConfig(cleared).workDir).toBeUndefined();
+  expect(configChanges(saved, cleared)).toContainEqual({
+    label: '项目基础目录（workDir，可选）',
+    before: '/workspace/projects',
+    after: '',
+  });
+});

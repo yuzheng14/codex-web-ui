@@ -68,6 +68,10 @@ export async function request<T>(path: string, body?: object, signal?: AbortSign
 }
 
 export const api = {
+  projectPath: (path: string, directory?: string) =>
+    request<{ workDir?: string; path: string }>(
+      `/api/project-path?${new URLSearchParams({ path, ...(directory === undefined ? {} : { directory }) })}`,
+    ),
   gatewayConfig: () => request<GatewayConfigSnapshot>('/api/config'),
   saveGatewayConfig: (revision: string, config: GatewayConfig) =>
     request<GatewayConfigSnapshot>('/api/config', { revision, config }),

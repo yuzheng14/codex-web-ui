@@ -5,6 +5,7 @@ export interface GatewayConfig {
   publicOrigin: string[];
   developmentOrigins: string[];
   dataDir: string;
+  workDir?: string;
   codex: {
     binary: string;
     home?: string;

@@ -80,6 +80,7 @@
   "THREAD_NOT_FOUND": "未找到会话，请刷新会话列表。",
   "PROJECT_UNAVAILABLE": "项目目录不可用，请检查服务器目录与权限。",
   "INVALID_PROJECT_PATH": "项目路径无效，请检查服务器上的绝对路径及其访问权限。",
+  "WORK_DIR_UNAVAILABLE": "workDir 目录不存在、不是目录或不可访问。请检查服务主机上的目录和权限，或填写其他绝对路径。",
   "PROJECT_EXISTS": "该目录已添加为项目，请使用已有项目或选择其他目录。",
   "PROJECT_NOT_FOUND": "项目不存在，请刷新项目列表。",
   "PROJECT_BUSY": "项目仍有运行任务或未确认操作，请先处理完成。",
