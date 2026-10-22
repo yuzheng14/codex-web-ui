@@ -133,10 +133,12 @@ export function MarkdownContent({
   text,
   baseFile,
   streaming = false,
+  externalBaseUrl,
 }: {
   text: string;
   baseFile?: string;
   streaming?: boolean;
+  externalBaseUrl?: string;
 }) {
   return (
     <BaseFileContext value={baseFile}>
@@ -146,7 +148,19 @@ export function MarkdownContent({
             skipHtml
             remarkPlugins={[remarkGfm]}
             components={markdownComponents}
-            urlTransform={transformUrl}
+            urlTransform={
+              externalBaseUrl
+                ? (url) => {
+                    const safe = defaultUrlTransform(url);
+                    if (!safe) return '';
+                    try {
+                      return new URL(safe, externalBaseUrl).href;
+                    } catch {
+                      return '';
+                    }
+                  }
+                : transformUrl
+            }
           >
             {text}
           </Markdown>

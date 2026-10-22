@@ -57,5 +57,14 @@
   "verifyingDescription": "새 버전 시작, 데이터 이전 및 검증 중이며 새 작업은 계속 일시 중지됩니다.",
   "succeededDescription": "업데이트에 성공했으며 서비스가 복구되었습니다.",
   "rolledBackDescription": "새 버전을 시작하지 못해 이전 버전으로 복구했습니다. 기술 세부 정보를 확인하세요.",
-  "failedDescription": "업데이트가 완료되지 않았습니다. 기술 세부 정보 및 서비스 로그를 확인하고 실행 중인 버전을 확인하세요."
+  "failedDescription": "업데이트가 완료되지 않았습니다. 기술 세부 정보 및 서비스 로그를 확인하고 실행 중인 버전을 확인하세요.",
+  "releaseNotes": "릴리스 노트",
+  "releaseNotesFor": "릴리스 노트 · {{version}}",
+  "viewOnGitHub": "GitHub에서 보기",
+  "releaseNotesContent": "릴리스 노트 본문",
+  "releaseNotesLoading": "릴리스 노트 로드 중…",
+  "releaseNotesMissing": "이 버전의 릴리스 노트가 없습니다. 일부 Beta / Dev 버전에는 GitHub Release가 없습니다. 업데이트는 계속할 수 있습니다.",
+  "releaseNotesEmpty": "이 릴리스에는 아직 설명이 없습니다. 업데이트는 계속할 수 있습니다.",
+  "releaseNotesRateLimited": "GitHub 요청 한도에 도달했습니다. 나중에 다시 시도하세요. 업데이트는 계속할 수 있습니다.",
+  "releaseNotesFailed": "릴리스 노트를 로드하지 못했습니다. 연결을 확인하고 다시 시도하세요. 업데이트는 계속할 수 있습니다."
 }

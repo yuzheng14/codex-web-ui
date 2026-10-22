@@ -4199,6 +4199,48 @@ dd {
 .update-codex-consent {
   margin-top: 12px;
 }
+.update-release-notes {
+  min-width: 0;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow-wrap: anywhere;
+}
+.update-release-notes-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.update-release-notes-heading h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.update-release-notes-heading a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.update-release-notes-content {
+  max-height: min(320px, 40dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.update-release-notes-content .markdown {
+  font-size: 13px;
+}
+.update-release-notes-content .markdown > :first-child {
+  margin-top: 0;
+}
+.update-release-notes-content .markdown > :last-child {
+  margin-bottom: 0;
+}
 .update-channel {
   display: flex;
   align-items: center;

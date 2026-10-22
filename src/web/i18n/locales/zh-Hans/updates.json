@@ -57,5 +57,14 @@
   "verifyingDescription": "正在启动新版、迁移并验证数据，暂不接收新任务。",
   "succeededDescription": "升级成功，服务已恢复。",
   "rolledBackDescription": "新版未能启动，已恢复上一版本。请查看技术详情。",
-  "failedDescription": "升级未能完成。请查看技术详情与服务日志，核对当前运行版本。"
+  "failedDescription": "升级未能完成。请查看技术详情与服务日志，核对当前运行版本。",
+  "releaseNotes": "发布说明",
+  "releaseNotesFor": "发布说明 · {{version}}",
+  "viewOnGitHub": "在 GitHub 查看",
+  "releaseNotesContent": "发布说明正文",
+  "releaseNotesLoading": "正在加载发布说明…",
+  "releaseNotesMissing": "此版本暂无发布说明，部分 Beta / Dev 版本没有对应的 GitHub Release。你仍可继续更新。",
+  "releaseNotesEmpty": "此 Release 尚未填写说明，你仍可继续更新。",
+  "releaseNotesRateLimited": "GitHub 请求已被限流，请稍后重试；你仍可继续更新。",
+  "releaseNotesFailed": "发布说明加载失败，请检查网络后重试；你仍可继续更新。"
 }
