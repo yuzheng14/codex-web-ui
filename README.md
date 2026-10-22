@@ -54,11 +54,24 @@ Recommended Codex CLI: **0.163.0**. Verified versions: `0.163.0`.
 
 For other Codex versions and confirmation requirements, see [compatibility](docs/compatibility.md).
 
+<a id="npm-installation"></a>
+
+### 📦 npm installation
+
+```sh
+npm install -g @covro/covro
+covro
+```
+
+`covro` starts in the background and prints the local address. Use `covro stop` to stop it. See [installation and service management](docs/distribution.md) for configuration, logs, login auto-start, macOS credential diagnostics, and release channels.
+
+Open **<http://127.0.0.1:8787>** and click **＋** beside **Unassigned** to send your first task. Or use **Add project** to import a host directory or clone a Git repository. See [project setup](docs/project-clone.md) and [conversation workspaces](docs/workspaces.md) for directory options.
+
 <a id="run-from-source"></a>
 
 ### 🛠️ Run from source
 
-The first public npm release is being prepared. For now, run from source with **pnpm 12.11.2**:
+For local development or source deployments, use **pnpm 12.11.2**:
 
 ```sh
 git clone https://github.com/yuzheng14/covro.git
@@ -69,22 +82,7 @@ pnpm build
 pnpm start -- --config ./config.local.json
 ```
 
-Open **<http://127.0.0.1:8787>** and click **＋** beside **Unassigned** to send your first task. Or use **Add project** to import a host directory or clone a Git repository. See [project setup](docs/project-clone.md) and [conversation workspaces](docs/workspaces.md) for directory options.
-
 For local development, run `pnpm dev` instead and open <http://127.0.0.1:5173>.
-
-<a id="npm-installation"></a>
-
-### 📦 npm installation (after publication)
-
-Once `@covro/covro` is published:
-
-```sh
-npm install -g @covro/covro
-covro
-```
-
-`covro` starts in the background and prints the local address. Use `covro stop` to stop it. See [installation and service management](docs/distribution.md) for configuration, logs, login auto-start, macOS credential diagnostics, and release channels.
 
 <a id="access-from-another-device"></a>
 
@@ -96,11 +94,11 @@ The host computer must stay awake and online. When adding projects remotely, ent
 
 ## Updates and release channels
 
-Use the update panel to check versions and choose stable, beta, or dev. Beta and Dev also receive newer stable releases. After npm publication, **macOS and Linux npm global installations** support managed upgrades from this panel or `covro update`; other installations use their original update method.
+Use the update panel to check versions and choose stable, beta, or dev. Beta and Dev also receive newer stable releases. **macOS and Linux npm global installations** support managed upgrades from this panel or `covro update`; other installations use their original update method.
 
 Automatic installation is off by default and requires a verified Codex combination. Unverified combinations need explicit confirmation; unknown versions, missing or invalid compatibility declarations, and explicitly unsupported combinations block managed upgrades. Covro does not upgrade Codex CLI. See [updates and recovery](docs/distribution.md) for commands, compatibility checks, and backups.
 
-Backups cover Covro’s database and service configuration, excluding project files, Codex history, and credentials. Restore requires stopping the service; see [backups](docs/backups.md) and [database compatibility](docs/database.md).
+DB Schema **7** is tracked separately from the application version; older applications cannot open newer databases. Backups cover Covro’s database and service configuration, excluding project files, Codex history, and credentials. Restore requires stopping the service; see [backups](docs/backups.md) and [database compatibility](docs/database.md).
 
 ## Your computer, your workspace
 

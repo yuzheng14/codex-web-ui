@@ -54,11 +54,24 @@
 
 其他 Codex 版本及使用确认要求见[兼容性说明](docs/compatibility.md)。
 
+<a id="npm-安装"></a>
+
+### 📦 npm 安装
+
+```sh
+npm install -g @covro/covro
+covro
+```
+
+`covro` 默认在后台启动并输出本机访问地址，使用 `covro stop` 停止。配置、日志、登录自启、macOS 凭证诊断和版本渠道见[安装与服务管理](docs/distribution.md)。
+
+打开 **<http://127.0.0.1:8787>**，点击 **未关联项目** 右侧的 **＋** 即可发送第一条任务。也可通过 **添加项目** 导入主机目录或克隆 Git 仓库。目录选项见[项目配置](docs/project-clone.md)和[会话工作目录](docs/workspaces.md)。
+
 <a id="从源码运行"></a>
 
 ### 🛠️ 从源码运行
 
-首个公开 npm 版本正在准备中，目前请使用 **pnpm 12.11.2** 从源码运行：
+参与开发或从源码部署时，使用 **pnpm 12.11.2**：
 
 ```sh
 git clone https://github.com/yuzheng14/covro.git
@@ -69,22 +82,7 @@ pnpm build
 pnpm start -- --config ./config.local.json
 ```
 
-打开 **<http://127.0.0.1:8787>**，点击 **未关联项目** 右侧的 **＋** 即可发送第一条任务。也可通过 **添加项目** 导入主机目录或克隆 Git 仓库。目录选项见[项目配置](docs/project-clone.md)和[会话工作目录](docs/workspaces.md)。
-
 本地开发可以改用 `pnpm dev`，打开 <http://127.0.0.1:5173>。
-
-<a id="npm-安装"></a>
-
-### 📦 npm 安装（发布后可用）
-
-`@covro/covro` 发布后，使用：
-
-```sh
-npm install -g @covro/covro
-covro
-```
-
-`covro` 默认在后台启动并输出本机访问地址，使用 `covro stop` 停止。配置、日志、登录自启、macOS 凭证诊断和版本渠道见[安装与服务管理](docs/distribution.md)。
 
 <a id="从其他设备访问"></a>
 
@@ -96,11 +94,11 @@ covro
 
 ## 更新与版本渠道
 
-在更新面板检查版本，选择稳定版、预览版或开发版；预览版和开发版也会接收更新的稳定版本。npm 发布后，**macOS 和 Linux 的 npm 全局安装**支持在此面板或通过 `covro update` 受管升级；其他安装方式沿用原更新方法。
+在更新面板检查版本，选择稳定版、预览版或开发版；预览版和开发版也会接收更新的稳定版本。**macOS 和 Linux 的 npm 全局安装**支持在此面板或通过 `covro update` 受管升级；其他安装方式沿用原更新方法。
 
 自动安装默认关闭，且只接受已验证的 Codex 组合。未验证组合需要明确确认；版本未知、兼容声明缺失或无效、明确不支持的组合会阻止受管升级。Covro 不会升级 Codex CLI。完整命令、兼容检查和备份说明见[更新与恢复](docs/distribution.md)。
 
-备份覆盖 Covro 数据库和服务配置，不包含项目文件、Codex 历史或凭据。恢复需要停服，详见[备份与恢复](docs/backups.md)和[数据库兼容规则](docs/database.md)。
+DB Schema **7** 独立于应用版本管理，旧应用不能打开更新的数据库。备份覆盖 Covro 数据库和服务配置，不包含项目文件、Codex 历史或凭据。恢复需要停服，详见[备份与恢复](docs/backups.md)和[数据库兼容规则](docs/database.md)。
 
 ## 你的电脑，你的工作台
 

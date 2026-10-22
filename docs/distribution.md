@@ -1,6 +1,6 @@
 # Covro 安装与运行
 
-Covro 通过 npm 分发已构建的前后端与数据库迁移，用户使用现有 Node.js 24.19.x 和已登录的 Codex。npm 包名为 `@covro/covro`，命令为 `covro`；正式发布前还需完成 npm 包所有权和发布身份配置。
+Covro 通过 npm 分发已构建的前后端与数据库迁移，用户使用现有 Node.js 24.19.x 和已登录的 Codex。npm 包名为 `@covro/covro`，命令为 `covro`。
 
 ```sh
 npm install -g @covro/covro
@@ -51,7 +51,7 @@ macOS 使用当前用户的 launchd，Linux 使用 `systemd --user`，`service i
 
 ## 更新与发布渠道
 
-首发成功后，开发渠道可用 `npm install -g @covro/covro@dev` 安装。
+开发渠道可用 `npm install -g @covro/covro@dev` 安装。
 
 ```sh
 covro update status

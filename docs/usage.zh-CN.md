@@ -2,7 +2,7 @@
 
 [English overview](../README.md) · [中文介绍](../README.zh-CN.md)
 
-以下命令均在仓库根目录执行；npm 命令在首个公开版本发布后可用。
+源码和开发命令在仓库根目录执行；全局安装后，可在任意目录使用 `covro` 命令。
 
 私人电脑上的 Codex 网页客户端。默认中文，单用户、单网关、单受管 `codex app-server`；支持本机、Tailscale Serve 或 Cloudflare Access 访问，页面、API 和 WebSocket 共用配置的访问入口。
 
