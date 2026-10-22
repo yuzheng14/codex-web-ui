@@ -1,22 +1,49 @@
 // shadcn/ui Select (MIT), adapted to this project's CSS and per-component Radix imports.
 // https://github.com/shadcn-ui/ui/blob/main/apps/v4/registry/new-york-v4/ui/select.tsx
 import type * as React from 'react';
-import { useId } from 'react';
+import { createContext, useCallback, useContext, useId, useState } from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-const Select = SelectPrimitive.Root;
+const SelectPortalContext = createContext<{
+  container: HTMLElement | null;
+  setContainer: (container: HTMLElement | null) => void;
+}>({ container: null, setContainer: () => {} });
+
+function Select(props: React.ComponentProps<typeof SelectPrimitive.Root>) {
+  const [container, setContainer] = useState<HTMLElement | null>(null);
+  return (
+    <SelectPortalContext.Provider value={{ container, setContainer }}>
+      <SelectPrimitive.Root {...props} />
+    </SelectPortalContext.Provider>
+  );
+}
 const SelectGroup = SelectPrimitive.Group;
-const SelectValue = SelectPrimitive.Value;
+function SelectValue(props: React.ComponentProps<typeof SelectPrimitive.Value>) {
+  return <SelectPrimitive.Value data-slot="select-value" {...props} />;
+}
 
 function SelectTrigger({
   className,
   children,
+  ref,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger>) {
+  const { setContainer } = useContext(SelectPortalContext);
+  const triggerRef = useCallback(
+    (node: HTMLButtonElement | null) => {
+      // Native modal dialogs make body portals inert and paint above them.
+      // Keep the menu in the same top layer as its own trigger.
+      setContainer(node?.closest('dialog') ?? null);
+      if (typeof ref === 'function') return ref(node);
+      if (ref) ref.current = node;
+    },
+    [ref, setContainer],
+  );
   return (
     <SelectPrimitive.Trigger
+      ref={triggerRef}
       data-slot="select-trigger"
       className={cn('select-trigger', className)}
       {...props}
@@ -38,8 +65,9 @@ function SelectContent({
   collisionPadding = 8,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const { container } = useContext(SelectPortalContext);
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container}>
       <SelectPrimitive.Content
         data-slot="select-content"
         className={cn('select-content', className)}

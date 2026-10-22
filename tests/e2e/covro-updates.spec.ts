@@ -5,7 +5,7 @@ import { mkdir } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReleaseChannel, UpdateStatus } from '../../src/shared/updates';
-import { confirmCompatibility, controlRuntime } from './helpers';
+import { chooseSelectOption, confirmCompatibility, controlRuntime } from './helpers';
 const currentVersion = (
   JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
     version: string;
@@ -118,7 +118,7 @@ for (const channel of ['beta', 'dev'] as const) {
       await page.getByRole('button', { name: 'Covro 更新', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'Covro 更新', exact: true });
       const selector = dialog.getByRole('combobox', { name: '版本渠道' });
-      await expect(selector).toHaveValue(channel);
+      await expect(selector).toHaveText(channel === 'beta' ? '预览版' : '开发版');
       await dialog.getByRole('button', { name: '检查更新', exact: true }).click();
       await expect(dialog.locator('.update-available')).toContainText(nextVersion);
       await expect(dialog.locator('.update-available')).toContainText('稳定版');
@@ -134,7 +134,7 @@ for (const channel of ['beta', 'dev'] as const) {
       await dialog.getByRole('checkbox', { name: '允许尝试未验证的 Codex 组合' }).check();
       await upgrade.click();
       await expect(dialog).toContainText('等待任务空闲');
-      await expect(selector).toHaveValue(channel);
+      await expect(selector).toHaveText(channel === 'beta' ? '预览版' : '开发版');
       await expect(dialog.locator('.update-progress')).toContainText('稳定版');
       const runs = fixture.requests.filter((request) => request.path.endsWith('/run'));
       expect(runs).toHaveLength(1);
@@ -165,7 +165,17 @@ for (const viewport of [
     await page.getByRole('button', { name: 'Covro 更新', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Covro 更新', exact: true });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole('combobox', { name: '版本渠道' }).selectOption('dev');
+    const channel = dialog.getByRole('combobox', { name: '版本渠道' });
+    await channel.click();
+    await expect(page.getByRole('option', { name: '稳定版', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await screenshot(page, `select-updates-${viewport.name}-menu.png`);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeVisible();
+    await expect(channel).toBeFocused();
+    await chooseSelectOption(page, channel, '开发版');
     await expect(dialog).toContainText(developmentVersion);
     await dialog.getByRole('switch', { name: '空闲时自动升级' }).click();
     await expect(dialog.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
@@ -459,7 +469,7 @@ test('channel and same-channel target changes discard late release-note response
   await expect(dialog.getByRole('button', { name: '升级并重启', exact: true })).toBeEnabled();
   await notes.scrollIntoViewIfNeeded();
   await screenshot(page, 'release-notes-loading.png');
-  await dialog.getByRole('combobox', { name: '版本渠道' }).selectOption('dev');
+  await chooseSelectOption(page, dialog.getByRole('combobox', { name: '版本渠道' }), '开发版');
   await expect(
     notes.getByRole('heading', { name: `Notes for ${developmentVersion}`, exact: true }),
   ).toBeVisible();

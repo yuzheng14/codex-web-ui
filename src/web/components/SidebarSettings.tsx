@@ -3,6 +3,7 @@ import { Bell, ChevronRight, DatabaseBackup, Languages, Server, Settings } from 
 import { changeLocale, currentLocale, t } from '../i18n';
 import { localeNames, supportedLocales, type Locale } from '../i18n/locales';
 import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Icon } from './Icon';
 
 interface Props {
@@ -72,16 +73,21 @@ function SettingsDialog({ onClose, ...props }: Props & { onClose: () => void }) 
       <label className="language-selector">
         <Languages size={18} aria-hidden="true" />
         <span>{t('common:language')}</span>
-        <select
+        <Select
           value={currentLocale()}
-          onChange={(event) => void changeLocale(event.target.value as Locale)}
+          onValueChange={(value) => void changeLocale(value as Locale)}
         >
-          {supportedLocales.map((locale) => (
-            <option key={locale} value={locale} lang={locale}>
-              {localeNames[locale]}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger aria-label={t('common:language')} data-value={currentLocale()}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {supportedLocales.map((locale) => (
+              <SelectItem key={locale} value={locale} lang={locale}>
+                {localeNames[locale]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </label>
       <div className="sidebar-settings-links">
         <Button

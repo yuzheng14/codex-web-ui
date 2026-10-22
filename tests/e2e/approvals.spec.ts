@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ThreadPage, ThreadView } from '../../src/shared/types';
 import {
+  chooseSelectOption,
   confirmCompatibility,
   controlRuntime,
   createEmptyThread,
@@ -43,8 +44,12 @@ async function fillForm(page: Page) {
   await card.getByRole('textbox', { name: '项目名称', exact: true }).fill('截图项目');
   await card.getByRole('spinbutton', { name: '重试次数', exact: true }).fill('0');
   await card.getByRole('spinbutton', { name: '评分', exact: true }).fill('4.5');
-  await card.getByRole('combobox', { name: '启用通知', exact: true }).selectOption({ label: '否' });
-  await card.getByRole('combobox', { name: '环境', exact: true }).selectOption({ label: '预览' });
+  await chooseSelectOption(
+    page,
+    card.getByRole('combobox', { name: '启用通知', exact: true }),
+    '否',
+  );
+  await chooseSelectOption(page, card.getByRole('combobox', { name: '环境', exact: true }), '预览');
   await card.getByLabel('网页', { exact: true }).check();
   await card.getByLabel('移动端', { exact: true }).check();
 }
@@ -131,9 +136,11 @@ for (const allow of [true, false]) {
     const submit = card.getByRole('button', { name: '确认选择', exact: true });
     await submit.click();
     await expect(card.getByRole('alert').last()).toBeVisible();
-    await card
-      .getByRole('combobox', { name: '是否允许执行本次操作', exact: true })
-      .selectOption(String(allow));
+    await chooseSelectOption(
+      page,
+      card.getByRole('combobox', { name: '是否允许执行本次操作', exact: true }),
+      allow ? '是' : '否',
+    );
     await card.screenshot({ path: join(labelEvidence, `form-choice-${allow}.png`) });
     const submitted = page.waitForRequest(isResolution);
     await submit.click();
@@ -244,6 +251,16 @@ for (const viewport of viewports) {
     await expect(card.getByRole('alert').last()).toBeVisible();
     await assertWaiting(page, threadId);
     await fillForm(page);
+    const environment = card.getByRole('combobox', { name: '环境', exact: true });
+    await chooseSelectOption(page, environment, '请选择');
+    await expect(environment).toHaveAttribute('aria-invalid', 'true');
+    await environment.click();
+    await page.screenshot({
+      path: `${evidence}/select-form-${viewport.name}-menu.png`,
+      fullPage: true,
+    });
+    await page.getByRole('option', { name: '预览', exact: true }).click();
+    await expect(environment).toHaveAttribute('aria-invalid', 'false');
     await card.getByRole('textbox', { name: '项目名称', exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({
       path: `${evidence}/elicitation-form-${viewport.name}.png`,

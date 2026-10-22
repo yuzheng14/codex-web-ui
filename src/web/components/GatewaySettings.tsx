@@ -21,6 +21,7 @@ import {
   type ConfigFormErrors,
 } from '../lib/gateway-config';
 import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Icon } from './Icon';
 
 const describeFailure = (error: unknown) =>
@@ -442,16 +443,23 @@ export function GatewaySettings({ onClose: onDismiss }: { onClose: () => void })
                       {configFields.filter((item) => item.group === 'network').map(field)}
                       <label className="project-field">
                         <span>{t('common:authentication_mode')}</span>
-                        <select
-                          aria-label={t('common:authentication_mode')}
+                        <Select
                           value={form.mode}
-                          onChange={(event) =>
-                            setForm({ ...form, mode: event.target.value as ConfigForm['mode'] })
+                          disabled={busy || !snapshot.writable}
+                          onValueChange={(value) =>
+                            setForm({ ...form, mode: value as ConfigForm['mode'] })
                           }
                         >
-                          <option value="local">{t('settings:local_tailscale_local')}</option>
-                          <option value="cloudflare-access">Cloudflare Access</option>
-                        </select>
+                          <SelectTrigger aria-label={t('common:authentication_mode')}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="local">
+                              {t('settings:local_tailscale_local')}
+                            </SelectItem>
+                            <SelectItem value="cloudflare-access">Cloudflare Access</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <small>
                           {t('settings:local_mode_listens_only_on_loopback_addresses_use')}
                         </small>

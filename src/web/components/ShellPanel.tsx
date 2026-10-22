@@ -5,6 +5,7 @@ import type { Project } from '../../shared/types';
 import { shellActive, type ShellCommand } from '../../shared/shell';
 import type { useShell } from '../hooks/useShell';
 import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Icon } from './Icon';
 import './shell-panel.css';
 
@@ -150,20 +151,24 @@ export function ShellPanel({
             <div className="shell-result-toolbar">
               <label>
                 {t('shell:recent_commands')}
-                <select
-                  aria-label={t('shell:recent_shell_commands')}
+                <Select
                   value={run?.id ?? ''}
-                  onChange={(event) =>
-                    setSelected((current) => ({ ...current, [projectId]: event.target.value }))
+                  disabled={!runs.length}
+                  onValueChange={(value) =>
+                    setSelected((current) => ({ ...current, [projectId]: value }))
                   }
                 >
-                  {!runs.length && <option value="">{t('shell:not_run_yet')}</option>}
-                  {runs.map((entry) => (
-                    <option key={entry.id} value={entry.id}>
-                      {statusText[entry.status]} · {entry.command.slice(0, 70)}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger aria-label={t('shell:recent_shell_commands')}>
+                    <SelectValue placeholder={t('shell:not_run_yet')} />
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    {runs.map((entry) => (
+                      <SelectItem key={entry.id} value={entry.id}>
+                        {statusText[entry.status]} · {entry.command.slice(0, 70)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </label>
               {run && (
                 <Button variant="ghost" size="sm" onClick={() => changeDraft(run.command)}>

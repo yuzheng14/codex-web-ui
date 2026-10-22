@@ -1,4 +1,4 @@
-import { openSidebarSettings } from './helpers';
+import { chooseSelectOption, openSidebarSettings } from './helpers';
 import { test, expect, type Page, type TestInfo, type Locator } from '@playwright/test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -179,7 +179,14 @@ test('Access fields and advanced limits validate together without changing the a
   await page.setViewportSize({ width: 1440, height: 1100 });
   await open(page);
   const dialog = settings(page);
-  await dialog.getByLabel('认证模式', { exact: true }).selectOption('cloudflare-access');
+  const mode = dialog.getByRole('combobox', { name: '认证模式', exact: true });
+  await mode.click();
+  await expect(page.getByRole('option', { name: 'Cloudflare Access', exact: true })).toBeVisible();
+  await capture(page, info, 'select-gateway-mode-menu');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeVisible();
+  await expect(mode).toBeFocused();
+  await chooseSelectOption(page, mode, 'Cloudflare Access');
   await dialog.getByLabel('监听地址', { exact: true }).fill('0.0.0.0');
   await dialog
     .getByLabel('Access 团队地址', { exact: true })

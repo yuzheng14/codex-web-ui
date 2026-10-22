@@ -7,6 +7,7 @@ import { releaseChannels, updateActive, type ReleaseChannel } from '../../shared
 import { compareVersions, validVersion } from '../../shared/versions';
 import type { Updates } from '../hooks/useUpdates';
 import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Icon } from './Icon';
 import { UpdateReleaseNotes } from './UpdateReleaseNotes';
 import { releasesUrl } from '../../shared/release-notes';
@@ -151,24 +152,28 @@ export function UpdateSettings({ updates, onClose }: { updates: Updates; onClose
       )}
       <label className="update-channel">
         {t('updates:release_channel')}
-        <select
-          aria-label={t('updates:release_channel')}
+        <Select
           value={channel}
           disabled={busy || active}
-          onChange={(event) => {
-            const next = event.target.value as ReleaseChannel;
+          onValueChange={(value) => {
+            const next = value as ReleaseChannel;
             setChannel(next);
             setAllowDowngrade(false);
             setCodexConsent(undefined);
             void updates.check(next);
           }}
         >
-          {releaseChannels.map((entry) => (
-            <option key={entry} value={entry}>
-              {labels[entry]}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger aria-label={t('updates:release_channel')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {releaseChannels.map((entry) => (
+              <SelectItem key={entry} value={entry}>
+                {labels[entry]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </label>
       <p className="subtle">
         {channel === 'stable'

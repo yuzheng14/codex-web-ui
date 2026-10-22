@@ -61,14 +61,16 @@ for (const language of languages) {
       await expect(page.locator('html')).toHaveAttribute('lang', language.locale);
       await ready(page);
       const settings = await openSidebarSettings(page);
-      const selector = settings.locator('.language-selector select');
-      await expect(selector).toHaveValue(language.locale);
-      await expect(selector.locator('option')).toHaveText([
+      const selector = settings.locator('.language-selector [role="combobox"]');
+      await expect(selector).toHaveAttribute('data-value', language.locale);
+      await selector.click();
+      await expect(page.getByRole('option')).toHaveText([
         '简体中文',
         'English',
         '日本語',
         '한국어',
       ]);
+      await page.keyboard.press('Escape');
       await page.keyboard.press('Escape');
       await expect(page.getByRole('combobox', { name: language.model, exact: true })).toBeEnabled();
       const prompt = '[permissions] 原文保留 Japanese 日本語 한국어 /workspace/example.ts';
@@ -113,7 +115,7 @@ for (const language of languages) {
       });
       await page.locator('.topbar .mobile-only').click();
       await openSidebarSettings(page);
-      await expect(page.locator('.language-selector select')).toBeVisible();
+      await expect(page.locator('.language-selector [role="combobox"]')).toBeVisible();
       await page.screenshot({
         path: `${evidence}/${language.locale}-mobile-selector.png`,
         fullPage: true,
@@ -243,7 +245,10 @@ for (const browserLocale of ['zh-TW', 'zh-HK', 'fr-FR']) {
       await expect(page.locator('html')).toHaveAttribute('lang', 'en');
       await ready(page);
       await openSidebarSettings(page);
-      await expect(page.locator('.language-selector select')).toHaveValue('en');
+      await expect(page.locator('.language-selector [role="combobox"]')).toHaveAttribute(
+        'data-value',
+        'en',
+      );
     });
   });
 }
