@@ -29,25 +29,14 @@
 
 ## ✨ What you can do
 
-- 📱 **Step away from your desk. Stay with the task.** Follow tool activity, inspect file changes, handle permission requests, and answer Codex's questions from your computer or phone. Closing the page doesn't cancel the task.
-- 💬 **Start without a project.** Use **New session** to start in an automatically assigned directory. Conversations and files stay available after refresh, restart, or archive.
-- 🌐 **Choose your interface language.** Switch between 简体中文, English, 日本語 and 한국어 without leaving your session. Prompts, replies, tool output and paths remain unchanged. [Localization details](docs/i18n.md).
-- 🗂️ **See every project in one place.** Run independent tasks in parallel and spot which conversations are working, waiting for approval, or ready to read. Use **Reorder projects** to drag projects or move them with the arrow buttons on desktop and mobile. Your order survives refreshes and restarts; new or restored projects appear at the end.
-- 💬 **Pick up your Codex CLI conversations.** Browse saved history, resume existing work, or fork a new direction. Rename conversations to find them later and archive them when you're done. View and copy the full Thread ID in conversation details or diagnostics.
-- ⚡ **Open long conversations sooner.** Recent messages appear first; scrolling preloads older history. On this device, cached conversation lists and history pages appear while the server checks for updates. [Loading and cache behavior](docs/session-history.md).
-- 📖 **Review the work beside the conversation.** Read Markdown documents with code, tables, images, and Mermaid diagrams, or open JSON files in a desktop side panel while you keep talking to Codex. Mermaid diagrams also render in replies; view or copy their source and inspect wide diagrams at actual size. JSON previews include indentation, syntax highlighting, and original text for invalid JSON. Copy the unchanged source, with a full-screen reader on mobile. TXT, CSV, TSV, TOML, YAML/YML, JSONL, LOG, and INI files open as plain text, preserving whitespace with optional line wrapping. File previews are read-only; all supported text formats have a 2 MiB limit and require UTF-8.
-- 🔎 **Inspect code changes.** Open Codex’s saved patches for a turn or tool in the same read-only panel. Scroll through all files, inspect line numbers, see the exact words changed within each line, and jump between change blocks. Long diffs start collapsed and render when expanded. File headers stay visible while scrolling so you can collapse the current file.
-- ✍️ **Switch tasks without losing your draft.** Each conversation keeps its own draft, pasted images, and model settings in the current page. On phones and tablets, Enter inserts a new line and the send button submits; desktop keeps Enter to send and Shift + Enter for a new line. Copy or export results when you're done. Use the copy button at the top right of a command’s output to copy all loaded results; truncated output is clearly marked.
-- 🖥️ **Run a command beside your task.** Open **Shell** to execute commands in the selected project's directory, follow stdout/stderr, interrupt a run, and reuse recent commands. The panel uses Codex's configured sandbox, with a ten-minute limit and no interactive input. Closing it keeps the command running. [Capabilities and limits](docs/shell.md).
-- 🛟 **Keep a recovery point.** Open **Backups and recovery** in the sidebar to create a server-side backup, follow its progress and review verified snapshots. Upgrades use the same backup engine. Recovery runs offline through the CLI. [Scope and recovery instructions](docs/backups.md).
+- 📱 **Follow tasks from any device.** Review changes, handle approvals, and answer questions on desktop or mobile. Tasks keep running when you close the page.
+- 🗂️ **Keep projects and conversations together.** Start without a project, track parallel tasks, and resume or fork your Codex CLI conversations.
+- 📖 **Read results while you chat.** Preview documents, diagrams, and code changes beside the conversation on desktop, or full-screen on mobile.
 
-Mermaid diagrams render locally after their code fence closes, with automatic light/dark colors. Failed diagrams keep their source; rendering is limited to 50,000 source characters and 500 edges.
-
-Local image previews reuse loaded images for 30 seconds. Reopening an expired image shows the existing preview while the server checks for updates.
+See the [usage guide · 中文](docs/usage.zh-CN.md) for workflow details and controls.
 
 <details>
   <summary><strong>📱 A workspace that fits your phone</strong></summary>
-  <p>Check a result, answer a question, or send the next instruction without returning to your desk.</p>
   <img src="docs/assets/workspace-mobile.png" alt="Covro conversation on a phone-sized screen" width="320" />
 </details>
 
@@ -55,7 +44,7 @@ Local image previews reuse loaded images for 30 seconds. Reopening an expired im
 
 ## 🚀 Get started
 
-You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The interface supports Simplified Chinese, English, Japanese and Korean. Open **Settings → Language** in the sidebar; the first visit follows your browser preferences, and manual choices are saved on this device.
+You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The interface supports Simplified Chinese, English, Japanese, and Korean.
 
 <!-- codex-compatibility:start -->
 
@@ -63,45 +52,16 @@ Recommended Codex CLI: **0.163.0**. Verified versions: `0.163.0`.
 
 <!-- codex-compatibility:end -->
 
-<a id="npm-installation"></a>
-
-### 📦 npm installation
-
-The first public npm release is being prepared. Until `@covro/covro` is published, [run from source](#run-from-source). After publication, install and start with:
-
-```sh
-npm install -g @covro/covro
-covro
-```
-
-`covro` starts in the background and prints the local address. Open **<http://127.0.0.1:8787>** to get started. Close the terminal and keep working in your browser.
-
-| Command                   | Purpose                                                                                |
-| ------------------------- | -------------------------------------------------------------------------------------- |
-| `covro status`            | Show the running instance and its address                                              |
-| `covro doctor`            | Diagnose the running instance's session and GitHub credentials without printing tokens |
-| `covro logs`              | Read recent service logs                                                               |
-| `covro stop`              | Stop the service                                                                       |
-| `covro run`               | Run in the foreground                                                                  |
-| `covro service install`   | Opt in to login auto-start on macOS or Linux                                           |
-| `covro service uninstall` | Remove login auto-start                                                                |
-
-The npm package is `@covro/covro`; the command is `covro`. Install the development channel with `npm install -g @covro/covro@dev`.
-
-The npm CLI uses `~/.covro/config.json` and a fixed data directory beside it. Reuse an existing configuration with `covro --config /absolute/path/config.json`.
-
-Open **Service configuration → Advanced settings** to edit size limits in MiB (1 MiB = 1024 × 1024 bytes). Decimal values must correspond to whole bytes; existing byte values are preserved exactly. JSON files and the API continue to use bytes. Saved changes take effect after restarting the service.
-
-On macOS, background startup uses the logged-in user's GUI launchd domain so commands can access existing Keychain credentials when their execution permissions allow it. This does not enable login auto-start; use `covro service install` for that. Without a desktop session, headless startup remains available with a Keychain access notice. After installing this fix, restart existing instances with `covro stop` and `covro start`. See [startup and credential diagnostics](docs/distribution.md#macos-sessions-and-credentials).
+For other Codex versions and confirmation requirements, see [compatibility](docs/compatibility.md).
 
 <a id="run-from-source"></a>
 
 ### 🛠️ Run from source
 
-To try Covro before the npm release or work on the code, use **pnpm 12.11.2**:
+The first public npm release is being prepared. For now, run from source with **pnpm 12.11.2**:
 
 ```sh
-git clone https://github.com/yuzheng14/codex-web-ui.git covro
+git clone https://github.com/yuzheng14/covro.git
 cd covro
 pnpm install --frozen-lockfile
 cp config.example.json config.local.json
@@ -109,67 +69,44 @@ pnpm build
 pnpm start -- --config ./config.local.json
 ```
 
-Open **<http://127.0.0.1:8787>** and click **＋** beside **Unassigned** in the sidebar to send a task without choosing a project.
-
-To work in a project directory, click **Add project**, then choose an existing host directory or **Clone Git repository**. Set **Service configuration → Data and projects → Project base directory (workDir, optional)** to start from a shared host directory. For example, with `workDir=/workspace/projects`, enter `demo` to add `/workspace/projects/demo`; cloning a `demo` repository defaults to that path too. Absolute paths override the prefix. The final server path is shown before submission and the destination remains editable. Saving `workDir` applies immediately to subsequent imports and survives refreshes and restarts, without moving existing projects. Leave it blank to keep entering absolute paths. Git cloning uses the host’s existing credentials, with progress and cancellation in the dialog. [Directory configuration, clone requirements and recovery](docs/project-clone.md).
-
-Unassigned conversations use separate directories under `<dataDir>/workspaces/`, allocated on the first send. Their files are retained until you explicitly remove them; archiving does not delete files. See [conversation workspaces](docs/workspaces.md) for directory, recovery, and backup details.
+Open **<http://127.0.0.1:8787>** and click **＋** beside **Unassigned** to send your first task. Or use **Add project** to import a host directory or clone a Git repository. See [project setup](docs/project-clone.md) and [conversation workspaces](docs/workspaces.md) for directory options.
 
 For local development, run `pnpm dev` instead and open <http://127.0.0.1:5173>.
+
+<a id="npm-installation"></a>
+
+### 📦 npm installation (after publication)
+
+Once `@covro/covro` is published:
+
+```sh
+npm install -g @covro/covro
+covro
+```
+
+`covro` starts in the background and prints the local address. Use `covro stop` to stop it. See [installation and service management](docs/distribution.md) for configuration, logs, login auto-start, macOS credential diagnostics, and release channels.
 
 <a id="access-from-another-device"></a>
 
 ## 🌐 Access from another device
 
-Covro runs on your computer; the browser is your control surface. Tasks continue when you close the page, and reopening it reconnects to the service. The host computer must stay awake and online.
+Fresh installations listen on loopback only. To connect from another device, configure **Tailscale Serve** or **Cloudflare Tunnel with Access** using the [deployment guide](docs/deployment.md).
 
-| Setup                          | How to connect                                                       |
-| ------------------------------ | -------------------------------------------------------------------- |
-| On the host computer           | Open the local address                                               |
-| Your devices through Tailscale | Configure Tailscale Serve and add its HTTPS origin to `publicOrigin` |
-| Through Cloudflare             | Use a tunnel with Cloudflare Access and Covro's JWT verification     |
-
-Follow the [deployment guide](docs/deployment.md) for complete configuration. Remote access is explicit: a fresh installation listens on loopback only. When adding projects remotely, choose directories on the host computer.
+The host computer must stay awake and online. When adding projects remotely, enter directories on that computer.
 
 ## Updates and release channels
 
-Open **Covro** in the sidebar to check versions, choose a channel, enable idle-time automatic upgrades, or upgrade and restart. The CLI provides the same update engine:
+Use the update panel to check versions and choose stable, beta, or dev. Beta and Dev also receive newer stable releases. After npm publication, **macOS and Linux npm global installations** support managed upgrades from this panel or `covro update`; other installations use their original update method.
 
-```sh
-covro update status
-covro update
-covro update --channel dev
-```
+Automatic installation is off by default and requires a verified Codex combination. Unverified combinations need explicit confirmation; unknown versions, missing or invalid compatibility declarations, and explicitly unsupported combinations block managed upgrades. Covro does not upgrade Codex CLI. See [updates and recovery](docs/distribution.md) for commands, compatibility checks, and backups.
 
-| Channel | npm tag          | Choose it for                                    |
-| ------- | ---------------- | ------------------------------------------------ |
-| Stable  | `latest`         | Regular use                                      |
-| Beta    | `beta`, `latest` | Maintainer-selected Beta tags or GitHub Releases |
-| Dev     | `dev`, `latest`  | New main-branch changes after CI passes          |
-
-Stable checks only `latest`. Beta and Dev each compare their own tag with `latest` and select the newest version by SemVer; Dev does not receive Beta. Installing a stable version keeps your selected subscription, so future Beta or Dev updates remain available. Older candidates require explicit downgrade permission.
-
-Successful Dev and Beta npm publications also create a [GitHub Pre-release](https://github.com/yuzheng14/covro/releases) with automatically generated notes. The comparison starts from whichever has the newer source commit: the preceding version in the same channel or a stable version. Push a Beta tag to publish both the npm package and its Pre-release; existing release notes are preserved on retries. Beta notes also include compatibility declarations from the selected source. Stable releases retain their grouped changelog.
-
-Before installing, the update panel displays the selected version’s GitHub Release notes with Markdown and a link to the original. Notes follow the exact target version; some Beta / Dev versions have no matching Release. Missing notes or GitHub connection failures do not block updates.
-
-Each release declares its recommended and verified Codex CLI versions. The update panel shows the current and candidate combinations. Automatic upgrades require a verified combination; an unverified combination needs explicit confirmation for that exact upgrade. Unknown versions, invalid/missing declarations, and explicitly unsupported combinations block managed upgrades. The CLI offers `covro update --allow-unverified-codex` for the same explicit attempt. Covro does not upgrade your Codex CLI.
-
-Automatic installation is off by default. Managed upgrades support **macOS and Linux npm global installations**; source, linked, container, and Windows installations use their original update method. A failed candidate is rolled back before business writes resume; downgrades must pass database compatibility checks. Old backups are retained without automatic rotation.
-
-DB Schema **7** is tracked independently of the application version. Releases declare the schema and the verified backup migration range; an older application cannot open a newer database. See [database compatibility](docs/database.md).
-
-Managed upgrades create and validate a private backup of the Covro database and service configuration before replacing the installation. A failed backup blocks activation. These snapshots do not include Codex history, credentials or project files. See [backup scope](docs/backups.md).
-
-Use `covro backup create`, `covro backup list` and `covro backup verify ID` for manual snapshots. Preview offline recovery with `covro backup restore ID`; stop the service and repeat with `--confirm ID` to apply it. See [recovery instructions](docs/backups.md#manual-backups-and-offline-recovery).
-
-See [distribution and recovery](docs/distribution.md) and [release operations](docs/releases.md) for details.
+Backups cover Covro’s database and service configuration, excluding project files, Codex history, and credentials. Restore requires stopping the service; see [backups](docs/backups.md) and [database compatibility](docs/database.md).
 
 ## Your computer, your workspace
 
-Covro is a single-user Web UI for your existing Codex CLI. It connects through `codex app-server`, which executes tasks on the host computer using your Codex login and configuration. Projects and Codex history stay there; Covro stores its own project registry and operation records in SQLite. It does not provide a separate hosted account or copy your Codex login into the browser. Codex itself still uses its configured model provider.
+Covro connects to your existing CLI through `codex app-server`. Tasks, projects, and Codex history stay on the host computer, using your Codex login and configuration. Login credentials are not copied into the browser; Codex still uses its configured model provider.
 
-Use the browser to follow work, review requests, and continue conversations. An interactive terminal, file editor, Git GUI, and multi-user team management are outside the current scope.
+Covro is for a single user. The [Shell panel](docs/shell.md) runs non-interactive commands using Codex’s configured sandbox. An interactive terminal, file editor, Git GUI, and multi-user team management are outside the current scope.
 
 ## Development and contribution
 
@@ -184,26 +121,29 @@ pnpm test:e2e
 
 Browser tests require the Chromium version used by the existing Playwright dependency. Tests and CI use explicit fixtures; they do not send real model requests.
 
-CI requires Prettier formatting to pass. Run `pnpm format` to fix formatting locally; see [formatting conventions](docs/contributing.md#格式检查) for generated-file exclusions.
+Use `pnpm format` to fix formatting; PR titles follow Conventional Commits. See [contribution and release conventions](docs/contributing.md).
 
-PR titles must follow Conventional Commits, for example `feat(ui): add JSON preview` or `fix: preserve scroll position`. See [PR checks and squash merge conventions](docs/contributing.md) for supported types, Release PRs, and release behavior.
-
-Found a problem or have an idea? [Open an issue](https://github.com/yuzheng14/codex-web-ui/issues). Include your OS, Node.js and Codex versions, installation method, and steps to reproduce. Small, focused PRs are welcome. Update both `README.md` and `README.zh-CN.md` when changing user-facing facts or setup instructions.
+Found a problem or have an idea? [Open an issue](https://github.com/yuzheng14/covro/issues) with your OS, Node.js and Codex versions, installation method, and steps to reproduce. Small, focused PRs are welcome; update both READMEs when changing user-facing facts or setup instructions.
 
 <a id="documentation"></a>
 
 ## 📚 Documentation
 
-| Guide                                        | Contents                                                                |
-| -------------------------------------------- | ----------------------------------------------------------------------- |
-| [Detailed usage · 中文](docs/usage.zh-CN.md) | Projects, conversations, approvals, notifications, images, and recovery |
-| [Deployment](docs/deployment.md)             | Local access, Tailscale, and Cloudflare Access                          |
-| [Distribution](docs/distribution.md)         | CLI, services, data locations, upgrades, and repair                     |
-| [Compatibility](docs/compatibility.md)       | Verified Codex versions and behavior boundaries                         |
-| [Slash commands](docs/slash-commands.md)     | Supported commands and usage                                            |
-| [Architecture](docs/architecture.md)         | How the gateway, Codex adapter, and browser fit together                |
-| [Verification](docs/verification.md)         | Test coverage and recorded live checks                                  |
-| [Brand assets](docs/brand.md)                | Editable SVG logo and wordmarks                                         |
+| Guide                                                                  | Contents                                                                |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [Detailed usage · 中文](docs/usage.zh-CN.md)                           | Projects, conversations, approvals, notifications, images, and recovery |
+| [Deployment](docs/deployment.md)                                       | Local access, Tailscale, and Cloudflare Access                          |
+| [Distribution](docs/distribution.md)                                   | CLI, services, data locations, upgrades, and repair                     |
+| [Compatibility](docs/compatibility.md)                                 | Verified Codex versions and behavior boundaries                         |
+| [Slash commands](docs/slash-commands.md)                               | Supported commands and usage                                            |
+| [Architecture](docs/architecture.md)                                   | How the gateway, Codex adapter, and browser fit together                |
+| [Verification](docs/verification.md)                                   | Test coverage and recorded live checks                                  |
+| [Projects](docs/project-clone.md) · [Workspaces](docs/workspaces.md)   | Importing, cloning, and conversation directories                        |
+| [Languages](docs/i18n.md) · [History loading](docs/session-history.md) | Interface language and conversation loading                             |
+| [Shell](docs/shell.md)                                                 | Command execution and sandbox limits                                    |
+| [Backups](docs/backups.md) · [Database](docs/database.md)              | Snapshot scope, compatibility, and offline recovery                     |
+| [Contributing](docs/contributing.md) · [Releases](docs/releases.md)    | Formatting, PRs, and publishing                                         |
+| [Brand assets](docs/brand.md)                                          | Editable SVG logo and wordmarks                                         |
 
 ## License
 
