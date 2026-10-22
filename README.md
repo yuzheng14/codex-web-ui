@@ -43,6 +43,8 @@
 
 Mermaid diagrams render locally after their code fence closes, with automatic light/dark colors. Failed diagrams keep their source; rendering is limited to 50,000 source characters and 500 edges.
 
+Local image previews reuse loaded images for 30 seconds. Reopening an expired image shows the existing preview while the server checks for updates.
+
 <details>
   <summary><strong>📱 A workspace that fits your phone</strong></summary>
   <p>Check a result, answer a question, or send the next instruction without returning to your desk.</p>

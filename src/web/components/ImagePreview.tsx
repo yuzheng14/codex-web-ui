@@ -2,15 +2,16 @@ import { displayMessage } from '../i18n/messages';
 import { t } from '../i18n';
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { fetchLocalImage } from '../lib/local-images';
-import { readableError } from '../lib/utils';
+import { emptyImageState, LocalImageCache, type ImageState } from '../lib/local-image-cache';
 import { Button } from './ui/button';
 import { ControlHint } from './ControlHint';
 import { Icon } from './Icon';
@@ -21,10 +22,15 @@ type ImageTarget = ImageSource & {
 };
 const ImageContext = createContext<{
   threadId?: string;
+  cache?: LocalImageCache;
   open: (target: ImageTarget) => void;
 }>({ open: () => {} });
 
-export function ImagePreviewProvider({
+export function ImagePreviewProvider(props: { threadId?: string; children: ReactNode }) {
+  return <ScopedImagePreviewProvider key={props.threadId} {...props} />;
+}
+
+function ScopedImagePreviewProvider({
   threadId,
   children,
 }: {
@@ -32,14 +38,15 @@ export function ImagePreviewProvider({
   children: ReactNode;
 }) {
   const [target, setTarget] = useState<ImageTarget>();
-  const context = useMemo(() => ({ threadId, open: setTarget }), [threadId]);
+  const cache = useMemo(() => (threadId ? new LocalImageCache(threadId) : undefined), [threadId]);
+  useEffect(() => () => cache?.clear(), [cache]);
+  const context = useMemo(() => ({ threadId, cache, open: setTarget }), [threadId, cache]);
   return (
     <ImageContext value={context}>
       {children}
       {target && (target.url || threadId) && (
         <ImagePreviewDialog
           key={target.url || target.path}
-          threadId={threadId}
           target={target}
           onClose={() => setTarget(undefined)}
         />
@@ -52,8 +59,17 @@ export function useImagePreview() {
   return useContext(ImageContext);
 }
 
-type ImageState = { src?: string; error?: string };
-function useImage(threadId: string | undefined, { path, url: remoteUrl }: ImageSource) {
+function useImage({ path, url: remoteUrl }: ImageSource) {
+  const { cache } = useImagePreview();
+  const subscribe = useCallback(
+    (listener: () => void) => (cache && path ? cache.subscribe(path, listener) : () => {}),
+    [cache, path],
+  );
+  const snapshot = useCallback(
+    () => (cache && path ? cache.snapshot(path) : emptyImageState),
+    [cache, path],
+  );
+  const local = useSyncExternalStore(subscribe, snapshot, () => emptyImageState);
   const [state, setState] = useState<ImageState>(() => ({ src: remoteUrl }));
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -61,42 +77,26 @@ function useImage(threadId: string | undefined, { path, url: remoteUrl }: ImageS
       setState({ src: remoteUrl });
       return;
     }
-    if (!threadId || !path) return;
-    const controller = new AbortController();
-    let url: string | undefined;
-    const timeout = setTimeout(() => {
-      controller.abort();
-      setState({ error: t('preview:image_loading_timed_out_please_retry') });
-    }, 35_000);
-    setState({});
-    void fetchLocalImage(threadId, path, controller.signal)
-      .then((blob) => {
-        if (controller.signal.aborted) return;
-        url = URL.createObjectURL(blob);
-        setState({ src: url });
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) setState({ error: readableError(error) });
-      })
-      .finally(() => clearTimeout(timeout));
-    return () => {
-      clearTimeout(timeout);
-      controller.abort();
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [threadId, path, remoteUrl, attempt]);
+    if (cache && path) void cache.load(path);
+  }, [cache, path, remoteUrl, attempt]);
+  const image = remoteUrl ? state : local;
   return {
-    ...state,
+    ...image,
     retry: () => {
+      if (cache && path) {
+        void cache.load(path, true);
+        return;
+      }
       setState({});
       setAttempt((value) => value + 1);
     },
-    fail: () =>
-      setState({
-        error: remoteUrl
-          ? t('preview:image_failed_to_load_it_may_have_expired')
-          : t('preview:cannot_decode_image_the_file_may_be_damaged'),
-      }),
+    fail: () => {
+      const error = remoteUrl
+        ? t('preview:image_failed_to_load_it_may_have_expired')
+        : t('preview:cannot_decode_image_the_file_may_be_damaged');
+      if (cache && path) cache.fail(path, image.src, error);
+      else setState({ error });
+    },
   };
 }
 
@@ -140,8 +140,8 @@ function ReplyImage({
   title?: string;
   interactive?: boolean;
 }) {
-  const { threadId, open } = useImagePreview();
-  const image = useImage(threadId, source);
+  const { open } = useImagePreview();
+  const image = useImage(source);
   const { path, url } = source;
   const label = alt || (path ? path.split('/').at(-1) : undefined) || t('common:image');
   const thumbnail = (
@@ -209,18 +209,10 @@ export function RemoteImage({ src, ...props }: ImageProps & { src: string }) {
   return <ReplyImage source={{ url: src }} {...props} />;
 }
 
-function ImagePreviewDialog({
-  threadId,
-  target,
-  onClose,
-}: {
-  threadId?: string;
-  target: ImageTarget;
-  onClose: () => void;
-}) {
+function ImagePreviewDialog({ target, onClose }: { target: ImageTarget; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
-  const image = useImage(threadId, target);
+  const image = useImage(target);
   const [zoom, setZoom] = useState(1);
   const [natural, setNatural] = useState({ width: 0, height: 0 });
   const [bounds, setBounds] = useState({ width: 0, height: 0 });
