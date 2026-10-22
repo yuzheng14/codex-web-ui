@@ -49,9 +49,9 @@ for (const locale of supportedLocales) {
 
       // The settings overview owns the low-frequency copy and labels every original entry.
       const dialog = await openSidebarSettings(page);
-      await expect(dialog.getByRole('combobox', { name: catalog('common').language })).toHaveValue(
-        locale,
-      );
+      await expect(
+        dialog.getByRole('combobox', { name: catalog('common').language }),
+      ).toHaveAttribute('data-value', locale);
       await expect(
         dialog.getByRole('button', { name: catalog('common').service_settings, exact: true }),
       ).toBeVisible();
