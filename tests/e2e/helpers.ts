@@ -12,7 +12,9 @@ export async function openSidebarSettings(page: Page) {
   const dialog = page.locator('.sidebar-settings-dialog[open]');
   if (await dialog.isVisible()) return dialog;
   const trigger = page.locator('.sidebar-settings-trigger');
-  if (!(await trigger.isVisible())) await page.locator('.topbar .mobile-only').click();
+  const openNavigation = page.locator('.topbar .mobile-only');
+  if ((await openNavigation.isVisible()) && (await page.locator('.sidebar-open').count()) === 0)
+    await openNavigation.click();
   await trigger.click();
   await expect(dialog).toBeVisible();
   return dialog;
