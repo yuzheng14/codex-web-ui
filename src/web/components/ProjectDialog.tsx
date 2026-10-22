@@ -6,6 +6,8 @@ import { readableError } from '../lib/utils';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { CloneProjectForm } from './CloneProjectForm';
+import { useProjectPath } from '../hooks/useProjectPath';
+import { ProjectPathPreview } from './ProjectPathPreview';
 
 interface Props {
   project?: Project;
@@ -20,11 +22,11 @@ interface Props {
 export function ProjectDialog(props: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const submitting = useRef(false);
-  const [path, setPath] = useState('');
   const [name, setName] = useState(props.project?.name ?? '');
   const [removing, setRemoving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cloneMode, setCloneMode] = useState(false);
+  const path = useProjectPath(!props.project && !cloneMode);
   const [error, setError] = useState<string>();
   const disabled = props.disabled || busy;
   const title = removing
@@ -40,7 +42,7 @@ export function ProjectDialog(props: Props) {
   }, []);
 
   async function submit() {
-    if (disabled || submitting.current) return;
+    if (disabled || submitting.current || (!props.project && !path.ready)) return;
     submitting.current = true;
     setBusy(true);
     setError(undefined);
@@ -49,7 +51,7 @@ export function ProjectDialog(props: Props) {
         if (removing) await props.onRemove(props.project.id);
         else await props.onRename(props.project.id, name.trim());
       } else {
-        await props.onAdd({ path: path.trim(), ...(name.trim() ? { name: name.trim() } : {}) });
+        await props.onAdd({ path: path.path!, ...(name.trim() ? { name: name.trim() } : {}) });
       }
       props.onClose();
     } catch (problem) {
@@ -151,17 +153,16 @@ export function ProjectDialog(props: Props) {
                     autoComplete="off"
                     spellCheck={false}
                     placeholder="/home/you/code/my-project"
-                    value={path}
-                    onChange={(event) => setPath(event.target.value)}
+                    value={path.value}
+                    onChange={(event) => path.setValue(event.target.value)}
                     aria-describedby="project-path-help"
                     aria-label={t('sidebar:server_directory')}
                     disabled={disabled}
                   />
-                  <small id="project-path-help">
-                    {t('sidebar:enter_an_existing_absolute_path_on_the_server')}
-                  </small>
+                  <small id="project-path-help">{t('sidebar:work_dir_path_help')}</small>
                 </label>
               )}
+              {!props.project && <ProjectPathPreview value={path} />}
               <label className="project-field">
                 <span>
                   {props.project ? t('sidebar:project_name') : t('sidebar:project_name_optional')}
@@ -215,7 +216,7 @@ export function ProjectDialog(props: Props) {
             <Button
               type="submit"
               variant={removing ? 'destructive' : 'default'}
-              disabled={disabled || (!removing && (props.project ? !name.trim() : !path.trim()))}
+              disabled={disabled || (!removing && (props.project ? !name.trim() : !path.ready))}
             >
               {busy
                 ? removing

@@ -2,24 +2,29 @@ import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access, lstat, open, readFile, rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import lockfile from 'proper-lockfile';
 import { z } from 'zod';
 import { AppError } from '../shared/errors.js';
 import type { GatewayConfig, GatewayConfigSnapshot } from '../shared/gateway-config.js';
 import { configSource, parseConfig, parseFileConfig, type AppConfig } from './config.js';
+import { assertWorkDir } from './project-paths.js';
 
 const saveSchema = z
   .object({ revision: z.string().regex(/^[a-f0-9]{64}$/), config: z.unknown() })
   .strict();
 const importSchema = z.object({ config: z.unknown() }).strict();
 const revision = (text: string) => createHash('sha256').update(text).digest('hex');
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const same = isDeepStrictEqual;
 export const MAX_CONFIG_BYTES = 256 * 1024;
 
-/** The running configuration is immutable; this store only changes the next startup's file. */
+/** Service settings apply on restart; workDir applies immediately to future imports. */
 export class ConfigStore {
   private readonly source;
   private readonly running: GatewayConfig;
+  get workDir() {
+    return this.running.workDir;
+  }
   constructor(config: AppConfig) {
     this.source = configSource(config);
     const { demo: _demo, ...running } = config;
@@ -75,7 +80,7 @@ export class ConfigStore {
       path: this.source!.path,
       revision: file.revision,
       saved: file.saved,
-      running: this.running,
+      running: structuredClone(this.running),
       restartRequired: !same(effective, this.running),
       writable: !readOnlyReason,
       ...(readOnlyReason ? { readOnlyReason } : {}),
@@ -125,6 +130,7 @@ export class ConfigStore {
           '数据目录不可在此修改；项目请使用项目管理功能。',
           400,
         );
+      if (config.workDir && config.workDir !== current.saved.workDir) assertWorkDir(config.workDir);
       const contents = `${JSON.stringify(config, null, 2)}\n`;
       if (Buffer.byteLength(contents) > MAX_CONFIG_BYTES)
         throw new AppError('INVALID_CONFIG', '配置文件不能超过 256 KiB。');
@@ -140,6 +146,8 @@ export class ConfigStore {
       if (latest.revision !== current.revision || !latest.writable)
         throw new AppError('CONFIG_CONFLICT', '配置文件已发生变化，请重新读取后再保存。', 409);
       await rename(temporary, this.source!.path);
+      if (config.workDir) this.running.workDir = config.workDir;
+      else delete this.running.workDir;
       return await this.snapshot();
     } catch (error) {
       if (error instanceof AppError) throw error;

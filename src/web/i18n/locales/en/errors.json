@@ -80,6 +80,7 @@
   "THREAD_NOT_FOUND": "Session not found. Refresh the session list.",
   "PROJECT_UNAVAILABLE": "The project directory is unavailable. Check the server path and permissions.",
   "INVALID_PROJECT_PATH": "Invalid project path. Check the absolute server path and access permissions.",
+  "WORK_DIR_UNAVAILABLE": "The workDir directory is missing, is not a directory, or cannot be accessed. Check the directory and permissions on the service host, or enter another absolute path.",
   "PROJECT_EXISTS": "This directory is already a project. Use the existing project or choose another directory.",
   "PROJECT_NOT_FOUND": "Project not found. Refresh the project list.",
   "PROJECT_BUSY": "The project has running tasks or unconfirmed operations. Resolve them first.",

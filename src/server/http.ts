@@ -14,6 +14,7 @@ import * as schemas from '../shared/validation.js';
 import type { Operation } from '../shared/types.js';
 import type { AppConfig } from './config.js';
 import { ConfigStore } from './config-store.js';
+import { projectPathPreview, resolveProjectPath } from './project-paths.js';
 import { createAuthenticator, type Authenticator, type Identity } from './auth.js';
 import type { GatewayService } from './service.js';
 import { socketHandlers } from './websocket.js';
@@ -122,6 +123,19 @@ export function createApp({
   const status = (op: Operation) =>
     op.status === 'dispatching' || op.status === 'accepted' ? (202 as const) : (200 as const);
   const configuration = new ConfigStore(config);
+  app.get('/api/project-path', (c) => {
+    const input = z
+      .object({
+        path: z.string().max(4096).default(''),
+        directory: z
+          .string()
+          .max(255)
+          .refine((value) => !/[\\/\0]/.test(value) && value !== '.' && value !== '..')
+          .optional(),
+      })
+      .parse({ path: c.req.query('path'), directory: c.req.query('directory') });
+    return c.json(projectPathPreview(input.path.trim(), configuration.workDir, input.directory));
+  });
   app.use('/api/config*', async (c, next) => {
     c.header('Cache-Control', 'no-store');
     await next();
@@ -217,7 +231,12 @@ export function createApp({
     return c.json(op, status(op));
   });
   app.post('/api/project-clones', async (c) =>
-    c.json(service.cloneProject(await parse(c, schemas.cloneProjectSchema)), 202),
+    c.json(
+      service.cloneProject(await parse(c, schemas.cloneProjectSchema), (path) =>
+        resolveProjectPath(path, configuration.workDir),
+      ),
+      202,
+    ),
   );
   app.get('/api/project-clones/:cloneId', (c) =>
     c.json(service.projectClones.get(id(c.req.param('cloneId')))),
@@ -243,9 +262,12 @@ export function createApp({
     );
     return c.json(op, status(op));
   });
-  app.post('/api/projects', async (c) =>
-    c.json(service.addProject(await parse(c, schemas.createProjectSchema))),
-  );
+  app.post('/api/projects', async (c) => {
+    const input = await parse(c, schemas.createProjectSchema);
+    return c.json(
+      service.addProject({ ...input, path: resolveProjectPath(input.path, configuration.workDir) }),
+    );
+  });
   app.post('/api/projects/:projectId/rename', async (c) =>
     c.json(
       service.renameProject(

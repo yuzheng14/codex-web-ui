@@ -31,7 +31,7 @@ Serve 默认提供 HTTPS 入口并转发到本机 `http://127.0.0.1:8787`；首�
 
 `local` 模式不增加应用登录，访问身份由 tailnet 的访问策略控制；地址白名单本身不提供身份认证。公网入口使用下面的 Access 配置。
 
-若出现 `INVALID_HOST`，检查浏览器地址的主机和端口是否已列入 `publicOrigin`；若写操作或 WebSocket 出现 `INVALID_ORIGIN`，还需检查协议是否一致。改配置后需重启应用，生产代码变更后先重新 `pnpm build`。
+若出现 `INVALID_HOST`，检查浏览器地址的主机和端口是否已列入 `publicOrigin`；若写操作或 WebSocket 出现 `INVALID_ORIGIN`，还需检查协议是否一致。网络和其他服务配置修改后需重启应用；通过「服务配置」保存的 `workDir` 立即用于后续项目导入，详见[项目目录配置](project-clone.md#base-directory-workdir--项目基础目录)。生产代码变更后先重新 `pnpm build`。
 
 ## 固定 Cloudflare Tunnel
 

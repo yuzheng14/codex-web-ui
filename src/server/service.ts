@@ -185,11 +185,14 @@ export class GatewayService {
     this.events.publishProjects(this.projects.list());
     return project;
   }
-  cloneProject(input: CloneProjectInput) {
+  cloneProject(input: CloneProjectInput, resolvePath = (path: string) => path) {
     if (this.maintenance || !this.accepting)
       throw new AppError('GATEWAY_STOPPING', '服务正在升级或停止，请稍后重试', 503);
-    this.workspaces.assertProjectDirectory(input.path);
-    return this.projectClones.start(input);
+    return this.projectClones.start(input, (path) => {
+      const resolved = resolvePath(path);
+      this.workspaces.assertProjectDirectory(resolved);
+      return resolved;
+    });
   }
   renameProject(projectId: string, input: RenameProjectInput) {
     const project = this.projects.rename(projectId, input);

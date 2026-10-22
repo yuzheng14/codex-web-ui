@@ -1,8 +1,30 @@
 # Clone a project / 克隆项目
 
-In **添加项目** (Add project), choose **克隆 Git 仓库** (Clone Git repository). Enter an HTTPS or SSH Git address, an absolute destination directory on the computer running Covro, and an optional project name. The destination's parent must already exist and be writable. The destination must be absent or an empty ordinary directory; nonempty directories, files and destination symlinks are refused. Existing project imports remain available under **已有目录** (Existing directory).
+In **添加项目** (Add project), choose **克隆 Git 仓库** (Clone Git repository). Enter an HTTPS or SSH Git address, a destination directory on the computer running Covro, and an optional project name. The destination's parent must already exist and be writable. The destination must be absent or an empty ordinary directory; nonempty directories, files and destination symlinks are refused. Existing project imports remain available under **已有目录** (Existing directory).
 
-在「添加项目」中选择「克隆 Git 仓库」，填写 HTTPS 或 SSH 仓库地址、运行 Covro 的主机上的绝对目标目录和可选名称。父目录须已存在且可写；目标须不存在或为空的普通目录，不接受非空目录、文件或目标符号链接。已有本地项目仍通过「已有目录」添加。
+在「添加项目」中选择「克隆 Git 仓库」，填写 HTTPS 或 SSH 仓库地址、运行 Covro 的主机上的目标目录和可选名称。父目录须已存在且可写；目标须不存在或为空的普通目录，不接受非空目录、文件或目标符号链接。已有本地项目仍通过「已有目录」添加。
+
+## Base directory (workDir) / 项目基础目录
+
+In **Service configuration → Data and projects**, set **Project base directory (workDir, optional)** to an existing, readable directory on the service host. It must be an absolute path; Covro does not create it. The setting is optional in the startup JSON as well:
+
+```json
+{ "workDir": "/workspace/projects" }
+```
+
+- Existing directory imports initially show `workDir`. A relative entry such as `demo` resolves to `/workspace/projects/demo`.
+- Cloning `https://host/org/demo.git`, `git@host:org/demo.git`, or `ssh://git@host/org/demo.git` suggests `/workspace/projects/demo`. Changing the repository updates the suggestion until you edit the destination yourself.
+- Both forms show the final host-resolved path before submission. Absolute entries such as `/other/demo` override `workDir`. Relative paths follow the host's normal path rules, including `..`; this setting is a default, not a directory access restriction.
+- Saving through Service configuration persists the value and immediately applies it to future operations; refreshes and service restarts retain it. Clearing the field restores the previous requirement for absolute paths. Direct JSON edits take effect after a restart. Other service settings still require a restart.
+- Existing projects, in-progress clones and their retries retain their original paths. No project files are moved. The directory must be accessible when used; invalid or unavailable settings show an error. An explicit absolute path can still be used if `workDir` becomes unavailable. Cloning additionally requires write permission on the destination's existing parent.
+
+在 **服务配置 → 数据与项目** 中设置 **项目基础目录（workDir，可选）**，填写服务主机上已存在且可读取、进入的绝对目录；Covro 不会创建该目录。也可以在启动 JSON 中添加可选的 `workDir` 字段，如上例。
+
+- 添加已有目录时初始显示 `workDir`。输入相对路径 `demo`，最终路径为 `/workspace/projects/demo`。
+- 克隆 HTTPS、SCP 风格 SSH 或 SSH URL 的 `demo.git` 仓库时，默认建议 `/workspace/projects/demo`。手动编辑目标目录后，继续修改仓库地址不会覆盖所填目录。
+- 两种表单提交前均显示服务器解析后的最终路径。绝对路径 `/other/demo` 直接使用，不再拼接。相对路径按主机规则处理，包括 `..`；此配置是默认前缀，不限制项目目录范围。
+- 通过服务配置保存后立即用于后续操作，刷新或重启后仍保留。清空该字段即恢复原有的绝对路径填写方式。直接编辑 JSON 后需要重启；其他服务配置仍需重启。
+- 已有项目、进行中的克隆及其重试保留原路径，不会移动项目文件。目录使用时必须可访问，无效或不可用时会提示；此时仍可填写其他绝对路径继续。克隆还要求目标的父目录已存在且可写。
 
 ## Git and authentication / Git 与认证
 

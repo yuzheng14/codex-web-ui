@@ -1,5 +1,5 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, realpath } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
@@ -15,7 +15,7 @@ let origin: string;
 let runtime: Awaited<ReturnType<typeof startGateway>>;
 let previous: Record<string, string | undefined>;
 test.beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'covro-clone-browser-'));
+  directory = await realpath(await mkdtemp(join(tmpdir(), 'covro-clone-browser-')));
   const env = gitCloneFixture(directory);
   previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
   Object.assign(process.env, env);

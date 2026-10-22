@@ -215,9 +215,7 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
           <Icon name="close" size={17} />
         </Button>
       </div>
-      <p className="gateway-intro">
-        {t('settings:configure_the_computer_running_this_service_restart_it')}
-      </p>
+      <p className="gateway-intro">{t('settings:service_settings_apply_help')}</p>
       {error && (
         <div className="gateway-error" role="alert">
           <p>{displayMessage(error)}</p>
@@ -469,6 +467,9 @@ export function GatewaySettings({ onClose }: { onClose: () => void }) {
                   </section>
                   <section className="gateway-section">
                     <h3>{t('settings:data_and_projects')}</h3>
+                    <div className="gateway-fields">
+                      {configFields.filter((item) => item.group === 'projects').map(field)}
+                    </div>
                     <div className="gateway-file">
                       <span>{t('settings:data_directory_read_only')}</span>
                       <code>{snapshot.saved.dataDir}</code>

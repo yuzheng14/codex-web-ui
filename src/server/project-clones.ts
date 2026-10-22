@@ -184,7 +184,7 @@ export class ProjectClones {
       throw new AppError('CLONE_IN_PROGRESS', '该目录正在克隆，请等待完成或取消后再操作', 409);
   }
 
-  start(input: CloneProjectInput): ProjectClone {
+  start(input: CloneProjectInput, resolvePath = (path: string) => path): ProjectClone {
     const parsed = cloneProjectSchema.parse(input);
     validateRepository(parsed.repository);
     const fingerprint = createHash('sha256').update(JSON.stringify(parsed)).digest('hex');
@@ -195,7 +195,7 @@ export class ProjectClones {
       return this.get(previous.view.id);
     }
     if (this.closing) throw new AppError('GATEWAY_STOPPING', '服务正在停止，请稍后重试', 503);
-    const path = targetPath(parsed.path);
+    const path = targetPath(resolvePath(parsed.path));
     this.assertIdlePath(path);
     if (this.registered(path))
       throw new AppError('PROJECT_EXISTS', '该目录已添加为项目，请使用已有项目或选择其他目录', 409);
