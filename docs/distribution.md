@@ -1,6 +1,6 @@
 # Covro 安装与运行
 
-Covro 通过 npm 分发已构建的前后端与数据库迁移，用户使用现有 Node.js 24.19.x 和已登录的 Codex。npm 包名为 `@covro/covro`，命令为 `covro`；正式发布前还需完成 npm 包所有权和发布身份配置。
+Covro 通过 npm 分发已构建的前后端与数据库迁移，用户使用现有 Node.js 24.19.x 和已登录的 Codex。npm 包名为 `@covro/covro`，命令为 `covro`。
 
 ```sh
 npm install -g @covro/covro
@@ -51,7 +51,7 @@ macOS 使用当前用户的 launchd，Linux 使用 `systemd --user`，`service i
 
 ## 更新与发布渠道
 
-首发成功后，开发渠道可用 `npm install -g @covro/covro@dev` 安装。
+开发渠道可用 `npm install -g @covro/covro@dev` 安装。
 
 ```sh
 covro update status
@@ -63,6 +63,8 @@ covro update repair
 ```
 
 稳定版只解析 npm 官方 registry 的 `latest` 标签；预览版比较 `beta` 和 `latest`，开发版比较 `dev` 和 `latest`（不接收 Beta），均按 SemVer 选择最新版本，正式版高于同基线的预发布版。安装稳定版后保留用户选择的订阅渠道；状态分别记录订阅渠道和候选版本的实际来源。缺失的标签不影响其他候选；任一来源查询失败则本次检查失败，不使用不完整结果。解析后固定到确切版本和源码提交安装，标签移动不会改变正在执行的升级目标。每 30 分钟检查一次；自动安装默认关闭，可从网页开启。失败的同一目标不会后台无限重试，可人工重试或等待下一版本。
+
+安装前，更新面板展示所选目标版本的 GitHub Release 说明，支持 Markdown 和原文链接。说明对应确切目标版本；部分 Beta / Dev 版本没有对应 Release，说明缺失或 GitHub 连接失败不会阻止更新。
 
 升级前核对目标包的 Codex 兼容声明。自动安装仅接受已验证的确切组合；未知版本、缺失/无效声明及明确不支持的版本都会阻止升级。未验证组合需在网页明确勾选，或在 CLI 使用 `--allow-unverified-codex`；此选项只确认本次检查得到的 Codex 与目标 Covro，版本变化时必须重新检查。它不能绕过明确不支持或缺失声明，也不会自动升级全局 Codex。详情见[兼容声明](compatibility.md#发行版兼容声明)。
 
