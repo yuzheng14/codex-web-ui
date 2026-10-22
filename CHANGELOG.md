@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.4.0](https://github.com/yuzheng14/covro/compare/v0.3.0...v0.4.0) (2026-10-22)
+
+
+### Features
+
+* **preview:** support TXT and common plain text files ([#237](https://github.com/yuzheng14/covro/issues/237)) ([d04a747](https://github.com/yuzheng14/covro/commit/d04a747988eb30196b1110d15c2f02f802599d12)), closes [#230](https://github.com/yuzheng14/covro/issues/230)
+* **projects:** add persistent workDir defaults for project imports ([#239](https://github.com/yuzheng14/covro/issues/239)) ([019f067](https://github.com/yuzheng14/covro/commit/019f067eb708cf169852a7fcb807ad4a13fef311)), closes [#232](https://github.com/yuzheng14/covro/issues/232)
+* **projects:** persist manual project ordering ([#242](https://github.com/yuzheng14/covro/issues/242)) ([69bc671](https://github.com/yuzheng14/covro/commit/69bc67167ce43aa03acef04474a88dadfc9ed78a)), closes [#223](https://github.com/yuzheng14/covro/issues/223)
+* **ui:** copy command execution output ([#234](https://github.com/yuzheng14/covro/issues/234)) ([cac8a4f](https://github.com/yuzheng14/covro/commit/cac8a4f99f144332db464be03e0a063498e393d4)), closes [#224](https://github.com/yuzheng14/covro/issues/224)
+* **updates:** show release notes for the selected version ([#240](https://github.com/yuzheng14/covro/issues/240)) ([58c65b3](https://github.com/yuzheng14/covro/commit/58c65b3d817993f2d4be5c17a99c0d9d47a786d6)), closes [#225](https://github.com/yuzheng14/covro/issues/225)
+
+
+### Bug Fixes
+
+* **sidebar:** simplify footer with unified settings ([#243](https://github.com/yuzheng14/covro/issues/243)) ([b96f4ec](https://github.com/yuzheng14/covro/commit/b96f4ec610c92db7e4053c111e5188ff648c0aa7)), closes [#231](https://github.com/yuzheng14/covro/issues/231)
+* **ui:** preserve mobile composer newlines without sending ([#238](https://github.com/yuzheng14/covro/issues/238)) ([f086a34](https://github.com/yuzheng14/covro/commit/f086a34aedf61e9f7455ef8444476a2cc7efc805)), closes [#206](https://github.com/yuzheng14/covro/issues/206)
+* **updates:** include newer stable releases in beta and dev channels ([#235](https://github.com/yuzheng14/covro/issues/235)) ([bc1cb62](https://github.com/yuzheng14/covro/commit/bc1cb6265e0c2d0c07d122a933c906c38bf7252e)), closes [#207](https://github.com/yuzheng14/covro/issues/207)
+
+
+### Performance Improvements
+
+* **preview:** reuse loaded images before background revalidation ([#245](https://github.com/yuzheng14/covro/issues/245)) ([8780e20](https://github.com/yuzheng14/covro/commit/8780e20046289352fff6d01017249b7b5ce5bbc9))
+* **preview:** revalidate local image previews with ETags ([#236](https://github.com/yuzheng14/covro/issues/236)) ([407772b](https://github.com/yuzheng14/covro/commit/407772b2c17c7c2890eb7baec55a0f57ea0d05c9)), closes [#226](https://github.com/yuzheng14/covro/issues/226)
+
 ## [0.3.0](https://github.com/yuzheng14/covro/compare/v0.2.0...v0.3.0) (2026-10-21)
 
 
