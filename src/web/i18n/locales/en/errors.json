@@ -134,5 +134,14 @@
   "BACKUP_INVALID": "The backup is damaged, incomplete or incompatible and cannot be restored.",
   "BACKUP_TIMEOUT": "Timed out waiting for a safe point. Try again after active tasks finish.",
   "BACKUP_MAINTENANCE": "A backup is in progress. Try again after it finishes.",
-  "PROJECT_ORDER_CONFLICT": "The project list has changed. Refresh it and try reordering again."
+  "PROJECT_ORDER_CONFLICT": "The project list has changed. Refresh it and try reordering again.",
+  "TEXT_NOT_FOUND": "The text file does not exist or was deleted.",
+  "TEXT_TOO_LARGE": "This text file exceeds the 2 MiB preview limit.",
+  "TEXT_UNREADABLE": "The text file cannot be read. Check its permissions.",
+  "INVALID_TEXT_CONTENT": "The file is not valid UTF-8 text or contains binary data.",
+  "UNSUPPORTED_TEXT_TYPE": "This file type is not supported by the text preview.",
+  "INVALID_TEXT_PATH": "The text file path is invalid.",
+  "TEXT_OUTSIDE_PROJECT": "Only files in this session’s project or server temporary directories can be previewed.",
+  "TEXT_CHANGED": "The text file changed. Reopen the preview.",
+  "TEXT_NOT_FILE": "The text file path is not a regular file."
 }

@@ -110,5 +110,6 @@
   "new_mermaid_diagram_region": "Mermaid 다이어그램 영역",
   "new_mermaid_diagram": "Mermaid 다이어그램",
   "new_this_file_has_lines_exceeding_300_collapsed": "이 파일은 {{v0}}줄로 300줄을 초과하여 기본적으로 접혀 있습니다.",
-  "new_this_file_exceeds_50_000_characters_collapsed": "이 파일은 50,000자를 초과하여 기본적으로 접혀 있습니다."
+  "new_this_file_exceeds_50_000_characters_collapsed": "이 파일은 50,000자를 초과하여 기본적으로 접혀 있습니다.",
+  "empty_file": "빈 파일입니다."
 }

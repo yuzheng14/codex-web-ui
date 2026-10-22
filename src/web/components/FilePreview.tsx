@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Copy, FileText, Check } from 'lucide-react';
 import { FilePreviewPanel } from './FilePreviewPanel';
 import type { TextFile } from '../../shared/types';
+import { filePreviewFormat } from '../../shared/file-preview';
 import { api } from '../lib/api';
 import { JsonContent } from './JsonContent';
 import { readableError } from '../lib/utils';
@@ -20,12 +21,15 @@ export function FilePreview({
   path: string;
   onClose: () => void;
 }) {
-  const kind = /\.json$/i.test(path) ? 'JSON' : 'Markdown';
+  const format = filePreviewFormat(path);
+  const plainText = format === 'text';
+  const kind = format === 'markdown' ? 'Markdown' : path.split('.').at(-1)!.toUpperCase();
   const source = useRef<HTMLPreElement>(null);
   const [file, setFile] = useState<TextFile>();
   const [error, setError] = useState<string>();
   const [attempt, setAttempt] = useState(0);
   const [view, setView] = useState<'preview' | 'source'>('preview');
+  const [wrap, setWrap] = useState(true);
   const [feedback, setFeedback] = useState('');
   const copying = useRef(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -91,24 +95,35 @@ export function FilePreview({
       }
     >
       <div className="file-preview-toolbar">
-        <div role="group" aria-label={t('preview:file_display_mode')}>
+        {plainText ? (
           <Button
             variant="ghost"
             size="sm"
-            aria-pressed={view === 'preview'}
-            onClick={() => setView('preview')}
+            aria-pressed={wrap}
+            onClick={() => setWrap((value) => !value)}
           >
-            {t('preview:preview')}
+            {t('preview:wrap_lines')}
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-pressed={view === 'source'}
-            onClick={() => setView('source')}
-          >
-            {t('preview:source')}
-          </Button>
-        </div>
+        ) : (
+          <div role="group" aria-label={t('preview:file_display_mode')}>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-pressed={view === 'preview'}
+              onClick={() => setView('preview')}
+            >
+              {t('preview:preview')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-pressed={view === 'source'}
+              onClick={() => setView('source')}
+            >
+              {t('preview:source')}
+            </Button>
+          </div>
+        )}
         <span>{t('common:read_only')}</span>
       </div>
       <p className="file-preview-feedback" role="status">
@@ -136,7 +151,23 @@ export function FilePreview({
             </Button>
           </div>
         ) : file ? (
-          view === 'preview' ? (
+          plainText ? (
+            <>
+              {file.content.length === 0 && (
+                <p className="file-preview-loading" role="status">
+                  {t('preview:empty_file')}
+                </p>
+              )}
+              <pre
+                ref={source}
+                className={`file-preview-source text-file-source${wrap ? '' : ' text-file-nowrap'}`}
+                tabIndex={0}
+                aria-label={t('preview:source_2', { v0: kind })}
+              >
+                {file.content}
+              </pre>
+            </>
+          ) : view === 'preview' ? (
             kind === 'JSON' ? (
               <JsonContent content={file.content} />
             ) : (

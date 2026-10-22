@@ -110,5 +110,6 @@
   "new_mermaid_diagram_region": "Mermaid diagram region",
   "new_mermaid_diagram": "Mermaid diagram",
   "new_this_file_has_lines_exceeding_300_collapsed": "This file has {{v0}} lines, exceeding 300; collapsed by default.",
-  "new_this_file_exceeds_50_000_characters_collapsed": "This file exceeds 50,000 characters; collapsed by default."
+  "new_this_file_exceeds_50_000_characters_collapsed": "This file exceeds 50,000 characters; collapsed by default.",
+  "empty_file": "This file is empty."
 }

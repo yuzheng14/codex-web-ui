@@ -79,7 +79,7 @@ it('recognizes local JSON references and routes them relative to the open Markdo
     'docs/%5c.json',
     '//host/a.json',
     'a.jsonc',
-    'a.jsonl',
+    'a.pdf',
   ])
     expect(localPreviewPath(input)).toBeUndefined();
   const html = renderToStaticMarkup(

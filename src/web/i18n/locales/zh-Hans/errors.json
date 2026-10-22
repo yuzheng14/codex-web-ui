@@ -134,5 +134,14 @@
   "BACKUP_INVALID": "备份损坏、不完整或不兼容，不能恢复。",
   "BACKUP_TIMEOUT": "等待安全点超时，请在运行中的任务结束后重试。",
   "BACKUP_MAINTENANCE": "正在备份，请完成后重试。",
-  "PROJECT_ORDER_CONFLICT": "项目列表已变化，请刷新后重新调整顺序。"
+  "PROJECT_ORDER_CONFLICT": "项目列表已变化，请刷新后重新调整顺序。",
+  "TEXT_NOT_FOUND": "文本文件不存在或已被删除。",
+  "TEXT_TOO_LARGE": "文本文件超过 2 MiB 预览限制。",
+  "TEXT_UNREADABLE": "文本文件不可读取，请检查访问权限。",
+  "INVALID_TEXT_CONTENT": "文件不是有效的 UTF-8 纯文本，或包含二进制数据。",
+  "UNSUPPORTED_TEXT_TYPE": "此文件类型不支持纯文本预览。",
+  "INVALID_TEXT_PATH": "文本文件路径无效。",
+  "TEXT_OUTSIDE_PROJECT": "只能预览当前会话所属项目或服务器临时目录内的文本文件。",
+  "TEXT_CHANGED": "文本文件已变化，请重新打开预览。",
+  "TEXT_NOT_FILE": "文本路径不是普通文件。"
 }

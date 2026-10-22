@@ -335,6 +335,12 @@ export function createApp({
       await service.getThreadMarkdown(id(c.req.param('threadId')), c.req.query('path')),
     );
   });
+  app.get('/api/threads/:threadId/text', async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('Cross-Origin-Resource-Policy', 'same-origin');
+    return c.json(await service.getThreadText(id(c.req.param('threadId')), c.req.query('path')));
+  });
   app.get('/api/threads/:threadId/json', async (c) => {
     c.header('Cache-Control', 'private, no-store');
     c.header('X-Content-Type-Options', 'nosniff');

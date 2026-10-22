@@ -4025,6 +4025,15 @@ dd {
   font-size: 13px;
   user-select: text;
 }
+.text-file-source {
+  overflow: visible;
+  line-height: 1.8;
+  tab-size: 4;
+}
+.text-file-nowrap {
+  white-space: pre;
+  overflow-wrap: normal;
+}
 .json-preview {
   line-height: 1.8;
   tab-size: 2;

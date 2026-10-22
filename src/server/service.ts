@@ -55,6 +55,7 @@ import { renderThreadExport } from './thread-export.js';
 import { readLocalImage } from './images.js';
 import { temporaryFileRoots, type FileScope } from './local-files.js';
 import { readLocalMarkdown } from './markdown.js';
+import { readLocalText } from './text-files.js';
 import { readLocalJson } from './json-files.js';
 
 export interface GatewayOptions {
@@ -666,6 +667,10 @@ export class GatewayService {
 
   getThreadMarkdown(threadId: string, path: string | undefined) {
     return this.readThreadFile(threadId, path, readLocalMarkdown);
+  }
+
+  getThreadText(threadId: string, path: string | undefined) {
+    return this.readThreadFile(threadId, path, readLocalText);
   }
 
   getThreadJson(threadId: string, path: string | undefined) {

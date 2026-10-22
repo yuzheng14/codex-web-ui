@@ -110,5 +110,6 @@
   "new_mermaid_diagram_region": "Mermaid 图表区域",
   "new_mermaid_diagram": "Mermaid 图表",
   "new_this_file_has_lines_exceeding_300_collapsed": "此文件共 {{v0}} 行，超过 300 行，默认折叠。",
-  "new_this_file_exceeds_50_000_characters_collapsed": "此文件超过 50,000 字符，默认折叠。"
+  "new_this_file_exceeds_50_000_characters_collapsed": "此文件超过 50,000 字符，默认折叠。",
+  "empty_file": "此文件为空。"
 }
