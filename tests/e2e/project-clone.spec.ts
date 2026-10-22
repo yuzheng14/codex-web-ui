@@ -1,3 +1,4 @@
+import { selectInterfaceLocale } from './helpers';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { mkdtemp, rm, readFile, realpath } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -271,11 +272,11 @@ for (const language of localizedProjects) {
       const peer = await context.newPage();
       await peer.goto(origin);
       const alternate = language.locale === 'en' ? 'ja' : 'en';
-      await peer.locator('.language-selector select').selectOption(alternate);
+      await selectInterfaceLocale(peer, alternate);
       await expect(page.locator('html')).toHaveAttribute('lang', alternate);
       await expect(dialog.locator('input').first()).toHaveValue('https://example.test/slow.git');
       await expect(page.locator('.composer-box textarea')).toHaveValue(draft);
-      await peer.locator('.language-selector select').selectOption(language.locale);
+      await selectInterfaceLocale(peer, language.locale);
       await expect(page.locator('html')).toHaveAttribute('lang', language.locale);
       const posted = page.waitForResponse(
         (response) =>
@@ -285,7 +286,7 @@ for (const language of localizedProjects) {
       await dialog.getByRole('button', { name: language.start, exact: true }).click();
       const job = (await (await posted).json()) as { id: string };
       await expect(dialog.getByRole('status')).toContainText(language.receiving);
-      await peer.locator('.language-selector select').selectOption(alternate);
+      await selectInterfaceLocale(peer, alternate);
       await expect(page.locator('html')).toHaveAttribute('lang', alternate);
       await expect(dialog.getByRole('status')).toContainText(
         alternate === 'en' ? 'Receiving objects 42%' : 'オブジェクトを受信中 42%',
@@ -300,7 +301,7 @@ for (const language of localizedProjects) {
         progressStage: 'receiving',
         percent: 42,
       });
-      await peer.locator('.language-selector select').selectOption(language.locale);
+      await selectInterfaceLocale(peer, language.locale);
       await expect(dialog.getByRole('status')).toContainText(language.receiving);
       await page.setViewportSize({ width: 390, height: 844 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(

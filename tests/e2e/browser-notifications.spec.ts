@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import type { Operation, ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime, testOrigin } from './helpers';
+import { confirmCompatibility, controlRuntime, testOrigin, openSidebarSettings } from './helpers';
 
 declare global {
   interface Window {
@@ -18,7 +18,10 @@ declare global {
 }
 const evidence = join(tmpdir(), 'codex-issue-25-evidence');
 const dialog = (page: Page) => page.getByRole('dialog', { name: '工作完成通知' });
-const settings = (page: Page) => page.getByRole('button', { name: /工作完成通知/ });
+async function openNotificationSettings(page: Page) {
+  await openSidebarSettings(page);
+  await page.getByRole('button', { name: /工作完成通知/ }).click();
+}
 const toggle = (page: Page) => page.getByRole('switch', { name: '浏览器通知' });
 const captured = (page: Page) =>
   page.evaluate(() =>
@@ -92,7 +95,7 @@ async function open(page: Page) {
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
 }
 async function enable(page: Page) {
-  await settings(page).click();
+  await openNotificationSettings(page);
   await toggle(page).click();
   await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
 }
@@ -111,7 +114,7 @@ test('asks only after a click, shows guidance, and opens the notified project an
   await mockNotifications(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await open(page);
-  await settings(page).click();
+  await openNotificationSettings(page);
   await expect(dialog(page)).toContainText('尚未授权 · 未开启');
   expect(await page.evaluate(() => window.notificationTest.requested)).toBe(0);
   await page.screenshot({ path: join(evidence, 'notifications-off.png') });
@@ -169,7 +172,7 @@ test('distinguishes failure and interruption, with no notification from reload, 
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await expect(page.locator(`[data-thread-id="${id}"]`)).toBeVisible();
   expect(await captured(page)).toHaveLength(0);
-  await settings(page).click();
+  await openNotificationSettings(page);
   await expect(toggle(page)).toHaveAttribute('aria-checked', 'true');
   expect(await page.evaluate(() => window.notificationTest.requested)).toBe(0);
 });
@@ -193,10 +196,10 @@ test('atomically deduplicates simultaneous tabs and shares the notification pref
   await expect
     .poll(async () => (await captured(page)).length + (await captured(other)).length)
     .toBe(1);
-  await settings(other).click();
+  await openNotificationSettings(other);
   await expect(toggle(other)).toHaveAttribute('aria-checked', 'true');
   await toggle(other).click();
-  await settings(page).click();
+  await openNotificationSettings(page);
   await expect(toggle(page)).toHaveAttribute('aria-checked', 'false');
   await start(request, id);
   await waitStatus(request, id, 'completed');
@@ -241,7 +244,7 @@ test('recovers results and unread markers after freeze/resume lifecycle events w
 test('denied and unsupported browsers keep in-page results usable', async ({ page, request }) => {
   await mockNotifications(page, 'denied');
   await open(page);
-  await settings(page).click();
+  await openNotificationSettings(page);
   await expect(dialog(page)).toContainText('已被浏览器阻止');
   await expect(toggle(page)).toBeDisabled();
   const id = await create(request);

@@ -165,5 +165,6 @@
   "order_saving": "Saving order…",
   "order_saved": "Order saved",
   "order_auto_save": "Changes save automatically and survive refreshes and restarts.",
-  "order_save_failed": "{{v0}} Please try again."
+  "order_save_failed": "{{v0}} Please try again.",
+  "settings": "Settings"
 }

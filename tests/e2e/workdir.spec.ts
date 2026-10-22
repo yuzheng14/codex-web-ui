@@ -1,4 +1,5 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import { openSidebarSettings } from './helpers';
 import { mkdtemp, mkdir, readFile, rm, writeFile, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -65,7 +66,7 @@ async function openAdd(page: Page) {
   return projectDialog(page);
 }
 async function saveBase(page: Page, path: string) {
-  await sidebar(page);
+  await openSidebarSettings(page);
   await page.getByRole('button', { name: '服务配置', exact: true }).click();
   const dialog = settings(page);
   await dialog.getByLabel('项目基础目录（workDir，可选）', { exact: true }).fill(path);

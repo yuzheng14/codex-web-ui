@@ -1,3 +1,4 @@
+import { openSidebarSettings, selectInterfaceLocale } from './helpers';
 import { readFileSync } from 'node:fs';
 import { supportedLocales } from '../../src/web/i18n/locales';
 import { verifyDatabaseContract } from '../../scripts/verify-database-contract';
@@ -81,6 +82,7 @@ for (const locale of supportedLocales) {
             name: catalog('workspace').open_projects_and_sessions,
           })
           .click();
+      await openSidebarSettings(page);
       await expect(page.getByRole('button', { name: tr('title'), exact: true })).toBeVisible();
       const footer = page.locator('.sidebar-footer');
       expect(await footer.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
@@ -110,7 +112,7 @@ for (const locale of supportedLocales) {
         const other = await page.context().newPage();
         // A genuine storage event from another tab changes an open dialog without resubmitting.
         await other.goto(origin);
-        await other.locator('.language-selector select').selectOption('en');
+        await selectInterfaceLocale(other, 'en');
         await expect(
           dialog(page).getByRole('heading', { name: 'Backups and recovery' }),
         ).toBeVisible();
@@ -118,7 +120,7 @@ for (const locale of supportedLocales) {
         const after = await (runtime.backups as BackupManager).status();
         expect(after.active?.id).toBe(before.active?.id);
         expect(after.records).toHaveLength(before.records.length);
-        await other.locator('.language-selector select').selectOption(locale);
+        await selectInterfaceLocale(other, locale);
         await expect(progress).toContainText(tr('phase_waiting'));
         await other.close();
       }

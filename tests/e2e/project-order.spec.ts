@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { selectInterfaceLocale } from './helpers';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -249,7 +250,7 @@ test.describe('touch sorting', () => {
       ['ko', '프로젝트 순서'],
       ['zh-Hans', '项目排序'],
     ]) {
-      await page.locator('.language-selector select').selectOption(locale!);
+      await selectInterfaceLocale(page, locale!);
       await expect(page.locator('.project-order-header h2')).toHaveText(title!);
       expect(
         await page.locator('.sidebar-toolbar').evaluate((element) => {

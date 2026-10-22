@@ -55,7 +55,7 @@ Local image previews reuse loaded images for 30 seconds. Reopening an expired im
 
 ## 🚀 Get started
 
-You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The interface supports Simplified Chinese, English, Japanese and Korean. Choose **Language** in the sidebar; the first visit follows your browser preferences, and manual choices are saved on this device.
+You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in **Codex CLI**. The interface supports Simplified Chinese, English, Japanese and Korean. Open **Settings → Language** in the sidebar; the first visit follows your browser preferences, and manual choices are saved on this device.
 
 <!-- codex-compatibility:start -->
 

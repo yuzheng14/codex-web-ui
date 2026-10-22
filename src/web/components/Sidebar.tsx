@@ -1,9 +1,8 @@
 import { UNASSIGNED_SCOPE } from '../../shared/workspace-scope';
 import { displayMessage } from '../i18n/messages';
-import { t, changeLocale, currentLocale } from '../i18n';
+import { t, currentLocale } from '../i18n';
 import { useState } from 'react';
-import { localeNames, supportedLocales, type Locale } from '../i18n/locales';
-import { ArrowDownUp, ArrowUpCircle, Bell, Languages, DatabaseBackup } from 'lucide-react';
+import { ArrowDownUp, ArrowUpCircle, Server } from 'lucide-react';
 import type { Project, ThreadSummary } from '../../shared/types';
 import type { ProjectThreads } from '../lib/project-threads';
 import { cn } from '../lib/utils';
@@ -14,6 +13,7 @@ import { isActive } from './Status';
 import { ThreadLink } from './ThreadLink';
 import { ThreadListNavigation } from './ThreadListNavigation';
 import { ProjectOrderList } from './ProjectOrderList';
+import { SidebarSettings } from './SidebarSettings';
 
 interface Props {
   archiveView: boolean;
@@ -381,57 +381,16 @@ export function Sidebar(props: Props) {
           )}
         </ThreadListNavigation>
         <div className="sidebar-footer">
-          <div className="sidebar-local-tools">
-            <label className="language-selector">
-              <Languages size={16} aria-hidden="true" />
-              <select
-                aria-label={t('common:language')}
-                value={currentLocale()}
-                onChange={(event) => void changeLocale(event.target.value as Locale)}
-              >
-                {supportedLocales.map((locale) => (
-                  <option key={locale} value={locale} lang={locale}>
-                    {localeNames[locale]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <ControlHint content={t('backups:title')} asChild>
-              <Button
-                className="backup-settings-button"
-                variant="ghost"
-                size="icon"
-                aria-label={t('backups:title')}
-                onClick={props.onBackups}
-              >
-                <DatabaseBackup size={16} aria-hidden="true" />
-              </Button>
-            </ControlHint>
-          </div>
-          <Button
-            className="gateway-settings-button"
-            variant="ghost"
-            size="sm"
-            onClick={props.onGatewaySettings}
-          >
-            <Icon name="settings" size={15} />
-            <span>{t('common:service_settings')}</span>
-          </Button>
-          <Button
-            className="notification-settings-button"
-            variant="ghost"
-            size="sm"
-            aria-label={t('sidebar:task_completion_notifications', {
-              v0: props.notificationStatus,
-            })}
-            onClick={props.onNotificationSettings}
-          >
-            <Bell size={15} aria-hidden="true" />
-            <span>{t('sidebar:completion_notifications')}</span>
-            <span className="notification-settings-status">{props.notificationStatus}</span>
-          </Button>
-          <span className="privacy-mark">{t('sidebar:runs_on_server')}</span>
-          <p>{t('sidebar:code_and_credentials_stay_on_the_computer_running')}</p>
+          <SidebarSettings
+            notificationStatus={props.notificationStatus}
+            onNotificationSettings={props.onNotificationSettings}
+            onGatewaySettings={props.onGatewaySettings}
+            onBackups={props.onBackups}
+          />
+          <span className="sidebar-execution-location">
+            <Server size={14} aria-hidden="true" />
+            {t('sidebar:runs_on_server')}
+          </span>
         </div>
       </aside>
     </>

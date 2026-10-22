@@ -28,8 +28,12 @@ function TechnicalDetails({ value }: { value?: string }) {
     </details>
   ) : null;
 }
-export function BackupSettings({ onClose }: { onClose: () => void }) {
+export function BackupSettings({ onClose: onDismiss }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const onClose = () => {
+    dialog.current?.close();
+    onDismiss();
+  };
   const [status, setStatus] = useState<BackupStatus>();
   const [error, setError] = useState<string>();
   const [loadError, setLoadError] = useState<string>();
