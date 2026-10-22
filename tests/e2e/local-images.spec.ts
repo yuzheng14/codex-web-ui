@@ -3,7 +3,7 @@ import { mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import type { ThreadView } from '../../src/shared/types';
-import { createEmptyThread, confirmCompatibility, expectThreadReady } from './helpers';
+import { confirmCompatibility, createThreadButton } from './helpers';
 
 const evidence = '/tmp/codex-local-images-evidence';
 const dialog = (page: Page) => page.getByRole('dialog', { name: '图片预览', exact: true });
@@ -28,8 +28,10 @@ test.beforeEach(async ({ page, request, baseURL }) => {
   await mkdir(evidence, { recursive: true });
   await page.goto('/');
   await confirmCompatibility(page);
-  await createEmptyThread(page);
-  await expectThreadReady(page);
+  // Request routing disables the browser HTTP cache. Create this fixture through
+  // the actual UI so the revalidation tests exercise a normal browser cache.
+  await createThreadButton(page).click();
+  await send(page, '准备图片预览测试');
   const threadId = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
   const thread = (await (await request.get(`/api/threads/${threadId}`)).json()) as ThreadView;
   const assets = join(thread.cwd, 'assets');
@@ -135,12 +137,17 @@ test('local Markdown images and file links load from the gateway and survive rel
   await expect(dialog(page).locator('img')).toHaveJSProperty('naturalWidth', 960);
 });
 
-test('browser revalidates cached previews on reopen and reload and displays same-path updates', async ({
+test('previews reuse fresh images immediately and revalidate stale images in the background', async ({
   page,
   context,
   request,
 }) => {
   await page.setViewportSize({ width: 1280, height: 980 });
+  await page.clock.install();
+  const expire = async () => {
+    const now = await page.evaluate(() => Date.now());
+    await page.clock.setSystemTime(new Date(now + 30_001));
+  };
   // Playwright's response API exposes the combined 200 response after revalidation.
   // CDP extra-info events expose the actual 304 sent over the network without disabling cache.
   const network = await context.newCDPSession(page);
@@ -166,16 +173,39 @@ test('browser revalidates cached previews on reopen and reload and displays same
   await expect(thumbnail(page)).toHaveJSProperty('naturalWidth', 960);
   await expect.poll(() => statuses).toEqual([200]);
   const open = page.getByRole('button', { name: '预览图片：项目进度图', exact: true });
+  const originalSrc = await thumbnail(page).getAttribute('src');
   for (let i = 0; i < 2; i++) {
     await open.click();
     await expect(dialog(page).locator('img')).toHaveJSProperty('naturalWidth', 960);
-    await expect.poll(() => statuses).toEqual([200, ...Array<number>(i + 1).fill(304)]);
-    if (i === 1) await screenshot(page, 'http-cache-preview');
+    await expect(dialog(page).locator('img')).toHaveAttribute('src', originalSrc!);
+    expect(statuses).toEqual([200]);
+    expect(imageRequests.size).toBe(1);
+    if (i === 1) await screenshot(page, 'memory-cache-preview');
     await page.keyboard.press('Escape');
   }
+  // Even a slow revalidation must not block opening the already-loaded image.
+  await network.send('Network.emulateNetworkConditions', {
+    offline: false,
+    latency: 1_500,
+    downloadThroughput: -1,
+    uploadThroughput: -1,
+  });
+  await expire();
+  await open.click();
+  await expect(dialog(page).locator('img')).toHaveJSProperty('naturalWidth', 960);
+  expect(statuses).toEqual([200]);
+  await screenshot(page, 'background-cache-preview');
+  await expect.poll(() => statuses).toEqual([200, 304]);
+  await page.keyboard.press('Escape');
+  await network.send('Network.emulateNetworkConditions', {
+    offline: false,
+    latency: 0,
+    downloadThroughput: -1,
+    uploadThroughput: -1,
+  });
   await page.reload();
   await expect(thumbnail(page)).toHaveJSProperty('naturalWidth', 960);
-  await expect.poll(() => statuses).toEqual([200, 304, 304, 304]);
+  await expect.poll(() => statuses).toEqual([200, 304, 304]);
 
   const threadId = await page.evaluate(() => localStorage.getItem('codex-web.selected:fixture'));
   const thread = (await (await request.get(`/api/threads/${threadId}`)).json()) as ThreadView;
@@ -193,20 +223,29 @@ test('browser revalidates cached previews on reopen and reload and displays same
     return canvas.toDataURL('image/png').split(',')[1]!;
   });
   await writeFile(imagePath, Buffer.from(updated, 'base64'));
+  await expire();
   await open.click();
   await expect(dialog(page).locator('img')).toHaveJSProperty('naturalWidth', 480);
-  await expect.poll(() => statuses).toEqual([200, 304, 304, 304, 200]);
+  await expect(thumbnail(page)).toHaveJSProperty('naturalWidth', 480);
+  await expect.poll(() => statuses).toEqual([200, 304, 304, 200]);
   await screenshot(page, 'http-cache-updated');
   await page.keyboard.press('Escape');
   await open.click();
   await expect(dialog(page).locator('img')).toHaveJSProperty('naturalWidth', 480);
-  await expect.poll(() => statuses).toEqual([200, 304, 304, 304, 200, 304]);
+  expect(statuses).toEqual([200, 304, 304, 200]);
   await page.keyboard.press('Escape');
 
   await rm(imagePath);
+  await expire();
   await open.click();
   await expect(dialog(page).getByRole('alert')).toContainText('图片文件不存在或已被删除');
-  await expect.poll(() => statuses).toEqual([200, 304, 304, 304, 200, 304, 404]);
+  await expect(thumbnail(page)).toHaveCount(0);
+  await expect.poll(() => statuses).toEqual([200, 304, 304, 200, 404]);
+  await writeFile(imagePath, Buffer.from(updated, 'base64'));
+  await dialog(page).getByRole('button', { name: '重试加载图片' }).click();
+  await expect(dialog(page).locator('img')).toHaveJSProperty('naturalWidth', 480);
+  await expect(thumbnail(page)).toHaveJSProperty('naturalWidth', 480);
+  await expect.poll(() => statuses).toEqual([200, 304, 304, 200, 404, 200]);
   expect(imageUrls.size).toBe(1);
   await network.detach();
 });
@@ -216,7 +255,7 @@ test('missing, unsupported and invalid images explain failures and preserve path
 }) => {
   await page.setViewportSize({ width: 1280, height: 980 });
   await send(page, '[local-image-errors] 检查图片加载失败的提示');
-  const reply = page.getByRole('article', { name: 'Codex 的回复' });
+  const reply = page.getByRole('article', { name: 'Codex 的回复' }).last();
   await expect(reply.getByRole('alert')).toHaveCount(4);
   await expect(reply).toContainText('assets/不存在 截图.png');
   await expect(reply).toContainText('assets/diagram.svg');
