@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { ThreadView } from '../../src/shared/types';
-import { confirmCompatibility, controlRuntime } from './helpers';
+import { confirmCompatibility, controlRuntime, selectInterfaceLocale } from './helpers';
 
 const commands = (page: Page) => page.locator('details.activity-command');
 const header = (card: Locator) => card.locator(':scope > summary');
@@ -90,7 +90,7 @@ for (const viewport of [
     await copy(commands(page).first()).click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(stdout);
     if (viewport.name === 'desktop') {
-      await page.locator('.language-selector select').selectOption('en');
+      await selectInterfaceLocale(page, 'en');
       await expect(feedback(commands(page).first())).toHaveText('Copied');
       await commands(page)
         .first()
