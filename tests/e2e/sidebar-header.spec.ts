@@ -107,9 +107,7 @@ for (const viewport of [
     await expect(project).not.toContainText(longPath);
     const heading = project.locator('.project-heading');
     const create = project.getByRole('button', { name: '新建会话', exact: true });
-    await expect(create).toHaveAccessibleDescription(
-      /^新建会话 · (⌘ \+ ⌥ \+ ⇧ \+ N|Ctrl \+ Alt \+ Shift \+ N)$/,
-    );
+    await expect(create).toHaveAccessibleDescription(/^新建会话 · (⌘ \+ ⌥ \+ N|Ctrl \+ Alt \+ N)$/);
     await expect(create).toHaveText('');
     // Read every bound in one frame, including while the mobile drawer slides in.
     const headingMetrics = await heading.evaluate((element) => {

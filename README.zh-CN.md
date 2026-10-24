@@ -36,7 +36,7 @@
 
 操作方式与使用细节见[使用指南](docs/usage.zh-CN.md)。
 
-在当前工作区新建会话：macOS 按 **⌘ + Option + Shift + N**，Windows/Linux 按 **Ctrl + Alt + Shift + N**。输入框会自动获得焦点，已有草稿继续保留。
+在当前工作区新建会话：macOS 按 **⌘ + Option + N**，Windows/Linux 按 **Ctrl + Alt + N**。输入框会自动获得焦点，已有草稿继续保留。
 
 <details>
   <summary><strong>📱 手机上也能舒服地使用</strong></summary>

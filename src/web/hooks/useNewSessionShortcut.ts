@@ -4,8 +4,8 @@ export function newSessionShortcut(platform: string) {
   const mac = /Mac|iPhone|iPad|iPod/i.test(platform);
   return {
     mac,
-    label: mac ? '⌘ + ⌥ + ⇧ + N' : 'Ctrl + Alt + Shift + N',
-    aria: mac ? 'Meta+Alt+Shift+N' : 'Control+Alt+Shift+N',
+    label: mac ? '⌘ + ⌥ + N' : 'Ctrl + Alt + N',
+    aria: mac ? 'Meta+Alt+N' : 'Control+Alt+N',
   };
 }
 
@@ -44,7 +44,7 @@ export function useNewSessionShortcut(enabled: boolean, onCreate: () => void) {
         performance.now() - compositionEndedAt < 100 ||
         event.getModifierState('AltGraph') ||
         !event.altKey ||
-        !event.shiftKey ||
+        event.shiftKey ||
         (mac ? !event.metaKey || event.ctrlKey : !event.ctrlKey || event.metaKey) ||
         // Option and non-Latin layouts can change `key`; use the physical N key.
         (event.code ? event.code !== 'KeyN' : event.key.toLowerCase() !== 'n')

@@ -36,7 +36,7 @@
 
 See the [usage guide · 中文](docs/usage.zh-CN.md) for workflow details and controls.
 
-Start a new conversation in the current workspace with **⌘ + Option + Shift + N** on macOS or **Ctrl + Alt + Shift + N** on Windows/Linux. The message box receives focus and existing drafts stay available.
+Start a new conversation in the current workspace with **⌘ + Option + N** on macOS or **Ctrl + Alt + N** on Windows/Linux. The message box receives focus and existing drafts stay available.
 
 <details>
   <summary><strong>📱 A workspace that fits your phone</strong></summary>

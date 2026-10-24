@@ -9,8 +9,8 @@ import {
 } from './helpers';
 
 const input = (page: Page) => page.locator('.composer-box textarea');
-const chord = 'Meta+Alt+Shift+N';
-const macKey = { key: 'N', code: 'KeyN', metaKey: true, altKey: true, shiftKey: true };
+const chord = 'Meta+Alt+N';
+const macKey = { key: 'n', code: 'KeyN', metaKey: true, altKey: true };
 const selected = (page: Page, scope = 'fixture') =>
   page.evaluate((id) => localStorage.getItem(`codex-web.selected:${id}`), scope);
 
@@ -29,20 +29,20 @@ test.beforeEach(async ({ request }) => {
 });
 
 for (const device of [
-  { name: 'macOS', platform: 'MacIntel', chord, hint: '⌘ + ⌥ + ⇧ + N', aria: 'Meta+Alt+Shift+N' },
+  { name: 'macOS', platform: 'MacIntel', chord, hint: '⌘ + ⌥ + N', aria: 'Meta+Alt+N' },
   {
     name: 'Windows',
     platform: 'Win32',
-    chord: 'Control+Alt+Shift+N',
-    hint: 'Ctrl + Alt + Shift + N',
-    aria: 'Control+Alt+Shift+N',
+    chord: 'Control+Alt+N',
+    hint: 'Ctrl + Alt + N',
+    aria: 'Control+Alt+N',
   },
   {
     name: 'Linux',
     platform: 'Linux x86_64',
-    chord: 'Control+Alt+Shift+N',
-    hint: 'Ctrl + Alt + Shift + N',
-    aria: 'Control+Alt+Shift+N',
+    chord: 'Control+Alt+N',
+    hint: 'Ctrl + Alt + N',
+    aria: 'Control+Alt+N',
   },
 ]) {
   test(`${device.name} opens the current project's draft, focuses it and preserves session drafts`, async ({
@@ -130,7 +130,7 @@ test('composition, repeat, handled keys and other modifier combinations never na
     { metaKey: false, ctrlKey: true },
     { ctrlKey: true },
     { altKey: false },
-    { shiftKey: false },
+    { shiftKey: true },
     { code: 'KeyM' },
   ]) {
     await input(page).dispatchEvent('keydown', { ...macKey, ...override });
