@@ -142,7 +142,7 @@ it('refuses activation when the running Codex changed, then commits only after i
       confirmedUnverified: false,
     },
   });
-  setVersion('0.164.0');
+  setVersion('99.0.0');
   await expect(manager.commitActivation(id)).rejects.toThrow('发生变化');
   setVersion(CODEX_COMPATIBILITY.recommended);
   await manager.commitActivation(id);

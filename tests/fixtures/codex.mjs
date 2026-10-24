@@ -4,8 +4,10 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath, URL } from 'node:url';
 import process from 'node:process';
 import console from 'node:console';
+import packageJson from '../../package.json' with { type: 'json' };
 
-if (process.argv.includes('--version')) console.log('codex-cli 0.163.0');
+if (process.argv.includes('--version'))
+  console.log(`codex-cli ${packageJson.covroCodex.recommended}`);
 else {
   const child = spawn(
     process.execPath,

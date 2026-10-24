@@ -1,5 +1,6 @@
 import { diffPreviewChanges } from './diff-preview';
-/** Explicit test process. Its envelopes and payloads use the CLI-generated 0.163.0 protocol. */
+/** Explicit test process. Its envelopes and payloads use the checked-in CLI-generated protocol. */
+import { CODEX_COMPATIBILITY } from '../../src/codex/compatibility.js';
 import { createInterface } from 'node:readline';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -185,7 +186,7 @@ function makeThread(cwd: string): Thread {
     status: { type: 'idle' },
     path: null,
     cwd,
-    cliVersion: '0.163.0',
+    cliVersion: CODEX_COMPATIBILITY.recommended,
     originator: 'codex_web_ui',
     source: 'vscode',
     threadSource: null,
@@ -1594,7 +1595,7 @@ function receive(request: ClientRequest): void {
     }
     initialized = true;
     reply(request.id, {
-      userAgent: 'codex/0.163.0',
+      userAgent: `codex/${CODEX_COMPATIBILITY.recommended}`,
       codexHome: '/tmp/simulated-codex',
       platformFamily: 'unix',
       platformOs: 'macos',

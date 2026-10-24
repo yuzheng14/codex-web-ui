@@ -6,6 +6,13 @@ import { join, resolve } from 'node:path';
 import { CodexAdapter, type AdapterEvent } from '../src/codex/adapter.js';
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--');
+const expectedIndex = args.indexOf('--expected-version');
+const expectedVersion = expectedIndex >= 0 ? args[expectedIndex + 1] : undefined;
+assert.match(
+  expectedVersion ?? '',
+  /^\d+\.\d+\.\d+$/,
+  'Pass --expected-version with an exact CLI version',
+);
 if (!args.includes('--inference')) throw new Error('Pass --inference to use model quota');
 const configIndex = args.indexOf('--config');
 if (configIndex < 0) throw new Error('Pass --config selecting a binary and an isolated CODEX_HOME');
@@ -48,7 +55,7 @@ async function terminal(id: string) {
 try {
   await adapter.start();
   report.codexVersion = adapter.diagnostics().codexVersion;
-  assert.equal(report.codexVersion, '0.163.0');
+  assert.equal(report.codexVersion, expectedVersion);
   assert.equal(adapter.diagnostics().authenticated, true);
   const thread = await adapter.createThread(project, {
     sandbox: 'workspace-write',

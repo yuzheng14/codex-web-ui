@@ -17,6 +17,7 @@ import {
   rename,
 } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { setTimeout } from 'node:timers/promises';
 import Database from 'better-sqlite3';
@@ -85,8 +86,8 @@ for (const mode of [
       ['codex-mismatch', 'codex-unverified', 'codex-confirmed', 'codex-unsupported'].includes(mode)
     )
       next.covroCodex = {
-        recommended: '0.164.0',
-        verified: ['0.164.0'],
+        recommended: '99.0.0',
+        verified: ['99.0.0'],
         unsupported:
           mode === 'codex-unsupported'
             ? [
@@ -131,14 +132,18 @@ for (const mode of [
     let codexBinary = resolve('tests/fixtures/codex.mjs');
     if (mode === 'codex-restarted') {
       const versionFile = join(directory, 'codex-version');
-      await writeFile(versionFile, 'codex-cli 0.163.0');
+      await writeFile(versionFile, `codex-cli ${CODEX_COMPATIBILITY.recommended}`);
       const fixture = await readFile(codexBinary, 'utf8');
       codexBinary = join(directory, 'codex-fixture.mjs');
       await writeFile(
         codexBinary,
         fixture
           .replace(
-            "console.log('codex-cli 0.163.0')",
+            "'../../package.json'",
+            JSON.stringify(pathToFileURL(resolve('package.json')).href),
+          )
+          .replace(
+            'console.log(`codex-cli ${packageJson.covroCodex.recommended}`)',
             `console.log((await import('node:fs')).readFileSync(${JSON.stringify(versionFile)}, 'utf8'))`,
           )
           .replace(
@@ -155,7 +160,7 @@ for (const mode of [
         daemonFile,
         daemon.replace(
           marker,
-          `await (await import('node:fs/promises')).writeFile(${JSON.stringify(versionFile)}, 'codex-cli 0.164.0');\n${marker}`,
+          `await (await import('node:fs/promises')).writeFile(${JSON.stringify(versionFile)}, 'codex-cli 99.0.0');\n${marker}`,
         ),
       );
     }

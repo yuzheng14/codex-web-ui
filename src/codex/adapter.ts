@@ -1003,7 +1003,7 @@ export class CodexAdapter implements CodexClient {
         excludeTurns: true,
       });
     } catch (error) {
-      // Verified with two 0.163.0 processes, for both legacy and paginated histories.
+      // Verified with two 0.164.0 processes, for both legacy and paginated histories.
       // -32600 alone covers many failures; match this thread's writer conflict exactly.
       if (
         error instanceof CodexError &&

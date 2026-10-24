@@ -51,7 +51,7 @@
 
 <!-- codex-compatibility:start -->
 
-推荐 Codex CLI：**0.163.0**。已验证版本：`0.163.0`。
+推荐 Codex CLI：**0.164.0**。已验证版本：`0.164.0`。
 
 <!-- codex-compatibility:end -->
 
