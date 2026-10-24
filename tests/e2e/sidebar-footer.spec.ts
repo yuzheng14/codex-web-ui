@@ -87,7 +87,7 @@ for (const locale of supportedLocales) {
 }
 
 for (const target of [
-  { button: /工作完成通知/, dialog: '.notification-dialog' },
+  { button: /浏览器通知/, dialog: '.notification-dialog' },
   { button: '服务配置', dialog: '.gateway-dialog' },
   { button: '备份与恢复', dialog: '.backup-dialog' },
 ]) {

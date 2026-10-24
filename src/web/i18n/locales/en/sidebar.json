@@ -26,7 +26,6 @@
   "projects_and_sessions": "Projects and sessions",
   "archived_sessions": "Archived sessions",
   "all_sessions_loaded": "All sessions loaded",
-  "completion_notifications": "Completion notifications",
   "runs_on_server": "Runs on server",
   "code_and_credentials_stay_on_the_computer_running": "Code and credentials stay on the computer running the service",
   "close_session_navigation": "Close session navigation",
@@ -56,7 +55,6 @@
   "no_matching_projects_or_loaded_sessions": "No matching projects or loaded sessions.",
   "no_projects_yet_add_a_server_directory_to": "No projects yet. Add a server directory to get started.",
   "loading_projects": "Loading projects…",
-  "task_completion_notifications": "Task completion notifications · {{v0}}",
   "copy_full_thread_id": "Copy full Thread ID",
   "copy_thread_id": "Copy Thread ID",
   "copy_failed_select_and_copy_the_id_manually": "Copy failed. Select and copy the ID manually.",
@@ -166,5 +164,7 @@
   "order_saved": "Order saved",
   "order_auto_save": "Changes save automatically and survive refreshes and restarts.",
   "order_save_failed": "{{v0}} Please try again.",
-  "settings": "Settings"
+  "settings": "Settings",
+  "browser_notifications": "Browser notifications",
+  "browser_notifications_status": "Browser notifications · {{v0}}"
 }

@@ -8,6 +8,7 @@ import type {
   ThreadSummary,
   ThreadView,
   TurnCompletion,
+  AttentionRequest,
 } from '../../shared/types';
 
 export type ConnectionState =
@@ -40,7 +41,8 @@ export class ProjectionCache {
   apply(message: ServerMessage): boolean {
     if (message.type === 'error') return true;
     // Live signals do not establish or advance any snapshot/replay cursor.
-    if (message.type === 'event' && message.kind === 'turnCompletion') return true;
+    if (message.type === 'event' && ['turnCompletion', 'attentionRequest'].includes(message.kind))
+      return true;
     if (message.type === 'snapshot') {
       const previous = this.threads.get(message.threadId);
       if (
@@ -108,6 +110,7 @@ interface Handlers {
   operation: (operation: Operation) => void;
   error: (message: string) => void;
   completion?: (completion: TurnCompletion) => void;
+  attention?: (request: AttentionRequest) => void;
   refresh?: () => void;
 }
 
@@ -169,6 +172,21 @@ function isMessage(value: unknown): value is ServerMessage {
       typeof payload.title === 'string' &&
       ['completed', 'failed', 'interrupted'].includes(String(payload.status))
     );
+  if (m.type === 'event' && m.kind === 'attentionRequest') {
+    const target = payload.target as Record<string, unknown> | undefined;
+    return (
+      typeof m.threadId === 'string' &&
+      payload.threadId === m.threadId &&
+      (payload.projectId === null || typeof payload.projectId === 'string') &&
+      typeof payload.title === 'string' &&
+      ['answer', 'approval'].includes(String(payload.kind)) &&
+      Boolean(
+        target &&
+        ['action', 'question'].includes(String(target.kind)) &&
+        typeof target.id === 'string',
+      )
+    );
+  }
   return m.type === 'event' && (m.kind === 'runtime' || m.kind === 'operation');
 }
 
@@ -294,6 +312,8 @@ export class ThreadStream {
         if (value.type === 'event') {
           if (value.kind === 'turnCompletion')
             this.handlers.completion?.(value.payload as TurnCompletion);
+          if (value.kind === 'attentionRequest')
+            this.handlers.attention?.(value.payload as AttentionRequest);
           if (value.kind === 'threadSummary')
             this.handlers.summary(value.payload as ThreadSummary, value.cursor);
           if (value.kind === 'thread' && value.threadId === this.selected)

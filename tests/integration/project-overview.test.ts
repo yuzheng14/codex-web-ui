@@ -147,7 +147,9 @@ describe('project conversation overview', () => {
     });
     await service.startTurn(second, { clientOperationId: operationId(), text: 'secret prompt' });
     codex.emit({ type: 'action', action: approval(second, 'turn-1') });
-    expect(overview.at(-1)).toMatchObject({
+    expect(
+      overview.findLast((event) => event.type === 'event' && event.kind === 'threadSummary'),
+    ).toMatchObject({
       kind: 'threadSummary',
       payload: {
         status: 'waitingApproval',

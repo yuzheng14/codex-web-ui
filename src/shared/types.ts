@@ -423,14 +423,40 @@ export interface TurnCompletion {
   title: string;
   status: 'completed' | 'failed' | 'interrupted';
 }
+export interface AttentionTarget {
+  kind: 'action' | 'question';
+  id: string;
+}
+/** Live-only signal for a newly actionable request. Never replayed from history. */
+export interface AttentionRequest {
+  threadId: string;
+  projectId: string | null;
+  title: string;
+  kind: 'answer' | 'approval';
+  target: AttentionTarget;
+}
 export type ServerMessage =
   | { type: 'snapshot'; cursor: Cursor; threadId: string; data: ThreadView }
   | {
       type: 'event';
       cursor: Cursor;
       threadId?: string;
-      kind: 'thread' | 'threadSummary' | 'runtime' | 'operation' | 'projects' | 'turnCompletion';
-      payload: ThreadView | ThreadSummary | SystemInfo | Operation | Project[] | TurnCompletion;
+      kind:
+        | 'thread'
+        | 'threadSummary'
+        | 'runtime'
+        | 'operation'
+        | 'projects'
+        | 'turnCompletion'
+        | 'attentionRequest';
+      payload:
+        | ThreadView
+        | ThreadSummary
+        | SystemInfo
+        | Operation
+        | Project[]
+        | TurnCompletion
+        | AttentionRequest;
     }
   | { type: 'error'; error: ApiError };
 

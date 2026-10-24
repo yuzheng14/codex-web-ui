@@ -1,4 +1,5 @@
 import type { CodexClient, CodexDiagnostics, CodexEvent } from '../codex/types.js';
+import { attentionKey, pendingAttention } from '../shared/thread-attention.js';
 import { ShellService } from './shell.js';
 import type { StartShellInput } from '../shared/shell.js';
 import { realpathSync } from 'node:fs';
@@ -619,6 +620,13 @@ export class GatewayService {
     // A completed project can be removed while its metadata request is in flight.
     this.workspaces.assertOwnership(thread.projectId, thread.cwd, thread.id);
     return this.threadView(thread);
+  }
+
+  getThreadAttention(threadId: string) {
+    const thread = this.projection.get(threadId);
+    if (!thread) return [];
+    this.workspaces.assertOwnership(thread.projectId, thread.cwd, thread.id);
+    return pendingAttention(thread);
   }
 
   async getThreadHistory(threadId: string, cursor?: string): Promise<ThreadView> {
@@ -1625,8 +1633,14 @@ export class GatewayService {
     if (event.type === 'action') {
       const action = event.action;
       if (action.codexEpoch !== this.codex.epoch) return;
+      const known = this.projection.actions.has(action.actionId);
+      const owner = action.threadId ? this.projection.get(action.threadId) : undefined;
+      const previous = new Set(owner ? pendingAttention(owner).map(attentionKey) : []);
       this.projection.action(action);
-      if (action.threadId) this.publishThread(action.threadId);
+      if (action.threadId) {
+        this.publishThread(action.threadId);
+        if (!known) this.publishNewAttention(action.threadId, previous);
+      }
       return;
     }
     if (event.type === 'actionResolved') {
@@ -1641,6 +1655,11 @@ export class GatewayService {
     }
     const thread = this.projection.get(event.threadId);
     if (!thread) return;
+    const previousAttention = new Set(
+      event.type === 'item' || event.type === 'turn'
+        ? pendingAttention(thread).map(attentionKey)
+        : [],
+    );
     if (event.type === 'compactionCompleted') {
       if (this.projection.compactionCompleted(thread.id, event.turnId))
         this.publishThread(thread.id);
@@ -1721,5 +1740,16 @@ export class GatewayService {
       this.projection.diff(thread.id, event.turnId, event.diff);
     }
     this.publishThread(thread.id);
+    if (event.type === 'item' || event.type === 'turn')
+      this.publishNewAttention(thread.id, previousAttention);
+  }
+
+  private publishNewAttention(threadId: string, previous: Set<string>): void {
+    try {
+      for (const request of this.getThreadAttention(threadId))
+        if (!previous.has(attentionKey(request))) this.events.publishAttention(request);
+    } catch {
+      // Removed or unavailable projects must not disclose request metadata.
+    }
   }
 }

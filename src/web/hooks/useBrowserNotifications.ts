@@ -2,9 +2,13 @@ import { scopeKey } from '../../shared/workspace-scope';
 import { message } from '../i18n/messages';
 import { t } from '../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TurnCompletion } from '../../shared/types';
+import type { AttentionRequest, AttentionTarget, TurnCompletion } from '../../shared/types';
+import { attentionKey } from '../../shared/thread-attention';
+import { api } from '../lib/api';
 import {
   claimCompletion,
+  claimNotification,
+  attentionNotification,
   completionNotification,
   notificationAccess,
   notificationsEnabled,
@@ -13,7 +17,7 @@ import {
 
 interface Options {
   projectName: (projectId: string) => string | undefined;
-  openThread: (threadId: string, projectId: string) => void;
+  openThread: (threadId: string, projectId: string, target?: AttentionTarget) => void;
 }
 
 export function useBrowserNotifications(options: Options) {
@@ -134,7 +138,7 @@ export function useBrowserNotifications(options: Options) {
     setError(undefined);
     try {
       show(t('notifications:test_notification'), {
-        body: t('notifications:project_session_and_completion_status_will_appear_here'),
+        body: t('notifications:test_description'),
       });
     } catch {
       setError(
@@ -143,7 +147,39 @@ export function useBrowserNotifications(options: Options) {
     }
   };
 
-  return { enabled, access, requesting, error, toggle, test, notify };
+  const notifyAttention = useCallback(
+    async (request: AttentionRequest) => {
+      if (!notificationsEnabled() || notificationAccess() !== 'granted') return;
+      const project = scopeKey(request.projectId);
+      if (!latest.current.projectName(project)) return;
+      try {
+        if (!(await claimNotification(attentionKey(request)))) return;
+        // Revalidate after asynchronous arbitration: another tab may already have responded.
+        const pending = await api.threadAttention(request.threadId);
+        if (!pending.some((entry) => attentionKey(entry) === attentionKey(request))) return;
+        const name = latest.current.projectName(project);
+        if (
+          !mounted.current ||
+          !name ||
+          !notificationsEnabled() ||
+          notificationAccess() !== 'granted'
+        )
+          return;
+        const notification = attentionNotification(request, name);
+        show(notification.title, notification.options, () =>
+          latest.current.openThread(request.threadId, project, request.target),
+        );
+      } catch {
+        if (mounted.current)
+          setError(
+            message('notifications:cannot_show_notifications_or_save_deduplication_records_check'),
+          );
+      }
+    },
+    [show],
+  );
+
+  return { enabled, access, requesting, error, toggle, test, notify, notifyAttention };
 }
 
 export type BrowserNotifications = ReturnType<typeof useBrowserNotifications>;

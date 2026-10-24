@@ -16,11 +16,11 @@ declare global {
     };
   }
 }
-const evidence = join(tmpdir(), 'codex-issue-25-evidence');
-const dialog = (page: Page) => page.getByRole('dialog', { name: '工作完成通知' });
+const evidence = join(tmpdir(), 'covro-issue-248-evidence');
+const dialog = (page: Page) => page.getByRole('dialog', { name: '浏览器通知' });
 async function openNotificationSettings(page: Page) {
   await openSidebarSettings(page);
-  await page.getByRole('button', { name: /工作完成通知/ }).click();
+  await page.getByRole('button', { name: /浏览器通知/ }).click();
 }
 const toggle = (page: Page) => page.getByRole('switch', { name: '浏览器通知' });
 const captured = (page: Page) =>
@@ -77,7 +77,7 @@ async function create(request: APIRequestContext, project = 'fixture', title = '
   await submit(request, `/api/threads/${threadId}/rename`, { name: title });
   return threadId;
 }
-async function start(request: APIRequestContext, id: string, text = '检查完成通知') {
+async function start(request: APIRequestContext, id: string, text = '检查浏览器通知') {
   const operation = await submit(request, `/api/threads/${id}/turns`, {
     text: `${text} [title-fail]`,
   });
@@ -160,14 +160,19 @@ test('distinguishes failure and interruption, with no notification from reload, 
   await expect.poll(() => captured(page)).toMatchObject([{ title: 'Agent 执行失败' }]);
   const turnId = await start(request, id, '[approval] 等待中断');
   await waitStatus(request, id, 'waitingApproval');
+  await expect.poll(() => captured(page)).toHaveLength(2);
   await submit(request, `/api/threads/${id}/interrupt`, { expectedTurnId: turnId });
   await expect
     .poll(() => captured(page))
-    .toMatchObject([{ title: 'Agent 执行失败' }, { title: 'Agent 已中断' }]);
+    .toMatchObject([
+      { title: 'Agent 执行失败' },
+      { title: 'Agent 需要审批' },
+      { title: 'Agent 已中断' },
+    ]);
   await submit(request, `/api/threads/${id}/rename`, { name: '重命名不重复通知' });
   await page.getByRole('button', { name: '刷新会话列表' }).click();
   await expect(page.locator(`[data-thread-id="${id}"]`)).toContainText('重命名不重复通知');
-  expect(await captured(page)).toHaveLength(2);
+  expect(await captured(page)).toHaveLength(3);
   await page.reload();
   await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
   await expect(page.locator(`[data-thread-id="${id}"]`)).toBeVisible();
@@ -217,6 +222,10 @@ test('recovers results and unread markers after freeze/resume lifecycle events w
   const id = await create(request);
   await start(request, id, '[approval] 页面休眠验收');
   await waitStatus(request, id, 'waitingApproval');
+  await expect.poll(() => captured(page)).toMatchObject([{ title: 'Agent 需要审批' }]);
+  await page.evaluate(() => {
+    window.notificationTest.shown = [];
+  });
   // Headless Chromium keeps pages visible and does not enter the frozen lifecycle state.
   // Dispatch its lifecycle events explicitly; socket closure, server work and recovery are real.
   await page.evaluate(() => document.dispatchEvent(new Event('freeze')));
@@ -287,4 +296,205 @@ test('fails safely when durable deduplication storage is unavailable', async ({
   await waitStatus(request, id, 'completed');
   await expect(dialog(page).getByRole('alert')).toContainText('去重记录');
   expect(await captured(page)).toHaveLength(0);
+});
+
+for (const [prompt, title, selector, state] of [
+  ['[approval]', 'Agent 需要审批', '.action-card', 'waitingApproval'],
+  ['[permissions]', 'Agent 需要审批', '.action-card', 'waitingApproval'],
+  ['[questions]', 'Agent 需要回答', '.action-card', 'waitingInput'],
+  ['[async-questions-running]', 'Agent 需要回答', '.async-question-card', 'running'],
+] as const) {
+  test(`${prompt} notifies across projects, focuses its card and survives reconnect without another reminder`, async ({
+    page,
+    context,
+    request,
+  }) => {
+    await mockNotifications(page);
+    await open(page);
+    await enable(page);
+    await page.getByRole('button', { name: '关闭通知设置' }).click();
+    const id = await create(request, 'fixture-other', '等待你处理的会话');
+    await start(request, id, prompt);
+    await waitStatus(request, id, state);
+    await expect
+      .poll(() => captured(page))
+      .toMatchObject([{ title, options: { body: '另一个项目 · 等待你处理的会话' } }]);
+    expect(await captured(page)).toHaveLength(1);
+    await page.evaluate(() => window.notificationTest.shown[0]!.click());
+    await expect(page.locator(`[data-thread-id="${id}"]`)).toHaveAttribute('aria-current', 'page');
+    const card = page.locator(selector).first();
+    await expect(card).toBeFocused();
+    await expect(card).toBeInViewport();
+    if (selector === '.async-question-card') {
+      await expect(card.locator('.async-question-heading')).toBeInViewport();
+      await expect
+        .poll(async () => {
+          const heading = await card.locator('.async-question-heading').boundingBox();
+          const sticky = await page.locator('.sticky-prompt').boundingBox();
+          return Boolean(heading && (!sticky || heading.y >= sticky.y + sticky.height));
+        })
+        .toBe(true);
+    }
+    await page.screenshot({ path: join(evidence, `${prompt.slice(1, -1)}-focused.png`) });
+    await context.setOffline(true);
+    await expect(page.locator('.connection-badge')).not.toHaveText('实时连接正常');
+    await context.setOffline(false);
+    await expect(page.locator('.connection-badge')).toHaveText('实时连接正常');
+    await submit(request, `/api/threads/${id}/rename`, { name: '更新标题不会重复提醒' });
+    await expect(page.locator(`[data-thread-id="${id}"]`)).toContainText('更新标题不会重复提醒');
+    expect(await captured(page)).toHaveLength(1);
+    await page.reload();
+    await expect(page.locator(selector).first()).toBeVisible();
+    expect(await captured(page)).toHaveLength(0);
+  });
+}
+
+test('deduplicates an approval across tabs and handles clicking its old notification after interruption', async ({
+  page,
+  context,
+  request,
+}) => {
+  await mockNotifications(page);
+  await open(page);
+  await enable(page);
+  await page.getByRole('button', { name: '关闭通知设置' }).click();
+  const other = await context.newPage();
+  await mockNotifications(other, 'granted');
+  await other.goto('/');
+  await expect(other.locator('.connection-badge')).toHaveText('实时连接正常');
+  const id = await create(request);
+  const turnId = await start(request, id, '[approval]');
+  await expect
+    .poll(async () => (await captured(page)).length + (await captured(other)).length)
+    .toBe(1);
+  const notified = (await captured(page)).length ? page : other;
+  await submit(request, `/api/threads/${id}/interrupt`, { expectedTurnId: turnId });
+  await waitStatus(request, id, 'interrupted');
+  await notified.evaluate(() => window.notificationTest.shown[0]!.click());
+  await expect(notified.locator(`[data-thread-id="${id}"]`)).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(notified.locator('.turn-heading .status').last()).toHaveText('已中断');
+  await expect(notified.locator('.action-card')).toHaveCount(0);
+  expect(
+    (await captured(page))
+      .concat(await captured(other))
+      .filter(({ title }) => title === 'Agent 需要审批'),
+  ).toHaveLength(1);
+});
+
+test('does not notify a request resolved while durable arbitration is in flight', async ({
+  page,
+  request,
+}) => {
+  await mockNotifications(page);
+  await open(page);
+  await enable(page);
+  await page.getByRole('button', { name: '关闭通知设置' }).click();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let checking!: () => void;
+  const started = new Promise<void>((resolve) => {
+    checking = resolve;
+  });
+  await page.route('**/api/threads/*/attention', async (route) => {
+    checking();
+    await gate;
+    await route.continue();
+  });
+  const id = await create(request);
+  const turnId = await start(request, id, '[approval]');
+  await started;
+  await submit(request, `/api/threads/${id}/interrupt`, { expectedTurnId: turnId });
+  await waitStatus(request, id, 'interrupted');
+  release();
+  await expect.poll(() => captured(page)).toMatchObject([{ title: 'Agent 已中断' }]);
+  await page.unroute('**/api/threads/*/attention');
+  await openNotificationSettings(page);
+  await expect(dialog(page).getByRole('alert')).toHaveCount(0);
+  expect((await captured(page)).filter(({ title }) => title === 'Agent 需要审批')).toHaveLength(0);
+});
+
+test('answered async questions do not notify again and old notifications open their recorded answer', async ({
+  page,
+  request,
+}) => {
+  await mockNotifications(page);
+  await open(page);
+  await enable(page);
+  await page.getByRole('button', { name: '关闭通知设置' }).click();
+  const id = await create(request);
+  await start(request, id, '[async-questions]');
+  await expect
+    .poll(async () => (await captured(page)).filter(({ title }) => title === 'Agent 需要回答'))
+    .toHaveLength(1);
+  await page.evaluate(() =>
+    window.notificationTest.shown.find(({ title }) => title === 'Agent 需要回答')!.click(),
+  );
+  const card = page.locator('.async-question-card');
+  await expect(card).toBeFocused();
+  await card.getByRole('textbox', { name: '项目名称是什么？：自由回答' }).fill('通知回归项目');
+  await card.getByRole('button', { name: '发送回答', exact: true }).click();
+  await expect(card).toContainText('已发送回答');
+  await expect(page.locator('.turn-heading .status').last()).toHaveText('已完成');
+  await page.evaluate(() =>
+    window.notificationTest.shown.find(({ title }) => title === 'Agent 需要回答')!.click(),
+  );
+  await expect(card).toContainText('通知回归项目');
+  await expect(card.getByRole('button', { name: '发送回答' })).toHaveCount(0);
+  expect((await captured(page)).filter(({ title }) => title === 'Agent 需要回答')).toHaveLength(1);
+});
+
+for (const mode of ['disabled', 'denied', 'unsupported', 'failed'] as const) {
+  test(`pending requests remain usable with notifications ${mode}`, async ({ page, request }) => {
+    await mockNotifications(page, mode === 'denied' ? 'denied' : 'granted');
+    await open(page);
+    if (mode === 'failed') {
+      await enable(page);
+      await page.getByRole('button', { name: '关闭通知设置' }).click();
+      await page.evaluate(() => {
+        window.notificationTest.fail = true;
+      });
+    } else if (mode === 'unsupported') {
+      await page.evaluate(() => {
+        Reflect.deleteProperty(window, 'Notification');
+      });
+    }
+    const id = await create(request);
+    await start(request, id, '[approval]');
+    await waitStatus(request, id, 'waitingApproval');
+    await page.locator(`[data-thread-id="${id}"]`).click();
+    const card = page.locator('.action-card');
+    await expect(card).toBeVisible();
+    await expect(card.getByRole('button').first()).toBeEnabled();
+    if (mode === 'failed') {
+      await openNotificationSettings(page);
+      await expect(dialog(page).getByRole('alert')).toContainText('去重记录');
+      await page.getByRole('button', { name: '关闭通知设置' }).click();
+    }
+    await card.getByRole('button').first().click();
+    await waitStatus(request, id, 'completed');
+    expect(await captured(page)).toHaveLength(0);
+  });
+}
+
+test('notification clicks dismiss notification settings and mobile navigation before focusing the request', async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockNotifications(page);
+  await open(page);
+  await enable(page);
+  const id = await create(request, 'fixture-other', '手机上的待回答问题');
+  await start(request, id, '[questions]');
+  await expect.poll(() => captured(page)).toMatchObject([{ title: 'Agent 需要回答' }]);
+  await page.evaluate(() => window.notificationTest.shown[0]!.click());
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(page.locator('.action-card')).toBeFocused();
+  await expect(page.locator('.action-card')).toBeInViewport();
+  await page.screenshot({ path: join(evidence, 'questions-mobile-focused.png') });
 });

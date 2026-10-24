@@ -92,11 +92,11 @@ function SettingsDialog({ onClose, ...props }: Props & { onClose: () => void }) 
       <div className="sidebar-settings-links">
         <Button
           variant="ghost"
-          aria-label={t('sidebar:task_completion_notifications', { v0: props.notificationStatus })}
+          aria-label={t('sidebar:browser_notifications_status', { v0: props.notificationStatus })}
           onClick={() => navigate(props.onNotificationSettings)}
         >
           <Bell size={18} aria-hidden="true" />
-          <span className="sidebar-settings-label">{t('sidebar:completion_notifications')}</span>
+          <span className="sidebar-settings-label">{t('sidebar:browser_notifications')}</span>
           <span className="sidebar-settings-status">{props.notificationStatus}</span>
           <ChevronRight size={16} aria-hidden="true" />
         </Button>

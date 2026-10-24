@@ -4,6 +4,7 @@ import { localPreviewUrl } from './local-files';
 import { scopeApi } from '../../shared/workspace-scope';
 import type {
   ApiError,
+  AttentionRequest,
   TextFile,
   RuntimeSettings,
   Operation,
@@ -105,6 +106,8 @@ export const api = {
     ),
   thread: (threadId: string, signal?: AbortSignal) =>
     request<ThreadView>(`/api/threads/${encodeURIComponent(threadId)}`, undefined, signal),
+  threadAttention: (threadId: string) =>
+    request<AttentionRequest[]>(`/api/threads/${encodeURIComponent(threadId)}/attention`),
   threadHistory: (threadId: string, cursor: string, signal: AbortSignal) =>
     request<ThreadView>(
       `/api/threads/${encodeURIComponent(threadId)}/history?${new URLSearchParams({ cursor })}`,

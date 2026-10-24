@@ -1,5 +1,6 @@
 import { t } from '../i18n';
-import type { TurnCompletion } from '../../shared/types';
+import type { AttentionRequest, TurnCompletion } from '../../shared/types';
+import { attentionKey } from '../../shared/thread-attention';
 
 export const NOTIFICATIONS_ENABLED_KEY = 'codex-web.notifications-enabled';
 export type NotificationAccess = NotificationPermission | 'unsupported' | 'insecure';
@@ -36,7 +37,22 @@ export function completionNotification(completion: TurnCompletion, projectName: 
 /** IndexedDB's unique key and transaction boundary arbitrate simultaneous tabs atomically.
  * Fail closed when storage is unavailable: in-page results remain usable without duplicates.
  */
-export async function claimCompletion(threadId: string, turnId: string): Promise<boolean> {
+export function claimCompletion(threadId: string, turnId: string): Promise<boolean> {
+  return claimNotification(JSON.stringify([threadId, turnId]));
+}
+
+export function attentionNotification(request: AttentionRequest, projectName: string) {
+  return {
+    title: t(
+      request.kind === 'answer'
+        ? 'notifications:answer_required'
+        : 'notifications:approval_required',
+    ),
+    options: { body: `${projectName} · ${request.title}`, tag: attentionKey(request) },
+  };
+}
+
+export async function claimNotification(key: string): Promise<boolean> {
   const database = await new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open('codex-web.notifications', 1);
     let blocked = false;
@@ -57,7 +73,7 @@ export async function claimCompletion(threadId: string, turnId: string): Promise
     return await new Promise<boolean>((resolve, reject) => {
       const transaction = database.transaction('completions', 'readwrite');
       const request = transaction.objectStore('completions').add({
-        key: JSON.stringify([threadId, turnId]),
+        key,
       });
       let duplicate = false;
       request.onerror = (event) => {

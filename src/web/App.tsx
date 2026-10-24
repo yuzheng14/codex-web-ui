@@ -119,6 +119,45 @@ export function App() {
     scope: workspace.cacheScope,
     forbidden: historyForbidden,
   });
+  const { notificationTarget, clearNotificationTarget } = workspace;
+  useEffect(() => {
+    if (!notificationTarget || history.thread?.id !== notificationTarget.threadId || !thread)
+      return;
+    if (sidebarOpen || notificationSettingsOpen) {
+      setSidebarOpen(false);
+      setNotificationSettingsOpen(false);
+      return;
+    }
+    const { target } = notificationTarget;
+    const card = [...document.querySelectorAll<HTMLElement>('[data-attention-id]')].find(
+      (element) =>
+        element.dataset.attentionKind === target.kind && element.dataset.attentionId === target.id,
+    );
+    if (card) {
+      card.focus({ preventScroll: true });
+      card.scrollIntoView({ block: 'start' });
+    } else if (
+      target.kind === 'question' &&
+      history.thread.history?.olderCursor &&
+      !historyForbidden
+    ) {
+      if (!history.loading && !history.error) void history.loadOlder();
+      return;
+    }
+    // A resolved or expired request simply opens the current conversation.
+    clearNotificationTarget();
+  }, [
+    notificationTarget,
+    history.thread,
+    history.loading,
+    history.error,
+    history.loadOlder,
+    thread,
+    historyForbidden,
+    clearNotificationTarget,
+    sidebarOpen,
+    notificationSettingsOpen,
+  ]);
   const resumeAttempt = useRef<string | undefined>(undefined);
   const canControl = Boolean(
     system?.ready &&
