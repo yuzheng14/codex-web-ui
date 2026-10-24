@@ -2853,6 +2853,7 @@ html.composer-resizing * {
 }
 .async-question-card {
   min-width: 0;
+  scroll-margin-block-start: calc(var(--prompt-sticky-height, 40px) + 8px);
   padding: 18px;
   border: 1px solid #dce5df;
   border-radius: 12px;

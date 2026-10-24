@@ -35,6 +35,9 @@ export function ActionCard({
     <section
       className={`action-card${action.kind === 'unsupported' ? ' action-card-unsupported' : ''}`}
       aria-label={actionTitle(action)}
+      data-attention-kind="action"
+      data-attention-id={action.actionId}
+      tabIndex={-1}
     >
       <div className="action-heading">
         <span className="action-icon">

@@ -8,6 +8,7 @@ import type {
   ThreadSummary,
   ThreadView,
   TurnCompletion,
+  AttentionRequest,
 } from '../shared/types.js';
 
 type BusinessEvent = Extract<ServerMessage, { type: 'event' }>;
@@ -91,6 +92,17 @@ export class EventHub {
       threadId: completion.threadId,
       cursor: this.cursor(),
       payload: structuredClone(completion),
+    };
+    for (const listener of this.overviewListeners) this.deliver(listener, event);
+  }
+
+  publishAttention(request: AttentionRequest): void {
+    const event: BusinessEvent = {
+      type: 'event',
+      kind: 'attentionRequest',
+      threadId: request.threadId,
+      cursor: this.cursor(),
+      payload: structuredClone(request),
     };
     for (const listener of this.overviewListeners) this.deliver(listener, event);
   }

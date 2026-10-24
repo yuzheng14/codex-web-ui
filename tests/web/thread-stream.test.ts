@@ -64,6 +64,7 @@ function start() {
     operation: vi.fn(),
     error: vi.fn(),
     completion: vi.fn(),
+    attention: vi.fn(),
     refresh: vi.fn(),
   };
   stream = new ThreadStream(handlers);
@@ -92,6 +93,33 @@ describe('workspace overview transport', () => {
     } as ServerMessage);
     expect(handlers.completion).toHaveBeenCalledTimes(1);
     expect(handlers.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('validates attention signals independently of detail subscriptions and cursors', () => {
+    const { stream, socket, handlers } = start();
+    const event: ServerMessage = {
+      type: 'event',
+      kind: 'attentionRequest',
+      threadId: 'b',
+      cursor: { serverEpoch: 'epoch', seq: 0 },
+      payload: {
+        threadId: 'b',
+        projectId: null,
+        title: 'question',
+        kind: 'answer',
+        target: { kind: 'question', id: 'item' },
+      },
+    };
+    socket.receive(event);
+    socket.receive(event);
+    expect(handlers.attention).toHaveBeenCalledTimes(2);
+    expect(stream.cache.get('b')).toBeUndefined();
+    socket.receive({
+      ...event,
+      payload: { ...event.payload, target: { kind: 'invalid', id: 1 } },
+    } as unknown as ServerMessage);
+    expect(handlers.error).toHaveBeenCalledOnce();
+    expect(handlers.attention).toHaveBeenCalledTimes(2);
   });
 
   it('closes the socket before freezing and refreshes snapshots when the page resumes', () => {

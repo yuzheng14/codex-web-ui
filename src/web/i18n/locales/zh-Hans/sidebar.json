@@ -26,7 +26,6 @@
   "projects_and_sessions": "项目与会话",
   "archived_sessions": "已归档会话",
   "all_sessions_loaded": "已加载全部会话",
-  "completion_notifications": "完成通知",
   "runs_on_server": "服务器执行",
   "code_and_credentials_stay_on_the_computer_running": "代码与凭据保留在运行服务的电脑上",
   "close_session_navigation": "关闭会话导航",
@@ -56,7 +55,6 @@
   "no_matching_projects_or_loaded_sessions": "没有匹配的项目或已加载会话。",
   "no_projects_yet_add_a_server_directory_to": "还没有项目。添加一个服务器目录，开始工作。",
   "loading_projects": "正在读取项目…",
-  "task_completion_notifications": "工作完成通知 · {{v0}}",
   "copy_full_thread_id": "复制完整 Thread ID",
   "copy_thread_id": "复制 Thread ID",
   "copy_failed_select_and_copy_the_id_manually": "复制失败，请手动选择 ID 复制。",
@@ -166,5 +164,7 @@
   "order_saved": "顺序已保存",
   "order_auto_save": "调整后自动保存，刷新和重启后仍会保留。",
   "order_save_failed": "{{v0}} 请重试。",
-  "settings": "设置"
+  "settings": "设置",
+  "browser_notifications": "浏览器通知",
+  "browser_notifications_status": "浏览器通知 · {{v0}}"
 }

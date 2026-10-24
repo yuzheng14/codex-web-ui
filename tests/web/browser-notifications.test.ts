@@ -49,3 +49,20 @@ it('defaults to disabled when preferences cannot be read', () => {
   });
   expect(notificationsEnabled()).toBe(false);
 });
+
+it('distinguishes answers from approvals without exposing their content or colliding with completions', async () => {
+  const { attentionNotification } = await import('../../src/web/lib/browser-notifications');
+  for (const kind of ['answer', 'approval'] as const) {
+    const request = {
+      threadId: 'thread',
+      projectId: 'project',
+      title: '会话',
+      kind,
+      target: { kind: 'action' as const, id: 'turn' },
+    };
+    expect(attentionNotification(request, '项目')).toEqual({
+      title: kind === 'answer' ? 'Agent 需要回答' : 'Agent 需要审批',
+      options: { body: '项目 · 会话', tag: '["attention","thread","action","turn"]' },
+    });
+  }
+});

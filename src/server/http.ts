@@ -322,6 +322,9 @@ export function createApp({
   app.get('/api/threads/:threadId/history', async (c) =>
     c.json(await service.getThreadHistory(id(c.req.param('threadId')), c.req.query('cursor'))),
   );
+  app.get('/api/threads/:threadId/attention', (c) =>
+    c.json(service.getThreadAttention(id(c.req.param('threadId')))),
+  );
   app.get('/api/threads/:threadId/metadata', async (c) =>
     c.json(await service.getThreadMetadata(id(c.req.param('threadId')))),
   );

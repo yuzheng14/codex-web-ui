@@ -1,6 +1,4 @@
 {
-  "task_completion_notifications": "作業完了の通知",
-  "show_project_session_and_result_after_each_turn": "各ターンの終了時にプロジェクト、セッション、結果を表示します。通知をクリックすると該当セッションに戻ります。",
   "browser_notifications": "ブラウザー通知",
   "send_test_notification": "テスト通知を送信",
   "background_notifications_and_sleeping_tabs": "バックグラウンド通知とタブの休止",
@@ -28,10 +26,13 @@
   "the_browser_could_not_show_notifications_check_browser": "ブラウザーが通知を表示できません。ブラウザーとシステムの設定を確認してください。ページ内の状態と未読表示は利用できます。",
   "cannot_show_notifications_or_save_deduplication_records_check": "通知表示または重複防止記録の保存ができません。通知の許可とストレージを確認してください。ページ内の状態と未読表示は利用できます。",
   "test_notification": "テスト通知",
-  "project_session_and_completion_status_will_appear_here": "エージェントの作業終了時に、プロジェクト、セッション、終了状態をここに表示します。",
   "this_browser_cannot_show_system_notifications_check_browser": "このブラウザーはシステム通知を表示できません。ブラウザーとシステムの設定を確認してください。",
   "notification_records_are_in_use_by_another_page": "通知記録が他のページで使用されています。古いページを閉じて再試行してください。",
   "agentCompleted": "エージェントの作業が完了しました",
   "agentFailed": "エージェントの作業が失敗しました",
-  "agentInterrupted": "エージェントの作業を中断しました"
+  "agentInterrupted": "エージェントの作業を中断しました",
+  "events_description": "作業の終了、回答や承認が必要なときにプロジェクトと会話を通知します。クリックすると会話を開き、未処理のリクエストに移動します。",
+  "test_description": "作業が終了したときや、回答・承認が必要なときに通知します。",
+  "answer_required": "Agent への回答が必要です",
+  "approval_required": "Agent の承認が必要です"
 }

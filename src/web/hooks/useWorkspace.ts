@@ -5,6 +5,7 @@ import { message } from '../i18n/messages';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   Cursor,
+  AttentionTarget,
   Operation,
   Project,
   Settings,
@@ -68,6 +69,11 @@ export function useWorkspace() {
   const [thread, setThread] = useState<ThreadView>();
   const [threadReadFailure, setThreadReadFailure] = useState<{ id: string; status: number }>();
   const [selectedId, setSelectedId] = useState<string>();
+  const [notificationTarget, setNotificationTarget] = useState<{
+    threadId: string;
+    target: AttentionTarget;
+  }>();
+  const clearNotificationTarget = useCallback(() => setNotificationTarget(undefined), []);
   const selectedRef = useRef<string | undefined>(undefined);
   const selectedThreadRef = useRef<ThreadView | undefined>(undefined);
   const selectionsRef = useRef<Record<string, string>>({});
@@ -834,12 +840,14 @@ export function useWorkspace() {
       id === UNASSIGNED_SCOPE
         ? t('common:unassigned')
         : projectsRef.current.find((project) => project.id === id)?.name,
-    openThread: (id, project) => {
+    openThread: (id, project, target) => {
       cancelResultNavigation();
       void selectThread(id, project);
+      if (target) setNotificationTarget({ threadId: id, target });
     },
   });
   const notifyCompletion = notifications.notify;
+  const notifyAttention = notifications.notifyAttention;
 
   useEffect(() => {
     void refreshProjects();
@@ -861,6 +869,9 @@ export function useWorkspace() {
       summary: updateSummary,
       completion: (completion) => {
         void notifyCompletion(completion);
+      },
+      attention: (request) => {
+        void notifyAttention(request);
       },
       refresh: () => {
         void refreshProjects().then(refreshProjectsThreads);
@@ -898,6 +909,7 @@ export function useWorkspace() {
     refreshProjects,
     applyProjects,
     notifyCompletion,
+    notifyAttention,
     refreshThread,
     refreshOperations,
   ]);
@@ -1093,6 +1105,7 @@ export function useWorkspace() {
   );
 
   const cancelResultNavigation = () => {
+    setNotificationTarget(undefined);
     navigationRevision.current++;
     if (operationsRef.current.some((entry) => entry.navigateToResult))
       track((previous) =>
@@ -1107,6 +1120,8 @@ export function useWorkspace() {
     [thread, projectThreads, operations],
   );
   return {
+    notificationTarget,
+    clearNotificationTarget,
     projects,
     projectsLoaded,
     reorderProjects: async (projectIds: string[]) => {

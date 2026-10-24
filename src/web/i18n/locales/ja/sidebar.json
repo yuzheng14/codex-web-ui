@@ -26,7 +26,6 @@
   "projects_and_sessions": "プロジェクトとセッション",
   "archived_sessions": "アーカイブ済み",
   "all_sessions_loaded": "すべてのセッションを読み込み済み",
-  "completion_notifications": "完了通知",
   "runs_on_server": "サーバーで実行",
   "code_and_credentials_stay_on_the_computer_running": "コードと認証情報はサービスを実行するパソコンに保持されます",
   "close_session_navigation": "セッションナビゲーションを閉じる",
@@ -56,7 +55,6 @@
   "no_matching_projects_or_loaded_sessions": "一致するプロジェクトや読み込み済みセッションはありません。",
   "no_projects_yet_add_a_server_directory_to": "プロジェクトはまだありません。サーバーのディレクトリを追加して始めましょう。",
   "loading_projects": "プロジェクトを読み込み中…",
-  "task_completion_notifications": "作業完了の通知 · {{v0}}",
   "copy_full_thread_id": "Thread ID 全体をコピー",
   "copy_thread_id": "Thread ID をコピー",
   "copy_failed_select_and_copy_the_id_manually": "コピーできませんでした。ID を選択して手動でコピーしてください。",
@@ -166,5 +164,7 @@
   "order_saved": "順序を保存しました",
   "order_auto_save": "変更は自動保存され、再読み込みや再起動後も保持されます。",
   "order_save_failed": "{{v0}} もう一度お試しください。",
-  "settings": "設定"
+  "settings": "設定",
+  "browser_notifications": "ブラウザー通知",
+  "browser_notifications_status": "ブラウザー通知 · {{v0}}"
 }

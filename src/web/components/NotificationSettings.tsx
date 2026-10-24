@@ -46,7 +46,7 @@ export function NotificationSettings({
       <div className="project-dialog-heading">
         <div>
           <Bell size={20} aria-hidden="true" />
-          <h2 id="notification-dialog-title">{t('notifications:task_completion_notifications')}</h2>
+          <h2 id="notification-dialog-title">{t('notifications:browser_notifications')}</h2>
         </div>
         <Button
           variant="ghost"
@@ -57,7 +57,7 @@ export function NotificationSettings({
           <Icon name="close" size={17} />
         </Button>
       </div>
-      <p>{t('notifications:show_project_session_and_result_after_each_turn')}</p>
+      <p>{t('notifications:events_description')}</p>
       <div className="notification-control">
         <div>
           <strong>{t('notifications:browser_notifications')}</strong>

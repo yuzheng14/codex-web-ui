@@ -45,7 +45,13 @@ export function AsyncQuestionCard({
   );
   const locked = disabled || sending || Boolean(resolved);
   return (
-    <section className="async-question-card" aria-label={t('workspace:questions_from_codex')}>
+    <section
+      className="async-question-card"
+      aria-label={t('workspace:questions_from_codex')}
+      data-attention-kind="question"
+      data-attention-id={itemId}
+      tabIndex={-1}
+    >
       <div className="async-question-heading">
         <span>
           <Icon name="chat" size={16} />
