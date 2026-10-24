@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { expect, type APIRequestContext, type Page, type Route } from '@playwright/test';
+import {
+  expect,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+  type Route,
+} from '@playwright/test';
 import type { SystemInfo } from '../../src/shared/types';
 export const testOrigin = `http://127.0.0.1:${process.env.E2E_PORT ?? 8788}`;
 export const compatibilityDialog = (page: Page) =>
@@ -19,9 +25,24 @@ export async function openSidebarSettings(page: Page) {
   await expect(dialog).toBeVisible();
   return dialog;
 }
+export async function chooseSelectOption(page: Page, trigger: Locator, label: string) {
+  await trigger.click();
+  await page.getByRole('option', { name: label, exact: true }).click();
+  await expect(trigger).toContainText(label);
+}
 export async function selectInterfaceLocale(page: Page, locale: string) {
   const dialog = await openSidebarSettings(page);
-  await dialog.locator('.language-selector select').selectOption(locale);
+  const labels: Record<string, string> = {
+    'zh-Hans': '简体中文',
+    en: 'English',
+    ja: '日本語',
+    ko: '한국어',
+  };
+  await chooseSelectOption(
+    page,
+    dialog.locator('.language-selector [role="combobox"]'),
+    labels[locale]!,
+  );
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
 }

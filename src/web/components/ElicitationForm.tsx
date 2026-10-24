@@ -11,6 +11,7 @@ import type {
 import { validateElicitationFieldValue } from '../../shared/elicitation';
 import { actionStatusLabel } from '../lib/action-status';
 import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 type DraftValue = string | boolean | string[];
 type Draft = Record<string, DraftValue | undefined>;
@@ -204,9 +205,7 @@ export function ElicitationForm({
                     </p>
                   )}
                   {field.type === 'boolean' || field.type === 'enum' ? (
-                    <select
-                      id={id}
-                      className="text-input"
+                    <Select
                       value={
                         value === undefined
                           ? ''
@@ -217,34 +216,42 @@ export function ElicitationForm({
                             : `option:${String(value)}`
                       }
                       disabled={disabled}
-                      aria-required={field.required}
-                      aria-invalid={Boolean(error)}
-                      aria-describedby={describedBy}
-                      onChange={(event) =>
+                      required={field.required}
+                      onValueChange={(selected) =>
                         change(
                           field.name,
-                          event.target.value === ''
+                          selected === '' || selected === 'unset'
                             ? undefined
                             : field.type === 'boolean'
-                              ? event.target.value === 'true'
-                              : event.target.value.slice(7),
+                              ? selected === 'true'
+                              : selected.slice(7),
                         )
                       }
                     >
-                      <option value="">{t('approvals:select_an_option')}</option>
-                      {field.type === 'boolean' ? (
-                        <>
-                          <option value="true">{t('approvals:yes')}</option>
-                          <option value="false">{t('approvals:no')}</option>
-                        </>
-                      ) : (
-                        field.options?.map((option) => (
-                          <option key={option.value} value={`option:${option.value}`}>
-                            {option.label}
-                          </option>
-                        ))
-                      )}
-                    </select>
+                      <SelectTrigger
+                        id={id}
+                        aria-required={field.required}
+                        aria-invalid={Boolean(error)}
+                        aria-describedby={describedBy}
+                      >
+                        <SelectValue placeholder={t('approvals:select_an_option')} />
+                      </SelectTrigger>
+                      <SelectContent align="start">
+                        <SelectItem value="unset">{t('approvals:select_an_option')}</SelectItem>
+                        {field.type === 'boolean' ? (
+                          <>
+                            <SelectItem value="true">{t('approvals:yes')}</SelectItem>
+                            <SelectItem value="false">{t('approvals:no')}</SelectItem>
+                          </>
+                        ) : (
+                          field.options?.map((option) => (
+                            <SelectItem key={option.value} value={`option:${option.value}`}>
+                              {option.label}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
                   ) : field.type === 'multiEnum' ? (
                     <div
                       role="group"

@@ -5,6 +5,7 @@ import {
   controlRuntime,
   createEmptyThread,
   expectThreadReady,
+  openSidebarSettings,
 } from './helpers';
 
 const effortControl = (page: Page) => page.getByRole('combobox', { name: '推理强度', exact: true });
@@ -357,3 +358,49 @@ test('Escape closes Slash commands and hovered tooltips together without executi
     .screenshot({ path: '/tmp/codex-shadcn-rebased-send-tooltip.png' });
   expect(posts).toHaveLength(0);
 });
+
+for (const viewport of [
+  { name: 'desktop', width: 1280, height: 900 },
+  { name: 'mobile', width: 320, height: 700 },
+]) {
+  test(`${viewport.name}: language select stays interactive inside a native modal`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await confirmCompatibility(page);
+    const dialog = await openSidebarSettings(page);
+    const trigger = dialog.locator('.language-selector [role="combobox"]');
+    await expect(trigger).toHaveAccessibleName('语言');
+    await trigger.focus();
+    await trigger.press('ArrowDown');
+    const menu = page.getByRole('listbox');
+    await expect(menu).toBeVisible();
+    expect(await menu.evaluate((node) => node.closest('dialog')?.open)).toBe(true);
+    const box = (await menu.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    await page.screenshot({ path: info.outputPath(`language-${viewport.name}-menu.png`) });
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAttribute('data-value', 'zh-Hans');
+    await trigger.press('ArrowDown');
+    await expect(page.getByRole('option', { name: '简体中文', exact: true })).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(page.getByRole('option', { name: '한국어', exact: true })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
+    await expect(dialog).toBeVisible();
+    await expect(trigger).toHaveAttribute('data-value', 'ko');
+    await trigger.click();
+    await page.getByRole('option', { name: 'English', exact: true }).click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+    await expect(page.locator('.sidebar-settings-trigger')).toBeFocused();
+  });
+}
