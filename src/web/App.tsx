@@ -7,6 +7,7 @@ import { ArrowLeft, Pencil } from 'lucide-react';
 import type { ThreadSummary } from '../shared/types';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useThreadReadState } from './hooks/useThreadReadState';
+import { useNewSessionShortcut } from './hooks/useNewSessionShortcut';
 import { Sidebar } from './components/Sidebar';
 import { FilePreviewProvider } from './components/FilePreviewProvider';
 import { Conversation } from './components/Conversation';
@@ -75,6 +76,7 @@ export function App() {
   const [updatesOpen, setUpdatesOpen] = useState(false);
   const { isUnreadCompletion, markCompletedRead } = useThreadReadState();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [composerFocusRequest, setComposerFocusRequest] = useState(0);
   const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
   const [gatewaySettingsOpen, setGatewaySettingsOpen] = useState(false);
   useEffect(() => {
@@ -175,6 +177,25 @@ export function App() {
     workspace.busy.includes(`${kind}:${target}`);
   const unsettledFor = (target: string) =>
     workspace.operations.some((entry) => blocksTarget(entry, target));
+  const creating = (projectId: string) =>
+    workspace.firstMessages.includes(projectId) ||
+    busyFor('create', projectId) ||
+    unsettledFor(projectId);
+  const canCreate = (projectId: string) =>
+    canControl &&
+    !workspace.savingModelDefaults &&
+    !compatibilityConfirmationRequired(system) &&
+    (projectId === UNASSIGNED_SCOPE ||
+      Boolean(workspace.projects.find((entry) => entry.id === projectId)?.available));
+  const openNewSession = (projectId: string) => {
+    if (!canCreate(projectId) || creating(projectId)) return;
+    workspace.setProjectId(projectId);
+    setSidebarOpen(false);
+    setComposerFocusRequest((request) => request + 1);
+  };
+  useNewSessionShortcut(canCreate(workspace.projectId) && !creating(workspace.projectId), () =>
+    openNewSession(workspace.projectId),
+  );
   const activeTurn = thread?.turns.findLast((turn) => isActive(turn.status));
   const actions =
     thread?.actions.filter(
@@ -448,22 +469,9 @@ export function App() {
         }}
         canManageProjects={!workspace.authRequired}
         onReorderProjects={workspace.reorderProjects}
-        onCreate={(projectId) => {
-          workspace.setProjectId(projectId);
-          setSidebarOpen(false);
-        }}
-        creating={(projectId) =>
-          workspace.firstMessages.includes(projectId) ||
-          busyFor('create', projectId) ||
-          unsettledFor(projectId)
-        }
-        canCreate={(projectId) =>
-          canControl &&
-          !workspace.savingModelDefaults &&
-          !compatibilityConfirmationRequired(system) &&
-          (projectId === UNASSIGNED_SCOPE ||
-            Boolean(workspace.projects.find((entry) => entry.id === projectId)?.available))
-        }
+        onCreate={openNewSession}
+        creating={creating}
+        canCreate={canCreate}
         offline={offline}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -829,6 +837,7 @@ export function App() {
             </div>
           )}
           <Composer
+            focusRequest={composerFocusRequest}
             commands={slashCommands}
             thread={thread}
             threadLoading={workspace.restoringSelection || Boolean(workspace.selectedId && !thread)}

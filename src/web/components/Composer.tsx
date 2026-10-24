@@ -29,6 +29,7 @@ import { ComposerResizeHandle } from './ComposerResizeHandle';
 import { usesMobileInput } from '../lib/mobile-input';
 
 interface Props {
+  focusRequest?: number;
   commands: SlashCommand[];
   thread?: ThreadView;
   threadLoading?: boolean;
@@ -83,6 +84,9 @@ export function Composer(props: Props) {
   const sendingRef = useRef(new Set<string>());
   const submittedDrafts = useRef(new Map<string, MessageDraft>());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (props.focusRequest) textareaRef.current?.focus();
+  }, [props.focusRequest]);
   const inputId = useId();
   const menuId = useId();
   const [focused, setFocused] = useState(false);
