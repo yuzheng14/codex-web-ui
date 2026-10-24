@@ -1374,6 +1374,26 @@ describe('verified protocol adapter with a real subprocess', () => {
     } as unknown as ThreadItem;
     expect(mapItem(item)).toEqual({ id: 'new-tool', type: 'futureTool', details: item });
   });
+  it.each([{ fileId: 'attachment-image' }, { result: 'legacy-inline-image' }])(
+    'preserves generated image references and legacy inline results without assuming result exists: %j',
+    (image) => {
+      const item: ThreadItem = {
+        id: 'generated-image',
+        type: 'imageGeneration',
+        status: 'completed',
+        revisedPrompt: null,
+        failure: null,
+        inputImages: [{ path: '/tmp/input.png', sha256: 'a'.repeat(64) }],
+        ...image,
+      };
+      expect(mapItem(item)).toEqual({
+        id: item.id,
+        type: 'imageGeneration',
+        status: 'completed',
+        details: item,
+      });
+    },
+  );
 });
 
 it('maps Fast defaults, confirmed tiers and explicit clearing across native lifecycle RPCs', async () => {

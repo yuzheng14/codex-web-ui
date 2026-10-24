@@ -2,24 +2,34 @@
 import assert from 'node:assert/strict';
 import { spawn, execFile } from 'node:child_process';
 import { once } from 'node:events';
+import { existsSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { CodexAdapter } from '../src/codex/adapter.js';
+import { CodexAdapter, type AdapterEvent } from '../src/codex/adapter.js';
 import { RpcTransport, type RpcNotification } from '../src/codex/transport.js';
 import type { ThreadStartResponse } from '../src/codex/generated/v2/ThreadStartResponse.js';
 import type { TurnStartResponse } from '../src/codex/generated/v2/TurnStartResponse.js';
+import type { ThreadReadResponse } from '../src/codex/generated/v2/ThreadReadResponse.js';
+import { renderThreadExport } from '../src/server/thread-export.js';
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--');
+const expectedIndex = args.indexOf('--expected-version');
+const expectedVersion = expectedIndex >= 0 ? args[expectedIndex + 1] : undefined;
+assert.match(
+  expectedVersion ?? '',
+  /^\d+\.\d+\.\d+$/,
+  'Pass --expected-version with an exact CLI version',
+);
 const configIndex = args.indexOf('--config');
 if (configIndex < 0) throw new Error('Pass --config with an explicitly selected Codex binary');
 const { codex } = JSON.parse(await readFile(resolve(args[configIndex + 1]!), 'utf8')) as {
   codex: { binary: string };
 };
 const { stdout } = await promisify(execFile)(codex.binary, ['--version']);
-assert.equal(stdout.trim(), 'codex-cli 0.163.0');
+assert.equal(stdout.trim(), `codex-cli ${expectedVersion}`);
 const root = await mkdtemp(join(tmpdir(), 'codex-upgrade-'));
 const checks: string[] = [];
 const report: Record<string, unknown> = {
@@ -30,10 +40,16 @@ const report: Record<string, unknown> = {
 };
 // Mirror the official app-server test server's minimal Responses SSE stream.
 let titleRequests = 0;
+let rejectModelRequests = false;
 const server = createServer(async (request, response) => {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(Buffer.from(chunk));
   const body = Buffer.concat(chunks).toString();
+  if (rejectModelRequests) {
+    response.writeHead(500, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ error: { message: 'Isolated compaction failure' } }));
+    return;
+  }
   const isTitle = body.includes('Generate a concise');
   if (isTitle) {
     titleRequests++;
@@ -76,10 +92,15 @@ assert(address && typeof address !== 'string');
 const base = `http://127.0.0.1:${address.port}/v1`;
 const adapters: CodexAdapter[] = [];
 const children: ReturnType<typeof spawn>[] = [];
-async function config(home: string, sandbox: string, profileBase = ':workspace') {
+async function config(
+  home: string,
+  sandbox: string,
+  profileBase = ':workspace',
+  model = 'gpt-6.1-sol',
+) {
   await writeFile(
     join(home, 'config.toml'),
-    `model = "gpt-6.1-sol"\nmodel_provider = "upgrade_stub"\napproval_policy = "never"\ndefault_permissions = ":${sandbox == 'workspace-write' ? 'workspace' : sandbox}"\n[model_providers.upgrade_stub]\nname = "Local upgrade test"\nbase_url = "${base}"\nwire_api = "responses"\nrequires_openai_auth = false\nrequest_max_retries = 0\nstream_max_retries = 0\n[features]\nbackground_paginated_rollout_migration = false\n[permissions.upgrade]\nextends = "${profileBase}"\n`,
+    `model = "${model}"\nmodel_reasoning_effort = "low"\nservice_tier = "default"\nmodel_provider = "upgrade_stub"\napproval_policy = "never"\ndefault_permissions = ":${sandbox == 'workspace-write' ? 'workspace' : sandbox}"\n[model_providers.upgrade_stub]\nname = "Local upgrade test"\nbase_url = "${base}"\nwire_api = "responses"\nrequires_openai_auth = false\nrequest_max_retries = 0\nstream_max_retries = 0\n[features]\nbackground_paginated_rollout_migration = false\n[permissions.upgrade]\nextends = "${profileBase}"\n`,
   );
 }
 async function waitUntil(predicate: () => boolean) {
@@ -147,6 +168,14 @@ try {
     );
     const completion = notifications.findLast((event) => event.method === 'turn/completed')!;
     assert.equal((completion.params as { turn: { status: string } }).turn.status, 'completed');
+    // Change settings after the last turn: cold resume must use the saved snapshot,
+    // not the earlier turn context or the new global defaults.
+    await rpc.request('thread/settings/update', {
+      threadId: saved.thread.id,
+      model: 'gpt-6-astra',
+      effort: 'high',
+      serviceTier: 'priority',
+    });
     const profiled = await rpc.request<ThreadStartResponse>('thread/start', {
       cwd: project,
       historyMode,
@@ -166,8 +195,46 @@ try {
       ),
     );
     assert.equal(unexpectedRequest, undefined);
+    const persisted = await rpc.request<ThreadReadResponse>('thread/read', {
+      threadId: saved.thread.id,
+      includeTurns: true,
+    });
+    const rollout = persisted.thread.path;
+    assert(rollout, 'The isolated CLI-created thread must have a persisted rollout');
     await stopChild(child);
-    await config(home, 'danger-full-access', ':read-only');
+    // Only age this test's own file metadata; Codex performs the compression.
+    // No rollout contents or database rows are constructed or edited by the test.
+    const cold = new Date(Date.now() - 8 * 24 * 60 * 60_000);
+    await utimes(rollout, cold, cold);
+    const compressor = spawn(
+      codex.binary,
+      ['app-server', '--listen', 'stdio://', '-c', 'features.local_thread_store_compression=false'],
+      {
+        cwd: root,
+        env: { ...process.env, CODEX_HOME: home, OPENAI_API_KEY: '', CODEX_API_KEY: '' },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
+    children.push(compressor);
+    compressor.stderr.resume();
+    const compressionRpc = new RpcTransport(compressor.stdin, compressor.stdout);
+    await compressionRpc.request('initialize', {
+      clientInfo: { name: 'codex_web_ui_upgrade_compression', version: '0.1.0' },
+      capabilities: { experimentalApi: true },
+    });
+    await compressionRpc.notify('initialized');
+    await compressionRpc.request('rollout/compress', undefined);
+    await waitUntil(() => existsSync(`${rollout}.zst`) && !existsSync(rollout));
+    const compressed = await compressionRpc.request<ThreadReadResponse>('thread/read', {
+      threadId: saved.thread.id,
+      includeTurns: true,
+    });
+    assert.deepEqual(compressed.thread.turns, persisted.thread.turns);
+    checks.push(
+      `${historyMode}: native rollout/compress and compressed thread/read preserve saved turns`,
+    );
+    await stopChild(compressor);
+    await config(home, 'danger-full-access', ':read-only', 'gpt-5.6-luna');
     const adapter = new CodexAdapter({ binary: codex.binary, home });
     adapters.push(adapter);
     await adapter.start();
@@ -180,9 +247,13 @@ try {
     assert.equal(resumed.runtimeSettings?.sandbox, 'read-only');
     assert.equal(resumed.runtimeSettings?.approvalPolicy, 'on-request');
     assert.equal(resumed.runtimeSettings?.networkAccess, true);
+    assert.equal(resumed.runtimeSettings?.model, 'gpt-6-astra');
+    assert.equal(resumed.runtimeSettings?.reasoningEffort, 'high');
+    assert.equal(resumed.runtimeSettings?.serviceTier, 'fast');
     assert.equal(resumed.turns[0]?.status, 'completed');
+    assert(renderThreadExport(resumed).markdown.includes('materialize isolated upgrade check'));
     checks.push(
-      `${historyMode}: cold resume restores saved permissions and network access over changed defaults`,
+      `${historyMode}: cold resume restores post-turn model, effort, tier, permissions and network access over changed defaults`,
     );
     const contender = new CodexAdapter({ binary: codex.binary, home });
     adapters.push(contender);
@@ -194,10 +265,18 @@ try {
     const overridden = await contender.resumeThread(saved.thread.id, project, {
       sandbox: 'read-only',
       approvalPolicy: 'never',
+      model: 'gpt-6.1-sol',
+      reasoningEffort: 'medium',
+      serviceTier: null,
     });
     assert.equal(overridden.runtimeSettings?.sandbox, 'read-only');
     assert.equal(overridden.runtimeSettings?.approvalPolicy, 'never');
-    checks.push(`${historyMode}: exact writer conflict, release, and explicit permission override`);
+    assert.equal(overridden.runtimeSettings?.model, 'gpt-6.1-sol');
+    assert.equal(overridden.runtimeSettings?.reasoningEffort, 'medium');
+    assert.equal(overridden.runtimeSettings?.serviceTier, null);
+    checks.push(
+      `${historyMode}: exact writer conflict, release, and explicit model/tier/permission overrides`,
+    );
     const forked = await contender.forkThread(saved.thread.id, project);
     assert.notEqual(forked.id, saved.thread.id);
     assert.equal(forked.forkedFromId, saved.thread.id);
@@ -236,6 +315,45 @@ try {
     await waitUntil(() => profileTitle === '验证升级恢复');
     checks.push(
       `${historyMode}: named profile re-resolves tightened config and automatic title preserves its identity`,
+    );
+    const beforeCompaction = await contender.readThread(profiled.thread.id);
+    const compactionEvents: AdapterEvent[] = [];
+    const unsubscribe = contender.onEvent((event) => compactionEvents.push(event));
+    rejectModelRequests = true;
+    await contender.compactThread(profiled.thread.id);
+    await waitUntil(() =>
+      compactionEvents.some(
+        (event) =>
+          event.type === 'turn' &&
+          event.threadId === profiled.thread.id &&
+          event.turn.status === 'failed',
+      ),
+    );
+    rejectModelRequests = false;
+    const afterCompaction = await contender.readThread(profiled.thread.id);
+    const messages = (thread: typeof afterCompaction) =>
+      thread.turns.flatMap((turn) =>
+        turn.items
+          .filter((item) => item.type === 'userMessage' || item.type === 'agentMessage')
+          .map((item) => item.text),
+      );
+    assert.deepEqual(messages(afterCompaction), messages(beforeCompaction));
+    const continued = await contender.startTurn(
+      profiled.thread.id,
+      project,
+      'continue after failed compaction',
+    );
+    await waitUntil(() =>
+      compactionEvents.some(
+        (event) =>
+          event.type === 'turn' &&
+          event.turn.id === continued.id &&
+          event.turn.status === 'completed',
+      ),
+    );
+    unsubscribe();
+    checks.push(
+      `${historyMode}: failed compaction preserves messages without partial summaries and allows continuation`,
     );
     await contender.stop();
   }

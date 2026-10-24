@@ -126,7 +126,7 @@ for (const channel of ['beta', 'dev'] as const) {
       await expect(dialog).toContainText(channel === 'dev' ? '不接收预览版' : '保留预览版订阅');
       await screenshot(page, `issue-207-${channel}-${viewport.name}.png`);
       // Stable candidates retain the same Codex gates as channel-specific candidates.
-      fixture.setCandidate({ recommended: '0.164.0', verified: ['0.164.0'], unsupported: [] });
+      fixture.setCandidate({ recommended: '99.0.0', verified: ['99.0.0'], unsupported: [] });
       await dialog.getByRole('button', { name: '检查更新', exact: true }).click();
       await expect(dialog).toContainText('自动升级已暂停');
       const upgrade = dialog.getByRole('button', { name: '升级并重启', exact: true });
@@ -252,7 +252,7 @@ for (const viewport of [
     await page.getByRole('button', { name: 'Covro 更新', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Covro 更新', exact: true });
     const currentCodex = dialog.getByRole('region', { name: '当前 Codex', exact: true });
-    await expect(currentCodex).toContainText('0.163.0');
+    await expect(currentCodex).toContainText(CODEX_COMPATIBILITY.recommended);
     await expect(currentCodex).toContainText('已验证');
     fixture.setCandidate(undefined);
     await dialog.getByRole('button', { name: '检查更新', exact: true }).click();
@@ -262,9 +262,11 @@ for (const viewport of [
     await expect(upgrade).toBeDisabled();
     await screenshot(page, `codex-${viewport.name}-missing-metadata.png`);
     const unsupported = {
-      recommended: '0.164.0',
-      verified: ['0.164.0'],
-      unsupported: [{ version: '0.163.0', reason: '示例：该组合明确不受支持' }],
+      recommended: '99.0.0',
+      verified: ['99.0.0'],
+      unsupported: [
+        { version: CODEX_COMPATIBILITY.recommended, reason: '示例：该组合明确不受支持' },
+      ],
     };
     fixture.setCandidate(unsupported);
     await dialog.getByRole('button', { name: '检查更新', exact: true }).click();

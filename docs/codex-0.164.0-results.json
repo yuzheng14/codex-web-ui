@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-24",
+  "codexVersion": "0.164.0",
+  "officialPackageSha256": "dd99e9092270691a67bdde7be04ac283dea9da8e86cbde356c2cc851a79205fa",
+  "localModelStub": {
+    "inference": false,
+    "model": "local HTTP stub",
+    "checks": [
+      "legacy: native rollout/compress and compressed thread/read preserve saved turns",
+      "legacy: cold resume restores post-turn model, effort, tier, permissions and network access over changed defaults",
+      "legacy: exact writer conflict, release, and explicit model/tier/permission overrides",
+      "legacy: fork preserves saved messages and parent identity",
+      "legacy: continuation and automatic title use a tool-free ephemeral thread",
+      "legacy: named profile re-resolves tightened config and automatic title preserves its identity",
+      "legacy: failed compaction preserves messages without partial summaries and allows continuation",
+      "paginated: native rollout/compress and compressed thread/read preserve saved turns",
+      "paginated: cold resume restores post-turn model, effort, tier, permissions and network access over changed defaults",
+      "paginated: exact writer conflict, release, and explicit model/tier/permission overrides",
+      "paginated: fork preserves saved messages and parent identity",
+      "paginated: continuation and automatic title use a tool-free ephemeral thread",
+      "paginated: named profile re-resolves tightened config and automatic title preserves its identity",
+      "paginated: failed compaction preserves messages without partial summaries and allows continuation",
+      "config/read uses explicit cwd across projects and nested trusted configuration, independent of app-server launch cwd"
+    ]
+  },
+  "actualInference": {
+    "inference": true,
+    "checks": [
+      "actual binary version",
+      "initialize -> initialized handshake",
+      "account/read (no credentials printed)",
+      "model/list",
+      "thread/start",
+      "turn/start and completed history",
+      "verified real temporary file content",
+      "unchanged child PID while event subscription absent",
+      "history restored after resubscribe",
+      "continued conversation turn",
+      "thread/list includes created appServer history"
+    ],
+    "compatibility": "verified",
+    "authenticated": true,
+    "modelCount": 7,
+    "fileChangeObserved": true,
+    "commandOutputObserved": false
+  },
+  "actualInteractions": {
+    "inference": true,
+    "checks": [
+      "actual steer accepted with expectedTurnId while a nested shell tool is active",
+      "Code Mode/nested shell interruption confirmed by turn/completed",
+      "steer of ended turn rejected without replay",
+      "next turn completes immediately after confirmed interruption",
+      "actual user-routed command approval declined; stale response rejected"
+    ]
+  },
+  "actualCompaction": {
+    "inference": true,
+    "checks": [
+      "actual manual compaction emits item lifecycle and terminal completion",
+      "actual continued turn after compaction completes and is readable in history"
+    ]
+  },
+  "actualBrowser": {
+    "checks": [
+      "real production UI sends a task through the real 0.164.0 gateway and displays its completed reply",
+      "browser reload restores the saved real reply",
+      "desktop and 390px mobile show the verified target version in actual diagnostics"
+    ]
+  },
+  "notVerified": [
+    "System-managed requirements and managed-model restrictions in a real managed deployment",
+    "Per-domain network grants/proxy cold restoration",
+    "Cloudflare or Tailscale deployed-origin access in this upgrade",
+    "Enterprise MCP auth and sampling/prediction APIs not used by Covro",
+    "Real automatic background compaction; manual compaction was exercised"
+  ]
+}
