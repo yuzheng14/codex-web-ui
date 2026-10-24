@@ -14,6 +14,7 @@ import { ThreadLink } from './ThreadLink';
 import { ThreadListNavigation } from './ThreadListNavigation';
 import { ProjectOrderList } from './ProjectOrderList';
 import { SidebarSettings } from './SidebarSettings';
+import { newSessionShortcut } from '../hooks/useNewSessionShortcut';
 
 interface Props {
   archiveView: boolean;
@@ -55,6 +56,7 @@ interface Props {
 }
 
 export function Sidebar(props: Props) {
+  const shortcut = newSessionShortcut(navigator.platform);
   const [search, setSearch] = useState('');
   const [ordering, setOrdering] = useState(false);
   const query = search.trim().toLocaleLowerCase();
@@ -228,6 +230,7 @@ export function Sidebar(props: Props) {
               : project.project
                 ? t('sidebar:new_session')
                 : t('sidebar:new_unassigned_session');
+            const shortcutTarget = props.projectId === project.id && !props.creating(project.id);
             return (
               <section
                 key={project.id}
@@ -258,11 +261,14 @@ export function Sidebar(props: Props) {
                       )}
                     </button>
                   </ControlHint>
-                  <ControlHint content={createLabel}>
+                  <ControlHint
+                    content={shortcutTarget ? `${createLabel} · ${shortcut.label}` : createLabel}
+                  >
                     <Button
                       variant="ghost"
                       size="icon"
                       aria-label={createLabel}
+                      aria-keyshortcuts={shortcutTarget ? shortcut.aria : undefined}
                       onClick={() => props.onCreate(project.id)}
                       disabled={!props.canCreate(project.id) || props.creating(project.id)}
                     >
